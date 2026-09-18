@@ -96,7 +96,7 @@ func (h *HTTP) RegisterRoutes(mux *http.ServeMux) {
 	if h.Service != nil {
 		h.assist.Store(h.Service.cfg.ScopeAssistEnabled)
 	}
-	mux.HandleFunc("GET /api/repositories", h.handleRepositoryList)
+	mux.HandleFunc("GET /api/scan/repositories", h.handleRepositoryList)
 	mux.HandleFunc("GET /api/repositories/url-type", h.handleURLType)
 	mux.HandleFunc("GET /api/repositories/dependents", h.handleRepositoryDependents)
 	mux.HandleFunc("POST /api/repositories", h.guarded(h.handleRepositoryCreate))

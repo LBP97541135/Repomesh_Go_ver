@@ -124,7 +124,7 @@ func registerAuth(mux *http.ServeMux, auth Auth) {
 	// GET /api/repositories 由 scan 块注册（仓库扫描目录，D 板块 as-built）。
 	// B02 的"可参与仓库候选"候选路线挪至 /api/repositories/candidates——
 	// 两处同路径注册会在启动时 panic（验收发现）。
-	route("GET /api/repositories/candidates", func(w http.ResponseWriter, r *http.Request) error {
+	route("GET /api/repositories", func(w http.ResponseWriter, r *http.Request) error {
 		query, err := parseRepositoryQuery(r)
 		if err != nil {
 			return err
