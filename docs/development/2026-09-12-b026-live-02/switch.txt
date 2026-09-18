@@ -1,0 +1,19 @@
+release_hash=5af0545707a9feb020436b56dfab407255a6b8d51046eeb4ed7f51bc41c76152
+runtime_backup=/home/xubohan/.local/state/repomesh-b026/runtime.env.pre-r2-20260912T070803-0700-192912.bak
+old_web_pid=177022
+old_coordinator_pid=177023
+new_web_pid=192940
+new_coordinator_pid=192941
+web_log=/home/xubohan/.local/state/repomesh-b026/web-r2-20260912T070803-0700.log
+coordinator_log=/home/xubohan/.local/state/repomesh-b026/coordinator-r2-20260912T070803-0700.log
+listener=127.0.0.1:8443
+initial_prepare_attempt=stopped_before_write_or_signal_due_to_unsupported_export_form
+runtime_update=single_exact_export_REPOMESH_RELEASE_assignment
+web_version=repomesh-web 0.2.0-b026-utc-20260912-r2
+coordinator_version=repomesh-coordinator 0.2.0-b026-utc-20260912-r2
+database_check=schema status=current current=3 target=3 pending=0
+tls_trust_status=verified ssl_verify_result=0
+probe_healthz=http_200 status=scaffold
+probe_readyz=http_503 status=not_implemented
+probe_api_session_unauthenticated=http_401 error=AUTHENTICATION_REQUIRED
+probe_login_page=http_200

@@ -1,0 +1,21 @@
+{
+  "source_commit": "3ad89bd7eb421a169b762f42b72791ed7f458a19",
+  "originals": [
+    {
+      "path": "docs/current/HANDOFF.md",
+      "sha256": "b329c67a766b92074e29a8e885d9bcf9ae96caa91dc5f04f3be1645d690d69ea"
+    },
+    {
+      "path": "docs/current/IMPLEMENTATION-PLAN.md",
+      "sha256": "ea290ac7bbf6a96320d9269064e07b0e4ab09bf05518870a5fdba934a652f2ca"
+    },
+    {
+      "path": "docs/current/NEXT-TASK-B03-PROMPT.md",
+      "sha256": "6bcdb04ae991f0848234873de135d9c7a60d057cbab0bc666d85da14c55fefa5"
+    },
+    {
+      "path": "docs/current/NEXT-TASK-B04-PROMPT.md",
+      "sha256": "4fb05cd62a8e3ae67bc93fa32f9c44d71ec48779cd92574670693628bee2411e"
+    }
+  ]
+}

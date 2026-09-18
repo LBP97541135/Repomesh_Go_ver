@@ -1,0 +1,17 @@
+{
+  "result": "STOPPED",
+  "target": "linux/amd64",
+  "artifactsVerified": 10,
+  "versions": {
+    "repomesh-web": "repomesh-web 0.1.0-b01-wsl-20260912",
+    "repomesh-coordinator": "repomesh-coordinator 0.1.0-b01-wsl-20260912",
+    "repomesh-host-executor": "repomesh-host-executor 0.1.0-b01-wsl-20260912"
+  },
+  "webPort": 44789,
+  "vitePort": 49577,
+  "pids": [
+    342,
+    343
+  ],
+  "cleanupPassed": true
+}

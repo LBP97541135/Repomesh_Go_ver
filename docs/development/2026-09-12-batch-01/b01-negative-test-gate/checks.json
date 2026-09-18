@@ -1,0 +1,118 @@
+{
+  "batch": "B01",
+  "result": "NOT_VERIFIED",
+  "recordedAt": "2026-09-12T09:45:02.5212392Z",
+  "failure": "PostgreSQL cleanup failed. Inspect retained directory C:\\Users\\18092\\AppData\\Local\\Temp\\repomesh-verify-3f8f58ee9f4642b48ff49570ea246d21. postgres-stop exited 1, expected 0. pg_ctl: PID file \"C:/Users/18092/AppData/Local/Temp/repomesh-verify-3f8f58ee9f4642b48ff49570ea246d21/data/postmaster.pid\" does not exist\r\nIs server running?\r\n",
+  "cleanupPassed": false,
+  "checks": [
+    {
+      "name": "go-version",
+      "command": [
+        "C:\\Program Files\\Go\\bin\\go.exe",
+        "version"
+      ],
+      "exitCode": 0,
+      "expectedExit": 0,
+      "seconds": 0.184,
+      "stdout": "go version go1.26.4 windows/amd64\n",
+      "stderr": ""
+    },
+    {
+      "name": "node-version",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "--version"
+      ],
+      "exitCode": 0,
+      "expectedExit": 0,
+      "seconds": 0.096,
+      "stdout": "v22.22.1\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "npm-version",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+        "--version"
+      ],
+      "exitCode": 0,
+      "expectedExit": 0,
+      "seconds": 0.209,
+      "stdout": "10.9.4\n",
+      "stderr": ""
+    },
+    {
+      "name": "postgres-version",
+      "command": [
+        "D:\\Project4work\\Repomesh_Go_ver\\bin\\dev-postgres17\\pgsql\\bin\\postgres.exe",
+        "--version"
+      ],
+      "exitCode": 0,
+      "expectedExit": 0,
+      "seconds": 0.086,
+      "stdout": "postgres (PostgreSQL) 17.11\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "initdb",
+      "command": [
+        "D:\\Project4work\\Repomesh_Go_ver\\bin\\dev-postgres17\\pgsql\\bin\\initdb.exe",
+        "-D",
+        "C:\\Users\\18092\\AppData\\Local\\Temp\\repomesh-verify-3f8f58ee9f4642b48ff49570ea246d21\\data",
+        "-U",
+        "repomesh_test",
+        "--pwfile=C:\\Users\\18092\\AppData\\Local\\Temp\\repomesh-verify-3f8f58ee9f4642b48ff49570ea246d21\\password.txt",
+        "--auth-host=scram-sha-256",
+        "--auth-local=scram-sha-256",
+        "--encoding=UTF8",
+        "--locale=C"
+      ],
+      "exitCode": 0,
+      "expectedExit": 0,
+      "seconds": 3.367,
+      "stdout": "The files belonging to this database system will be owned by user \"18092\".\r\nThis user must also own the server process.\r\n\r\nThe database cluster will be initialized with locale \"C\".\r\nThe default text search configuration will be set to \"english\".\r\n\r\nData page checksums are disabled.\r\n\r\ncreating directory C:/Users/18092/AppData/Local/Temp/repomesh-verify-3f8f58ee9f4642b48ff49570ea246d21/data ... ok\r\ncreating subdirectories ... ok\r\nselecting dynamic shared memory implementation ... windows\r\nselecting default \"max_connections\" ... 100\r\nselecting default \"shared_buffers\" ... 128MB\r\nselecting default time zone ... America/Los_Angeles\r\ncreating configuration files ... ok\r\nrunning bootstrap script ... ok\r\nperforming post-bootstrap initialization ... ok\r\nsyncing data to disk ... ok\r\n\r\nSuccess. You can now start the database server using:\r\n\r\n    ^\"D^:^\\Project4work^\\Repomesh^_Go^_ver^\\bin^\\dev^-postgres17^\\pgsql^\\bin^\\pg^_ctl^\" -D ^\"C^:^\\Users^\\18092^\\AppData^\\Local^\\Temp^\\repomesh^-verify^-3f8f58ee9f4642b48ff49570ea246d21^\\data^\" -l logfile start\r\n\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "postgres-start",
+      "command": [
+        "D:\\Project4work\\Repomesh_Go_ver\\bin\\dev-postgres17\\pgsql\\bin\\pg_ctl.exe",
+        "-D",
+        "C:\\Users\\18092\\AppData\\Local\\Temp\\repomesh-verify-3f8f58ee9f4642b48ff49570ea246d21\\data",
+        "-l",
+        "C:\\Users\\18092\\AppData\\Local\\Temp\\repomesh-verify-3f8f58ee9f4642b48ff49570ea246d21\\postgres.log",
+        "-o",
+        "-h 127.0.0.1 -p 52256 -c unix_socket_directories='' -c fsync=on",
+        "-w",
+        "-t",
+        "30",
+        "start"
+      ],
+      "exitCode": 1,
+      "expectedExit": 0,
+      "seconds": 0.561,
+      "stdout": "waiting for server to start.... stopped waiting\r\n",
+      "stderr": "pg_ctl: could not start server\r\nExamine the log output.\r\n"
+    },
+    {
+      "name": "postgres-stop",
+      "command": [
+        "D:\\Project4work\\Repomesh_Go_ver\\bin\\dev-postgres17\\pgsql\\bin\\pg_ctl.exe",
+        "-D",
+        "C:\\Users\\18092\\AppData\\Local\\Temp\\repomesh-verify-3f8f58ee9f4642b48ff49570ea246d21\\data",
+        "-m",
+        "fast",
+        "-w",
+        "-t",
+        "30",
+        "stop"
+      ],
+      "exitCode": 1,
+      "expectedExit": 0,
+      "seconds": 0.065,
+      "stdout": "",
+      "stderr": "pg_ctl: PID file \"C:/Users/18092/AppData/Local/Temp/repomesh-verify-3f8f58ee9f4642b48ff49570ea246d21/data/postmaster.pid\" does not exist\r\nIs server running?\r\n"
+    }
+  ]
+}

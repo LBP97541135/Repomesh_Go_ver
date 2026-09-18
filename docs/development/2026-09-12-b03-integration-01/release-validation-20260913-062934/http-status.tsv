@@ -1,0 +1,6 @@
+path	status
+/healthz	200
+/readyz	503
+/api/projects	503
+/projects	200
+/project-creations/00000000-0000-4000-8000-000000000001	200

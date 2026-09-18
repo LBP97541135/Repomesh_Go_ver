@@ -1,0 +1,45 @@
+{
+  "artifact": "docs/api-database/index.html",
+  "sha256": "15ad572dd1ce2668e7df2b4eea267d0b706df2d4a630dce2bb02f230a4da4cb3",
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "docs/api-database/render.py"
+      ],
+      "exit": 0,
+      "stdout": "已写入 index.html：Markdown 章节 13，设计专题 115，接口与数据卡 266，表格 265，本地来源链接（去重） 122（digest 17836a37eb0f）\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python3",
+        "docs/api-database/render.py",
+        "--check"
+      ],
+      "exit": 0,
+      "stdout": "OK: index.html 与 13 个内容源一致（digest 17836a37eb0f）\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python3",
+        "docs/api-database/verify_renderer.py"
+      ],
+      "exit": 0,
+      "stdout": "PASS render-and-check\nPASS check-is-read-only\nPASS render-is-deterministic\nPASS missing-source-is-fatal\nPASS stale-source\nPASS stale-template\nPASS stale-generator-code\nPASS stale-html-tamper\nPASS extra-markdown\nPASS broken-file-link\nPASS bad-chapter-anchor\nPASS good-chapter-anchor\nPASS counts-follow-content\nPASS text-anchors-and-escaping\nPASS self-contained-and-responsive\nPASS crlf-checkout\n\n16/16 用例通过\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "warning: LF will be replaced by CRLF in docs/README.md.\nThe file will have its original line endings in your working directory\nwarning: LF will be replaced by CRLF in docs/current/first-batch-recovery-design.md.\nThe file will have its original line endings in your working directory\n"
+    }
+  ],
+  "scope": "Documentation generation, sync, links, renderer failure cases, and tracked diff whitespace; no product verification"
+}

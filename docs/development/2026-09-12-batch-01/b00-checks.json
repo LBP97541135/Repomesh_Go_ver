@@ -1,0 +1,104 @@
+[
+  {
+    "command": [
+      "go",
+      "version"
+    ],
+    "exitCode": 0,
+    "seconds": 0.171,
+    "stdout": "go version go1.26.4 windows/amd64\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "go",
+      "build",
+      "./..."
+    ],
+    "exitCode": 0,
+    "seconds": 8.704,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "go",
+      "test",
+      "./..."
+    ],
+    "exitCode": 0,
+    "seconds": 2.734,
+    "stdout": "?   \trepomesh.local/repomesh/cmd/repomesh-coordinator\t[no test files]\n?   \trepomesh.local/repomesh/cmd/repomesh-host-executor\t[no test files]\n?   \trepomesh.local/repomesh/cmd/repomesh-web\t[no test files]\n?   \trepomesh.local/repomesh/internal/buildinfo\t[no test files]\nok  \trepomesh.local/repomesh/internal/web\t(cached)\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "go",
+      "vet",
+      "./..."
+    ],
+    "exitCode": 0,
+    "seconds": 1.391,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "node",
+      "--version"
+    ],
+    "exitCode": 0,
+    "seconds": 0.093,
+    "stdout": "v22.22.1\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "npm.cmd",
+      "--version"
+    ],
+    "exitCode": 0,
+    "seconds": 0.657,
+    "stdout": "11.13.0\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "npm.cmd",
+      "--prefix",
+      "web",
+      "ci"
+    ],
+    "exitCode": 0,
+    "seconds": 4.796,
+    "stdout": "\nadded 26 packages in 4s\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "npm.cmd",
+      "--prefix",
+      "web",
+      "run",
+      "typecheck"
+    ],
+    "exitCode": 0,
+    "seconds": 1.219,
+    "stdout": "\n> repomesh-web@0.0.0 typecheck\n> tsc --noEmit\n\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "npm.cmd",
+      "--prefix",
+      "web",
+      "run",
+      "build"
+    ],
+    "exitCode": 0,
+    "seconds": 1.891,
+    "stdout": "\n> repomesh-web@0.0.0 build\n> npm run typecheck && vite build\n\n\n> repomesh-web@0.0.0 typecheck\n> tsc --noEmit\n\nvite v8.2.2 building client environment for production...\ntransforming...\n✓ 15 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                   0.49 kB │ gzip:  0.32 kB\ndist/assets/index-rI43kEuq.css    1.63 kB │ gzip:  0.73 kB\ndist/assets/index-C3EmKHkh.js   221.41 kB │ gzip: 69.49 kB\n\n✓ built in 125ms\n",
+    "stderr": "",
+    "note": "UTF-8 capture rerun after initial output decoding failed."
+  }
+]

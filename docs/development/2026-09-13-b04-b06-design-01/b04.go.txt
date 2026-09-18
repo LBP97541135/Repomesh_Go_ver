@@ -1,0 +1,475 @@
+// B04-DECL-r2 / DESIGN_RECOMMENDATION_NOT_ADOPTED. Astra synthesis 2026-09-13.
+// Normative rules: current/backend-first-batch-sources-draft.md §8; backend-model-operations-draft.md §7.
+// Public DTOs below are a Go projection of the single model HTTP candidate, not a second schema.
+// Package sections are independently parsed declarations, not buildable product code.
+// Separate package sections are declaration specifications, not one Go source file.
+// Existing types referenced below retain their current definitions.
+// No function bodies. All names/signatures require final adoption before Sol implementation.
+
+// FILE: internal/secrets/transaction.go
+package secrets
+
+import (
+    "context"
+    "github.com/jackc/pgx/v5"
+)
+
+const (
+    ModelProviderKey Purpose = "model-provider-key"
+    OperationInput Purpose = "operation-input"
+)
+
+// Opaque ciphertext prepared by this Store after durable wrapping precharge.
+// No public bytes, plaintext, root, DEK, constructor or JSON serialization.
+type PreparedSecret struct {
+    value envelope
+    store *Store
+}
+func (p *PreparedSecret) VersionID() VersionID
+func (p *PreparedSecret) Discard()
+
+// Prepare must execute before acquiring any business transaction locks.
+// Reserve wrapping quota in its independent durable transaction; never refund.
+func (s *Store) Prepare(ctx context.Context, owner Owner, purpose Purpose, plaintext []byte) (*PreparedSecret, error)
+// InsertPrepared neither begins nor commits tx. Reject foreign Store/prepared root retired.
+// Caller owns all business authorization and transaction lifetime.
+func (s *Store) InsertPrepared(ctx context.Context, tx pgx.Tx, prepared *PreparedSecret) (VersionID, error)
+// OpenInTx retains availability lock until caller commits/rolls back.
+func (s *Store) OpenInTx(ctx context.Context, tx pgx.Tx, id VersionID, owner Owner, purpose Purpose) ([]byte, error)
+// Must validate stored owner/purpose; does not require root decryption.
+func (s *Store) DestroyInTx(ctx context.Context, tx pgx.Tx, id VersionID, owner Owner, purpose Purpose) error
+// Existing Seal/Open/Destroy APIs preserved; their implementations delegate appropriately.
+// Add checks for the two new exact owner/purpose combinations; retain existing auth rules:
+// model-provider/model-provider-key;
+// provider-save-input/operation-input; no separate comparison-key secret.
+// Existing InspectVersion signature remains unchanged.
+
+// FILE: internal/models/types.go
+package models
+
+import (
+    "context"
+    "encoding/json"
+    "time"
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "repomesh.local/repomesh/internal/access"
+    "repomesh.local/repomesh/internal/projects"
+    "repomesh.local/repomesh/internal/secrets"
+)
+
+type FieldError struct {
+    Field string `json:"field"`
+    Code string `json:"code"`
+}
+type Failure struct {
+    Status int
+    Code string
+    FieldErrors []FieldError
+}
+func (e *Failure) Error() string
+
+type APIError struct {
+    Code string `json:"code"`
+    Message string `json:"message"`
+    FieldErrors []FieldError `json:"fieldErrors"`
+    RequestID string `json:"requestId"`
+}
+type SecretView struct {
+    Configured bool `json:"configured"`
+    VersionID *string `json:"versionId"`
+    Availability string `json:"availability"`
+}
+type ModelView struct {
+    ID string `json:"id"`
+    ModelProfileID string `json:"modelProfileId"`
+    ModelID string `json:"modelId"`
+    DisplayName string `json:"displayName"`
+    ContextWindow int64 `json:"contextWindow"`
+    MaxOutputTokens int64 `json:"maxOutputTokens"`
+    Reasoning bool `json:"reasoning"`
+    Vision bool `json:"vision"`
+}
+type ProviderView struct {
+    ID string `json:"id"`
+    Name string `json:"name"`
+    Revision string `json:"revision"`
+    BaseURL string `json:"baseUrl"`
+    APIFormat string `json:"apiFormat"`
+    Secret SecretView `json:"secret"`
+    Models []ModelView `json:"models"`
+    UpdatedAt time.Time `json:"updatedAt"`
+}
+type ProviderSummary struct {
+    ID string `json:"id"`
+    Name string `json:"name"`
+    Revision string `json:"revision"`
+    ModelCount int `json:"modelCount"`
+}
+type ProviderPage struct {
+    Items []ProviderSummary `json:"items"`
+    NextCursor *string `json:"nextCursor"`
+}
+type ModelInput struct {
+    ID *string `json:"id"`
+    ModelID string `json:"modelId"`
+    DisplayName *string `json:"displayName"`
+    ContextWindow int64 `json:"contextWindow"`
+    MaxOutputTokens int64 `json:"maxOutputTokens"`
+    Reasoning bool `json:"reasoning"`
+    Vision bool `json:"vision"`
+}
+// Secret input never belongs to a persistent/public DTO.
+// Body and parsed command must be explicitly cleared after use.
+type RawSaveBody struct { data []byte; fields map[string]json.RawMessage }
+type SaveCommand struct { key string; requestID string; body RawSaveBody }
+type CloseCommand struct { key string }
+func ReadSaveBody(data []byte) (RawSaveBody, error)
+func NewSaveCommand(key, requestID string, body RawSaveBody) (SaveCommand, error)
+func (c *SaveCommand) Clear()
+func NewCloseCommand(pathKey, headerKey string, body []byte) (CloseCommand, error)
+
+type SaveLinks struct {
+    Provider string `json:"provider"`
+    Operation string `json:"operation"`
+}
+type OperationLinks struct { Operation string `json:"operation"` }
+type CommittedSave struct {
+    SaveID string `json:"saveId"`
+    Outcome string `json:"outcome"`
+    ProviderID string `json:"providerId"`
+    ProviderRevision string `json:"providerRevision"`
+    SecretVersionID string `json:"secretVersionId"`
+    CommittedAt time.Time `json:"committedAt"`
+    Links SaveLinks `json:"links"`
+}
+type RejectedSave struct {
+    SaveID string `json:"saveId"`
+    Outcome string `json:"outcome"`
+    Error APIError `json:"error"`
+    DecidedAt time.Time `json:"decidedAt"`
+}
+type ClosedSave struct {
+    SaveID string `json:"saveId"`
+    Outcome string `json:"outcome"`
+    ClosedAt time.Time `json:"closedAt"`
+    Links OperationLinks `json:"links"`
+}
+// Only service constructors create this sum. Exactly one payload.
+type SaveReceipt struct {
+    committed *CommittedSave
+    rejected *RejectedSave
+    closed *ClosedSave
+}
+func (r SaveReceipt) MarshalJSON() ([]byte, error)
+type SaveResult struct { Receipt SaveReceipt; HTTPStatus int }
+type ListQuery struct { Text string; Cursor string; Limit int }
+func ParseListQuery(text, cursor, limit string) (ListQuery, error)
+
+type Service struct {
+    pool *pgxpool.Pool
+    authorization *access.Service
+    secrets *secrets.Store
+    catalog *projects.CatalogWriter
+    hook transactionHook
+}
+func New(pool *pgxpool.Pool, authorization *access.Service, secretStore *secrets.Store, catalog *projects.CatalogWriter) *Service
+func (s *Service) List(ctx context.Context, principal access.ProjectPrincipal, query ListQuery) (ProviderPage, error)
+func (s *Service) Get(ctx context.Context, principal access.ProjectPrincipal, providerID string) (ProviderView, error)
+func (s *Service) GetVersion(ctx context.Context, principal access.ProjectPrincipal, providerID, revision string) (ProviderView, error)
+func (s *Service) Save(ctx context.Context, principal access.ProjectPrincipal, command SaveCommand) (SaveResult, error)
+func (s *Service) GetSave(ctx context.Context, principal access.ProjectPrincipal, saveID string) (SaveReceipt, error)
+// Callback resolver receives authoritative authenticated actor from access, no browser actor.
+func (s *Service) ResolveDestination(ctx context.Context, actor, saveID string) (*string, error)
+func (s *Service) CloseSave(ctx context.Context, principal access.ProjectPrincipal, command CloseCommand) (SaveReceipt, error)
+// Trusted maintenance entry only; no HTTP route. Caller must have maintenance capability.
+type Maintenance struct { service *Service }
+func NewMaintenance(service *Service) *Maintenance
+func (m *Maintenance) RemoveSaveResult(ctx context.Context, actor, saveID string) error
+
+type saveInput struct {
+    providerID *string
+    expectedRevision *string
+    name string
+    baseURL string
+    apiFormat string
+    replace bool
+    secret []byte
+    models []ModelInput
+}
+// Closed sum avoids a keep command carrying secret bytes. Constructors are parser-private.
+type canonicalInput interface { canonicalSaveInput() }
+type keepInput struct { schemaVersion int; canonical []byte }
+func (keepInput) canonicalSaveInput()
+type replaceInput struct { schemaVersion int; canonical []byte; secret []byte }
+func (replaceInput) canonicalSaveInput()
+type operationRecord struct {
+    actor string
+    key string
+    schemaVersion int
+    kind string
+    target *string
+    canonical []byte
+    inputVersion *secrets.VersionID
+    receipt []byte
+    removedAt *time.Time
+}
+type savePreparation struct {
+    providerID string
+    business *secrets.PreparedSecret
+    vault *secrets.PreparedSecret
+}
+func (p *savePreparation) clear()
+func parseSave(body RawSaveBody, schemaVersion int) (saveInput, canonicalInput, error)
+func encodeProtectedInput(input canonicalInput) ([]byte, error)
+func compareProtectedInput(stored, incoming []byte) error
+func (s *Service) prepareSave(ctx context.Context, actor, saveID, providerID string, input canonicalInput, prepareBusiness bool) (savePreparation, error)
+func (s *Service) beginWrite(ctx context.Context) (pgx.Tx, error)
+func readOperation(ctx context.Context, tx pgx.Tx, actor, key string) (operationRecord, bool, error)
+func requireOperationOwner(ctx context.Context, tx pgx.Tx, actor string, operation operationRecord) error
+func (s *Service) replaySave(ctx context.Context, tx pgx.Tx, operation operationRecord, body RawSaveBody) (SaveResult, error)
+func (s *Service) compareInput(ctx context.Context, tx pgx.Tx, operation operationRecord, input canonicalInput) error
+func insertOperationInput(ctx context.Context, tx pgx.Tx, actor, key string, input canonicalInput, preparation savePreparation) error
+func persistReceipt(ctx context.Context, tx pgx.Tx, actor, key string, target *string, receipt SaveReceipt, at time.Time) error
+func insertClosed(ctx context.Context, tx pgx.Tx, actor, key string, at time.Time) (SaveReceipt, error)
+func (s *Service) writeProvider(ctx context.Context, tx pgx.Tx, actor string, input saveInput, preparation savePreparation, at time.Time) (CommittedSave, error)
+func (s *Service) readProvider(ctx context.Context, tx pgx.Tx, actor, providerID string, revision *string) (ProviderView, error)
+// Final new-save transaction requires prepared secrets from a completed no-lock phase.
+func (s *Service) commitSave(ctx context.Context, principal access.ProjectPrincipal, command SaveCommand, prepared savePreparation) (SaveResult, error)
+// Used after an outside preflight failure so an already committed winner still has priority.
+func (s *Service) replayAfterPreflight(ctx context.Context, principal access.ProjectPrincipal, command SaveCommand, preflightErr error) (SaveResult, error)
+func lockProvider(ctx context.Context, tx pgx.Tx, actor, providerID string) (ProviderView, error)
+func validateRetainedRows(current ProviderView, input saveInput) error
+func rejectedReceipt(key, requestID, code string, fields []FieldError, at time.Time) SaveReceipt
+func committedReceipt(value CommittedSave) SaveReceipt
+func closedReceipt(key string, at time.Time) SaveReceipt
+func (s *Service) phase(ctx context.Context, phase transactionPhase) error
+type transactionPhase string
+const (
+    principalLocked transactionPhase = "principal_locked"
+    slotLocked transactionPhase = "slot_locked"
+    secretPrepared transactionPhase = "secret_prepared"
+    secretsInserted transactionPhase = "secrets_inserted"
+    providerInserted transactionPhase = "provider_inserted"
+    modelsInserted transactionPhase = "models_inserted"
+    profilesInserted transactionPhase = "profiles_inserted"
+    headUpdated transactionPhase = "head_updated"
+    receiptInserted transactionPhase = "receipt_inserted"
+    closedInserted transactionPhase = "closed_inserted"
+    beforeCommit transactionPhase = "before_commit"
+)
+type transactionHook func(context.Context, transactionPhase) error
+
+// FILE: internal/projects/catalog_writer.go
+package projects
+
+import (
+    "context"
+    "github.com/jackc/pgx/v5"
+    "repomesh.local/repomesh/internal/secrets"
+)
+
+// Internal composition-only writer: caller owns authorization and transaction.
+// No new browser writer route. Methods require LockExclusive already held.
+type CatalogWriter struct{}
+func NewCatalogWriter() *CatalogWriter
+func (w *CatalogWriter) LockExclusive(ctx context.Context, tx pgx.Tx) error
+type ModelVersionRegistration struct {
+    Owner string
+    ProfileID string
+    Name string
+    ParametersComplete bool // structural model parameters only; not runtime readiness
+    ProviderID string
+    ProviderRevision string
+    ModelRowID string
+    SecretVersion secrets.VersionID
+}
+type ExecutionVersionRegistration struct {
+    Owner string
+    ProfileID string
+    Version string
+    Name string
+    WorkerConcurrency int
+    VerificationGroupEnabled bool
+}
+func (w *CatalogWriter) RegisterModelVersion(ctx context.Context, tx pgx.Tx, value ModelVersionRegistration) error
+func (w *CatalogWriter) RegisterExecutionVersion(ctx context.Context, tx pgx.Tx, value ExecutionVersionRegistration) error
+func (w *CatalogWriter) BindExecutionDefault(ctx context.Context, tx pgx.Tx, owner, profileID, version string) (string, error)
+// Existing resolveProfile must read nullable defaults.pinned_version and use it
+// for inherit, preserving old-null fallback and all B03 fixed-receipt semantics.
+
+// FILE: internal/sources/types.go
+package sources
+
+import (
+    "context"
+    "time"
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "repomesh.local/repomesh/internal/projects"
+)
+
+type EnvironmentTemplate struct {
+    ID string `json:"id"`
+    Version string `json:"version"`
+    ExecutorPoolID string `json:"executorPoolId"`
+    ApprovedTemplateDigest string `json:"approvedTemplateDigest"`
+    NetworkPolicyRef string `json:"networkPolicyRef"`
+    ResourceClassID string `json:"resourceClassId"`
+    Enabled bool `json:"enabled"`
+}
+type ExecutionProfile struct {
+    ID string `json:"id"`
+    Version string `json:"version"`
+    OwnerID string `json:"ownerId"`
+    Name string `json:"name"`
+    TemplateID string `json:"templateId"`
+    TemplateVersion string `json:"templateVersion"`
+    WorkerConcurrency int `json:"workerConcurrency"`
+    VerificationGroupEnabled bool `json:"verificationGroupEnabled"`
+}
+type DefaultBinding struct {
+    Kind string `json:"kind"`
+    OwnerID string `json:"ownerId"`
+    ProfileID string `json:"profileId"`
+    ProfileVersion string `json:"profileVersion"`
+}
+type Manifest struct {
+    SchemaVersion int `json:"schemaVersion"`
+    ImportID string `json:"importId"`
+    EnvironmentTemplates []EnvironmentTemplate `json:"environmentTemplates"`
+    ExecutionProfiles []ExecutionProfile `json:"executionProfiles"`
+    DefaultBindings []DefaultBinding `json:"defaultBindings"`
+}
+type ImportCommand struct { value Manifest; canonical []byte }
+func ParseImport(data []byte) (ImportCommand, error)
+type VersionRef struct { ID string `json:"id"`; Version string `json:"version"` }
+type DefaultResult struct {
+    OwnerID string `json:"ownerId"`
+    ProfileID string `json:"profileId"`
+    ProfileVersion string `json:"profileVersion"`
+    DefaultRevision string `json:"defaultRevision"`
+}
+type Receipt struct {
+    ImportID string `json:"importId"`
+    SchemaVersion int `json:"schemaVersion"`
+    EnvironmentTemplates []VersionRef `json:"environmentTemplates"`
+    ExecutionProfiles []VersionRef `json:"executionProfiles"`
+    DefaultBindings []DefaultResult `json:"defaultBindings"`
+    CommittedAt time.Time `json:"committedAt"`
+}
+type ImportResult struct { Receipt Receipt; Replayed bool }
+type Importer struct {
+    pool *pgxpool.Pool
+    principal DeploymentPrincipal
+    catalog *projects.CatalogWriter
+    hook importHook
+}
+type DeploymentPrincipal struct { deploymentID, sessionUser string }
+// Each borrowed transaction verifies session_user equals principal and permitted role membership;
+// principal is minted from this pool's database identity, never from CLI/manifest actor strings.
+func AuthenticateDeployment(ctx context.Context, pool *pgxpool.Pool) (DeploymentPrincipal, error)
+func checkDeployment(ctx context.Context, tx pgx.Tx, principal DeploymentPrincipal) error
+func NewImporter(pool *pgxpool.Pool, principal DeploymentPrincipal, catalog *projects.CatalogWriter) (*Importer, error)
+func (s *Importer) Import(ctx context.Context, command ImportCommand) (ImportResult, error)
+func (s *Importer) Get(ctx context.Context, importID string) (Receipt, error)
+func lockOwners(ctx context.Context, tx pgx.Tx, owners []string) error
+func lockImport(ctx context.Context, tx pgx.Tx, deploymentID, importID string) error
+func readImport(ctx context.Context, tx pgx.Tx, deploymentID, importID string) (Receipt, []byte, bool, error)
+func insertTemplate(ctx context.Context, tx pgx.Tx, value EnvironmentTemplate) error
+func insertExecutionSource(ctx context.Context, tx pgx.Tx, value ExecutionProfile) error
+func commitImport(ctx context.Context, tx pgx.Tx, deploymentID string, command ImportCommand, receipt Receipt) error
+type importPhase string
+const (
+    ownersLocked importPhase = "owners_locked"
+    importLocked importPhase = "import_locked"
+    templatesInserted importPhase = "templates_inserted"
+    executionProfilesInserted importPhase = "execution_profiles_inserted"
+    defaultsBound importPhase = "defaults_bound"
+    importReceiptInserted importPhase = "import_receipt_inserted"
+    importBeforeCommit importPhase = "import_before_commit"
+)
+type importHook func(context.Context, importPhase) error
+
+// FILE: internal/web/models.go. Current implementation has no Server receiver.
+package web
+import (
+    "net/http"
+    "repomesh.local/repomesh/internal/models"
+    "repomesh.local/repomesh/internal/access"
+)
+type modelHandler func(http.ResponseWriter, *http.Request, access.ProjectPrincipal) error
+type Models struct { Service *models.Service }
+func registerModels(mux *http.ServeMux, auth Auth, api Models)
+func registerModelRoute(mux *http.ServeMux, pattern string, auth Auth, handler modelHandler)
+// modelHandler uses authenticated access.ProjectPrincipal, same shape as projectHandler.
+// Reuse strict body/UUID/error-envelope helpers after moving names in their owning package.
+// Only six B04 routes from model-settings-browser-api-draft.md M02. No source import HTTP.
+
+// FILE: cmd/repomesh-web/sources.go — package main additions
+package main
+import ("context"; "io"; "repomesh.local/repomesh/internal/sources")
+func runSourceImport(ctx context.Context, importer *sources.Importer, manifestPath string, output io.Writer) error
+func runSourceResult(ctx context.Context, importer *sources.Importer, importID string, output io.Writer) error
+// Root command resolves trusted deployment identity/config; arguments never carry secrets.
+// Import lockImport takes the preinserted import_serialization singleton BEFORE
+// owner locks, reads prior committed import first, then locks new owners sorted.
+// sources queries return stable prior receipt without revalidating new input owners.
+// Tests use isolated PG and owned TLS server; fault hooks are package-private.
+// Additional helper signatures must be proposed to Astra before implementation.
+
+// FILE: internal/access/model_destination.go — additions, existing Destination retained.
+package access
+import "context"
+type ModelSaveDestinationResolver func(context.Context, string, string) (*string, error)
+func (s *Service) SetModelSaveDestinationResolver(resolver ModelSaveDestinationResolver)
+func (d Destination) ModelSaveDestination() (string, bool)
+func (s *Service) resolveModelSaveDestination(ctx context.Context, actor string, destination Destination) (*string, error)
+func normalizeProviderSaveID(raw string) (string, error)
+// Existing ParseDestination already recognizes provider_save; add UUID normalization in its resolver.
+// Existing callback destination dispatch calls model resolver for provider_save only.
+// No runtime model_test/model_apply destination is activated by this batch.
+
+// FILE: internal/access/deployment.go addition. Only composition root calls this accessor.
+package access
+import "repomesh.local/repomesh/internal/secrets"
+func (r *Runtime) SecretStore() *secrets.Store
+// Does not read another config/root or register another wrapping store. Web handlers receive
+// models.Service, not Runtime/Store. Existing Auth construction and maintenance remain.
+
+// Non-HTTP failure classification: committed business outcomes are returned in SaveResult;
+// errors carry only safe codes. Commit ambiguity is RESULT_UNCONFIRMED and retains the key.
+// A rejected POST maps its stored error to HTTP 409; GET/close return its stable receipt as 200.
+// PreparedSecret may be inserted only once into one caller transaction; Discard is idempotent.
+// InsertPrepared checks prepared.rootID, not a newly selected Store active root.
+// All new behavior remains NOT IMPLEMENTED. Additional architecture helper signatures must
+// be reviewed before later implementation, not retroactively documented.
+
+package main
+import (
+    "context"
+    "io"
+    "repomesh.local/repomesh/internal/database"
+    "repomesh.local/repomesh/internal/sources"
+)
+// Root dispatch recognizes sources import --file PATH and sources result --import-id UUID.
+// Bounded local file read max 1MiB; stdout only safe JSON receipt; diagnostics never DSN/body.
+type sourceArguments struct { mode, manifestPath, importID string }
+func parseSourceArguments(arguments []string) (sourceArguments, error)
+func openSourceRuntime(ctx context.Context, databaseURL string) (*database.DB, *sources.Importer, error)
+func runSources(ctx context.Context, arguments []string, output, diagnostics io.Writer) int
+// openSourceRuntime: database.Open -> Check current schema -> AuthenticateDeployment -> NewImporter.
+// Always close DB. No migration/App/root import. Exit 0 confirmed/replayed, 2 invalid input or
+// stable conflict, 1 unavailable/unconfirmed; unknown message retains importId and query command.
+
+package web
+import "context"
+// Extend existing RunConfigured in the same wave as its cmd caller; no duplicate server API.
+// Existing Auth/Projects retained; B04 gains Models, later B05 extends Models fields.
+func RunConfigured(ctx context.Context, addr, assets string, auth Auth, projectAPI Projects, modelAPI Models, certFile, keyFile string) error
+
+package web
+import ("io/fs"; "net/http")
+func handlerConfigured(assets fs.FS, auth Auth, projectAPI Projects, modelAPI Models) http.Handler
+// Existing Run/RunAuthenticated/handlerWithAuth wrappers keep signatures and pass Models{}.
+// cmd.run assembles Models before RunConfigured; registerModels is conditional on Service.

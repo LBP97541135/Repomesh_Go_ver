@@ -1,0 +1,120 @@
+{
+  "suite": "B04 fixture browser Key and save recovery",
+  "passed": true,
+  "environment": "fresh Playwright context with the shared TLS harness",
+  "events": [
+    {
+      "id": "U04.4",
+      "event": "fixture login opens model settings with a held then empty provider list",
+      "passed": true,
+      "assertions": {
+        "loadingObserved": true,
+        "emptyObserved": true
+      }
+    },
+    {
+      "id": "U04.4",
+      "event": "a dropped 2xx save still recovers the original saveId without storing the key",
+      "passed": true,
+      "assertions": {
+        "saveWrites": 1,
+        "saveId": "1bb05c97-0552-4fb7-b274-d490251179cb",
+        "droppedStatus": 200,
+        "keyAbsentFromStorage": true,
+        "secretFreeSnapshot": true
+      }
+    },
+    {
+      "id": "U04.4",
+      "event": "close after a committed save returns the original receipt and the list shows the provider",
+      "passed": true,
+      "assertions": {
+        "closeKeptCommitted": true,
+        "providerListed": true
+      }
+    },
+    {
+      "id": "DIALOG",
+      "event": "已经保存会返回原结果；尚未保存会阻止这次请求以后保存。它不会撤销已保存配置。",
+      "passed": true,
+      "assertions": {
+        "type": "confirm"
+      }
+    },
+    {
+      "id": "U04.4",
+      "event": "closing an empty save slot returns closed_without_save and blocks a late write",
+      "passed": true,
+      "assertions": {
+        "emptyLookupCode": "MODEL_SAVE_NOT_FOUND",
+        "lateCode": "MODEL_SAVE_CLOSED"
+      }
+    },
+    {
+      "id": "U04.4",
+      "event": "another actor sees MODEL_SAVE_NOT_FOUND and no provider identity",
+      "passed": true,
+      "assertions": {
+        "crossActorHidden": true
+      }
+    }
+  ],
+  "network": [
+    {
+      "method": "GET",
+      "path": "/api/model-providers",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/model-provider-saves",
+      "status": 200,
+      "code": null,
+      "key": "1bb05c97-0552-4fb7-b274-d490251179cb"
+    },
+    {
+      "method": "GET",
+      "path": "/api/model-provider-saves/1bb05c97-0552-4fb7-b274-d490251179cb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/model-providers",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/model-provider-saves/80000000-0000-4000-8000-0000000000c1",
+      "status": 404,
+      "code": "MODEL_SAVE_NOT_FOUND",
+      "key": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/model-provider-saves/80000000-0000-4000-8000-0000000000c1/close",
+      "status": 200,
+      "code": null,
+      "key": "80000000-0000-4000-8000-0000000000c1"
+    },
+    {
+      "method": "GET",
+      "path": "/api/model-provider-saves/1bb05c97-0552-4fb7-b274-d490251179cb",
+      "status": 404,
+      "code": "MODEL_SAVE_NOT_FOUND",
+      "key": null
+    }
+  ],
+  "shots": [
+    "/workspace/docs/development/2026-09-13-b04-closeout-01/browser-b04-04/screenshots/b04_closeout_settings_loading.png",
+    "/workspace/docs/development/2026-09-13-b04-closeout-01/browser-b04-04/screenshots/b04_closeout_settings_empty.png",
+    "/workspace/docs/development/2026-09-13-b04-closeout-01/browser-b04-04/screenshots/b04_closeout_settings_filled.png",
+    "/workspace/docs/development/2026-09-13-b04-closeout-01/browser-b04-04/screenshots/b04_closeout_save_recovered.png",
+    "/workspace/docs/development/2026-09-13-b04-closeout-01/browser-b04-04/screenshots/b04_closeout_settings_after_save.png"
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "artifactHashes": {
+    "README.txt": "29cfa6f23318d3676ade823aa23ff2fce6d6524c6fc96b95ae2223e716de44ea",
+    "SOURCE-README.md": "adc49c1fbbab6ad268df73dd3fccdd45067612bd7f95ffed202b1f9cb49ae4b6",
+    "bin/repomesh-coordinator": "c5e7ef7d5b5712d4ffec1c863dfd6a0087b8878a9bbedb5d09d3dfad0fe5e386",
+    "bin/repomesh-host-executor": "141e0ba6562e38cd4226e0225a5e1781b193898fa74efa0dc70a412e560bd1e6",
+    "bin/repomesh-web": "b6c437129d9571b0d1d2c10008328837a60875eebf142f9ae59d0b0037c98d8a",
+    "configs/auth.example.json": "ef6a9db98df41982242d628404af6d8dc48c1024a10abd41e5cb03f0f0d9d451",
+    "configs/repomesh.env.example": "a251a2ec36230d4428e3838008b1427b24e43a4b774ba8643fe3dd7461982a0c",
+    "web/dist/assets/index-CH4x9jbV.js": "54622413e828e7ec005c7ef116f3e6892ccebd2cbf3f4706275000a9da1b5707",
+    "web/dist/assets/index-Cq0F5qZC.css": "1a639c7ebaa3ac687dbd94837d47926e579746897ecfc687e42a4b55d00d43dc",
+    "web/dist/index.html": "5fa955d68bc97861dd9de7bfbaa4d03b903989a9747e4c0a515ed1e6c0a3f36c",
+    "web/package-lock.json": "0de7f257445b9dbd21716ee05f886489181b9d56c073f55fb288c037f43ecb6b"
+  },
+  "browserTouched": false,
+  "completedAt": "2026-09-12T16:57:39Z",
+  "databaseCheck": {
+    "current": 3,
+    "migrationRun": false,
+    "pending": 0,
+    "status": "current",
+    "target": 3
+  },
+  "finishedAt": "2026-09-12T16:57:39Z",
+  "newProcesses": {
+    "coordinator": {
+      "logPath": "/home/xubohan/.local/state/repomesh-b026/coordinator-r3-20260912T165737Z-287006.log",
+      "pid": 287038
+    },
+    "web": {
+      "logPath": "/home/xubohan/.local/state/repomesh-b026/web-r3-20260912T165737Z-287006.log",
+      "pid": 287037
+    }
+  },
+  "newVersion": "0.2.0-b026-cookie-20260912-r3",
+  "oldProcesses": {
+    "coordinator": {
+      "pid": 192941,
+      "uid": 1000
+    },
+    "web": {
+      "pid": 192940,
+      "uid": 1000
+    }
+  },
+  "oldVersion": "0.2.0-b026-utc-20260912-r2",
+  "postgresTouched": false,
+  "releaseManifestSha256": "54363f7b8c1739a44ddc6fc75478fafe057804f200845e057e0fc67b1202c279",
+  "runtimeBackupPath": "/home/xubohan/.local/state/repomesh-b026/runtime.env.pre-r3-20260912T165737Z-287006.bak",
+  "runtimeReleaseUpdated": true,
+  "startedAt": "2026-09-12T16:57:37Z",
+  "status": "PASS_SERVICE_SWITCH_ONLY",
+  "versions": {
+    "repomesh-coordinator": "repomesh-coordinator 0.2.0-b026-cookie-20260912-r3",
+    "repomesh-host-executor": "repomesh-host-executor 0.2.0-b026-cookie-20260912-r3",
+    "repomesh-web": "repomesh-web 0.2.0-b026-cookie-20260912-r3"
+  }
+}

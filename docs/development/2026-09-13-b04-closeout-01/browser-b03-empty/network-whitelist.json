@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "allowed": [
+    "200:None",
+    "201:None",
+    "401:AUTHENTICATION_REQUIRED",
+    "403:PROJECT_UPDATE_NOT_ALLOWED",
+    "404:PROJECT_CREATION_NOT_FOUND",
+    "404:PROJECT_UPDATE_NOT_FOUND",
+    "404:RESOURCE_NOT_FOUND",
+    "503:None",
+    "503:RESULT_UNCONFIRMED"
+  ],
+  "counts": {
+    "200:None": 23,
+    "201:None": 1,
+    "503:RESULT_UNCONFIRMED": 1
+  },
+  "unexpected": []
+}

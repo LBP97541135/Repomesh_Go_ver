@@ -1,0 +1,13 @@
+{
+  "date": "2026-09-12",
+  "app": "repomesh-bohan-b026",
+  "installationId": "161172403",
+  "restoredAppRequestedPermissions": {"contents": "write", "metadata": "read", "pull_requests": "write"},
+  "allSelectedPermissionsMatchOriginal": true,
+  "saveConfirmedByGitHub": true,
+  "installationGrantedPermissionsStillReduced": true,
+  "installationPagePermissionText": ["Read access to metadata and pull requests", "Read and write access to code"],
+  "reviewRequestLinkPresent": true,
+  "accountHolderApprovalPending": true,
+  "restoredAllowedNotYetClaimed": true
+}

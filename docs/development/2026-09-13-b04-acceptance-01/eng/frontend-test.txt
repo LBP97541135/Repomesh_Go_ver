@@ -1,0 +1,186 @@
+
+> repomesh-web@0.0.0 test
+> node --experimental-strip-types --experimental-loader ./src/test-loader.mjs --test src/*.test.mjs
+
+TAP version 13
+# (node:67432) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./src/test-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# (node:67432) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# Subtest: a start sends only the adopted home payload and retains the requested attempt key
+ok 1 - a start sends only the adopted home payload and retains the requested attempt key
+  ---
+  duration_ms: 26.527459
+  ...
+# Subtest: a start sends the approved project destination through the single auth transport
+ok 2 - a start sends the approved project destination through the single auth transport
+  ---
+  duration_ms: 0.560523
+  ...
+# Subtest: reconnect and logout use the current session CSRF value
+ok 3 - reconnect and logout use the current session CSRF value
+  ---
+  duration_ms: 0.765074
+  ...
+# Subtest: start rejects foreign authorization origins, userinfo, fragments, and unrelated result routes
+ok 4 - start rejects foreign authorization origins, userinfo, fragments, and unrelated result routes
+  ---
+  duration_ms: 2.715221
+  ...
+# Subtest: a confirmed reconnect receipt and a missing current session remain separate results
+ok 5 - a confirmed reconnect receipt and a missing current session remain separate results
+  ---
+  duration_ms: 0.960099
+  ...
+# Subtest: a connected current session does not change an unknown reconnect attempt
+ok 6 - a connected current session does not change an unknown reconnect attempt
+  ---
+  duration_ms: 0.572655
+  ...
+# Subtest: result routes reject external, escaped, and unimplemented destinations
+ok 7 - result routes reject external, escaped, and unimplemented destinations
+  ---
+  duration_ms: 1.493937
+  ...
+# Subtest: malformed session, attempt enums, and incompatible receipts fail closed
+ok 8 - malformed session, attempt enums, and incompatible receipts fail closed
+  ---
+  duration_ms: 2.277714
+  ...
+# Subtest: repository pages preserve partial coverage and empty pages with a continuation cursor
+ok 9 - repository pages preserve partial coverage and empty pages with a continuation cursor
+  ---
+  duration_ms: 0.944663
+  ...
+# Subtest: repository names with unconfirmed user participation never enter a successful page
+ok 10 - repository names with unconfirmed user participation never enter a successful page
+  ---
+  duration_ms: 1.845399
+  ...
+# Subtest: 429 honors Retry-After and supplies a cooldown when the header is absent
+ok 11 - 429 honors Retry-After and supplies a cooldown when the header is absent
+  ---
+  duration_ms: 1.896019
+  ...
+# Subtest: unconfigured service errors are readable without echoing provider data
+ok 12 - unconfigured service errors are readable without echoing provider data
+  ---
+  duration_ms: 0.417193
+  ...
+# Subtest: invalid success JSON and unexpected success statuses are not mistaken for usable sessions
+ok 13 - invalid success JSON and unexpected success statuses are not mistaken for usable sessions
+  ---
+  duration_ms: 0.368429
+  ...
+# Subtest: a lost start response stays unknown and does not retry itself
+ok 14 - a lost start response stays unknown and does not retry itself
+  ---
+  duration_ms: 0.181102
+  ...
+# (node:67433) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./src/test-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# (node:67433) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# Subtest: model routes and provider_save destinations are admitted
+ok 15 - model routes and provider_save destinations are admitted
+  ---
+  duration_ms: 1.55021
+  ...
+# Subtest: save recovery stores only secret-free snapshots and ignores late generation
+ok 16 - save recovery stores only secret-free snapshots and ignores late generation
+  ---
+  duration_ms: 3.379173
+  ...
+# Subtest: validation failures stay on the form and unknown or slotted results open recovery
+ok 17 - validation failures stay on the form and unknown or slotted results open recovery
+  ---
+  duration_ms: 0.270618
+  ...
+# Subtest: save parsers accept committed rejected and closed receipts
+ok 18 - save parsers accept committed rejected and closed receipts
+  ---
+  duration_ms: 0.790033
+  ...
+# (node:67439) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./src/test-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# (node:67439) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# Subtest: fixed routes reject decoded ambiguity and only admit adopted destinations
+ok 19 - fixed routes reject decoded ambiguity and only admit adopted destinations
+  ---
+  duration_ms: 2.075047
+  ...
+# Subtest: project operation keys normalize to lowercase at route and recovery boundaries
+ok 20 - project operation keys normalize to lowercase at route and recovery boundaries
+  ---
+  duration_ms: 0.219576
+  ...
+# Subtest: the shared scalar boundary rejects isolated surrogates and counts pairs once
+ok 21 - the shared scalar boundary rejects isolated surrogates and counts pairs once
+  ---
+  duration_ms: 0.264979
+  ...
+# Subtest: destination storage validates every field and falls back to home
+ok 22 - destination storage validates every field and falls back to home
+  ---
+  duration_ms: 0.62957
+  ...
+# Subtest: project parsers keep nullable configuration facts and reject undisclosed repository identities
+ok 23 - project parsers keep nullable configuration facts and reject undisclosed repository identities
+  ---
+  duration_ms: 1.021172
+  ...
+# Subtest: project requests use explicit methods and reject cross-key receipts
+ok 24 - project requests use explicit methods and reject cross-key receipts
+  ---
+  duration_ms: 23.487243
+  ...
+# Subtest: project requests send and compare normalized operation keys
+ok 25 - project requests send and compare normalized operation keys
+  ---
+  duration_ms: 0.805882
+  ...
+# Subtest: receipt parsers require committed status, UUID identity, UTC time, and exact API links
+ok 26 - receipt parsers require committed status, UUID identity, UTC time, and exact API links
+  ---
+  duration_ms: 0.346181
+  ...
+# Subtest: draft validation counts Unicode scalars, preserves exact text, and separates configuration intent
+ok 27 - draft validation counts Unicode scalars, preserves exact text, and separates configuration intent
+  ---
+  duration_ms: 0.697726
+  ...
+# Subtest: selection expiry removes disclosed names but preserves stable selection count
+ok 28 - selection expiry removes disclosed names but preserves stable selection count
+  ---
+  duration_ms: 0.414862
+  ...
+# Subtest: operation storage isolates actor, kind, key, and project and rejects extra fields
+ok 29 - operation storage isolates actor, kind, key, and project and rejects extra fields
+  ---
+  duration_ms: 1.282426
+  ...
+# Subtest: storage failure requires a recovery link before send
+ok 30 - storage failure requires a recovery link before send
+  ---
+  duration_ms: 0.260841
+  ...
+# Subtest: actor cleanup scans stored inputs when the local index write failed
+ok 31 - actor cleanup scans stored inputs when the local index write failed
+  ---
+  duration_ms: 0.460199
+  ...
+# Subtest: a prepared update keeps its original expected revision and nested input
+ok 32 - a prepared update keeps its original expected revision and nested input
+  ---
+  duration_ms: 0.621088
+  ...
+1..32
+# tests 32
+# suites 0
+# pass 32
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 240.394777

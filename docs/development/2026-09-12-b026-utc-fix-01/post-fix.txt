@@ -1,0 +1,11 @@
+UTC regression command:
+REPOMESH_TEST_DATABASE_URL='postgresql://xubohan@/postgres?host=/home/xubohan/.local/state/repomesh-b026&port=55432' go test -count=1 -run TestPostgresTimestamptzScansInUTCOnEveryConnection -v ./internal/database
+
+Result: PASS
+Package: repomesh.local/repomesh/internal/database
+Elapsed: 0.150s
+
+The test passed binary and text scans on two simultaneously acquired pool connections. It also passed the absolute-instant, UTC location, Z-suffixed JSON, and NULL preservation assertions.
+
+Full database package against the same Unix-socket PostgreSQL:
+Result: 20 test groups passed. TestPostgresInvalidCredentialsAreRedacted failed because the local socket accepts peer/trust authentication and therefore ignores the deliberately wrong password. The UTC regression passed. No test accessed repomesh_b026; isolatedDatabase created and dropped random repomesh_b01_it_* databases.

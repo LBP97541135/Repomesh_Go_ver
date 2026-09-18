@@ -1,0 +1,14 @@
+14/Sep/2026 17:26:39 POST /api/auth/github/reconnect 201 487
+14/Sep/2026 17:26:41 GET /api/auth/github/callback 303 76
+14/Sep/2026 17:26:41 GET /auth/result/e8271f6b-71f0-4653-ad10-f0fb6dfa54fa 200 498
+14/Sep/2026 17:26:41 GET /api/session 200 242
+14/Sep/2026 17:26:41 GET /api/session 200 242
+14/Sep/2026 17:26:41 GET /api/auth/attempts/e8271f6b-71f0-4653-ad10-f0fb6dfa54fa 200 262
+14/Sep/2026 17:26:56 GET /api/session 200 242
+14/Sep/2026 17:26:56 GET /api/auth/attempts/e8271f6b-71f0-4653-ad10-f0fb6dfa54fa 200 262
+14/Sep/2026 17:26:56 GET / 200 498
+14/Sep/2026 17:26:56 GET /assets/index-CgwmIWNB.js 304 0
+14/Sep/2026 17:26:56 GET /assets/index-B5v7bA8J.css 304 0
+14/Sep/2026 17:26:56 GET /api/session 200 242
+14/Sep/2026 17:26:56 GET /api/repositories 503 101
+14/Sep/2026 17:26:58 GET /api/repositories 200 4808

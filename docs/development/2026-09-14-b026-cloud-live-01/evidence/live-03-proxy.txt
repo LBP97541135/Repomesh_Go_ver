@@ -1,0 +1,6 @@
+16:20:57 POST /api/auth/github/login
+16:20:59 GET /api/auth/github/callback
+16:20:59 GET /auth/result/0c8eb712-b6c7-4716-b6ce-63bcec1b10c8
+16:20:59 GET /api/session
+
+Source: /tmp/tls-proxy.stderr.log. Proxy logs the path without query strings. Later 17:21 login 264f460b is LIVE-04 attempt 1, not this LIVE-03 row.

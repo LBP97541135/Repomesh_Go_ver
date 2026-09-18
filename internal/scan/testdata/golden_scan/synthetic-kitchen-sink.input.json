@@ -1,0 +1,64 @@
+{
+  "commits": [
+    "feat: kitchen sink demo covering all channels"
+  ],
+  "contents": {
+    ".gitmodules": "[submodule \"libs/ts-common\"]\n\tpath = libs/ts-common\n\turl = https://github.com/repomesh-train-ticket/ts-common.git\n",
+    "docker-compose.yml": "services:\n  kitchen-sink:\n    image: com.demo/kitchen-sink\n    depends_on:\n      - ts-payment-service\n",
+    "pom.xml": "<?xml version=\"1.0\"?>\n<project xmlns=\"http://maven.apache.org/POM/4.0.0\">\n  <groupId>com.demo</groupId>\n  <artifactId>kitchen-sink</artifactId>\n  <version>1.0.0</version>\n  <dependencies>\n    <dependency>\n      <groupId>org.services</groupId>\n      <artifactId>ts-common</artifactId>\n      <version>1.0</version>\n    </dependency>\n    <dependency>\n      <groupId>org.springframework.boot</groupId>\n      <artifactId>spring-boot-starter-data-jpa</artifactId>\n    </dependency>\n  </dependencies>\n  <dependencyManagement>\n    <dependencies>\n      <dependency>\n        <groupId>org.services</groupId>\n        <artifactId>ts-managed</artifactId>\n        <version>2.0</version>\n      </dependency>\n    </dependencies>\n  </dependencyManagement>\n</project>\n",
+    "src/main/java/com/demo/OrderClient.java": "package com.demo;\n\nimport org.springframework.cloud.openfeign.FeignClient;\n\n@FeignClient(name = \"ts-order-service\")\npublic interface OrderClient {\n}\n",
+    "src/main/resources/application.yml": "spring:\n  datasource:\n    url: jdbc:mysql://orders-db:3306/orders\n"
+  },
+  "name": "synthetic-kitchen-sink",
+  "tree": [
+    {
+      "is_dir": true,
+      "path": "src"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java/com"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java/com/demo"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/resources"
+    },
+    {
+      "is_dir": true,
+      "path": "libs"
+    },
+    {
+      "is_dir": false,
+      "path": "pom.xml"
+    },
+    {
+      "is_dir": false,
+      "path": "docker-compose.yml"
+    },
+    {
+      "is_dir": false,
+      "path": ".gitmodules"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/com/demo/OrderClient.java"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/resources/application.yml"
+    }
+  ],
+  "url": "https://github.com/repomesh-train-ticket/synthetic-kitchen-sink"
+}

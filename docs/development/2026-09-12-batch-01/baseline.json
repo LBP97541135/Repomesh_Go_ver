@@ -1,0 +1,18 @@
+{
+  "recordedAt": "2026-09-12T09:36:16.241952+00:00",
+  "gitHead": "4516805a276d65eb79490a12783654f3d7b1c677",
+  "sourceHashes": {
+    "go.mod": "5f04a7c897234c0a9b34fa881d3dc4a5af9583c9f063309233d4a60f9a5c42d0",
+    "cmd/repomesh-web/main.go": "114eb6a661eb3c3ef24a575b77aa8a75c59074555cac694915d81f069919749e",
+    "internal/web/server.go": "35e10a61736b6953e09791c260e79e0b0caa35421163d1844d3cca4c92e4953e",
+    "internal/web/server_test.go": "c43d82882af5cecd88f4fb2274251ed0cdcce62e922bf8ee1374b7532770b24d",
+    "README.md": "0003e00eabdc57d40e1cc6c333e2068be1dacf06fa3d0e8cead117e06310db71",
+    "AGENTS.md": "895e590f8debd8efba51ca63c8ed2f921893ae16cb7bd0fa65316623ff593f61",
+    "docs/current/HANDOFF.md": "4375171cd95e12f3a0ed2adc5c45c27a56b70052e65ba23784c2b3b544d0aa3d",
+    "docs/current/README.md": "43fc4818ee4d5691f48f2e50a10d009b87b1fa57de5c3fc7023bb3f4441d30d7",
+    "docs/current/DEVELOPMENT-START.md": "a971ca52da15384aa28dc69b37ce0235376ac210415d7c633f3f0c687c84a61a",
+    "docs/current/development-scaffold.md": "3218e105772275a58b9017bf327938f142b40f6d320bb0a9f47cc24512f7312d",
+    "configs/repomesh.env.example": "a686039fa89e18e167c7e172dd5a146f65ee6ad7ca92061d9e57d859016f7677"
+  },
+  "note": "Hashes refer to pre-task working files, including existing uncommitted changes; no reset, stash, staging or commit was performed."
+}

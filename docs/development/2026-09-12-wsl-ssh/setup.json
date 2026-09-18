@@ -1,0 +1,8 @@
+{
+  "sshAlias": "repomesh-wsl",
+  "backup": "C:\\Users\\18092\\.ssh\\config.repomesh-20260912-040240.bak",
+  "previousConfigSha256": "e9e1785f32f16297e7809914f6d67ac47aa3d187838c414878d564efe2896204",
+  "previousConfigPreserved": true,
+  "linuxCredentialMode": "0600",
+  "sshdListen": "127.0.0.1:22222"
+}

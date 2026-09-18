@@ -1,0 +1,4 @@
+mode=b03-normal
+port=40519
+browser_exit=0
+go_test_exit=0

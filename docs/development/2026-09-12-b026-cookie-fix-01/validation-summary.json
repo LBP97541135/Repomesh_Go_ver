@@ -1,0 +1,28 @@
+{
+  "database": {
+    "authentication": "SCRAM-SHA-256",
+    "host": "127.0.0.1",
+    "port": 55433,
+    "postgresVersion": "17.11",
+    "retainedDataDirectory": "/tmp/repomesh-b026-cookie-fix-pg17",
+    "stopped": true
+  },
+  "commands": {
+    "go build ./...": 0,
+    "go vet ./...": 0,
+    "go test -count=1 -json ./...": 0,
+    "npm --prefix web run typecheck": 0
+  },
+  "tests": {
+    "run": 230,
+    "pass": 229,
+    "fail": 0,
+    "skip": 1,
+    "skippedTests": [
+      "repomesh.local/repomesh/internal/secrets:TestRootFileOwner"
+    ],
+    "postgresIntegrationSkipped": 0
+  },
+  "releaseBuildCreated": false,
+  "externalAcceptanceEvidence": false
+}

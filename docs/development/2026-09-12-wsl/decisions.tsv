@@ -1,0 +1,8 @@
+phase	decision	reason	evidence	result
+A	Keep B02 paused; reserve desktop toggles for user	Latest user instruction	PLAN.md	APPLIED
+B	Use native versioned Linux tools and separate dependencies	Meet project requirements without Windows shims	platform-verification.json	VERIFIED
+C	Copy full local records and independent upstream; exclude caches	A Git clone alone would omit local evidence	copy-manifest.json	VERIFIED
+C	Compare logical Git index and restore tracked executable modes	Independent review found stat-cache and mode pitfalls	review.md; final-verification.json	VERIFIED
+D	Keep one cross-platform B01 gate	Preserve PostgreSQL assertions and cleanup	windows-b01/checks.json; linux-b01/checks.json	VERIFIED
+D	Keep servers on loopback and restore WSL localhost forwarding	Auto-review rejected wider listening scope	network-verification.json	VERIFIED
+E	Keep Windows source; make WSL path ready for desktop switch	Avoid continuous two-way synchronization	README.md	USER_UI_PENDING

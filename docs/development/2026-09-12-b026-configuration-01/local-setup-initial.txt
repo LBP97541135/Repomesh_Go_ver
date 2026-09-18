@@ -1,0 +1,44 @@
+RepoMesh B02.6 server preparation
+Date: 2026-09-12 America/Los_Angeles
+Operator: xubohan uid 1000
+
+Scope
+- Product source, Codex configuration, prior evidence, and r1 release files were not modified.
+- No Web or coordinator process was started.
+- No GitHub client secret or App private key was created.
+- Final auth.json was not created.
+
+Configuration
+- /home/xubohan/.config/repomesh is an owned 0700 directory.
+- root-1.key is an owned regular 0600 file of exactly 32 bytes and is not a symlink.
+- auth.pending.json is an owned regular 0600 draft. App ID, Client ID, origin, and callback URL are empty. Secret paths are absolute.
+- runtime.env is an owned regular 0600 file. It points to the final auth.json path, r1 release, and the private Unix-socket database.
+
+PostgreSQL
+- PostgreSQL 17.11 cluster: /home/xubohan/.local/share/repomesh/b026-postgres
+- Database: repomesh_b026
+- PID at verification: 158685
+- listen_addresses is empty.
+- Port setting is 55432.
+- Unix socket directory: /home/xubohan/.local/state/repomesh-b026
+- TCP listener on 55432 at verification: none
+- pg_isready over the private Unix socket: accepting connections
+- Migration result: schema status=current current=3 target=3 pending=0
+- Check result: schema status=current current=3 target=3 pending=0
+- Applied migration versions: 1, 2, 3
+- Product schemas: repomesh_access, repomesh_secrets
+
+Lifecycle commands
+- Start: /usr/lib/postgresql/17/bin/pg_ctl -D /home/xubohan/.local/share/repomesh/b026-postgres -l /home/xubohan/.local/state/repomesh-b026/postgres.log start
+- Stop: /usr/lib/postgresql/17/bin/pg_ctl -D /home/xubohan/.local/share/repomesh/b026-postgres stop
+- Status: /usr/lib/postgresql/17/bin/pg_ctl -D /home/xubohan/.local/share/repomesh/b026-postgres status
+
+Recorded failure
+- An initial read-only metadata query referenced repomesh_schema.migrations, which does not exist. PostgreSQL returned relation-not-found. The actual migration table is public.repomesh_schema_migrations. No mutation occurred. The corrected query found versions 1, 2, and 3.
+- The first draft validation command tried jq, but jq is not installed. No file was changed by that failed check. Node.js then parsed and validated the same non-secret draft successfully.
+
+Remaining gates
+- Create the dedicated GitHub App and install it on the selected test repository.
+- Place github-client-secret and github-app.pem as owned regular 0600 files.
+- Fill the four empty identity and URL fields, validate fixed HTTPS ingress, then atomically create final auth.json from the reviewed draft.
+- Start Web and coordinator only after those gates pass.

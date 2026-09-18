@@ -1,0 +1,14 @@
+ts	phase	decision	why	evidence	result
+2026-09-12T13:13:56Z	configuration	按用户新授权执行专用服务器配置，保留既有网站和工程修改	用户要求按真实验收手册帮其配置，服务器侧可独立推进	docs/development/2026-09-12-b026-configuration-01/PLAN.md	local setup delegated to gpt-5.6 sol; domain bohanxu.me under inspection
+2026-09-12T13:16:23Z	network	采用专用子域名与本机Windows浏览器访问，保持Vercel博客现状	用户提供bohanxu.me并选择仅本机验收，OAuth回调经浏览器返回，TLS使用DNS01验证	docs/development/2026-09-12-b026-configuration-01/domain-https-headers.txt	origin候选https://repomesh.bohanxu.me:8443; 证书与hosts配置待完成
+2026-09-12T13:16:23Z	database	专用PostgreSQL和包装根完成，r1迁移及check通过	按Prove It Works核查实际schema及socket隔离，避免把准备当作OAuth成功	docs/development/2026-09-12-b026-configuration-01/local-setup-initial.txt	current=3 target=3 pending=0; PG running; Web/coordinator未启动
+2026-09-12T13:18:35Z	hosts	Windows管理员执行专用hosts脚本，实际域名解析到127.0.0.1	用户选择仅本机浏览器，保留公开博客并让浏览器callback返回WSL服务	docs/development/2026-09-12-b026-configuration-01/windows-hosts-result.txt	exit0; resolution127.0.0.1; HTTPS未验收
+2026-09-12T13:18:36Z	certificate	生成唯一一次生产DNS01申请，等待用户在Vercel添加TXT	当前无Vercel管理凭据，域名持有人需完成DNS控制权证明	docs/development/2026-09-12-b026-configuration-01/README.md	lego5.4.1; session15538 awaiting Enter; certificate未签发
+2026-09-12T13:20:36Z	review	独立配置复核通过，修正计划勾选并将证书待办单列	本机已完成步骤与仍待DNS/GitHub操作的步骤须按证据区分	docs/development/2026-09-12-b026-configuration-01/independent-review.md	gpt-5.6 terra PASS for local setup; finding closed; HTTPS/OAuth pending
+2026-09-12T13:26:21Z	github_app	用户报告已创建App，准备本机交互导入避免在对话传秘密	公开App查询返回404，真实ID和凭据需从账号设置页取得并直接写本机	docs/development/2026-09-12-b026-configuration-01/README.md	App creation user-reported; credentials missing; DNS TXT still absent; OAuth NOT_RUN
+2026-09-12T13:30:02Z	delegation	停止未交付导入脚本的旧执行任务，交由新的sol任务完成同一限定接口	旧任务长时间未提供可复核产物；先确认interrupted再重新委派，避免两个写入者	docs/development/2026-09-12-b026-configuration-01/PLAN.md	旧configure_local interrupted; 新import_helper仅写独属tmp; 真实配置未导入
+2026-09-12T13:32:47Z	vercel	用户委托代理处理Vercel DNS，改用隔离CLI设备授权后精确新增TXT	可用工具能打开网页但没有标签页点击能力；官方CLI支持登录及DNS管理	docs/development/2026-09-12-b026-configuration-01/README.md	Vercel dashboard打开请求已排队; vercel59.16.0准备中; 原ACME继续等待
+2026-09-12T13:38:07Z	certificate	Vercel 设备登录成功后代理新增专用 TXT 并继续原申请	用户已授权代理处理 Vercel，保留博客记录	权威 DNS 双端匹配；Let’s Encrypt 生产证书签发；TLS pending 已更新	证书配置完成；HTTPS 和真实 OAuth 未执行
+2026-09-12T13:38:07Z	import	交付仅终端交互的 GitHub 秘密导入工具	凭据留在本机，拒绝覆盖和路径不匹配，部分失败保留文件可恢复	import-verification-03.json; import-review-closure.md	5 场景通过；独立复核无开放 P0/P1/P2；真实导入尚未执行
+2026-09-12T13:38:58Z	review	保存 TLS 独立复核和 TXT 清理结果	配置完成与实际 HTTPS、OAuth 验收分开记录	vercel-acme-complete.md; tls-independent-review.md	无开放 P0/P1/P2；等待本机导入 GitHub 材料；Web 与 coordinator 未启动
+2026-09-12T13:54:53Z	live	导入完成后启动 r1 Web 与 coordinator 并建立新真实验收目录	用户回复OK，必要秘密已落地0600；专用PG与TLS已准备	../2026-09-12-b026-live-01/startup.md; ../2026-09-12-b026-live-01/browser-initial.md	LIVE-01通过；GitHub授权和自然刷新未执行；B02仍IN_PROGRESS

@@ -1,0 +1,3 @@
+bundle=dist/repomesh-0.3.0-b03-integrated-20260912-r1
+immutable_bundle_reused=true
+build_evidence=../release-verification-20260913-062726

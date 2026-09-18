@@ -1,0 +1,5 @@
+=== RUN   TestPostgresProjectProcessRestart
+    project_process_test.go:262: {"firstPid":561129,"secondPid":561138,"firstExited":true,"secondExited":true,"sessionStatus":200,"creationStatus":200,"updateStatus":200,"sameActor":true,"sameCreationReceipt":true,"sameUpdateReceipt":true,"uniqueCreation":true,"uniqueUpdate":true}
+--- PASS: TestPostgresProjectProcessRestart (0.53s)
+PASS
+ok  	repomesh.local/repomesh/internal/web	0.532s

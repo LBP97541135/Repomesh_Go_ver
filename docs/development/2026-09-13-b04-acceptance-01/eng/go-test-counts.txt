@@ -1,0 +1,7 @@
+pass=260
+fail=0
+skip=2
+exit=0
+skipped:
+repomesh.local/repomesh/internal/secrets TestRootFileOwner
+repomesh.local/repomesh/internal/web TestProjectBrowserServer

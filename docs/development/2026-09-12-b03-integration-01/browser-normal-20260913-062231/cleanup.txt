@@ -1,0 +1,6 @@
+remaining matching test databases before PostgreSQL stop: 0
+waiting for server to shut down.... done
+server stopped
+PostgreSQL stop: completed (fast)
+runtime directory removal: completed
+Chrome profile: Playwright ephemeral context removed with browser process

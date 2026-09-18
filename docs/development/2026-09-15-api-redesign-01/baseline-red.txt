@@ -1,0 +1,10 @@
+方案表数 44；检查项 6；失败 9
+FAIL docs/current/api-design.md 不存在
+FAIL 应存在的文件缺失：docs/current/api-design.md
+FAIL 应存在的文件缺失：docs/archive/2026-09-15-api-database-catalog/README.md
+FAIL 应存在的文件缺失：docs/development/2026-09-15-api-redesign-01/README.md
+FAIL 现行文档仍引用已删除目录：docs/README.md
+FAIL 现行文档仍引用已删除目录：docs/current/README.md
+FAIL 现行文档仍引用已删除目录：docs/current/b05-b11-storage-consolidation.md
+FAIL 现行文档仍引用已删除目录：docs/current/HANDOFF.md
+FAIL docs/api-database 目录仍然存在

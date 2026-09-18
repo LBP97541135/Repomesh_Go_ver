@@ -1,0 +1,76 @@
+{
+  "recordedAt": "2026-09-12T13:00:30.069938+00:00",
+  "scope": "Final document and protection checks only; the link to this output resolves when this report is written. No service startup, nginx -t, product test or live GitHub acceptance.",
+  "baselineFiles": 562,
+  "changedExistingFiles": [
+    "README.md",
+    "docs/current/HANDOFF.md",
+    "docs/current/IMPLEMENTATION-PLAN.md",
+    "docs/current/authentication-development.md"
+  ],
+  "unexpectedChanges": [],
+  "configUnchanged": true,
+  "oldEvidenceFileCount": 70,
+  "oldEvidencePathsAndHashesUnchanged": true,
+  "documentsChecked": 9,
+  "localLinksChecked": 110,
+  "brokenLinks": [],
+  "bashSyntax": [
+    {
+      "file": "README.md",
+      "block": 1,
+      "exitCode": 0
+    },
+    {
+      "file": "docs/current/authentication-development.md",
+      "block": 1,
+      "exitCode": 0
+    },
+    {
+      "file": "docs/current/authentication-development.md",
+      "block": 2,
+      "exitCode": 0
+    },
+    {
+      "file": "docs/current/authentication-development.md",
+      "block": 3,
+      "exitCode": 0
+    },
+    {
+      "file": "docs/current/b02-github-live-acceptance.md",
+      "block": 1,
+      "exitCode": 0
+    },
+    {
+      "file": "docs/current/b02-github-live-acceptance.md",
+      "block": 2,
+      "exitCode": 0
+    },
+    {
+      "file": "docs/current/b02-github-live-acceptance.md",
+      "block": 3,
+      "exitCode": 0
+    },
+    {
+      "file": "docs/current/b02-github-live-acceptance.md",
+      "block": 4,
+      "exitCode": 0
+    },
+    {
+      "file": "docs/current/b02-github-live-acceptance.md",
+      "block": 5,
+      "exitCode": 0
+    },
+    {
+      "file": "docs/current/b02-github-live-acceptance.md",
+      "block": 6,
+      "exitCode": 0
+    }
+  ],
+  "gitDiffCheckExitCode": 0,
+  "independentReview": "PASS by gpt-5.6 terra; independent-review.md",
+  "externalGitHub": "NOT_RUN",
+  "B02": "IN_PROGRESS",
+  "B03": "TODO",
+  "result": "PASS"
+}

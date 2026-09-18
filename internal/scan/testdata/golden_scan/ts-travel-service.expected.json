@@ -1,0 +1,53 @@
+{
+  "dep_evidence": [
+    {
+      "confidence": "confirmed",
+      "mechanism": "BUILD",
+      "name": "org.springframework.boot:spring-boot-starter-data-jpa"
+    },
+    {
+      "confidence": "confirmed",
+      "mechanism": "BUILD",
+      "name": "mysql:mysql-connector-java"
+    },
+    {
+      "confidence": "confirmed",
+      "mechanism": "BUILD",
+      "name": "org.services:ts-common"
+    },
+    {
+      "confidence": "confirmed",
+      "mechanism": "BUILD",
+      "name": "org.apache.skywalking:apm-toolkit-trace"
+    },
+    {
+      "confidence": "confirmed",
+      "mechanism": "BUILD",
+      "name": "jakarta.validation:jakarta.validation-api"
+    }
+  ],
+  "deploy_identities": [],
+  "deps": [
+    "org.springframework.boot:spring-boot-starter-data-jpa",
+    "mysql:mysql-connector-java",
+    "org.services:ts-common",
+    "org.apache.skywalking:apm-toolkit-trace",
+    "jakarta.validation:jakarta.validation-api"
+  ],
+  "exposed_apis": [],
+  "identities": [
+    "fdse.microservice:ts-travel-service",
+    "ts-travel-service"
+  ],
+  "low_signal": false,
+  "recent_commits": [
+    "Initial commit: ts-travel-service (from FudanSELab/train-ticket)"
+  ],
+  "top_dirs": [
+    ".mvn",
+    ".mvn/wrapper",
+    "src",
+    "src/main",
+    "src/test"
+  ]
+}

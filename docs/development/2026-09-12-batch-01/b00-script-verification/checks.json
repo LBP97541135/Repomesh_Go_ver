@@ -1,0 +1,21 @@
+{
+  "batch": "B00",
+  "result": "NOT_VERIFIED",
+  "recordedAt": "2026-09-12T09:43:54.6952446Z",
+  "failure": "Exception calling \"Start\" with \"0\" argument(s): \"An error occurred trying to start process 'C:\\Program Files\\nodejs\\node.exe C:\\Users\\18092\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe' with working directory 'D:\\Project4work\\Repomesh_Go_ver'. 系统找不到指定的文件。\"",
+  "cleanupPassed": true,
+  "checks": [
+    {
+      "name": "go-version",
+      "command": [
+        "C:\\Program Files\\Go\\bin\\go.exe",
+        "version"
+      ],
+      "exitCode": 0,
+      "expectedExit": 0,
+      "seconds": 0.258,
+      "stdout": "go version go1.26.4 windows/amd64\n",
+      "stderr": ""
+    }
+  ]
+}

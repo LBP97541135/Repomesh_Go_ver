@@ -1,0 +1,7 @@
+{
+  "source": "Windows Chrome cookie store, filtered in memory; values omitted",
+  "origin": "https://repomesh.bohanxu.me:8443",
+  "sessionCookies": [
+    {"name": "__Host-repomesh-session", "domain": "repomesh.bohanxu.me", "path": "/", "secure": true, "httpOnly": true, "sameSite": "Lax", "expires": 1789271080.696628}
+  ]
+}

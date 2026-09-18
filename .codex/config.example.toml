@@ -1,0 +1,8 @@
+# Copy to .codex/config.toml and set source to this checkout's absolute path.
+# The local config.toml is ignored by Git.
+[marketplaces.pstack-claude]
+source_type = "local"
+source = "/REPLACE_WITH_ABSOLUTE_REPOSITORY_PATH"
+
+[plugins."pstack@pstack-claude"]
+enabled = true

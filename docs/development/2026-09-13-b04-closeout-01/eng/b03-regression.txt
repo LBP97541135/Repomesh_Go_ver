@@ -1,0 +1,89 @@
+=== B03 project regression ===
+=== RUN   TestPostgresProjectTransactionsAndAuthorizationInterleaving
+--- PASS: TestPostgresProjectTransactionsAndAuthorizationInterleaving (0.51s)
+=== RUN   TestPostgresInheritFollowsPinnedOrCurrentVersion
+--- PASS: TestPostgresInheritFollowsPinnedOrCurrentVersion (0.44s)
+PASS
+ok  	repomesh.local/repomesh/internal/projects	0.952s
+=== RUN   TestPostgresHTTPAuthenticationBoundary
+--- PASS: TestPostgresHTTPAuthenticationBoundary (0.40s)
+=== RUN   TestPostgresModelHTTPContract
+--- PASS: TestPostgresModelHTTPContract (0.62s)
+=== RUN   TestPostgresModelSaveLostResponseAndRestart
+--- PASS: TestPostgresModelSaveLostResponseAndRestart (0.48s)
+=== RUN   TestPostgresConfigurationProfileSecretAvailability
+--- PASS: TestPostgresConfigurationProfileSecretAvailability (0.48s)
+=== RUN   TestPostgresProjectHTTPContract
+--- PASS: TestPostgresProjectHTTPContract (1.47s)
+=== RUN   TestPostgresProjectProcessRestart
+    project_process_test.go:262: {"firstPid":42450,"secondPid":42466,"firstExited":true,"secondExited":true,"sessionStatus":200,"creationStatus":200,"updateStatus":200,"sameActor":true,"sameCreationReceipt":true,"sameUpdateReceipt":true,"uniqueCreation":true,"uniqueUpdate":true}
+--- PASS: TestPostgresProjectProcessRestart (1.63s)
+PASS
+ok  	repomesh.local/repomesh/internal/web	5.090s
+=== RUN   TestPostgresCallbackOwnsIdentityConfirmationWhileLive
+=== RUN   TestPostgresCallbackOwnsIdentityConfirmationWhileLive/login
+=== RUN   TestPostgresCallbackOwnsIdentityConfirmationWhileLive/reconnect
+--- PASS: TestPostgresCallbackOwnsIdentityConfirmationWhileLive (0.87s)
+    --- PASS: TestPostgresCallbackOwnsIdentityConfirmationWhileLive/login (0.41s)
+    --- PASS: TestPostgresCallbackOwnsIdentityConfirmationWhileLive/reconnect (0.46s)
+=== RUN   TestPostgresCallbackDeadlineReleasesIdentityRecovery
+--- PASS: TestPostgresCallbackDeadlineReleasesIdentityRecovery (0.93s)
+=== RUN   TestPostgresDeploymentAssemblesAndReusesSecretsAcrossRestarts
+--- PASS: TestPostgresDeploymentAssemblesAndReusesSecretsAcrossRestarts (0.57s)
+=== RUN   TestPostgresDeploymentRequiresExplicitMigration
+--- PASS: TestPostgresDeploymentRequiresExplicitMigration (0.57s)
+=== RUN   TestPostgresDeploymentRejectsUnsafeCredentialFiles
+=== RUN   TestPostgresDeploymentRejectsUnsafeCredentialFiles/client_secret/readable_by_others
+=== RUN   TestPostgresDeploymentRejectsUnsafeCredentialFiles/client_secret/symlink
+=== RUN   TestPostgresDeploymentRejectsUnsafeCredentialFiles/RSA_private_key/readable_by_others
+=== RUN   TestPostgresDeploymentRejectsUnsafeCredentialFiles/RSA_private_key/symlink
+=== RUN   TestPostgresDeploymentRejectsUnsafeCredentialFiles/root/readable_by_others
+=== RUN   TestPostgresDeploymentRejectsUnsafeCredentialFiles/root/symlink
+--- PASS: TestPostgresDeploymentRejectsUnsafeCredentialFiles (2.14s)
+    --- PASS: TestPostgresDeploymentRejectsUnsafeCredentialFiles/client_secret/readable_by_others (0.27s)
+    --- PASS: TestPostgresDeploymentRejectsUnsafeCredentialFiles/client_secret/symlink (0.23s)
+    --- PASS: TestPostgresDeploymentRejectsUnsafeCredentialFiles/RSA_private_key/readable_by_others (0.39s)
+    --- PASS: TestPostgresDeploymentRejectsUnsafeCredentialFiles/RSA_private_key/symlink (0.34s)
+    --- PASS: TestPostgresDeploymentRejectsUnsafeCredentialFiles/root/readable_by_others (0.47s)
+    --- PASS: TestPostgresDeploymentRejectsUnsafeCredentialFiles/root/symlink (0.44s)
+=== RUN   TestPostgresDeploymentRejectsMissingAndChangedRoots
+=== RUN   TestPostgresDeploymentRejectsMissingAndChangedRoots/missing_file
+=== RUN   TestPostgresDeploymentRejectsMissingAndChangedRoots/missing_active_root
+=== RUN   TestPostgresDeploymentRejectsMissingAndChangedRoots/changed_root_fingerprint
+--- PASS: TestPostgresDeploymentRejectsMissingAndChangedRoots (0.46s)
+    --- PASS: TestPostgresDeploymentRejectsMissingAndChangedRoots/missing_file (0.01s)
+    --- PASS: TestPostgresDeploymentRejectsMissingAndChangedRoots/missing_active_root (0.01s)
+    --- PASS: TestPostgresDeploymentRejectsMissingAndChangedRoots/changed_root_fingerprint (0.01s)
+=== RUN   TestPostgresDeploymentInvalidAppDoesNotImportSecrets
+--- PASS: TestPostgresDeploymentInvalidAppDoesNotImportSecrets (0.57s)
+=== RUN   TestPostgresConcurrentStartAndCallback
+--- PASS: TestPostgresConcurrentStartAndCallback (0.40s)
+=== RUN   TestPostgresUnknownExchangeNeverRepeats
+--- PASS: TestPostgresUnknownExchangeNeverRepeats (0.31s)
+=== RUN   TestPostgresReadOnlyIdentityRecoveryAndCookieLoss
+--- PASS: TestPostgresReadOnlyIdentityRecoveryAndCookieLoss (0.28s)
+=== RUN   TestPostgresReconnectMismatchAndLateLogout
+--- PASS: TestPostgresReconnectMismatchAndLateLogout (0.35s)
+=== RUN   TestPostgresCallbackCannotWinAfterLogout
+--- PASS: TestPostgresCallbackCannotWinAfterLogout (0.37s)
+=== RUN   TestPostgresRefreshHasOneOwnerAndUnknownStaysUnknown
+--- PASS: TestPostgresRefreshHasOneOwnerAndUnknownStaysUnknown (0.23s)
+=== RUN   TestPostgresDiscoveryPersistsEmptyCursorAndPartialCoverage
+--- PASS: TestPostgresDiscoveryPersistsEmptyCursorAndPartialCoverage (0.28s)
+=== RUN   TestPostgresDiscoveryHidesUnconfirmedNames
+--- PASS: TestPostgresDiscoveryHidesUnconfirmedNames (0.28s)
+=== RUN   TestPostgresStaleRefreshDiscardsUncommittedSecrets
+--- PASS: TestPostgresStaleRefreshDiscardsUncommittedSecrets (0.19s)
+=== RUN   TestPostgresReconnectCannotReplaceNewerOtherBrowserConnection
+--- PASS: TestPostgresReconnectCannotReplaceNewerOtherBrowserConnection (0.27s)
+=== RUN   TestPostgresAttemptLimitExpiryAndConflict
+--- PASS: TestPostgresAttemptLimitExpiryAndConflict (0.33s)
+=== RUN   TestPostgresDelayedAnonymousLoginCannotReplaceReconnectedActor
+--- PASS: TestPostgresDelayedAnonymousLoginCannotReplaceReconnectedActor (0.32s)
+=== RUN   TestPostgresDiscoveryOldClaimCannotPublish
+--- PASS: TestPostgresDiscoveryOldClaimCannotPublish (0.31s)
+=== RUN   TestPostgresProjectObservationMustRemainFreshUnderLock
+--- PASS: TestPostgresProjectObservationMustRemainFreshUnderLock (0.35s)
+PASS
+ok  	repomesh.local/repomesh/internal/access	10.412s
+b03_reg_exit=0

@@ -1,0 +1,83 @@
+[
+  {
+    "path": "/healthz",
+    "status": 200,
+    "expected": 200,
+    "body": {
+      "businessReady": false,
+      "process": "repomesh-web",
+      "status": "scaffold",
+      "version": "dev"
+    }
+  },
+  {
+    "path": "/readyz",
+    "status": 503,
+    "expected": 503,
+    "body": {
+      "message": "Business capabilities are not implemented.",
+      "status": "not_implemented"
+    }
+  },
+  {
+    "path": "/api/projects",
+    "status": 404,
+    "expected": 404,
+    "body": {
+      "error": "not_implemented"
+    }
+  },
+  {
+    "path": "/",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "command": [
+      "go",
+      "run",
+      "./cmd/repomesh-web",
+      "--version"
+    ],
+    "exitCode": 0,
+    "stdout": "repomesh-web dev\n"
+  },
+  {
+    "command": [
+      "go",
+      "run",
+      "./cmd/repomesh-coordinator",
+      "--version"
+    ],
+    "exitCode": 0,
+    "stdout": "repomesh-coordinator dev\n"
+  },
+  {
+    "command": [
+      "go",
+      "run",
+      "./cmd/repomesh-host-executor",
+      "--version"
+    ],
+    "exitCode": 0,
+    "stdout": "repomesh-host-executor dev\n"
+  },
+  {
+    "command": [
+      "go",
+      "run",
+      "./cmd/repomesh-coordinator"
+    ],
+    "exitCode": 1,
+    "stderr": "repomesh-coordinator: not implemented (scaffold only); no queue, scheduling, Graph or AgentTeams integration is running\nexit status 1\n"
+  },
+  {
+    "command": [
+      "go",
+      "run",
+      "./cmd/repomesh-host-executor"
+    ],
+    "exitCode": 1,
+    "stderr": "repomesh-host-executor: not implemented (scaffold only); no listener, host commands, containers or Python analysis are enabled\nexit status 1\n"
+  }
+]

@@ -1,0 +1,3 @@
+{
+  "result": "{\n  \"title\": \"从这里建立协作。\",\n  \"health\": {\n    \"businessReady\": false,\n    \"process\": \"repomesh-web\",\n    \"status\": \"scaffold\",\n    \"version\": \"0.1.0-b01-wsl-20260912\"\n  },\n  \"ready\": 503,\n  \"url\": \"http://127.0.0.1:46139/\",\n  \"platform\": \"Win32\"\n}"
+}

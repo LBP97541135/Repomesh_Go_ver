@@ -1,0 +1,120 @@
+{
+  "recordedAt": "2026-09-12T12:53:44.297178+00:00",
+  "scope": "Read-only audit of existing B02 evidence. No service, product test, historical verification script, or external GitHub acceptance was run.",
+  "verification": {
+    "result": "LOCAL_VERIFIED",
+    "checkCount": 44,
+    "checksWithExitContract": 37,
+    "exitContractMismatches": [],
+    "checksWithHttpStatusContract": 6,
+    "httpStatusMismatches": [],
+    "postgresGate": {
+      "passedTests": 63,
+      "skippedTests": 0
+    },
+    "builtIndexMatch": true,
+    "failure": null,
+    "cleanupPassed": true,
+    "topLevelGoPasses": 81,
+    "topLevelPostgresPasses": 42,
+    "postgresPassEvents": 63,
+    "postgresSkips": 0,
+    "allNamedSkips": [
+      {
+        "test": "TestRootFileOwner",
+        "package": "repomesh.local/repomesh/internal/secrets"
+      }
+    ],
+    "rootFileOwnerSkipPresent": true,
+    "externalAcceptance": "NOT_RUN: real GitHub App and browser OAuth acceptance required"
+  },
+  "browser": {
+    "result": "PASS",
+    "checkCount": 9,
+    "failedChecks": [],
+    "externalGitHub": "NOT_RUN"
+  },
+  "release": {
+    "verificationResult": "PASS",
+    "version": "0.2.0-b02-local-20260912-r1",
+    "target": "linux/amd64",
+    "manifestArtifactCount": 11,
+    "manifestMissingFiles": [],
+    "unlistedPackageFilesExcludingManifest": [],
+    "artifactHashMismatches": [],
+    "directByteRelationsToCurrentSource": {
+      "configs/auth.example.json": {
+        "sourceSha256": "ef6a9db98df41982242d628404af6d8dc48c1024a10abd41e5cb03f0f0d9d451",
+        "packageSha256": "ef6a9db98df41982242d628404af6d8dc48c1024a10abd41e5cb03f0f0d9d451",
+        "sameBytes": true
+      },
+      "configs/repomesh.env.example": {
+        "sourceSha256": "a251a2ec36230d4428e3838008b1427b24e43a4b774ba8643fe3dd7461982a0c",
+        "packageSha256": "a251a2ec36230d4428e3838008b1427b24e43a4b774ba8643fe3dd7461982a0c",
+        "sameBytes": true
+      },
+      "web/package-lock.json": {
+        "sourceSha256": "0de7f257445b9dbd21716ee05f886489181b9d56c073f55fb288c037f43ecb6b",
+        "packageSha256": "0de7f257445b9dbd21716ee05f886489181b9d56c073f55fb288c037f43ecb6b",
+        "sameBytes": true
+      },
+      "README.md -> SOURCE-README.md": {
+        "sourceSha256": "f3f5d672b30e769d4ebdd62a25e2ae31fb5c765e97e8129ef08c99e75cbf19f8",
+        "packageSha256": "7e37b8d6457e090fd314f9035eacd0db07c123de9bacbfa198cd361d3e57e0d0",
+        "sameBytes": false
+      },
+      "web/dist/index.html": {
+        "currentBuildOutputSha256": "5fa955d68bc97861dd9de7bfbaa4d03b903989a9747e4c0a515ed1e6c0a3f36c",
+        "packageSha256": "5fa955d68bc97861dd9de7bfbaa4d03b903989a9747e4c0a515ed1e6c0a3f36c",
+        "sameBytes": true
+      },
+      "web/dist/assets/index-Cq0F5qZC.css": {
+        "currentBuildOutputSha256": "1a639c7ebaa3ac687dbd94837d47926e579746897ecfc687e42a4b55d00d43dc",
+        "packageSha256": "1a639c7ebaa3ac687dbd94837d47926e579746897ecfc687e42a4b55d00d43dc",
+        "sameBytes": true
+      },
+      "web/dist/assets/index-CH4x9jbV.js": {
+        "currentBuildOutputSha256": "54622413e828e7ec005c7ef116f3e6892ccebd2cbf3f4706275000a9da1b5707",
+        "packageSha256": "54622413e828e7ec005c7ef116f3e6892ccebd2cbf3f4706275000a9da1b5707",
+        "sameBytes": true
+      }
+    },
+    "provableRelations": [
+      "The 11 files listed by release.json exist and their current bytes match the manifest hashes.",
+      "The two packaged config examples and package-lock file are byte-identical to the current source files.",
+      "The three packaged frontend files are byte-identical to the current web/dist files.",
+      "The existing release verification records matching --version output for all three packaged binaries."
+    ],
+    "notProvableFromExistingArtifacts": [
+      "The manifest does not cryptographically bind the binaries or compiled frontend assets to final-source.json.",
+      "The recorded version outputs do not prove which exact source bytes produced the binaries.",
+      "SOURCE-README.md is not byte-identical to the current root README.md.",
+      "No reproducible-build comparison was run by this audit."
+    ]
+  },
+  "sourceInventory": {
+    "recordedCount": 69,
+    "currentCount": 69,
+    "missingCurrentFiles": [],
+    "extraCurrentFiles": [],
+    "hashMismatches": [],
+    "allRecordedHashesMatchCurrent": true,
+    "inventoryExactlyMatches": true
+  },
+  "reviewDocuments": {
+    "authReviewFinalVerdict": "PASS; no open P0/P1/P2; real GitHub remains unverified",
+    "documentationFinalReviewVerdict": "PASS; existing local evidence parsed; real GitHub remains unverified",
+    "reviewResolutionExternalStatus": "BLOCKED because a real GitHub App is not configured"
+  },
+  "externalGitHub": {
+    "status": "NOT_RUN",
+    "unverified": [
+      "real OAuth authorization and callback",
+      "real code exchange and token refresh",
+      "App installation and permission behavior",
+      "private repository discovery",
+      "browser cross-site round trip"
+    ]
+  },
+  "result": "PASS"
+}

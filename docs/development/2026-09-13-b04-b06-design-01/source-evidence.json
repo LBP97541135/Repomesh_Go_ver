@@ -1,0 +1,145 @@
+{
+  "originalDocsForTaskDiff": "/tmp/repomesh-b04-b06-design-0g4vf37e",
+  "plannedCurrentDocs": [
+    "backend-first-batch-sources-draft.md",
+    "backend-model-operations-draft.md",
+    "model-settings-browser-api-draft.md",
+    "first-batch-browser-api-contract.md",
+    "model-project-apply-design.md",
+    "backend-first-batch-persistence.md",
+    "issue-configuration-binding-design.md",
+    "issue-page-create-api-contract.md",
+    "README.md",
+    "HANDOFF.md",
+    "DEVELOPMENT-START.md",
+    "IMPLEMENTATION-PLAN.md",
+    "ASTRA-DESIGN-PREPARATION.md",
+    "HANDOFF-BACKEND-DESIGN.md",
+    "HANDOFF-PAGE-API-DESIGN.md",
+    "NEXT-TASK-B04-PROMPT.md",
+    "project-development.md"
+  ],
+  "note": "Persistent archive contains only the17 declared pre-task Markdown documents; SHA256 in baseline.json. Temporary original directory is historical provenance, not required to rerun checks.",
+  "additionalReadSources": [
+    {
+      "path": "/home/xubohan/projects/Repomesh_B03/docs/development/2026-09-12-b04-design-01/backend-candidate-a.md",
+      "sha256": "fe6bc5d6d5e6bbd6fc684cfa4c7c34717e0bc91cef2bf0fc97be2f51e03b8133"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_B03/docs/development/2026-09-12-b04-design-01/backend-interfaces-a.go.txt",
+      "sha256": "45fdfb4cda79c28ef19a07c7243c3d208d1d023285b6c6185e734209641b9dba"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_B03/docs/development/2026-09-12-b04-design-01/backend-interfaces-final.go.txt",
+      "sha256": "fee56111e82554b95cceb45c80c25333a2399d57d8eace7849898450442b5ca7"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_B03/docs/development/2026-09-12-b04-design-01/frontend-interfaces-b.ts.txt",
+      "sha256": "06dc7b7eda676e7d7e5fbed223ac95a7b9c0853c17a40f6c6b26e99116d621e1"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_B03/docs/development/2026-09-12-b04-design-01/frontend-interfaces-final.ts.txt",
+      "sha256": "b92784237f49b3f15b250c030c93e603845b215c94eda0f0e3f7b68db954ef4b"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_B03/docs/development/2026-09-12-b04-design-01/http-ui-candidate-b.md",
+      "sha256": "d8609e36b354e3bc365367d7a7444afa5fb84be2b8627360557c327401f4b06a"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_Go_ver/docs/agentteams-survey-2026-09-07/agentteams-api-cli-survey-2026-09-07.md",
+      "sha256": "275076313b0426e8630b48cfaf9b304d3c661037c4de60fca2cc62ffb25bf67d"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_Go_ver/docs/agentteams-survey-2026-09-07/agentteams-survey.md",
+      "sha256": "9083d5ed90d3908291c920704e8e65f7049e0a587b616259a4843a50adcd2323"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_Go_ver/third_party/AgentTeams/AGENTS.md",
+      "sha256": "afc38bed752d74a6a106673f8e472dffd72f2506824e07611aa0b042703737f8"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_Go_ver/third_party/AgentTeams/agentteams-controller/api/v1beta1/types.go",
+      "sha256": "64418ae636589b35c116d7daee0145abe0c0392853ed6d8926ab7e709a939ffa"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_Go_ver/third_party/AgentTeams/agentteams-controller/internal/controller/manager_controller.go",
+      "sha256": "0549dd0f09dba0fbd19353b9d81a7683f857864170fdc2680245e966762bd747"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_Go_ver/third_party/AgentTeams/agentteams-controller/internal/controller/manager_reconcile_config.go",
+      "sha256": "eace68849f0d306813a1104fc795d909212ff14f021a02be171411bc45f79445"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_Go_ver/third_party/AgentTeams/agentteams-controller/internal/gateway/aigateway.go",
+      "sha256": "1250c0e845563fb3d81221ea92c4ec82551c2575d38668e5598f9f2ad2a16bd7"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_Go_ver/third_party/AgentTeams/agentteams-controller/internal/gateway/higress.go",
+      "sha256": "69621fd50c0b41e07a77234a3a56abfd364cd0b0364f76ab6bbb75865dda87c8"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_Go_ver/third_party/AgentTeams/agentteams-controller/internal/server/resource_handler.go",
+      "sha256": "6d81503413cd3076aff396f4cb275dea299c3ad298ad523990cf61d98fe60f28"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_Go_ver/third_party/AgentTeams/agentteams-controller/internal/server/types.go",
+      "sha256": "1f64daf27684157e115e51c58574dcf9f03d311f785f3f35f075deb6efb2d445"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_Go_ver/third_party/AgentTeams/agentteams-controller/internal/service/provisioner.go",
+      "sha256": "1713b0e454f96d1a0ba55172575ef8e50b18dafe6b3475603ec8c467223975ff"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_Go_ver/third_party/AgentTeams/manager/scripts/init/start-manager-agent.sh",
+      "sha256": "a978c9305138fc78efca0f788b0a805ff530078a1465584144789469bd999ccc"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_Go_ver/third_party/AgentTeams/plugins/teamharness/mcp/server.py",
+      "sha256": "741d211b36a4413e598989c43c9a7735926e18e49787e15a9ef9453d825dc98d"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_Go_ver/third_party/README.md",
+      "sha256": "a6666394d9313579099924c29c8e0749d6cbd5c0354b3aaa2a695f495cbfe579"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_Go_ver/third_party/agentteams-source.json",
+      "sha256": "40c1f82f29df7099e3587fd1e362dabf6a4015794f81a90089930b80ad25eff6"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_Go_ver/validation/agentteams-2026-09-10/reports/manager-config-live.md",
+      "sha256": "9337bdcfd6df077d601cfade8238d3e759b336d6a89c7d23fb7974d82403c388"
+    },
+    {
+      "path": "/home/xubohan/projects/Repomesh_Go_ver/validation/agentteams-2026-09-10/reports/manager-model-smoke-new.md",
+      "sha256": "f5362ce281e9ef517897d50d860414cda3354f38d8800ca546e54c6c64466b02"
+    }
+  ],
+  "upstream": {
+    "head": "517caff9280242a00a4d4c06365352b9e41659c6",
+    "branch": "main",
+    "status": "",
+    "fetch": "NOT_RUN",
+    "oldSurveyHead": "eeaab64391ccaec9118e84977f538aefd40720d6"
+  },
+  "researchers": [
+    {
+      "task": "b04_source_audit",
+      "model": "gpt-5.6-sol",
+      "reasoning": "high",
+      "scope": "read-only/no writes"
+    },
+    {
+      "task": "b06_contract_audit",
+      "model": "gpt-5.6-sol",
+      "reasoning": "high",
+      "scope": "read-only/no writes"
+    },
+    {
+      "task": "agentteams_compat_audit",
+      "model": "gpt-5.6-sol",
+      "reasoning": "high",
+      "scope": "read-only/no writes"
+    }
+  ],
+  "originalDocumentsArchive": "original-documents.zip"
+}

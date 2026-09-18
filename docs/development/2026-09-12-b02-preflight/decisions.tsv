@@ -1,0 +1,8 @@
+ts	phase	decision	why	evidence	result
+2026-09-12T11:38:53Z	pickup	核实 Linux 工作目录和桌面 SSH 项目，保留接手前修改	当前任务已恢复开发，需要直接证据确认执行环境	baseline.json,desktop-project.json	VERIFIED
+2026-09-12T11:38:53Z	scope	B02 最小范围包含认证秘密基础及 coordinator 持久发现续扫	认证在 B04 前就需保存秘密，发现不得依赖 HTTP 存活	../../current/authentication-browser-api-draft.md,../../current/backend-first-batch-sources-draft.md,README.md	待确认采用
+2026-09-12T11:38:53Z	prerequisites	B02 标为 BLOCKED，业务实现尚未开始	候选未明确采用，用户确认 GitHub App 尚未配置	README.md,../../current/IMPLEMENTATION-PLAN.md	BLOCKED
+2026-09-12T11:42:38Z	correction	补记原清单漏掉的 .codex/config.toml，原字节保留共 41 项	初始状态文本去空格误丢首项，补测文件未由本任务修改，不改写原证据	baseline-supplement.json,document-checks.json	VERIFIED
+2026-09-12T11:42:38Z	review	区分采用范围与真实 App 配置两类前置	独立复核指出缺少 App 只阻止真实集成验收，采用后本地实现可先行	README.md,../../current/IMPLEMENTATION-PLAN.md	已修正
+2026-09-12T11:42:38Z	verification	文档链接与原有修改保留检查通过	本轮只改交接，Go 和外部业务检查没有新实现可验收	document-checks.json	VERIFIED
+2026-09-12T11:44:48Z	final_check	完成独立复核修正后的文档与既有修改保留检查	修正剩余的 App 前置措辞，按最终文件重新核验	document-checks-final.json,review.md	VERIFIED

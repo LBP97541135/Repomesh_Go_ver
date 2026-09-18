@@ -1,0 +1,10 @@
+Command: python3 -m unittest -v docs/development/2026-09-12-b026-refresh-02/test_observer.py
+Python: 3.10.12
+Exit: 0
+
+test_accepts_zero_through_six_fraction_digits_with_z_and_offset: PASS
+test_rejects_timestamp_without_timezone: PASS
+
+Ran 2 tests in 0.007s. All passed.
+
+These fixed timestamp values test only the observer parser. They are not real refresh observations or external acceptance evidence.

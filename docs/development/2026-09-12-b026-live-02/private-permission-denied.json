@@ -1,0 +1,9 @@
+{
+  "operation": "Search for the dedicated fixture in the actual RepoMesh UI; first response 503 RESULT_UNCONFIRMED, then click 重试读取仓库.",
+  "status": 200,
+  "fixture": {"id": "repo_00000000001367444901", "userParticipation": {"status": "allowed", "reasonCodes": [], "observedAt": "2026-09-12T16:14:42.123573Z"}, "appCapability": {"status": "denied", "reasonCodes": ["APP_PERMISSION_MISSING"], "observedAt": "2026-09-12T16:15:15.794983953Z"}},
+  "coverage": {"status": "partial", "reasonCodes": ["APP_INSTALLATION_SCOPE"], "observedAt": "2026-09-12T16:14:42.123573Z"},
+  "hasNext": false,
+  "settingsEvidence": "permission-reduction-settings.json",
+  "restorationPending": true
+}

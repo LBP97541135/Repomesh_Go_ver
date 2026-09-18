@@ -1,0 +1,14 @@
+ts	phase	decision	why	evidence	result
+2026-09-12T09:36:16.241952+00:00	frame	本轮先完成 B00 与 B01，后续业务依赖写入批次表	先验证数据库基础，避免未定业务结构提前固化	docs/current/IMPLEMENTATION-PLAN.md	IN_PROGRESS
+2026-09-12T09:42:12.842776+00:00	B00	六项检查和实际入口行为通过	建立数据库施工前的基线	docs/development/2026-09-12-batch-01/b00-checks.json;b00-runtime.json	VERIFIED
+2026-09-12T09:42:12.842776+00:00	B01-design	采用 pgx 加内嵌迁移清单	无需额外迁移二进制即可满足本批要求	docs/development/2026-09-12-batch-01/design.md	VERIFIED
+2026-09-12T09:42:12.842776+00:00	B01-env	准备便携 PostgreSQL 独立实例	Docker 引擎未运行，本批要求真实数据库验证	docs/development/2026-09-12-batch-01/postgres-source.json	IN_PROGRESS
+2026-09-12T09:50:08.501599+00:00	B01-harness	验证脚本修复命令路径选择、Windows PostgreSQL 参数及后台管道继承	真实运行暴露了本机进程行为，不能用静态检查代替	docs/development/2026-09-12-batch-01/b01-negative-test-gate-r3/checks.json	VERIFIED
+2026-09-12T09:50:08.501599+00:00	B01-gate	未实现数据库测试时，B01 检查按预期拒绝通过且完成清理	防止跳过集成测试产生假通过	docs/development/2026-09-12-batch-01/b01-negative-test-gate-r3/checks.json	VERIFIED
+2026-09-12T09:50:08.501599+00:00	B01-code	集成已结束的独立工作区 9 个代码文件并固定 SQL 的 LF	保留原工作区修改，防止跨系统迁移校验和不同	internal/database;cmd/repomesh-web/main.go;.gitattributes	IN_PROGRESS
+2026-09-12T09:55:52.608031+00:00	B01-verify	12 组 PostgreSQL 用例、二进制与实际数据库重启核查通过	证明真实迁移和恢复行为，数据库用例未跳过	docs/development/2026-09-12-batch-01/b01-verification/checks.json	VERIFIED
+2026-09-12T09:55:52.608031+00:00	B01-review	非实现者检查代码通过，注释删除建议为零	独立核对最终文件、事务和证据边界	docs/development/2026-09-12-batch-01/review.md	PASS
+2026-09-12T09:55:52.608031+00:00	B01-review-fix	负向场景检查诊断，首页比对实际构建内容	仅退出码和 200 不足以证明预期行为	scripts/verify-batch.ps1	VERIFIED
+2026-09-12T09:55:52.608031+00:00	handoff	同步当前进度，保留业务候选状态	数据库运维基础不代表业务和运行闭环完成	docs/current/HANDOFF.md;docs/current/IMPLEMENTATION-PLAN.md	IN_PROGRESS
+2026-09-12T09:57:27.275743+00:00	B01-release	配套包三个版本与 10 个产物哈希一致	检查实际发布目录与新数据库命令	docs/development/2026-09-12-batch-01/release-verification.json	VERIFIED
+2026-09-12T10:01:55.546991+00:00	pause	按用户要求暂停施工，B00 与 B01 完成，B02 未开始	先核对 Codex 与 WSL 设置，不继续业务开发	docs/development/2026-09-12-batch-01/PAUSE.md	PAUSED

@@ -1,0 +1,91 @@
+{
+  "status": "PASS",
+  "scope": "POST_REFRESH_BROWSER_ONLY",
+  "fullBatchStatus": "NOT_ASSERTED",
+  "passCriteria": {
+    "refreshSnapshotInvariants": true,
+    "refreshCommittedAfterDue": true,
+    "sameActiveSessionGeneration": true,
+    "existingSessionAndConnectedActor": true,
+    "desktopFixtureAllowedWithPostRefreshObservations": true,
+    "mobileFixtureAllowedWithPostRefreshObservationsAndNoHorizontalOverflow": true,
+    "historyPreparedWithoutAuthorizationPost": true,
+    "logoutReturned204": true,
+    "sessionAfterLogout401": true,
+    "fixtureAbsentAfterLogoutAndHistory": true,
+    "historyBackAndForwardVerified": true
+  },
+  "refresh": {
+    "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+    "accessEpochBefore": 5,
+    "accessEpochAfter": 6,
+    "revisionChanged": true,
+    "credentialCommittedAdvanced": true,
+    "accessExpiryAdvanced": true,
+    "refreshExpiryAdvanced": true,
+    "noNewAttemptIds": true,
+    "refreshCommittedAfterDue": true,
+    "sessionGeneration": 5,
+    "settled": true
+  },
+  "fixture": {
+    "id": "repo_00000000001367444901",
+    "userParticipation": {
+      "status": "allowed",
+      "reasonCodes": [],
+      "observedAt": "2026-09-13T00:59:10.728256Z"
+    },
+    "appCapability": {
+      "status": "allowed",
+      "reasonCodes": [],
+      "observedAt": "2026-09-13T00:59:14.3352843Z"
+    }
+  },
+  "coverage": {
+    "status": "partial",
+    "reasonCodes": [
+      "APP_INSTALLATION_SCOPE"
+    ],
+    "observedAt": "2026-09-13T00:59:10.728256Z"
+  },
+  "mobileLayout": {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "documentScrollWidth": 375,
+    "bodyScrollWidth": 375,
+    "horizontalOverflow": false,
+    "buttons": [
+      {
+        "text": "退出登录",
+        "visible": true,
+        "withinViewport": true
+      },
+      {
+        "text": "重新发现",
+        "visible": true,
+        "withinViewport": true
+      },
+      {
+        "text": "搜索",
+        "visible": true,
+        "withinViewport": true
+      }
+    ]
+  },
+  "routes": [
+    {
+      "origin": "https://repomesh.bohanxu.me:8443",
+      "path": "/"
+    },
+    {
+      "origin": "https://repomesh.bohanxu.me:8443",
+      "path": "/login"
+    },
+    {
+      "origin": "https://repomesh.bohanxu.me:8443",
+      "path": "/"
+    }
+  ]
+}

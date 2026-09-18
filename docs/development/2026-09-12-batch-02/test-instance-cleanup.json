@@ -1,0 +1,20 @@
+{
+  "command": [
+    "/usr/lib/postgresql/17/bin/pg_ctl",
+    "-D",
+    "/tmp/repomesh-b02-pg-0vjib4k_/data",
+    "-m",
+    "fast",
+    "-w",
+    "-t",
+    "30",
+    "stop"
+  ],
+  "exitCode": 0,
+  "stdout": "waiting for server to shut down.... done\nserver stopped\n",
+  "statusExitCode": 3,
+  "status": "pg_ctl: no server running\n",
+  "result": "PASS",
+  "directoryRetained": "/tmp/repomesh-b02-pg-0vjib4k_",
+  "reason": "Only the process was stopped; dedicated database files retained for traceability. No shared services touched."
+}

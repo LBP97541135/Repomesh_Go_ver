@@ -1,0 +1,138 @@
+{
+  "suite": "B04 fixture browser Key and save recovery",
+  "passed": true,
+  "environment": "fresh Playwright context with the shared TLS harness",
+  "events": [
+    {
+      "id": "U04.4",
+      "event": "fixture login opens model settings with a held then empty provider list",
+      "passed": true,
+      "assertions": {
+        "loadingObserved": true,
+        "emptyObserved": true
+      }
+    },
+    {
+      "id": "U04.2",
+      "event": "validation failure stays on the form, keeps typed fields, and clears the key",
+      "passed": true,
+      "assertions": {
+        "stayedOnForm": true,
+        "alertShown": true,
+        "secretCleared": true
+      }
+    },
+    {
+      "id": "U04.4",
+      "event": "a dropped 2xx save still recovers the original saveId without storing the key",
+      "passed": true,
+      "assertions": {
+        "saveWrites": 1,
+        "saveId": "070827fc-ad83-4648-ae33-0f585ca10ab2",
+        "droppedStatus": 200,
+        "keyAbsentFromStorage": true,
+        "secretFreeSnapshot": true
+      }
+    },
+    {
+      "id": "U04.4",
+      "event": "close after a committed save returns the original receipt and the list shows the provider",
+      "passed": true,
+      "assertions": {
+        "closeKeptCommitted": true,
+        "providerListed": true
+      }
+    },
+    {
+      "id": "DIALOG",
+      "event": "已经保存会返回原结果；尚未保存会阻止这次请求以后保存。它不会撤销已保存配置。",
+      "passed": true,
+      "assertions": {
+        "type": "confirm"
+      }
+    },
+    {
+      "id": "U04.4",
+      "event": "closing an empty save slot returns closed_without_save and blocks a late write",
+      "passed": true,
+      "assertions": {
+        "emptyLookupCode": "MODEL_SAVE_NOT_FOUND",
+        "lateCode": "MODEL_SAVE_CLOSED"
+      }
+    },
+    {
+      "id": "U04.4",
+      "event": "another actor sees MODEL_SAVE_NOT_FOUND and no provider identity",
+      "passed": true,
+      "assertions": {
+        "crossActorHidden": true
+      }
+    }
+  ],
+  "network": [
+    {
+      "method": "GET",
+      "path": "/api/model-providers",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/model-provider-saves",
+      "status": 422,
+      "code": "VALIDATION_FAILED",
+      "key": "fa293aed-89ba-4cb8-a782-4a44bda146d9"
+    },
+    {
+      "method": "POST",
+      "path": "/api/model-provider-saves",
+      "status": 200,
+      "code": null,
+      "key": "070827fc-ad83-4648-ae33-0f585ca10ab2"
+    },
+    {
+      "method": "GET",
+      "path": "/api/model-provider-saves/070827fc-ad83-4648-ae33-0f585ca10ab2",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/model-providers",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/model-provider-saves/80000000-0000-4000-8000-0000000000c1",
+      "status": 404,
+      "code": "MODEL_SAVE_NOT_FOUND",
+      "key": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/model-provider-saves/80000000-0000-4000-8000-0000000000c1/close",
+      "status": 200,
+      "code": null,
+      "key": "80000000-0000-4000-8000-0000000000c1"
+    },
+    {
+      "method": "GET",
+      "path": "/api/model-provider-saves/070827fc-ad83-4648-ae33-0f585ca10ab2",
+      "status": 404,
+      "code": "MODEL_SAVE_NOT_FOUND",
+      "key": null
+    }
+  ],
+  "shots": [
+    "docs/development/2026-09-13-b04-validation-stay-01/browser-b04-validation/screenshots/b04_closeout_settings_loading.png",
+    "docs/development/2026-09-13-b04-validation-stay-01/browser-b04-validation/screenshots/b04_closeout_settings_empty.png",
+    "docs/development/2026-09-13-b04-validation-stay-01/browser-b04-validation/screenshots/b04_validation_stay.png",
+    "docs/development/2026-09-13-b04-validation-stay-01/browser-b04-validation/screenshots/b04_closeout_settings_filled.png",
+    "docs/development/2026-09-13-b04-validation-stay-01/browser-b04-validation/screenshots/b04_closeout_save_recovered.png",
+    "docs/development/2026-09-13-b04-validation-stay-01/browser-b04-validation/screenshots/b04_closeout_settings_after_save.png"
+  ]
+}

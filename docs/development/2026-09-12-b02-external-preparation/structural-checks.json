@@ -1,0 +1,86 @@
+{
+  "recordedAt": "2026-09-12T12:56:41.589621+00:00",
+  "scope": "Document link existence, bash syntax, inherited file protection and source hashes only. No product tests, real service startup, nginx validation or live GitHub acceptance.",
+  "baselineFiles": 562,
+  "changedExistingFiles": [
+    "README.md",
+    "docs/current/HANDOFF.md",
+    "docs/current/IMPLEMENTATION-PLAN.md",
+    "docs/current/authentication-development.md"
+  ],
+  "unexpectedChanges": [],
+  "missingFiles": [],
+  "configUnchanged": true,
+  "oldBatchChanged": [],
+  "sourceCount": 69,
+  "sourceMismatches": [],
+  "documentsChecked": 8,
+  "localLinksChecked": 107,
+  "brokenLinks": [],
+  "bashSyntax": [
+    {
+      "source": "README.md",
+      "block": 1,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "source": "docs/current/authentication-development.md",
+      "block": 1,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "source": "docs/current/authentication-development.md",
+      "block": 2,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "source": "docs/current/authentication-development.md",
+      "block": 3,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "source": "docs/current/b02-github-live-acceptance.md",
+      "block": 1,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "source": "docs/current/b02-github-live-acceptance.md",
+      "block": 2,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "source": "docs/current/b02-github-live-acceptance.md",
+      "block": 3,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "source": "docs/current/b02-github-live-acceptance.md",
+      "block": 4,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "source": "docs/current/b02-github-live-acceptance.md",
+      "block": 5,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "source": "docs/current/b02-github-live-acceptance.md",
+      "block": 6,
+      "exitCode": 0,
+      "stderr": ""
+    }
+  ],
+  "gitDiffCheckExitCode": 0,
+  "gitDiffCheckStdout": "",
+  "gitDiffCheckStderr": "",
+  "result": "PASS"
+}

@@ -1,0 +1,4 @@
+mode=b04
+port=53529
+browser_exit=0
+go_test_exit=0

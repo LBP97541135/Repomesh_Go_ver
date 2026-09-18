@@ -1,0 +1,23 @@
+{
+  "result": "VERIFIED",
+  "markdownFiles": 14,
+  "localLinks": 267,
+  "missing": [],
+  "trailingWhitespace": [],
+  "jsonFilesParsed": 13,
+  "sourceSHA256": {
+    ".gitattributes": "7d6ee01d11a84b151fdf96e796df90f82750e807feaabae1c47b9da7795206f0",
+    "go.mod": "c0e67f919b353a4f29bec6b91b43b735f6ea6b09377b98f76e36b4b2d05a810a",
+    "go.sum": "a5e7a8db07eba28dbde48bf9a54c4e9084a5a95ded581c0ff44c08b74e3dfe69",
+    "cmd/repomesh-web/main.go": "408702e41b1121abf3bbe471b9852965ad3b3c0e5434df0ce25b76eaac903fdd",
+    "cmd/repomesh-web/main_test.go": "67bd62cca72e09513e976983531bd50b71a951c8fb3663ddb93cfdf01f30a374",
+    "internal/database/database.go": "4d1988416ea6262f28a010bb17b09ef433e5226754ee775a757abcd67ed5301a",
+    "internal/database/migrations.go": "86a14822e5a4c761d1bedeafe5a24f521ff4826d2a8aa1e9f4e6273b1f37137f",
+    "internal/database/database_test.go": "9b87c39168945453f138544e37d1773f3fd32b9e395452e9539f5c05a30e3405",
+    "internal/database/postgres_test.go": "a7a2e67231048fbba219921fa0b893e455d5b2de6a38ffdaaddd5c3549e51a21",
+    "internal/database/migrations/0001_schema_migrations.sql": "6d180f1b2be3c4904b699c11a13ee827e5405fd2f2ce05041da48e273a210c3a",
+    "scripts/verify-batch.ps1": "83fa5d09bb90802740c53a786da10c5d44f1d04d18691f09c0ca32f0b0274507",
+    "scripts/build.ps1": "05901d5807ed188c5d17e99e34f855a61a7ff5ba676a78c48d96585a9e9cce7d"
+  },
+  "note": "Local link targets and JSON syntax only; runtime behavior is recorded separately. Fenced code is excluded from Markdown link parsing."
+}

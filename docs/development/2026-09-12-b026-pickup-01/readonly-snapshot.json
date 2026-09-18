@@ -1,0 +1,123 @@
+{
+  "attempts": [
+    {
+      "id": "d0e866f2-f7e9-4c0b-bda2-0d1028a5fc82",
+      "actor": null,
+      "state": "cancelled",
+      "purpose": "login",
+      "created_at": "2026-09-12T15:26:10.586987+00:00",
+      "observed_at": "2026-09-12T15:26:23.974993+00:00",
+      "connection_revision": null
+    },
+    {
+      "id": "9042a6c6-633e-4621-8f41-bb270b72982e",
+      "actor": null,
+      "state": "expired",
+      "purpose": "login",
+      "created_at": "2026-09-12T15:28:09.935102+00:00",
+      "observed_at": "2026-09-12T15:38:10.032624+00:00",
+      "connection_revision": null
+    },
+    {
+      "id": "0a385caf-1869-411f-a01c-d14556f086d0",
+      "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+      "state": "confirmed",
+      "purpose": "login",
+      "created_at": "2026-09-12T15:44:35.883629+00:00",
+      "observed_at": "2026-09-12T15:44:40.530259+00:00",
+      "connection_revision": "4a517ea9-7379-4c6e-a188-a0100beac60f"
+    },
+    {
+      "id": "3ef28404-a5c1-42b6-9041-6344caee1156",
+      "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+      "state": "confirmed",
+      "purpose": "reconnect",
+      "created_at": "2026-09-12T15:48:36.519573+00:00",
+      "observed_at": "2026-09-12T15:48:40.920606+00:00",
+      "connection_revision": "a8a723f7-7396-4709-bdf2-cd1cbe28a977"
+    },
+    {
+      "id": "3069fa41-fdf5-44e1-9096-d0476fa643e7",
+      "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+      "state": "confirmed",
+      "purpose": "reconnect",
+      "created_at": "2026-09-12T16:45:20.166402+00:00",
+      "observed_at": "2026-09-12T16:45:24.511804+00:00",
+      "connection_revision": "b2b76dea-c817-44a1-895c-051e472e648c"
+    },
+    {
+      "id": "3fe25d1c-de6f-4996-98e5-cd3304038582",
+      "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+      "state": "confirmed",
+      "purpose": "login",
+      "created_at": "2026-09-12T16:58:18.081156+00:00",
+      "observed_at": "2026-09-12T16:58:22.441154+00:00",
+      "connection_revision": "f686842c-4567-4853-ac32-f28a8d4ae238"
+    },
+    {
+      "id": "cbfce23e-631b-4d97-a66a-97b25e0d60bb",
+      "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+      "state": "confirmed",
+      "purpose": "reconnect",
+      "created_at": "2026-09-12T16:59:14.847169+00:00",
+      "observed_at": "2026-09-12T16:59:18.053286+00:00",
+      "connection_revision": "fb6d2db3-5069-483f-9c79-5efb16b58921"
+    }
+  ],
+  "sessions": [
+    {
+      "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+      "revoked": true,
+      "created_at": "2026-09-12T15:44:40.530259+00:00",
+      "expires_at": "2026-09-13T03:44:40.530259+00:00",
+      "generation": 1,
+      "last_active_at": "2026-09-12T15:48:36.51448+00:00"
+    },
+    {
+      "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+      "revoked": true,
+      "created_at": "2026-09-12T15:48:40.920606+00:00",
+      "expires_at": "2026-09-13T03:48:40.920606+00:00",
+      "generation": 2,
+      "last_active_at": "2026-09-12T16:45:20.154043+00:00"
+    },
+    {
+      "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+      "revoked": true,
+      "created_at": "2026-09-12T16:45:24.511804+00:00",
+      "expires_at": "2026-09-13T04:45:24.511804+00:00",
+      "generation": 3,
+      "last_active_at": "2026-09-12T16:45:24.511804+00:00"
+    },
+    {
+      "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+      "revoked": true,
+      "created_at": "2026-09-12T16:58:22.441154+00:00",
+      "expires_at": "2026-09-13T04:58:22.441154+00:00",
+      "generation": 4,
+      "last_active_at": "2026-09-12T16:59:14.827379+00:00"
+    },
+    {
+      "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+      "revoked": false,
+      "created_at": "2026-09-12T16:59:18.053286+00:00",
+      "expires_at": "2026-09-13T04:59:18.053286+00:00",
+      "generation": 5,
+      "last_active_at": "2026-09-12T17:50:40.839041+00:00"
+    }
+  ],
+  "sampledAt": "2026-09-12T17:59:22.610051+00:00",
+  "connection": {
+    "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+    "status": "connected",
+    "revision": "fb6d2db3-5069-483f-9c79-5efb16b58921",
+    "observed_at": "2026-09-12T16:59:18.053286+00:00",
+    "access_epoch": 5,
+    "refresh_state": "idle",
+    "refresh_due_at": "2026-09-13T00:58:45.991534+00:00",
+    "access_expires_at": "2026-09-13T00:59:15.991534+00:00",
+    "has_refresh_token": true,
+    "refresh_expires_at": "2027-03-12T16:59:15.991534+00:00",
+    "credential_committed_at": "2026-09-12T16:59:18.055489+00:00"
+  }
+}

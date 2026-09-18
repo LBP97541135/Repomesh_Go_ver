@@ -1,0 +1,60 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>RepoMesh · 完整串联原型</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#131313;color:#ddd;font:13px/1.55 "Segoe UI","Microsoft YaHei",sans-serif;color-scheme:dark}button,a,select{font:inherit}button,a{color:inherit}button{cursor:pointer;background:#232323;border:1px solid #3b3b3b;border-radius:6px;padding:6px 10px}button:hover{background:#333}button:focus-visible,a:focus-visible,select:focus-visible{outline:2px solid #b4c4b7;outline-offset:2px}.toolbar{height:54px;border-bottom:1px solid #393830;background:#201f1b;display:flex;align-items:center;gap:12px;padding:0 15px}.mark{color:#cabc96;font-size:11px;white-space:nowrap}.toolbar nav{display:flex;gap:4px;flex:1;overflow:auto}.toolbar nav button{background:none;border-color:transparent;white-space:nowrap;font-size:12px}.toolbar nav button[aria-current=page]{background:#37362e;color:#eee}.toolbar select{background:#24231f;border:1px solid #454239;border-radius:5px;padding:5px;color:#ccc;max-width:145px}#frames{height:calc(100dvh - 88px);position:relative}iframe{width:100%;height:100%;border:0;display:block;background:#131313}iframe[hidden]{display:none}.status{height:34px;display:flex;align-items:center;gap:12px;padding:0 15px;background:#1a1a18;border-top:1px solid #383730;color:#a9a596;font-size:11px}.status span:first-child{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.status button{border:0;background:none;font-size:11px;padding:2px 6px}dialog{width:min(880px,calc(100% - 24px));max-height:86dvh;color:#ddd;background:#1c1c1c;border:1px solid #494949;border-radius:12px;padding:24px}dialog::backdrop{background:#000a}.dialog-head{display:flex;justify-content:space-between;gap:20px}h1{font-size:22px;font-weight:550;margin:0 0 6px}h2{font-size:15px;margin-top:24px;color:#c5c5c5}p{color:#aaa;margin:6px 0 16px}.source{display:grid;grid-template-columns:170px 1fr auto;gap:12px;border-top:1px solid #343434;padding:12px 0;align-items:start}.source small{display:block;color:#999}.source a{font-size:12px;color:#bccdbf}.badge{font-size:11px;color:#bbaa85}.paths{display:flex;gap:8px;flex-wrap:wrap}.note{border:1px solid #464135;padding:12px;border-radius:7px;color:#c8b98e}#route-label{color:#c4b997}#close-map{align-self:start}@media(max-width:700px){.toolbar{height:86px;flex-wrap:wrap;gap:4px;padding:6px 9px}.toolbar nav{order:3;flex-basis:100%}.toolbar .spacer{flex:1}.toolbar select{max-width:130px}#frames{height:calc(100dvh - 120px)}.status{padding:0 8px}.source{grid-template-columns:1fr auto}.source>div:nth-child(2){grid-column:1 / -1;grid-row:2}.mark{font-size:10px}}
+</style></head><body>
+<header class="toolbar"><span class="mark">串联预览 · 待讨论</span><nav aria-label="原型流程导航"><button data-route="review">首批六项</button><button data-route="login">登录与建项</button><button data-route="resume">会话工作区</button><button data-route="issues">Issue</button><button data-route="settings">项目设置</button><button data-route="models">模型设置</button></nav><span class="spacer"></span><select id="walkthrough" aria-label="直接查看场景"><option value="">直接查看场景</option><option value="review">首批六项总览</option><option value="model-test">单模型测试 · 待审</option><option value="source-settings">必要配置来源 · 待审</option><option value="recovery-states">异常恢复 · 待审</option><option value="key-save">API Key 保存 · 待审</option><option value="auth-recovery">登录与重连恢复 · 已采用</option><option value="issue-overview">最小Issue概览 · 待审</option><option value="model-apply">模型用于项目 F04</option><option value="repository-picker">仓库选择 F03</option><option value="sample">双 Issue 会话</option><option value="clarification">消息目标澄清 · 待审</option><option value="issue/I-1/plan">只读 DAG</option><option value="issue/I-1/delivery">验证与交付 · 待审</option><option value="new-project">新建项目</option></select><button id="open-map">全貌与原稿</button></header>
+<main id="frames" aria-label="原型页面"></main>
+<footer class="status"><span id="route-label">正在载入</span><span>内存演示 · 刷新重置</span><button id="back">← 返回</button></footer>
+<dialog id="map" aria-labelledby="map-title"><div class="dialog-head"><div><h1 id="map-title">从项目到协作，再到交付</h1><p>主流程使用当前版本；每份原稿及其采用范围保留在下面。</p></div><button id="close-map" aria-label="关闭全貌">×</button></div><div class="paths"><button data-route="login">01 登录 / 选择仓库 / 项目资料</button><button data-route="resume">02 会话工作区</button><button data-route="create-issue">03 创建 Issue / 关联会话 / 反馈</button><button data-route="issue/I-1/plan">04 详情 / DAG / Leader</button><button data-route="issue/I-1/delivery">05 验证与交付</button></div><p style="margin-top:14px">项目设置与模型设置可随时进入并返回。同一项目的名称、用途与仓库在本次浏览中衔接；F04模型应用为独立样例，原应用入口留在模型页。</p><div class="note">此次串联是待评审草案。F02与F03各三项页面安排已采用，用户要求主界面可找到项目设置；F04三项应用预览UI已采用，专用协议草案待审；其余新导航与跨页衔接尚未采用；真实认证、模型应用、权限、持久化、执行与验证均未接通。F01—F15未因可点击而完成。</div><div id="sources"></div><h2>还没有完整原型的范围</h2><p>F06 执行配置数值编辑、F11 多 Issue 消息与更正、F15 仓库分析，以及各表单完整异常和恢复流程仍待设计。现有片段已串入相应入口，缺失部分没有伪造完成按钮。</p><p>重复演进稿只作历史对照。打开原稿会进入独立标签，其内存数据与本串联预览不共享。</p></dialog>
+<script>
+'use strict';
+const embedded=__EMBEDDED_SOURCES__;
+const sourceHashes=__SOURCE_HASHES__;
+const catalog=[
+ ['登录与项目入口','repomesh-project-entry-prototype.html','已采用：两步顺序、授权提示','登录 → 选仓 → 项目资料 → 工作区'],
+ ['项目配置编辑 F02','repomesh-project-settings-prototype.html','已采用：三段顺序、显式配置开关、摘要确认','工作区 → 项目设置 → 改动摘要 → 结果 / 恢复'],
+ ['供应商与模型','repomesh-model-provider-prototype.html','已采用：供应商分栏与模型参数填写','模型设置 → 编辑 / 测试 / 应用演示 → 返回原页'],
+ ['Issue 创建弹窗','repomesh-issue-modal-prototype.html','已采用：弹窗大小、字段排布','Issue 列表 → 居中弹窗'],
+ ['关联会话控件','repomesh-issue-conversation-prototype.html','已采用：位置、展开方式','创建弹窗 → 新建会话 / 已有会话'],
+ ['创建结果反馈','repomesh-issue-submit-prototype.html','已采用：当轮文案、按钮','提交 → 结果未知 → 查询 → 详情 / 会话'],
+ ['Issue 详情','repomesh-issue-detail-prototype.html','概览与交付均待评审','Issue → 概览 / 历史 / 验证与交付'],
+ ['只读任务 DAG','repomesh-issue-dag-prototype.html','已采用：图布局与图下节点详情','Issue 页签与会话同页右栏'],
+ ['会话悬浮入口','repomesh-conversation-dock-prototype.html','已采用：悬浮入口与同页右栏','会话 → 右栏详情 / DAG / Leader → 关闭返回'],
+ ['消息目标与澄清','repomesh-message-target-prototype.html','控件待评审；技术协议已有 r3','选择脚本场景 → 候选填入答复 → 明确目标演示'],
+ ['会话与独立 Issue','repomesh-conversations-issues.html','整体视觉参考；具体交互沿后继稿','保留独立会话 / 多 Issue 的结构来源'],
+ ['固定会话导航 r1','../archive/2026-09-12-development-preparation/docs/prototypes/repomesh-conversation-navigation-prototype.html','历史：被悬浮入口 r2 替代','不接入现行主流程'],
+ ['模型连接弹窗 r2','../archive/2026-09-12-development-preparation/docs/prototypes/repomesh-model-settings-prototype.html','历史：被供应商分栏 r3 替代','不接入现行主流程'],
+ ['项目优先','../archive/2026-09-12-development-preparation/docs/prototypes/repomesh-project-first.html','历史：会话 / Issue 拆分前','保留演进对照'],
+ ['草稿与房间','../archive/2026-09-12-development-preparation/docs/prototypes/repomesh-rooms-prototype.html','历史：旧草稿绑定规则已替代','保留演进对照']
+];
+const byId=id=>document.getElementById(id),frames=new Map(),projects=new Map(),models=new Map(),statusNotes=new Map();
+let current={id:'project-1',name:'订单系统',purpose:'订单服务与运营后台',repos:['repomesh/order-service','repomesh/admin-console']};projects.set(current.id,current);
+let activeKey='',currentRoute='',lastWorkspace='conversation/C-1',returnRoute='settings',changing=false,navSerial=0;
+const family=r=>['review','source-settings','recovery-states'].includes(r)?'review':['login','new-project','auth-recovery'].includes(r)?'entry':['models','model-apply','key-save','model-test'].includes(r)?'models':['settings','repository-picker'].includes(r)?'settings':'workspace';
+const status=r=>['review','source-settings','recovery-states'].includes(r)?'首批六项 · 完整候选待审 · 开发另做':r==='model-test'?'单模型测试 · 次数预算与可能收费确认待审':r==='key-save'?'F05 · API Key保存与原结果查询待评审':r==='auth-recovery'?'F01 · 三项恢复UI已采用 · 完整认证协议草案待审':r==='issue-overview'?'F09 · 最小详情概览待评审':r==='model-apply'?'F04 · 三项UI已采用 · 专用协议草案待审':r==='repository-picker'?'F03 · 三项页面安排已采用 · 完整发现待补':r==='settings'?'F02 · 三项页面安排已采用 · 完整恢复待补':r==='models'?'分栏与参数填写已采用 · 应用 / Key / 测试完整协议草案待审':r.includes('/delivery')?'验证与交付 · 待评审':r.startsWith('issue/')?'DAG 布局已采用 · 概览 / 交付待评审':r==='clarification'?'消息目标控件 · 待评审':r==='issues'?'Issue 列表示例 · 筛选 / 完整恢复待补':r==='create-issue'?'弹窗 / 会话选择 / 反馈已采用 · 完整恢复未完成':r==='login'||r==='new-project'?'两步创建与授权提示已采用 · 真实认证未接通':'会话与同页悬浮右栏 · 沿已采用布局';
+function chrome(route){byId('route-label').textContent=statusNotes.get(route)||status(route);document.querySelectorAll('[data-route]').forEach(b=>b.setAttribute('aria-current',(b.dataset.route===route||(b.dataset.route==='resume'&&family(route)==='workspace'&&!route.startsWith('issue')&&route!=='create-issue')||(b.dataset.route==='issues'&&(route.startsWith('issue/')||route==='create-issue')))?'page':'false'))}
+function record(route,replace=false){if(currentRoute===route)return;currentRoute=route;history[replace?'replaceState':'pushState']({route},'', '#'+route);chrome(route)}
+async function frameFor(key){if(frames.has(key))return frames.get(key);const f=document.createElement('iframe');f.title=({entry:'登录与项目入口',workspace:'会话与 Issue 工作区',settings:'项目配置编辑',models:'供应商与模型设置',review:'首批六项评审'})[key];f.hidden=true;const p=new Promise(resolve=>f.onload=()=>resolve(f));frames.set(key,p);f.srcdoc=new TextDecoder().decode(Uint8Array.from(atob(embedded[key]),c=>c.charCodeAt(0)));byId('frames').append(f);return p}
+async function go(route,replace=false){
+ const returning=route==='resume'||route==='return';if(route==='return')route=returnRoute;if(route==='resume')route=lastWorkspace;const preserve=returning&&family(route)==='workspace';
+ if(['models','model-apply','key-save','model-test'].includes(route)&&family(currentRoute)!=='models')returnRoute=currentRoute||'settings';
+ byId('map').close();const serial=++navSerial;changing=true;const key=family(route);const f=await frameFor(key);if(serial!==navSerial)return;
+ for(const promise of frames.values()){const other=await promise;other.hidden=other!==f}
+ activeKey=key;f.contentWindow.joinedAPI.navigate(preserve?'resume':route);changing=false;
+ if(key==='workspace')lastWorkspace=route==='sample'||route==='clarification'?'conversation/C-1':route;
+ record(route,replace);chrome(route);
+}
+window.rmPreview={go,currentProject:()=>current,projectChoices:()=>Array.from(projects.values()).map(({id,name})=>({id,name})),modelFor:id=>models.get(id),setModel:(id,m)=>models.set(id,m),
+ setProject(p){projects.set(p.id,p);current=p},
+ report(key,route,note){statusNotes.set(route,note);if(changing||activeKey!==key)return;if(key==='workspace')lastWorkspace=route;record(route);chrome(route)},
+ async createProject(p){changing=true;const f=await frameFor('workspace');f.contentWindow.joinedAPI.addProject(p);changing=false;lastWorkspace='workspace'},
+ async updateProject(p){projects.set(p.id,p);if(current.id===p.id)current=p;const f=await frameFor('workspace');f.contentWindow.joinedAPI.updateProject(p)}
+};
+document.addEventListener('click',e=>{const r=e.target.closest('[data-route]')?.dataset.route;if(r)go(r)});
+byId('walkthrough').onchange=e=>{if(e.target.value)go(e.target.value);e.target.value=''};
+byId('open-map').onclick=()=>byId('map').showModal();byId('close-map').onclick=()=>byId('map').close();byId('back').onclick=()=>history.back();
+window.addEventListener('popstate',()=>go(location.hash.slice(1)||'login',true));
+byId('sources').innerHTML='<h2>11 份保留原稿与 4 份历史归档</h2>'+catalog.map(([title,file,adoption,path])=>`<div class="source"><div>${title}<small class="badge">${adoption}</small></div><div><small>${path}</small><small>${file}</small></div><a href="${file}" target="_blank" rel="noopener">查看原稿 ↗</a></div>`).join('');
+window.addEventListener('unhandledrejection',e=>{byId('route-label').textContent='原型脚本错误：'+e.reason});
+go(location.hash.slice(1)||'login',true);
+</script></body></html>

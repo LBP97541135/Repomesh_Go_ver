@@ -1,0 +1,1097 @@
+{
+  "checkedAt": "2026-09-12T11:44:48.510941+00:00",
+  "scope": "Final documentation and pickup evidence only. No product code or tests changed in this task. No Go/npm/PostgreSQL/OAuth/browser integration checks run. Existing B00/B01 evidence retained.",
+  "localLinkCount": 161,
+  "linkFailures": [],
+  "links": [
+    {
+      "source": "README.md",
+      "target": "docs/README.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "docs/current/development-scaffold.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": ".agents/plugins/README.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "docs/development/2026-09-12-wsl-ssh/README.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "docs/development/2026-09-12-b02-preflight/README.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "docs/development/2026-09-12-wsl/README.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "docs/current/DEVELOPMENT-START.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "docs/current/IMPLEMENTATION-PLAN.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "docs/archive/2026-09-12-development-preparation/README.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "docs/current/scaffold-verification.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "third_party/README.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "docs/current/development-scaffold.md#本地启动与配置",
+      "exists": true,
+      "anchorExists": true
+    },
+    {
+      "source": "README.md",
+      "target": "docs/current/database-development.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "docs/development/2026-09-12-batch-01/README.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "configs/repomesh.env.example",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "IMPLEMENTATION-PLAN.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "DEVELOPMENT-START.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "../archive/2026-09-12-development-preparation/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "development-scaffold.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "database-development.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "../development/2026-09-12-batch-01/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "scaffold-verification.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "../adr/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "first-batch-complete-review.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "design-readiness-revisions.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "../reviews/2026-09-12-design-fixes/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "issue-configuration-binding-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "execution-integration-gates.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "../reviews/2026-09-12-project-contracts/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "../development/2026-09-12-b02-preflight/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "../development/2026-09-12-wsl-ssh/DESKTOP-AUTH-VERIFIED.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "../development/2026-09-12-wsl/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "../development/2026-09-12-batch-01/PAUSE.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "../development/2026-09-12-b02-preflight/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "IMPLEMENTATION-PLAN.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "HANDOFF-PAGE-API-DESIGN.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "HANDOFF-BACKEND-DESIGN.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "design-delegation.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "../archive/2026-09-12-development-preparation/docs/current/HANDOFF.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/HANDOFF.md",
+      "target": "../reviews/2026-09-12-design-readiness/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/IMPLEMENTATION-PLAN.md",
+      "target": "../development/2026-09-12-wsl-ssh/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/IMPLEMENTATION-PLAN.md",
+      "target": "../development/2026-09-12-wsl/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/IMPLEMENTATION-PLAN.md",
+      "target": "../development/2026-09-12-b02-preflight/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/IMPLEMENTATION-PLAN.md",
+      "target": "../development/2026-09-12-b02-preflight/PLAN.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/IMPLEMENTATION-PLAN.md",
+      "target": "../reviews/2026-09-12-project-contracts/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/IMPLEMENTATION-PLAN.md",
+      "target": "../development/2026-09-12-b02-preflight/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/IMPLEMENTATION-PLAN.md",
+      "target": "../development/2026-09-12-batch-01/baseline.json",
+      "exists": true
+    },
+    {
+      "source": "docs/current/IMPLEMENTATION-PLAN.md",
+      "target": "../development/2026-09-12-batch-01/b00-checks.json",
+      "exists": true
+    },
+    {
+      "source": "docs/current/IMPLEMENTATION-PLAN.md",
+      "target": "../development/2026-09-12-batch-01/b00-checks.json",
+      "exists": true
+    },
+    {
+      "source": "docs/current/IMPLEMENTATION-PLAN.md",
+      "target": "../development/2026-09-12-batch-01/b00-runtime.json",
+      "exists": true
+    },
+    {
+      "source": "docs/current/IMPLEMENTATION-PLAN.md",
+      "target": "../development/2026-09-12-batch-01/design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/IMPLEMENTATION-PLAN.md",
+      "target": "../development/2026-09-12-batch-01/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/IMPLEMENTATION-PLAN.md",
+      "target": "../development/2026-09-12-batch-01/b01-verification/checks.json",
+      "exists": true
+    },
+    {
+      "source": "docs/current/IMPLEMENTATION-PLAN.md",
+      "target": "../development/2026-09-12-batch-01/b01-verification/checks.json",
+      "exists": true
+    },
+    {
+      "source": "docs/current/IMPLEMENTATION-PLAN.md",
+      "target": "../development/2026-09-12-batch-01/review.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/IMPLEMENTATION-PLAN.md",
+      "target": "../development/2026-09-12-batch-01/structural-checks.json",
+      "exists": true
+    },
+    {
+      "source": "docs/current/IMPLEMENTATION-PLAN.md",
+      "target": "../development/2026-09-12-batch-01/release-verification.json",
+      "exists": true
+    },
+    {
+      "source": "docs/current/IMPLEMENTATION-PLAN.md",
+      "target": "../development/2026-09-12-batch-01/decisions.tsv",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "DEVELOPMENT-START.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "HANDOFF.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "../archive/2026-09-12-development-preparation/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "IMPLEMENTATION-PLAN.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "database-development.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "DEVELOPMENT-START.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "HANDOFF.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "HANDOFF-PAGE-API-DESIGN.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "HANDOFF-BACKEND-DESIGN.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "design-readiness-revisions.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "../reviews/2026-09-12-project-contracts/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "first-batch-complete-review.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "design-delegation.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "first-batch-browser-api-contract.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "issue-page-create-api-contract.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "authentication-browser-api-draft.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "model-settings-browser-api-draft.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "first-batch-recovery-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "conversation-issue-separation-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "project-configuration-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "model-connection-settings-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "login-recovery-page-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "repository-picker-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "model-project-apply-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "model-key-save-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "issue-overview-minimal-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "prototype-walkthrough-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "backend-first-batch-persistence.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "issue-configuration-binding-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "draft-conversation-backend-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "backend-first-development-access-draft.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "backend-first-batch-sources-draft.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "backend-model-operations-draft.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "conversation-message-target-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "conversation-message-clarification-api-contract.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "backend-message-clarification-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "manager-create-issue-tool-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "execution-integration-gates.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "graph-loop-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "team-execution-policy.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "verification-node-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "integration-environment-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "draft-pr-review-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "changeset-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "changeset-structure.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "issue-creation-repository-analysis.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "development-scaffold.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "wsl-development-recommendation.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "scaffold-verification.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "scaffold-agentteams-evidence.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "agentteams-validation-plan.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "architecture-design-v1.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "technology-selection.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "skill-engineering-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "../../CONTEXT.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "../adr/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "../prototypes/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "../agentteams-survey-2026-09-07/agentteams-survey.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "../agentteams-survey-2026-09-07/agentteams-api-cli-survey-2026-09-07.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "../reviews/2026-09-12-design-readiness/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "../reviews/2026-09-12-design-fixes/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "../archive/2026-09-12-development-preparation/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/README.md",
+      "target": "../archive/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/wsl-development-recommendation.md",
+      "target": "../development/2026-09-12-b02-preflight/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/wsl-development-recommendation.md",
+      "target": "../development/2026-09-12-wsl/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/wsl-development-recommendation.md",
+      "target": "../development/2026-09-12-wsl-ssh/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/wsl-development-recommendation.md",
+      "target": "../development/2026-09-12-batch-01/PAUSE.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/wsl-development-recommendation.md",
+      "target": "../adr/0013-web-coordinator-host-executor-processes.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/wsl-development-recommendation.md",
+      "target": "../adr/0020-python-repository-analysis-plugin.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/wsl-development-recommendation.md",
+      "target": "development-scaffold.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/wsl-development-recommendation.md",
+      "target": "../../go.mod",
+      "exists": true
+    },
+    {
+      "source": "docs/current/wsl-development-recommendation.md",
+      "target": "../../web/package.json",
+      "exists": true
+    },
+    {
+      "source": "docs/current/wsl-development-recommendation.md",
+      "target": "../../README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/wsl-development-recommendation.md",
+      "target": "IMPLEMENTATION-PLAN.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/wsl-development-recommendation.md",
+      "target": "../development/2026-09-12-batch-01/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/wsl-development-recommendation.md",
+      "target": "../../scripts/build.ps1",
+      "exists": true
+    },
+    {
+      "source": "docs/current/wsl-development-recommendation.md",
+      "target": "../../scripts/verify-batch.ps1",
+      "exists": true
+    },
+    {
+      "source": "docs/current/wsl-development-recommendation.md",
+      "target": "../../.codex/config.toml",
+      "exists": true
+    },
+    {
+      "source": "docs/current/wsl-development-recommendation.md",
+      "target": "../../.agents/plugins/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/current/wsl-development-recommendation.md",
+      "target": "../../third_party/agentteams-source.json",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-wsl-ssh/README.md",
+      "target": "../2026-09-12-b02-preflight/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-wsl-ssh/README.md",
+      "target": "AUTH-RECOVERY.md",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-wsl-ssh/README.md",
+      "target": "DESKTOP-AUTH-VERIFIED.md",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-wsl-ssh/README.md",
+      "target": "setup.json",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-wsl-ssh/README.md",
+      "target": "../2026-09-12-wsl/README.md",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-wsl-ssh/README.md",
+      "target": "verification.json",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-b02-preflight/README.md",
+      "target": "baseline.json",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-b02-preflight/README.md",
+      "target": "desktop-project.json",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-b02-preflight/README.md",
+      "target": "baseline-supplement.json",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-b02-preflight/README.md",
+      "target": "../../current/first-batch-browser-api-contract.md",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-b02-preflight/README.md",
+      "target": "../../current/login-recovery-page-design.md",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-b02-preflight/README.md",
+      "target": "../../current/authentication-browser-api-draft.md",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-b02-preflight/README.md",
+      "target": "../../current/first-batch-complete-review.md#4-③认证发现统一裁决范围",
+      "exists": true,
+      "anchorExists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-b02-preflight/README.md",
+      "target": "../../current/backend-first-batch-sources-draft.md#2-s01s02秘密保存权限与恢复",
+      "exists": true,
+      "anchorExists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-b02-preflight/README.md",
+      "target": "../../../cmd/repomesh-coordinator/main.go",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-b02-preflight/README.md",
+      "target": "document-checks-final.json",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-b02-preflight/README.md",
+      "target": "review.md",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-b02-preflight/README.md",
+      "target": "PLAN.md",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-b02-preflight/README.md",
+      "target": "decisions.tsv",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-b02-preflight/review.md",
+      "target": "document-checks.json",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-b02-preflight/review.md",
+      "target": "baseline-supplement.json",
+      "exists": true
+    },
+    {
+      "source": "docs/development/2026-09-12-b02-preflight/review.md",
+      "target": "decisions.tsv",
+      "exists": true
+    }
+  ],
+  "preservation": [
+    {
+      "path": "README.md",
+      "unchanged": false,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": true
+    },
+    {
+      "path": "docs/current/HANDOFF.md",
+      "unchanged": false,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": true
+    },
+    {
+      "path": "docs/current/IMPLEMENTATION-PLAN.md",
+      "unchanged": false,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": true
+    },
+    {
+      "path": "docs/current/wsl-development-recommendation.md",
+      "unchanged": false,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": true
+    },
+    {
+      "path": "scripts/verify-batch.ps1",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/AUTH-RECOVERY.md",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/DESKTOP-AUTH-VERIFIED.md",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/PLAN.md",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/README.md",
+      "unchanged": false,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": true
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/auth-recovery-status.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/decisions.tsv",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/desktop-auth-verification.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/desktop-daemon-restart.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/final-check.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/setup.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/verification.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/PLAN.md",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/README.md",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/codex-app-server-stderr.txt",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/codex-verification.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/copy-manifest.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/copy-workspace.py",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/decisions.tsv",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/final-verification.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/install-native-tools.py",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/linux-b01/checks.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/linux-b01/postgres-output.txt",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/linux-cleanup-negative/checks.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/main.tsx.before-hmr",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/native-tool-sources.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/network-verification.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/platform-verification.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/review.md",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/runtime.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/stop-runtime",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/windows-b01/checks.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/windows-b01/postgres-output.txt",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/windows-browser-hmr.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/windows-browser-package.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/windows-browser-restored.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    },
+    {
+      "path": ".codex/config.toml",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedHandoffUpdate": false
+    }
+  ],
+  "preservationPassed": true,
+  "gitDiffCheck": {
+    "command": [
+      "git",
+      "diff",
+      "--check",
+      "--",
+      "README.md",
+      "docs/current/HANDOFF.md",
+      "docs/current/IMPLEMENTATION-PLAN.md",
+      "docs/current/README.md",
+      "docs/current/wsl-development-recommendation.md",
+      "docs/development/2026-09-12-wsl-ssh/README.md",
+      "docs/development/2026-09-12-b02-preflight/PLAN.md",
+      "docs/development/2026-09-12-b02-preflight/README.md",
+      "docs/development/2026-09-12-b02-preflight/review.md"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": "warning: LF will be replaced by CRLF in README.md.\nThe file will have its original line endings in your working directory\nwarning: LF will be replaced by CRLF in docs/current/HANDOFF.md.\nThe file will have its original line endings in your working directory\nwarning: LF will be replaced by CRLF in docs/current/IMPLEMENTATION-PLAN.md.\nThe file will have its original line endings in your working directory\nwarning: LF will be replaced by CRLF in docs/current/README.md.\nThe file will have its original line endings in your working directory\nwarning: LF will be replaced by CRLF in docs/current/wsl-development-recommendation.md.\nThe file will have its original line endings in your working directory\n"
+  },
+  "documentHashes": {
+    "README.md": "41b16a58844facee934dbb8cf739864f0f3720c474cf2e2baf97ae2087fa0ada",
+    "docs/current/HANDOFF.md": "f307716d9eed3ac33cc2cb441905f270f6c1a4851f47daa68a8ab12fd014f1a4",
+    "docs/current/IMPLEMENTATION-PLAN.md": "cbd0012010ddd8a93a0ba1be184e74ae09db0c4d71c13d4b2785ff0912725a6f",
+    "docs/current/README.md": "d8c29601c7df6d0122e776d0932927c617f46cd22fdcc37d4d9da14b14e7f0fb",
+    "docs/current/wsl-development-recommendation.md": "7a29a371a4c5e04ad1460722a82d00a22bd1cefa4fbd7d88c75f76871add8850",
+    "docs/development/2026-09-12-wsl-ssh/README.md": "e25bdf74a6b245760bb6901385e2bda6cef3db77044134aa3378d77b8ae5e737",
+    "docs/development/2026-09-12-b02-preflight/PLAN.md": "c22d5898bc952a29d922b68e4316ac037bcfa710ac31b46dc0e0b05bca7571e7",
+    "docs/development/2026-09-12-b02-preflight/README.md": "40c944358e9b0d731ace66801442cafc8930a63ea953fe28e06f0f23cff94408",
+    "docs/development/2026-09-12-b02-preflight/review.md": "f3cd849cf6afae0c02d4bd05b54d90bf5bf847e41405fdd90d6a64c35dfbfc48"
+  },
+  "result": "VERIFIED"
+}

@@ -1,0 +1,173 @@
+{
+  "artifact": "docs/api-database/index.html",
+  "sha256": "15ad572dd1ce2668e7df2b4eea267d0b706df2d4a630dce2bb02f230a4da4cb3",
+  "structure": {
+    "bad": [],
+    "nav": 14,
+    "labels": [
+      "foundations",
+      "B00",
+      "B01",
+      "B02",
+      "B03",
+      "B04",
+      "B05",
+      "B06",
+      "B07",
+      "B08",
+      "B09",
+      "B10",
+      "B11",
+      "目录"
+    ],
+    "batches": [
+      "B00",
+      "B01",
+      "B02",
+      "B03",
+      "B04",
+      "B05",
+      "B06",
+      "B07",
+      "B08",
+      "B09",
+      "B10",
+      "B11"
+    ],
+    "stats": [
+      "13Markdown 章节",
+      "115设计专题",
+      "266接口与数据卡",
+      "265表格",
+      "122本地来源链接（去重）"
+    ],
+    "tableStat": "265表格",
+    "tables": 265,
+    "h2": "RepoMesh API 与数据库设计（B00-B11）",
+    "sub": "按 B00 至 B11 批次整理 API、数据库关系、采用状态与设计理由。内容来自 docs/api-database 下的 13 个 Markdown 章节，目录和计数按内容计算。"
+  },
+  "results": [
+    {
+      "name": "nav 批次标签为大写 B00-B11",
+      "ok": true,
+      "detail": "foundations,B00,B01,B02,B03,B04,B05,B06,B07,B08,B09,B10,B11,目录"
+    },
+    {
+      "name": "nav 保留 foundations 与目录入口",
+      "ok": true,
+      "detail": "foundations,B00,B01,B02,B03,B04,B05,B06,B07,B08,B09,B10,B11,目录"
+    },
+    {
+      "name": "标题覆盖 B00-B11",
+      "ok": true,
+      "detail": "RepoMesh API 与数据库设计（B00-B11）"
+    },
+    {
+      "name": "首行说明采用状态与设计理由",
+      "ok": true,
+      "detail": "按 B00 至 B11 批次整理 API、数据库关系、采用状态与设计理由。内容来自 docs/api-database 下的 13 个 Markdown 章节，目录和计数按内容计算。"
+    },
+    {
+      "name": "内部锚点全部存在",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "表格元素数与计数一致",
+      "ok": true,
+      "detail": "265 张表 / 计数 265表格"
+    },
+    {
+      "name": "表格数量符合 13 章规模",
+      "ok": true,
+      "detail": "265"
+    },
+    {
+      "name": "无页面横向溢出 @1440",
+      "ok": true,
+      "detail": "{\"scroll\":1440,\"client\":1440,\"wide\":[]}"
+    },
+    {
+      "name": "锚点标题完整落在导航下方 @1440",
+      "ok": true,
+      "detail": "{\"titleTop\":60.125,\"navBottom\":47.875}"
+    },
+    {
+      "name": "无页面横向溢出 @390",
+      "ok": true,
+      "detail": "{\"scroll\":390,\"client\":390,\"wide\":[]}"
+    },
+    {
+      "name": "锚点标题完整落在导航下方 @390",
+      "ok": true,
+      "detail": "{\"titleTop\":131.53125,\"navBottom\":119.625}"
+    },
+    {
+      "name": "章节标题不重复批次编号",
+      "ok": true,
+      "detail": "B04 模型供应商保存与执行来源导入（已有实现；本地集成验证，非整批 VERIFIED）b04.md\n批次范围与状态公共约定HTTP API7 张卡片GET /api/model-providersG"
+    },
+    {
+      "name": "筛选 B04 只留该章与其分组",
+      "ok": true,
+      "detail": "11 可见 / 期望 11，共 128 行"
+    },
+    {
+      "name": "筛选不影响各章本地目录",
+      "ok": true,
+      "detail": "local 381/381"
+    },
+    {
+      "name": "筛选分组时保留所属章节行",
+      "ok": true,
+      "detail": "tgroup:foundation | tnode:采用状态与事实来源 | tnode:批次与唯一数据归属 | tnode:业务身份先于物理表 | tnode:API 围绕业务操作 | tnode:数据约束与生命周期 | tnode:后台与执行边界 | tnode:采用前检查"
+    },
+    {
+      "name": "清空筛选后全部恢复",
+      "ok": true,
+      "detail": "0"
+    },
+    {
+      "name": "锚点跳转落在目标章节",
+      "ok": true,
+      "detail": "{\"top\":60,\"scrollY\":119911}"
+    },
+    {
+      "name": "打印隐藏浮动导航与搜索框",
+      "ok": true,
+      "detail": "{\"nav\":\"none\",\"search\":\"none\",\"scroll\":1440,\"client\":1440,\"wide\":[]}"
+    },
+    {
+      "name": "打印无横向溢出",
+      "ok": true,
+      "detail": "1440/1440"
+    },
+    {
+      "name": "打印输出 PDF",
+      "ok": true,
+      "detail": "5993 KB"
+    },
+    {
+      "name": "无外部网络请求",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "无 JS 异常或 console 错误",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "窄屏行内代码未被卡片截断",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "screenshots": [
+    "screenshots/final-b04-1440.png",
+    "screenshots/final-b04-390.png",
+    "screenshots/final-b10-1440.png",
+    "screenshots/final-b10-390.png"
+  ],
+  "scope": "Chromium local file; documentation only; no product service or external business verification"
+}

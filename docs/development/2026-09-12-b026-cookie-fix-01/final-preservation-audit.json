@@ -1,0 +1,10 @@
+{
+  "recordedAt": "2026-09-12T17:01:40.178310+00:00",
+  "baseline": "docs/development/2026-09-12-b026-utc-fix-01/preservation-audit/audit.json",
+  "checkedFiles": 71,
+  "batch02Files": 70,
+  "codexConfigChecked": true,
+  "missing": [],
+  "changed": [],
+  "oldVerificationScriptRun": false
+}

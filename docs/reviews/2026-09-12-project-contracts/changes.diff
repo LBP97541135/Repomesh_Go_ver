@@ -1,0 +1,419 @@
+--- before/docs/current/backend-first-batch-persistence.md
++++ after/docs/current/backend-first-batch-persistence.md
+@@ -106,7 +106,7 @@
+ 
+ 更新先锁user访问版本和project，查同键操作。新操作再比较expectedProjectRevision，读取数据库原范围，只计算明确增量；不把客户端可见列表当全集。只改资料／配置，不要求恢复旧受限仓读权；新增集合任一核查失败整个更新回滚，原集合保持。更新与创建不触发运行准备、扩大在途Issue范围或给旧计划新授权。
+ 
+-显式提交configuration时解析并固定profile版本、secretVersion和有效参数，分配configurationRevision；即使仍选择inherit或同一profile，也明确核查是否选定了新版本。只有真实有效值／引用版本变化时更新相应projectRevision与creationContextRevision；无实际变化仍保存该操作成功回执，不强制提升修订。只改名称／用途或加仓不得顺带重解析模型配置。
++显式提交configuration时重新解析profile版本、secretVersion和有效参数；即使仍选择inherit或同一profile，也明确核查是否选定了新版本。仅配置选择、固定引用版本或有效值实际变化时分配新的configurationRevision，并更新相应projectRevision与creationContextRevision；完全无变化时保留原修订，仍保存该操作成功回执。只改名称／用途或加仓不得顺带重解析模型配置。
+ 
+ 后台发现固定版本被停用／撤销，只更新检查观察、accessEpoch及相关creationContextRevision，不能切到另一profile、最新secretVersion或新默认。平台默认变化可提示可更新，但只有用户显式PATCH配置才重新绑定。有效旧版本仍可继续；无效版本保持受限。默认配置初始不存在时允许inherit的固定未解析状态，后来新增默认也须明确配置提交才能建立新的有效绑定。
+ 
+--- before/docs/current/backend-first-development-access-draft.md
++++ after/docs/current/backend-first-development-access-draft.md
+@@ -3,11 +3,14 @@
+ date: 2026-09-11
+ design_revision: RM-FIRST-ACCESS-r1
+ implementation: not-started
++documentation_updated: 2026-09-12
+ ---
+ 
+ # 首批登录、仓库发现与真实配置来源 · 待审草案
+ 
+-**六项完整评审补充（CP16）：** 用户后续要求“你直接给我这六项的全部”，现在一次准备包含相互依赖假设的完整候选包，统一交审，不再仅停在三个方向提问。本稿A／B／C方向仍未采用；认证具体字段沿[认证r2](authentication-browser-api-draft.md)，来源细化见[来源S01—S08](backend-first-batch-sources-draft.md)，模型内部责任见[模型M01—M08](backend-model-operations-draft.md)。它们是待审补充，下文“方向确认后准备字段”等顺序描述为此前阶段，不阻止此次完整候选编写，也不代表依赖已批准或可以实施。
++**六项完整评审补充（CP16）：** 用户后续要求“你直接给我这六项的全部”，现在一次准备包含相互依赖假设的完整候选包，统一交审，不再仅停在三个方向提问。本稿A／B／C方向仍未采用；认证具体字段沿[认证当前候选 r3](authentication-browser-api-draft.md)，来源细化见[来源S01—S08](backend-first-batch-sources-draft.md)，模型内部责任见[模型M01—M08](backend-model-operations-draft.md)。它们是待审补充，下文“方向确认后准备字段”等顺序描述为此前阶段，不阻止此次完整候选编写，也不代表依赖已批准或可以实施。
++
++2026-09-12 项目契约核对按[认证候选 §4](authentication-browser-api-draft.md#4-回调与本地事务)同步本稿的注销代次、Cookie 和回调落点；这些是既有后续候选的替代规则，仍未采用。内部会话、尝试记录及凭据刷新互斥继续由本稿维护。检查记录见[项目契约检查](../reviews/2026-09-12-project-contracts/README.md)。
+ 
+ 本稿由后端设计师2独占维护，新增文件归属已向页面设计师2声明。用户已确认[六项首批范围](../archive/2026-09-12-development-preparation/docs/current/first-development-todo.md)，随后明确“现在还是设计页面和api,开发之后单独做”。本文准备接入方案供双方讨论及用户决定，没有实施授权，也没有把技术ACK当作采用。
+ 
+@@ -60,9 +63,9 @@
+ 3. 回调先核尝试、浏览器、期限与代次，以数据库比较更新领取唯一的交换责任。外部token交换在事务外；同一尝试不得并发或重复换code。重复／过期／旧代次回调不能再签会话。
+ 4. 服务端取得token后查GitHub当前账号，用真实稳定ID选择本地主体；新身份和连接绑定依唯一约束保存。reconnect必须与发起时绑定账号相同，不符合则保留旧绑定、提示重新选账号；不能自动迁项目或合并身份。
+ 5. 短事务重新核本地账号、尝试／连接代次，保存加密凭据版本与新会话摘要、终结尝试。外部结果迟到、用户已注销或新尝试使旧代次失效时，不允许旧回调重建登录。
+-6. 提交后才发送正式会话Cookie，回到已校验站内目标；页面GET现有/api/session确认身份，重读目的地权限。登录成功不自动重放用户旧写入。
++6. 提交后才发送正式会话Cookie，并以303返回该尝试固定的resultPage。页面分别读取原尝试结果和当前/api/session；按认证候选A02核验Destination后，由用户明确继续。认证成功不直接跳回业务页，也不自动重放旧写入。
+ 
+-“同一浏览器开始新登录尝试会使旧尝试失效”是本方案候选；多标签页旧流程应提示重新登录，不反复互相签入。已登录账号重连与初次登录分开；新标签页不能借旧匿名回调切换当前账号。退出同时使该浏览器关联的未完成尝试失效。
++“同一浏览器开始新登录尝试会使旧尝试失效”是本方案候选；多标签页旧流程应提示重新登录，不反复互相签入。已登录账号重连与初次登录分开；新标签页不能借旧匿名回调切换当前账号。退出只撤销请求session及其绑定代次的未完成尝试；仅当前BrowserBinding代次仍与请求session相符时推进失效。迟到的旧session注销不能撤销新session或新尝试。
+ 
+ GitHub官方列明App用户授权流程的state、PKCE S256、client secret服务端交换和身份查询；这些是上游能力事实，上述尝试／会话记录及恢复处理是RepoMesh提案。[官方用户令牌流程](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app)
+ 
+@@ -71,11 +74,11 @@
+ | 情形 | 候选处理及页面影响 |
+ | --- | --- |
+ | 用户在GitHub拒绝 | 有效state绑定下终结此次尝试，显示未完成登录；允许用户显式发起新登录，不自动反复弹授权。 |
+-| state／浏览器／PKCE不符，尝试过期或已消费 | 不签入、不改账号。返回本站安全登录结果页；不得反射任意错误描述、凭据或原始returnTo。 |
++| state／浏览器／PKCE不符，尝试过期或已消费 | 不签入、不改账号。能可信映射原尝试时返回其固定resultPage；非法state或无法可信映射时返回固定/login。不得反射任意错误描述、凭据或原始returnTo。 |
+ | token交换超时／进程中断，无法知道code是否已消费 | 尝试保留未知／终结依据，禁止重复交换旧code。若正式会话不存在，由用户重新登录取得新code；认证重做不触发业务写入。没有通用上游“找回遗失token”能力承诺。 |
+ | 已拿token但账号查询临时失败 | 在同一未过期尝试内可重试只读身份查询；不得先绑定猜测账号。尝试失效后不把晚到结果写入新连接。 |
+ | 首次登录提交成功、响应／Cookie是否到达未知 | 先GET/api/session；200只证明当前本地会话有效，页面按当前返回的稳定身份继续，不反推该次尝试的提交结果；401则显式重新登录，不通过重放callback再造Cookie。可能遗留的不可达会话受期限约束并可清理。 |
+-| 已有有效会话下，账号重连结果／响应未知 | 保留本次重连待核状态。GET/api/session的200甚至githubConnection=connected都不能证明本次重连提交，也不能因此再次交换原code。需要核本次尝试结果及其与当前连接代次的对应关系；安全查询身份／请求／结果字段列入页面唯一认证契约缺口，未闭合前不把重连恢复标完成。 |
++| 已有有效会话下，账号重连结果／响应未知 | 保留本次重连待核状态。GET/api/session的200甚至githubConnection=connected都不能证明本次重连提交，也不能因此再次交换原code。需要核本次尝试结果及其与当前连接代次的对应关系；查询身份、请求和结果字段沿[认证候选 §5](authentication-browser-api-draft.md#5-尝试查询与重连回执)，采用并实现前不把重连恢复标完成。 |
+ | 本地会话到期／注销 | 清对应身份敏感视图、缓存与订阅。重新登录后核对稳定userId；只有同主体才能按已有契约查询原业务操作，不能靠登录成功自动重发。 |
+ | token刷新明确失效 | 标连接缺失或需重新授权的已知事实，同账号重连；本地仍有效会话可进入允许的修复页面，GitHub读权不能沿用失效观察。 |
+ | token刷新结果未知 | 按凭据版本保存未知并停止并发刷新旧token；先核原版本／可能已保存的新版本。不能获得有效凭据时提示同账号重连，不把未知当撤权或刷新成功。 |
+@@ -89,17 +92,18 @@
+ 
+ ### 3.4 交页面维护的候选HTTP职责
+ 
+-下列路径与行为均未采用，完整请求／响应／错误字段由页面负责人写唯一认证契约后再核。本稿不增加现有/api/session字段。
++下列路径与行为均未采用，完整请求、响应、错误及返回目标已经列入[唯一认证候选](authentication-browser-api-draft.md)。本表只说明内部责任，不维护第二套HTTP字段。本稿不增加现有/api/session字段。
+ 
+ | 候选入口 | 用途及结果职责 |
+ | --- | --- |
+ | POST /api/auth/github/login | 未登录同源发起；仅接收允许的站内返回目标。返回服务器生成的授权导航目标，页面执行顶层跳转；不让fetch跟随跨站OAuth充当登录。 |
+ | GET /api/auth/github/callback | 仅接收GitHub回调，完成§3.2的验证；以站内重定向清除code／state，不在JSON返回token。 |
+ | POST /api/auth/github/reconnect | 有效会话及CSRF，同账号修复连接；绑定现有稳定账号和连接代次，不提供换绑。 |
+-| POST /api/auth/logout | 当前会话及CSRF；撤销服务端会话／该浏览器未完尝试后清Cookie。不撤销GitHub App、不取消业务；会话已失效时安全清Cookie，不能影响其他主体。 |
++| POST /api/auth/logout | 当前会话及CSRF；仅撤销请求session及其绑定代次，具体比较沿§3.2。注销响应不发送删除会话Cookie的Set-Cookie头，旧Cookie由服务端拒绝并按原期失效。会话已失效时经同源检查幂等204，不撤销新会话或其他主体。不撤销GitHub App、不取消已提交业务。 |
++| GET /api/auth/attempts/{attemptId} | 原尝试回执按认证候选核发起浏览器绑定；reconnect另核原actor或同actor轮换会话，结果与当前session分读。 |
+ | GET /api/session | 沿已有契约：有效会话与GitHub连接观察分开；本地401不是GitHub超时的替代。 |
+ 
+-认证结果页、401后保存／清理草稿的精确页面策略、允许returnTo集合、限流参数、错误映射和回调重定向码仍须落入页面契约。重连还必须补“本次尝试结果＋当前连接代次”的有权核查方式；现有GET/api/session不承担这个回执职责，不新增虚构session字段，也不承诺匿名查询任意登录尝试。
++认证结果页、Destination、限流参数、错误映射、回调303及原尝试查询以[认证候选](authentication-browser-api-draft.md)为准；草稿清理和原业务恢复另见[页面恢复候选](first-batch-recovery-design.md)。现有GET/api/session不承担原尝试回执职责，不新增session字段，也不允许匿名查询任意登录尝试。
+ 
+ ## 4. A方案：发现来源、覆盖与权限
+ 
+@@ -171,6 +175,7 @@
+ | 用例 | 可观察的合格结果 |
+ | --- | --- |
+ | 两个并发callback；已退出后旧callback迟到 | 同尝试最多一次token交换；旧尝试不重建会话／覆盖连接。 |
++| 旧session的注销请求或响应晚到，新登录已经完成 | 旧请求只影响原绑定代次，响应无删除Cookie头；新session及新尝试不被旧注销撤销。 |
+ | 首次登录数据库提交成功但Cookie响应丢失 | session查询确认当前身份或显式新登录恢复；不推断特定尝试成功，没有自动提交项目／Issue。 |
+ | 原会话有效且连接已connected，新的重连响应丢失 | 仍显示本次结果待核，不能用session=200判成功；依据后续唯一认证契约查询原尝试及当前连接代次，不重换旧code。 |
+ | 重连时GitHub选错账号／同名或同邮箱账号 | 旧稳定身份与项目归属保持；不同账号不能冒领或合并。 |
+--- before/docs/current/first-batch-browser-api-contract.md
++++ after/docs/current/first-batch-browser-api-contract.md
+@@ -3,6 +3,7 @@
+ date: 2026-09-10
+ design_revision: RM-API-01-r3
+ implementation: not-started
++documentation_updated: 2026-09-12
+ ---
+ 
+ # 首批项目、配置引用与列表：浏览器接口契约 v1
+@@ -10,6 +11,19 @@
+ 本稿为 RM-API-01 r3（第 3／3 轮双方具体方案已确认）的唯一浏览器字段来源，由页面维护。r3 在 r2 上只补项目动作403错误码、非法幂等头和项目操作浏览器恢复路由；对象关系采用 RM-B01-04 r2。内部存储／事务由后端在[首批持久化协议](backend-first-batch-persistence.md)维护，不能复制第二套 HTTP Schema。创建 Issue 的七个接口仍只以[创建契约 v1](issue-page-create-api-contract.md)为准。技术确认不代表用户已接受具体页面布局；页面须展示原型讨论。
+ 
+ 当前只完成本稿列明范围的设计。没有实际账号接入、数据库、业务路由或接口验证。登录跳转、完整仓库发现、全局模型 Key 管理、会话详情／消息／运行协议不因本稿存在而完成。原型与实现范围见[页面交接](HANDOFF-PAGE-API-DESIGN.md)。
++
++## 采用范围与后续候选
++
++2026-09-12 文档核对保留 RM-API-01 r3 的字段、路径和采用范围，澄清无实际变化的配置保存规则，并补齐后续设计入口。已采用的 F01—F04 具体 UI 范围以页面交接为准；新增候选不因本稿 accepted 而采用。本次发现与未补字段见[项目契约检查](../reviews/2026-09-12-project-contracts/README.md)。
++
++| 衔接范围 | 唯一来源与当前边界 |
++| --- | --- |
++| 登录、回调、重连、注销和仓库发现批次 | [认证候选](authentication-browser-api-draft.md)已定义新增端点、Destination、尝试回执及发现策略，仍待采用；本稿 session、仓库条目和 coverage 字段保持。 |
++| 模型保存、测试和仅换模型 | [模型浏览器候选](model-settings-browser-api-draft.md)维护新增协议；其专用应用精确保留 execution，不能用本稿完整 configuration PATCH 替代。 |
++| 秘密、默认配置、执行与预算来源 | [配置来源候选](backend-first-batch-sources-draft.md)维护内部及部署方案；不能把导入结构直接当作浏览器响应。项目预算与时限的只读摘要尚缺，见 §5。 |
++| 页面失败恢复与已有会话入口 | [恢复候选](first-batch-recovery-design.md)细化页面状态并提出只读会话页头；已有消息读取沿[消息契约](conversation-message-clarification-api-contract.md)，首批不因此开放发送。 |
++| Issue 固定配置 | [P9 配置绑定候选](issue-configuration-binding-design.md)补 Issue 到 ProjectConfigRevision 的持久引用；接收供以后执行的真实 Issue／待办前须确定并落实，不改变本稿项目 JSON。 |
++
+ 
+ ## 1. 共用规则和接口目录
+ 
+@@ -48,7 +62,7 @@
+ 
+ `user.id` 为稳定本地主体，displayName 仅展示。githubConnection.status 为 `connected / missing / unknown`，observedAt 为 UTC 时间或 null；connected 不保证任何仓库的当前资格或 App 能力。csrfToken 是当前会话的防伪值，不能持久化到 URL／操作恢复索引，也不替代身份 Cookie。
+ 
+-没有有效登录返回 `401 AUTHENTICATION_REQUIRED`，页面清身份敏感缓存和订阅并进入登录流程。真实登录／回调／注销／账号重连端点及凭据交换另行收口，不能根据这个示例自行拼接 OAuth 地址或索要扩大授权。
++没有有效登录返回 `401 AUTHENTICATION_REQUIRED`，页面清身份敏感缓存和订阅并进入登录流程。真实登录／回调／注销／账号重连已有[认证字段候选](authentication-browser-api-draft.md)，仍待采用与实现，不能根据这个 session 示例自行拼接 OAuth 地址或索要扩大授权。
+ 
+ ## 3. 仓库候选与保存范围
+ 
+@@ -139,9 +153,11 @@
+ 
+ `GET /api/configuration-profiles?kind=model&cursor=...&limit=50`，kind 必填为 `model / execution`，返回 `{"items":[{"id":"profile_1","name":"项目可用配置","availability":{"status":"allowed","reasonCodes":[],"observedAt":"2026-09-10T00:00:00Z"}}],"nextCursor":null,"defaultProfileId":"profile_1"}`。defaultProfileId 可以为 null；只返回当前用户可引用配置，某个已知配置当前不可用仍可作为待修复引用保存，不等于允许执行。
+ 
+-有效 profile 与密钥版本由 configurationRevision 固定。后台发现撤销、禁用或固定版本不可用，只更新检查观察及相关创建上下文修订，不静默切换 profile／密钥版本。平台默认变化可提示有更新，只有显式 PATCH 提供 configuration（即使仍选同一个 inherit／reference）才重新解析并固定新版本，随后改变 projectRevision／creationContextRevision。只改名称、用途或加仓不顺带更新模型；原固定版本仍有效时可继续，失效则保持受限。
+-
+-配置引用版本固定的收益是可追溯费用／权限依据；代价是默认变化需要显式保存配置才能采用。保存不是新的业务开工审批，也不触发实例重启。全局 Key 创建、轮换、删除和安全传输仍需独立设置契约，不在本稿虚构已可使用的保存按钮。
++有效 profile 与密钥版本由 configurationRevision 固定。后台发现撤销、禁用或固定版本不可用，只更新检查观察及相关创建上下文修订，不静默切换 profile／密钥版本。在本稿项目更新接口中，只有显式 PATCH 提供 configuration（即使仍选同一个 inherit／reference）才重新解析两项引用。配置选择、固定引用版本或有效值实际变化时，生成对应 configurationRevision 并更新 projectRevision／creationContextRevision；完全无变化时保留原修订，仍保存本次成功操作回执。只改名称、用途或加仓不顺带更新模型；平台默认变化只可提示更新，原固定版本仍有效时可继续，失效则保持受限。这与 §7 及[持久化 §2.4](backend-first-batch-persistence.md)的无变更保存规则一致。
++
++配置引用版本固定的收益是可追溯费用／权限依据；代价是默认变化需要显式保存配置才能采用。保存不是新的业务开工审批，也不触发实例重启。Key 保存、替换与原操作安全终结见[模型浏览器候选](model-settings-browser-api-draft.md)，尚未采用或实现；删除等未覆盖操作不从该候选推导。
++
++本节响应尚不足以展示[项目配置 J1](project-configuration-design.md)要求的实际预算和时限。budgetPolicyId／timeLimitPolicyId 只标识策略，配置候选列表也未返回其数值、单位或固定版本内容。须补对应 configurationRevision 的只读摘要契约，并区分固定配置与当前额度／资格观察；内部来源清单和模型测试预览不能代替它。此项记为[检查 C05](../reviews/2026-09-12-project-contracts/README.md#c05-项目预算和时限缺少只读响应)，当前不新增已采用字段、不填入候选默认数值，也不要求先实现完整 F06 编辑页。
+ 
+ ## 6. 保存项目与原操作恢复
+ 
+@@ -288,6 +304,6 @@
+ 
+ 上述项目403业务码不改变Issue原 `CREATE_NOT_ALLOWED`。不能通过错误或 fieldErrors 回显受限仓库名、秘密或请求正文。没有运行中／失败的公开项目操作状态，也不采用202冒充本地保存成功。
+ 
+-实施后至少验证：项目同键并发与丢响应；更新旧修订与同键重放优先；正文清理后旧键不复活；受限原仓库不影响配置修复；明确添加失败整次回滚；默认配置变化不暗换版本；候选部分覆盖与空页游标；列表核权未知返回503；跨主体游标／过滤不能泄露；失权和晚到响应不能覆盖新页面。后端故障矩阵和页面 UI-01—12 分别见各自专题。
++实施后至少验证：无变更配置保存保留修订并保存原操作回执；项目同键并发与丢响应；更新旧修订与同键重放优先；正文清理后旧键不复活；受限原仓库不影响配置修复；明确添加失败整次回滚；默认配置变化不暗换版本；候选部分覆盖与空页游标；列表核权未知返回503；跨主体游标／过滤不能泄露；失权和晚到响应不能覆盖新页面。后端故障矩阵和页面 UI-01—12 分别见各自专题。
+ 
+ 本稿文档／JSON 检查不等于接口实测。首批项目／列表字段已收口；完整认证、可参与仓库覆盖、模型 Key 设置、会话详情／消息／房间与运行恢复仍是明确设计依赖，P01/B01、P05 和整个产品设计不能据本稿一并标为完成。
+--- before/docs/current/HANDOFF.md
++++ after/docs/current/HANDOFF.md
+@@ -16,12 +16,14 @@
+ 
+ 可开发已确定的独立管理单元；接收供以后执行的真实 Issue／待办前，须先确定并落实[配置绑定](issue-configuration-binding-design.md)。[五项执行协议门槛](execution-integration-gates.md)仍未全部完成，不能把管理闭环当成 Manager／Worker 工作闭环。
+ 
++[项目契约检查](../reviews/2026-09-12-project-contracts/README.md)已澄清无变更配置保存、同步旧认证注销步骤及当前设计入口。还须补齐项目预算／时限的只读摘要，以及模型应用预览中原模型的受限形状与历史定位；它们分别影响配置摘要和完整替换预览，不阻止已确定的独立项目管理单元开发。新增候选和 P9 的采用状态保持。
++
+ ## 接续顺序
+ 
+ 1. 明确首批候选的采用／调整范围，保持已采用契约的语义和原操作恢复。
+ 2. 复现工程检查，按[指南](DEVELOPMENT-START.md)依次实现认证、项目、模型配置、Issue 原子创建及查询／恢复，并执行真实故障验收。
+ 3. 再完成 G1—G2 的真实 Manager 往返、G3—G4 的单仓执行，最后完成 G5 的两轮与跨仓恢复。
+ 
+-前端／接口的 F01—F15 去向见[页面交接](HANDOFF-PAGE-API-DESIGN.md)；后端 B01—B08 去向见[后端交接](HANDOFF-BACKEND-DESIGN.md)。本次只做归档与阅读导航，没有开始业务实现，也没有更改候选采用状态。
++前端／接口的 F01—F15 去向见[页面交接](HANDOFF-PAGE-API-DESIGN.md)；后端 B01—B08 去向见[后端交接](HANDOFF-BACKEND-DESIGN.md)。归档整理及本次契约核对均未开始业务实现，也没有更改候选采用状态。
+ 
+ 历史依据：[设计采用记录](design-delegation.md)、[整理前交接全文](../archive/2026-09-12-development-preparation/docs/current/HANDOFF.md)、[原始审查](../reviews/2026-09-12-design-readiness/README.md)。历史角色、任务 ID 和技术轮次用于溯源，不自动召回旧协作者。
+--- before/docs/current/model-connection-settings-design.md
++++ after/docs/current/model-connection-settings-design.md
+@@ -1,8 +1,8 @@
+ # 模型连接与 API Key 设置
+ 
+-用户“是的，继续下一个”已采用F01登录恢复所问三项UI，技术r2、2／3；随后“继续”推进当前[F05 API Key保存与原结果查询](model-key-save-design.md)，r1文档核对通过、1／3，三项新UI仍待用户。F09和认证三方向未因此采用，完整Key／测试／应用协议仍未完成。只页面／API设计，开发另做，准确收发与TODO见页面CP15。
++当前状态于2026-09-12核对。供应商分栏、模型参数及 F04 列明的三项 UI 已采用；[F05 Key 页面](model-key-save-design.md)新增 UI、认证及模型机器协议仍待采用。Key 保存／安全终结、测试、专用应用和 modelProfile 映射已形成[模型浏览器候选](model-settings-browser-api-draft.md)及[内部操作候选](backend-model-operations-draft.md)，不再属于完全未编制的协议。当前仍无业务实现，实际运行配置消费见[执行接入门槛](execution-integration-gates.md)。
+ 
+-**当前F04页面记录（三项UI已采用）：** 用户同意F03三项安排后要求继续下一项，新增[模型用于项目预览](model-project-apply-design.md)及串联原型弹窗。仅采用本专题§3已有目标的三项呈现，准确范围见页面CP11；现行PATCH不变，专用协议未完成。当前文件由继任页面设计师2维护，历史r3采用范围及原作者记录保持。
++**当前F04页面记录（三项UI已采用）：** 用户同意F03三项安排后要求继续下一项，新增[模型用于项目预览](model-project-apply-design.md)及串联原型弹窗。仅采用本专题§3已有目标的三项呈现，准确范围见页面CP11；现行PATCH不变，专用协议已有候选，尚未采用或实现。当前文件由继任页面设计师2维护，历史r3采用范围及原作者记录保持。
+ 
+ 设计修订：RM-UI-MODEL-SETTINGS r3（第3／3轮，技术与最终落盘已互核，无分歧）。用户在新版原型及模型编辑弹窗展示后回复“ok可以的”，采用当前供应商分栏及模型参数填写方式。r2保存/测试/应用分离及专用应用协议依赖保持。唯一页面编辑者为页面接口设计师1，后端维护其内部设计。仅独立原型与文档，无业务实现或真实连接验证。
+ 
+@@ -10,7 +10,7 @@
+ 
+ ## 1. 当前布局与字段（r3）
+ 
+-供应商分组归当前真实账号owner管理，可用于其有配置资格的项目；不开放共享或编辑平台默认。供应商显示名称为RepoMesh元数据，一家可记录多个模型。项目应用必须明确一个模型及其供应商/模型参数/密钥版本对应的固定快照，不把供应商整卡当成一个唯一modelProfile。多供应商到网关路由及modelProfile映射仍待协议，不能循环覆写同一组全局环境变量来实现。
++供应商分组归当前真实账号owner管理，可用于其有配置资格的项目；不开放共享或编辑平台默认。供应商显示名称为RepoMesh元数据，一家可记录多个模型。项目应用必须明确一个模型及其供应商/模型参数/密钥版本对应的固定快照，不把供应商整卡当成一个唯一modelProfile。每模型行到稳定modelProfile的映射已列入[模型候选 M01](model-settings-browser-api-draft.md#m01-通用约束与对象)，仍待采用；多供应商到实际网关的运行路由仍需细化，不能循环覆写同一组全局环境变量来实现。
+ 
+ 右侧可修改供应商名称、Base URL和密钥，显示当前已核对的API格式；模型列表显示模型ID/显示名、上下文窗口、最大输出、推理和图片能力，每个模型分别测试、用于项目。添加/编辑模型先进入配置草稿，显式保存才产生新版本。未保存草稿时禁用测试/应用，避免测试旧版本却让用户误以为测的是当前输入。切换供应商前提示先保存或撤销修改。
+ 
+@@ -61,7 +61,7 @@
+ | 测试结果未知 | 查询原测试，不自动发起第二次可能收费的探测。 |
+ | 保存结果未知 | 核查原保存；不自动重新提交密钥或生成另一写操作。 |
+ 
+-真实测试方式、可能费用提示、观察有效期、可测试权限和具体错误枚举仍未设计完成。未测试/失败不等于不能保存引用，也不能据此授权执行；项目必要条件按现行核验处理。保留某个执行旧版本不恢复其已失效的当前可用资格。
++测试方式、可能费用提示、观察有效期、可测试权限和错误枚举已列入[模型字段候选](model-settings-browser-api-draft.md)及[来源候选](backend-first-batch-sources-draft.md)，尚未采用与实现。未测试/失败不等于不能保存引用，也不能据此授权执行；项目必要条件按现行核验处理。保留某个执行旧版本不恢复其已失效的当前可用资格。
+ 
+ 原型只用单个内存待保存对象模拟原操作查询；未知恢复示例固定返回同次成功，不证明服务端幂等、跨刷新恢复或失败终态处理。测试时间为浏览器本地演示时间，非服务端证据。
+ 
+@@ -71,9 +71,9 @@
+ 
+ **2026-09-12 R04 推荐修订，待采用：** “在途 Issue 不随切换”还缺少 Issue 到原配置的持久关联。建议创建事务写入不可变 `initialConfigurationRevision`，引用同项目 `ProjectConfigRevision`；后台重启后沿该引用重核原配置当前是否可用。完整候选及并发、密钥失效、旧记录修复和普通讨论边界见[Issue 配置绑定](issue-configuration-binding-design.md)。这不是新增已采用字段，也不扩大当前 UI 确认范围。真实 Issue 与待办首次保存前应确定该绑定；共享 Manager 的全局配置切换不能充当每 Issue 固定版本的实现。项目应用新配置不会自动修复旧 Issue 的失效 Key 或缺失绑定。
+ 
+-这项原子保证必须由后续专用应用协议提供，当前未实现。现行[首批浏览器契约](first-batch-browser-api-contract.md)§5/7仅接受modelProfile的mode/id，没有客户端指定不可变连接版本或预览版本比较；完整configuration提交会重新解析两项引用。即使executionProfile仍是原inherit/同id，也可能得到新的有效版本。因此**不能直接调用现行完整PATCH并宣称满足上述目标**，本稿不更改RM-API-01 r3，不新增虚构REST字段。
++这项原子保证由[专用应用候选 §5](model-settings-browser-api-draft.md#5-仅更换模型预览与原子应用)规定，尚未采用与实现。现行[首批浏览器契约](first-batch-browser-api-contract.md)§5/7仅接受modelProfile的mode/id，没有客户端指定不可变连接版本或预览版本比较；完整configuration提交会重新解析两项引用。即使executionProfile仍是原inherit/同id，也可能得到新的有效版本。因此**不能直接调用现行完整PATCH并宣称满足上述目标**，本稿不更改RM-API-01 r3，不新增虚构REST字段。
+ 
+-r3原型项目仅有“订单系统”一个示例，执行配置“开发容器 · v2”是预置展示值。JavaScript赋值展示未来交互效果，不是版本比较、权限核验或事务实现。真实供应商/所选模型/固定快照与modelProfile的映射、专用应用请求/原子比较/幂等回执和恢复接口均待完成；依赖这些保证的业务实现不得提前接入。
++r3原型项目仅有“订单系统”一个示例，执行配置“开发容器 · v2”是预置展示值。JavaScript赋值展示未来交互效果，不是版本比较、权限核验或事务实现。供应商、模型行、固定快照与modelProfile的映射，以及应用请求、原子比较、幂等回执和恢复接口已形成上述候选。原模型受限形状与固定来源定位仍有[字段缺口 C06](../reviews/2026-09-12-project-contracts/README.md#c06-应用预览缺少原模型的完整形状)；补齐并采用相关方案前，不能将完整预览标为可验收。
+ 
+ ## 4. 未覆盖范围与交付边界
+ 
+@@ -81,4 +81,4 @@
+ 
+ 用户在被询问模型参数填写方式是否符合预期后回复“ok可以的”，采用本次分栏及模型参数编辑的已展示呈现。新增或未展示的恢复、权限和运行交互仍需分别展示讨论；本次确认不扩大此前详情、交付、消息控件的UI采用范围。
+ 
+-设计目标、原型走查、真实实现与验证分别记录于[页面通信日志](../archive/2026-09-12-development-preparation/docs/current/design-communication-page-2026-09-10.md)。密钥/测试/应用机器协议仍需后续按唯一负责人协作完成。
++设计目标、原型走查、真实实现与验证分别记录于[页面通信日志](../archive/2026-09-12-development-preparation/docs/current/design-communication-page-2026-09-10.md)。密钥、测试和应用机器协议的当前候选由模型浏览器稿统一维护；后续补齐字段与采用范围，不从本页原型另造协议。
+--- before/docs/current/model-project-apply-design.md
++++ after/docs/current/model-project-apply-design.md
+@@ -20,7 +20,7 @@
+ 
+ 唯一已有目标依据为[模型设置§3](model-connection-settings-design.md)：仅更换模型，精确保留execution原引用及有效版本；提交绑定预览模型固定快照与项目修订，变化需重新明确；其他项目和在途Issue不随之切换。[首批浏览器契约§5／7](first-batch-browser-api-contract.md)仍双引用重解析，不能拿其完整PATCH实现本页保证。
+ 
+-本页记录已采用的三项呈现，不新增REST端点、机器字段、SecretVersion格式、预览令牌、有效期、幂等键或错误码。参数／密钥版本与modelProfile的完整映射、原子比较、引用保留、回执／查询／刷新恢复协议仍需双方后续设计并取得用户同意。
++本页记录已采用的三项呈现，不新增REST端点、机器字段、SecretVersion格式、预览令牌、有效期、幂等键或错误码。上述机器协议现由[模型浏览器候选](model-settings-browser-api-draft.md)统一维护，仍待采用。原模型受限形状和固定来源定位尚有[字段缺口 C06](../reviews/2026-09-12-project-contracts/README.md#c06-应用预览缺少原模型的完整形状)，不能由本页样例自行补字段。
+ 
+ 项目列表只来自本次预览内已建立的样例项目，不代表真实配置资格查询。完整预览中的项目修订、当前模型、执行版本和密钥版本均明确标记为示例观察，不从原型旧“开发容器v2”或供应商版本推断真实项目事实。另提供“预览信息缺失”场景展示禁止确认。测试未测试／失败不自动禁止保存待配置引用；保存成功不代表模型可用或执行Ready。
+ 
+--- before/docs/current/model-settings-browser-api-draft.md
++++ after/docs/current/model-settings-browser-api-draft.md
+@@ -149,6 +149,8 @@
+ 
+ before.model允许null表示原未配置；execution.effectiveVersionId可null，无法取得原有效版本时canApply=false／EXECUTION_SNAPSHOT_UNCONFIRMED。原execution已知版本当前不可用时允许保存受限配置（canApply可true并reasonCodes含EXECUTION_CURRENTLY_UNAVAILABLE），不把保留理解为恢复可执行资格。candidate当前不可读404；已知可引用但暂不可用允许受限保存，并提示必要条件仍不足。预览返回的显示名／BaseURL／参数由客户端读取已固定provider详情（不得用最新替代该revision；如下§5.1补只读版本查询），不重复第二套Provider字段。
+ 
++2026-09-12 项目契约检查发现，本节尚未定义原模型的完整响应分支：before.model=null 只表示未配置，§5.1要求的受限标记没有机器形状；原模型也未提供读取固定历史快照所需的 providerId 定位。此项记为[检查 C06](../reviews/2026-09-12-project-contracts/README.md#c06-应用预览缺少原模型的完整形状)。须在本唯一候选中补齐可读、未配置与受限的区分及历史定位，权限未知仍沿M01的503规则，再验收替换前模型预览；不能以null代替受限、查询最新版本代替原快照，或由前端遍历供应商猜测来源。当前示例保留为未补齐的候选，不代表所有分支已定义。
++
+ ### 5.1 固定快照补充读取
+ 
+ `GET /api/model-providers/{providerId}/versions/{providerRevision}`，同§3 Provider形状，revision固定；按当前owner及历史快照可读性核权，404不可披露／410已清理，secret仍不回显。连同§3.1的原保存终结，本稿共12个新增接口；当前应用预览依赖本只读接口展示完整候选参数。原模型来源不可披露时仅给不含名称的受限标记，不能据此禁止有权的配置修复。
+--- before/docs/current/project-configuration-design.md
++++ after/docs/current/project-configuration-design.md
+@@ -1,6 +1,6 @@
+ # 项目配置与授权变化设计
+ 
+-**当前 F02 讨论稿（2026-09-11）：** [已保存项目配置编辑原型](../prototypes/repomesh-project-settings-prototype.html)已进入逐页展示，细则见文末。用户已同意三段顺序、显式配置开关、摘要后确认，并要求主界面能找到。继任后端已核实；F02技术提案尚未发送，0／3。唯一接口仍为 RM-API-01 r3。
++**当前 F02 基线（2026-09-12 核对）：** 用户已采用三段顺序、显式配置开关、摘要后确认及主界面入口。[已保存项目配置编辑原型](../prototypes/repomesh-project-settings-prototype.html)的 RM-UI-PROJECT-EDIT r1 已在 CP16 完成 1／3 文档核对，依据见[首批总包](first-batch-complete-review.md#8-已采用范围剩余工作与协作)。唯一项目接口仍为 RM-API-01 r3；新增认证、模型应用及恢复协议保持候选，文档核对不代表页面或业务验收完成。
+ 
+ **现行入口：先多选仓库并保存长期项目；会话与 Issue 按 [ADR-0019](../adr/0019-conversation-issue-separation.md) 分离。用户可在会话中明确建立工作，也可在 Issue 栏直接创建，默认新会话或明确选择同项目有权的已有会话。首次会话消息提交后或页面建项提交后，按 [ADR-0018 现行补充](../adr/0018-provision-instance-after-first-draft.md)异步准备／恢复项目实例及对应主房间。J1—J3 的配置和授权规则继续有效，具体创建条件以[创建契约](issue-page-create-api-contract.md)为准。**
+ 
+@@ -22,7 +22,7 @@
+ 
+ ## 当前设置评审：供应商与模型（RM-UI-MODEL-SETTINGS r3）
+ 
+-[供应商与模型原型](../prototypes/repomesh-model-provider-prototype.html)采用用户参考图的左右分栏，填写项按AgentTeams锁定源码核对；具体映射和限定见[模型设置专题](model-connection-settings-design.md)。r3第3／3轮技术及落盘已互核；用户回复“ok可以的”，采用当前分栏与模型参数填写方式。每供应商含多个模型，测试和应用明确单个模型的固定快照；多供应商映射及专用应用、真实Key协议仍未完成。旧r2弹窗原型保留作历史，保存/测试/应用分离及原执行版本保留目标不变。
++[供应商与模型原型](../prototypes/repomesh-model-provider-prototype.html)采用用户参考图的左右分栏，填写项按AgentTeams锁定源码核对；具体映射和限定见[模型设置专题](model-connection-settings-design.md)。r3第3／3轮技术及落盘已互核；用户回复“ok可以的”，采用当前分栏与模型参数填写方式。每供应商含多个模型，测试和应用明确单个模型的固定快照；modelProfile映射、专用应用及Key保存已有[模型浏览器候选](model-settings-browser-api-draft.md)，仍待采用与实现，实际多供应商运行路由继续由运行适配细化。旧r2弹窗原型保留作历史，保存/测试/应用分离及原执行版本保留目标不变。
+ 
+ ## J1：项目接入与最小配置（已确认）
+ 
+@@ -153,7 +153,7 @@
+ 
+ 打开设置先读取当前项目修订和配置引用；编辑在独立草稿中进行。另一客户端已更新时，旧修订提交应显示差异与冲突，保留仍有权的输入，让用户核对后明确提交新修订，不自动覆盖服务端版本。提交后响应不明应查询原更新操作；重新载入页面不能自动产生第二次写操作。
+ 
+-新建项目同样需要稳定操作身份和恢复入口；不能因为首次保存超时就按名称新建一套。待具体浏览器契约落盘后，本专题只引用其字段／路径，不另建 JSON 定义。
++新建项目同样需要稳定操作身份和恢复入口；不能因为首次保存超时就按名称新建一套。字段和恢复路径已由[首批浏览器契约 §6—7](first-batch-browser-api-contract.md)定义，本专题不另建 JSON。
+ 
+ ### 首批页面验收（尚未运行）
+ 
+@@ -169,11 +169,11 @@
+ 
+ 项目保存／查询、资料／增仓／引用配置更新及其原操作恢复、仓库候选与配置候选的唯一字段来源为[首批浏览器契约 v1／RM-API-01 r3](first-batch-browser-api-contract.md)。固定配置版本由显式配置提交重新解析；名称／用途／加仓不自动换模型。该技术基线已与后端互核，不复制另一套JSON。
+ 
+-按用户最新要求，项目创建／设置的具体页面仍须独立展示原型讨论。当前展示上方RM-UI-PROJECT-ENTRY r1入口原型；已撤回的创建Issue三种形式不恢复。本节表单字段与错误恢复是行为依据，不表示用户已接受项目设置的视觉设计。
++项目创建的两步流程和下文 F02 列明的三项 UI 及主界面入口已有用户采用记录。其余新增呈现仍须按页面讨论范围处理；表单字段与错误恢复的技术确认不等于整页 UI 或业务验收完成。
+ 
+ ## F02：已保存项目配置编辑讨论稿（RM-UI-PROJECT-EDIT r1）
+ 
+-更新：2026-09-11。继任页面负责人见[通信约定](../archive/2026-09-12-development-preparation/docs/current/design-communication.md)和[新原文日志](../archive/2026-09-12-development-preparation/docs/current/design-communication-page-2026-09-11.md)。这是既有契约的页面呈现草案，不改首批第三轮契约。继任后端设计师2已建立通信，但F02实质技术提案仍未投递／未技术ACK（往返0／3）；整体串联说明的边界ACK不替代本页技术核对。用户要求“继续设计裁决，给我看页面”后，已在整体预览中重新展示本页，随后用户同意下文三项UI安排并要求主界面入口；不扩展为整页完成。
++原稿：2026-09-11；当前状态于2026-09-12核对。这是既有契约的页面呈现，不改首批第三轮契约。F02 r1 在[页面 CP16](../archive/2026-09-12-development-preparation/docs/current/design-communication-page-2026-09-11.md)已完成 1／3 技术及落盘核对，覆盖完整配置双引用重解析、范围保留、修订冲突和原操作恢复。用户采用下文三项 UI 并要求主界面入口；该采用不扩展为整页完成。历史协作者和轮次只用于溯源。
+ 
+ [原型](../prototypes/repomesh-project-settings-prototype.html)沿用项目入口的深色、左侧项目导航和表单样式；主区按项目资料、已保存仓库、配置引用排列。底部“查看本次改动”进入同页摘要，再明确保存。理由是让已有范围与本次增量可区分；代价是多一次摘要核对，完整表单需要纵向滚动。只讨论项目设置，不推广到其他页面。
+ 
+@@ -191,7 +191,7 @@
+ | 本次更新配置引用 | 勾选才提交完整modelProfile／executionProfile；未勾选完全省略configuration以保留原固定配置。两引用提供时均重新解析，即使仍选相同引用也可能采用新版本。 |
+ | 查看改动／保存 | 摘要显示范围保留、明确增量与配置影响；携带当前草稿基础修订和原updateId／确切输入；添加校验失败整次不提交。保存不准备实例或改变在途Issue。 |
+ 
+-**F02不承诺锁定预览中的具体版本。** 现行PATCH没有精确预览比较字段，候选接口也没有完整版本／参数预览。这里仅选择引用并明确保存时重解析两项，成功回执后再GET最新项目。F04“仅换模型并精确保留execution原引用及有效版本”的专用协议仍未完成，不能通过本原型样例值绕过。Key／测试、配置正文与费用额度编辑分别留F05／F06。
++**F02不承诺锁定预览中的具体版本。** 现行PATCH没有精确预览比较字段，GET configuration-profiles 仅提供引用候选。这里选择引用并明确保存时重解析两项，成功回执后再GET最新项目。F04“仅换模型并精确保留execution原引用及有效版本”已有[专用应用候选](model-settings-browser-api-draft.md#5-仅更换模型预览与原子应用)，采用并实现前不能通过本原型样例值代替其保证。项目实际预算与时限尚缺[只读摘要契约](../reviews/2026-09-12-project-contracts/README.md#c05-项目预算和时限缺少只读响应)；完整 F06 编辑页仍后置。
+ 
+ ### 正常、失败、未知与恢复
+ 
+@@ -219,4 +219,4 @@
+ 
+ 当前裁决展示入口为[串联原型中的项目设置](../prototypes/index.html#settings)。本轮请用户决定的UI范围限定为：①资料→已保存仓库→配置同页排列；②勾选“本次更新配置引用”才展开修改区；③先看改动摘要，再确认保存。理由分别为同页核对完整上下文、区分资料编辑与配置修改意图、明确此次增量与影响；代价是页面纵向滚动和一次额外摘要操作。这三项呈现选择已获用户同意，不扩展为接口新决策或F02整体验收。按新增要求，串联原型在主工作区右上角提供“⚙ 项目设置”，侧栏折叠时保留；侧栏原入口也保留。设置页“← 返回工作区”回到原会话／Issue页面。具体右上角位置是本次呈现给用户的入口方案，用户原话未指定坐标。
+ 
+-F02仍未完成：继任后端技术／落盘核对、其余具体交互评审、配置候选分页及失效、真实跨刷新／多操作恢复、认证变化与晚到响应全量走查。其余F01—F15保留原状态。原型只内存演示；未修改产品代码、运行Go/npm业务检查或进行真实OAuth／数据库／配置应用验证。
++F02的 r1 技术及落盘核对已完成。尚未完成其余具体交互评审、配置候选分页及失效、项目预算与时限只读摘要、真实跨刷新／多操作恢复、认证变化与晚到响应全量走查。其余F01—F15保留原状态。原型只内存演示；未修改产品代码、运行Go/npm业务检查或进行真实OAuth／数据库／配置应用验证。
+--- before/docs/current/README.md
++++ after/docs/current/README.md
+@@ -13,6 +13,7 @@
+ | [页面／接口交接](HANDOFF-PAGE-API-DESIGN.md) | F01—F15 的唯一专题和后续去向。 |
+ | [后端交接](HANDOFF-BACKEND-DESIGN.md) | B01—B08 的协议、上游核对与开工条件。 |
+ | [审查修订](design-readiness-revisions.md) | Key 终结、配置绑定及页面一致性修订的具体状态。 |
++| [项目契约检查](../reviews/2026-09-12-project-contracts/README.md) | 项目管理契约一致性、已修订条款及预算／时限摘要和模型预览的未补字段。 |
+ | [首批完整候选包](first-batch-complete-review.md) | D/T/A/P/S/R 及 P9 的集中采用／调整范围，仍为候选。 |
+ | [既有设计采用记录](design-delegation.md) | 保留 P1—P4 等原采用来源；旧持续授权流程已替代。 |
+ 
+--- before/docs/current/repository-picker-design.md
++++ after/docs/current/repository-picker-design.md
+@@ -24,7 +24,7 @@
+ 
+ ## 未完成
+ 
+-完整账号发现、真实授权与安装、跨页读权竞态／确认失权清理、旧请求晚到、游标失效、观察时间与具体可披露原因的完整展示、跨刷新与多操作恢复、添加集合最多100项及更新后项目总范围不超过100的校验／超限交互、创建页复用及完整异常矩阵均未完成。创建两步入口仍沿原已采用版本，本次先讨论已保存项目的添加场景。F03不标完成；F02技术0／3与其余F01—F15待办保持。
++完整账号发现、真实授权与安装、跨页读权竞态／确认失权清理、旧请求晚到、游标失效、观察时间与具体可披露原因的完整展示、跨刷新与多操作恢复、添加集合最多100项及更新后项目总范围不超过100的校验／超限交互、创建页复用及完整异常矩阵均未完成。创建两步入口仍沿原已采用版本，本次先讨论已保存项目的添加场景。F03不标完成；F02 r1 后续已在[CP16](first-batch-complete-review.md#8-已采用范围剩余工作与协作)完成 1／3 文档核对，具体交互及业务验收仍未完成。
+ 
+ 仅原型／文档；本页检查不作为产品实现、真实发现、授权或保存验证。
+ 
+--- before/docs/reviews/2026-09-12-project-contracts/README.md
++++ after/docs/reviews/2026-09-12-project-contracts/README.md
+@@ -0,0 +1,102 @@
++# 项目管理契约检查
++
++日期：2026-09-12。范围是首批项目创建、编辑、配置引用、查询与恢复，以及它们与认证、模型应用、Issue 创建的衔接。依据当前工作树中的现有设计核对，不以旧 HEAD 代替尚未提交的现行文档。
++
++结论：项目归属、增仓、事务、幂等及原操作恢复的主体规则已覆盖，可以支持已确定的独立管理单元开发。文档存在四类可直接修正的不一致，已在本次修订。另有两处读取字段缺口，需要继续补齐候选，不能将首批完整配置摘要和模型替换预览标为已可验收。
++
++本次不新增产品字段、端点或采用决定。已采用的 RM-API-01 r3 保持；认证、模型、配置来源、恢复及 P9 仍按各自具体候选范围判断。产品仍是工程骨架，没有业务实现或运行验证。
++
++## 检查结果
++
++| 编号 | 影响 | 结论与状态 |
++| --- | --- | --- |
++| C01 | 迟到注销影响新登录；回调落点绕过结果确认 | 旧身份内部稿与后续认证候选冲突，已同步后续候选。 |
++| C02 | 无变化配置保存制造无谓的修订冲突 | 浏览器与持久化的表述已统一为无变化保留修订并保存操作回执。 |
++| C03 | 开发者重设计已形成的候选，或把候选当作已采用接口 | 补齐主契约和项目／模型专题中的候选来源与状态。 |
++| C04 | 将已完成技术核对列为未启动的前置任务 | F02 的过期 0／3 记录已按 CP16 校正，UI 和业务完成度仍分别表达。 |
++| C05 | 已配置项目无法展示实际预算和时限 | 仍待补只读响应契约，影响必要配置摘要。 |
++| C06 | 替换前模型无法可靠区分受限与未配置，也缺历史定位 | 仍待补模型应用候选的完整响应形状，影响完整 F04 预览。 |
++
++## C01 旧认证内部步骤与后续候选冲突
++
++原[身份内部稿](../../current/backend-first-development-access-draft.md) §3.4 写“撤销服务端会话／该浏览器未完尝试后清Cookie”，§3.2 也未限制注销的绑定代次。若旧注销响应在新登录后到达，删除 Cookie 的响应头会清掉新会话凭据；撤销全部浏览器尝试也会影响新一代登录。
++
++[认证候选 §4](../../current/authentication-browser-api-draft.md#4-回调与本地事务)及[首批总包 A4](../../current/first-batch-complete-review.md)已规定只影响请求 session 及其绑定代次，注销不发送删除 Cookie 头。本次据此同步旧稿，补入迟到注销验收。回调步骤同时沿后续候选改为先到固定 resultPage，再核原尝试与当前身份，由用户明确继续。
++
++这是候选之间的同步，不是采用认证方案。内部会话记录、连接刷新互斥和原有责任保留。
++
++## C02 无变更配置保存的修订语义
++
++[项目浏览器契约 §5](../../current/first-batch-browser-api-contract.md#5-配置引用与固定版本)原文写显式配置 PATCH 后“随后改变 projectRevision／creationContextRevision”；同文 §7 允许无实际变化不提升修订。[持久化 §2.4](../../current/backend-first-batch-persistence.md#24-项目创建更新与配置版本)也允许无变化保存，但前句无条件写“分配configurationRevision”。
++
++场景是默认、profile、secret、配置选择及有效参数都没变，用户仍显式保存原配置。按无条件升修订实现会使其他窗口的创建条件或编辑修订过期。
++
++本次统一为先重新解析；配置选择、固定版本或有效值实际变化才产生对应修订，完全无变化保留原修订，仍保存该操作成功回执。此规则来自既有无变更保存设计，不新增接口字段。已在主契约验收清单增加对应场景。
++
++## C03 后续候选未回链到主要阅读入口
++
++项目主契约和模型专题仍有“协议未完成”“待字段落盘”的笼统描述。后续已经形成认证、模型保存／测试／应用、配置来源及恢复候选。开发者只读旧入口时，无法判断哪些需要新设计，哪些只待采用和实现。
++
++本次在[主契约](../../current/first-batch-browser-api-contract.md#采用范围与后续候选)加入来源表，修正[项目专题](../../current/project-configuration-design.md)、[模型设置](../../current/model-connection-settings-design.md)和[模型应用](../../current/model-project-apply-design.md)的相关描述。完整 configuration PATCH 仍重解析两引用，专用模型应用仍是独立候选；P9 仍是内部配置绑定候选。
++
++这些导航只指向唯一来源，不复制第二套 JSON，也不将完整模型运行路由、真实权限或高级页面标为已完成。
++
++## C04 F02 技术核对状态过期
++
++[项目专题](../../current/project-configuration-design.md)和[仓库选择](../../current/repository-picker-design.md)仍将 F02 写为技术 0／3 或尚未投递。[页面 CP16 的最终及第二次接收记录](../../archive/2026-09-12-development-preparation/docs/current/design-communication-page-2026-09-11.md)和[首批总包 §8](../../current/first-batch-complete-review.md#8-已采用范围剩余工作与协作)已记 F02 r1 完成 1／3 文档核对。
++
++本次更新当前状态。核对范围是完整配置、范围保留、修订冲突及原操作恢复的文档语义，不表示整页 UI 或真实功能通过。历史文件和通信内容未修改，也没有恢复旧角色或协作流程。
++
++## C05 项目预算和时限缺少只读响应
++
++状态：待补设计。
++
++[项目配置 J1](../../current/project-configuration-design.md#j1项目接入与最小配置已确认)要求显示实际采用的预算和时限。[项目契约 §5](../../current/first-batch-browser-api-contract.md#5-配置引用与固定版本)只返回 budgetPolicyId／timeLimitPolicyId；configuration-profiles 只有 ID、名称和可用性。前端取得两个不透明 ID 后，不能显示上限、单位、周期或时限数值。
++
++[来源候选](../../current/backend-first-batch-sources-draft.md)已有内部配置和账本，但明确不是浏览器响应。模型测试预览只属于单次测试，不能当作项目执行配置。
++
++建议优先评估在现有项目 GET 的只读配置中补固定参数摘要，避免页面遍历内部策略记录。补案必须明确：
++
++- 数据对应哪一条 configurationRevision，预算的计量单位、限额与周期，以及时限数值。
++- 固定配置上限与当前额度、预留或资格观察的区别，以及各自未知时的表达。
++- 当前主体对摘要的读取资格；不能用内部导入清单或前端硬编码默认值补齐。
++- 默认配置更新后，旧项目仍显示原固定版本的参数；未知不显示为 0 或无限。
++
++这是最小只读契约补齐，不要求实现完整 F06 编辑页，也不直接采用 S05 的候选次数或金额方案。具体字段及是否使用专用 GET 尚未确定，本次仅把缺口回链到主契约和交接。
++
++## C06 应用预览缺少原模型的完整形状
++
++状态：待补设计。
++
++[模型候选 §5](../../current/model-settings-browser-api-draft.md#5-仅更换模型预览与原子应用)中的 before.model 只有 reference、profileId 和 snapshotId，null 仅表示原未配置。§5.1 又要求原模型不可披露时给受限标记，但未定义该标记的机器形状。
++
++同节历史读取需要 providerId 和 providerRevision；原模型只给 snapshotId，没有 providerId，也没有已定义的固定来源解析接口。因此前端无法按已采用的[F04 呈现要求](../../current/model-project-apply-design.md)可靠展示替换前模型，只能猜字段、查最新版本或遍历供应商反查。
++
++建议在模型浏览器候选中统一补齐可读、未配置、受限的形状。可读分支须给出能定位原供应商、固定版本及模型行的依据；受限分支不得泄露来源名称或 ID。权限未知沿当前共用 503 规则，若改变表达须在候选中明确替代关系。替换前模型受限不能单独禁止有权的配置修复，原 execution 的固定版本要求保持。
++
++候选验收需覆盖原模型未配置、来源受限、当前权限未知、供应商后来产生新版本，以及精确保留 execution 的应用。新增字段仍须在唯一候选中编制并按具体范围采用，不能由本次检查直接加入已采用的项目 JSON。
++
++## 已覆盖的主体规则
++
++| 规则 | 核对结果 |
++| --- | --- |
++| owner、GitHub 用户读权与 App 工作能力 | 分开定义，同仓协作者不会自动取得项目资格。 |
++| 创建待配置项目 | 所选范围读权须核实，App、模型或环境不足可受限保存。 |
++| 项目编辑与明确增仓 | 保留原范围，只核真正新增范围；新增失败整次回滚。 |
++| 创建、更新与 Issue 操作身份 | 作用域隔离；唯一约束及业务、原输入、回执同事务。 |
++| 原操作恢复 | 原成功重放优先于新修订校验，404仍未知，410不复活。 |
++| 固定配置与模型应用 | 资料或加仓不暗换配置，完整 PATCH 与专用模型应用不同。 |
++| 列表与内容权限 | Issue、会话按完整内容范围核权，未知返回503；游标不授予权限。 |
++| Issue 配置绑定与后续执行 | P9 已明确为候选前置；绑定落库和实际配置消费分别验证，G1—G5不冒称完成。 |
++
++## 检查方法与证据边界
++
++主检查覆盖项目浏览器契约、项目和模型页面专题、恢复与字段依赖。两个只读检查分别核对持久化与 Issue 衔接、认证与模型／来源衔接，主检查者逐条核对原文后统一修订。子代理没有编辑文件。修改后的结构检查结果见[检查结果](structural-checks.json)，与修订前工作树的对照见[任务内差异](changes.diff)。采用状态、设计版本、实现状态和JSON示例均与基线一致，见[范围检查](scope-checks.json)。非主要修订者已独立比对任务内差异、唯一契约及 CP16 原始回执，复核通过。未发现新增实质矛盾或超范围采用；C05、C06 的缺口及候选边界得到确认。
++
++[修订前文件校验值](source-baseline.json)记录本次工作树基线，不覆盖此前审查报告或实验结果。历史记录只用于核实具体采用与技术回执，不恢复历史授权。结构检查覆盖本次修改的 Markdown 本地链接、新增锚点、JSON 示例和差异；它不能证明 HTTP、OAuth、PostgreSQL 并发或模型调用正确。
++
++结构检查通过 11 份 Markdown、196 个本地链接、20 个新增章节锚点和 16 段 JSON 示例；本次范围的 git diff --check 通过。JSON 只检查语法，新增锚点按规范化标题核对；远程 URL 未检查。
++
++本次没有修改业务代码、运行 Go／前端构建、启动服务、访问真实账号／模型，或重跑历史实验。根 README 的使用方式和产品完成度没有改变。
++
++尚未收口的候选采用、C05、C06 及真实故障验收保留为后续工作；这份检查不能替代它们。

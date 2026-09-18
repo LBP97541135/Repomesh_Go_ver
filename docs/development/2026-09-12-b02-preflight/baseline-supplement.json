@@ -1,0 +1,12 @@
+{
+  "capturedAt": "2026-09-12T11:40:08.088502+00:00",
+  "reason": "Initial porcelain text parsing stripped the first status line, omitting .codex/config.toml. This file has not been edited by this task; capture it separately without rewriting the earlier evidence.",
+  "existingChanges": [
+    {
+      "path": ".codex/config.toml",
+      "status": " M",
+      "sha256": "58c3d47686d46de2074c7acc7bb897d41807b4ed89fad8d20482448048e5cbad"
+    }
+  ],
+  "totalPreservedFiles": 41
+}

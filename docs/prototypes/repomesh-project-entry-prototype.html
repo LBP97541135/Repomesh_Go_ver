@@ -1,0 +1,214 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RepoMesh · 登录与项目入口原型</title><style>
+#repomesh-rooms-prototype{--rm-bg:#131313;--rm-side:#191919;--rm-surface:#222222;--rm-hover:#292929;--rm-line:#303030;--rm-text:#dedede;--rm-muted:#a0a0a0;--rm-green:#90b899;--rm-amber:#d7b788;color-scheme:dark;color:var(--rm-text);font:14px/1.65 "Segoe UI","Microsoft YaHei",sans-serif;width:100%}
+#repomesh-rooms-prototype *{box-sizing:border-box}
+#repomesh-rooms-prototype button,#repomesh-rooms-prototype input,#repomesh-rooms-prototype select,#repomesh-rooms-prototype textarea{font:inherit;color:inherit}
+#repomesh-rooms-prototype button{cursor:pointer;border:0;background:transparent;border-radius:8px;padding:7px 10px;text-align:left;display:inline-flex;align-items:center;gap:9px;max-width:100%}
+#repomesh-rooms-prototype button:hover{background:var(--rm-hover)}
+#repomesh-rooms-prototype button:disabled{opacity:.45;cursor:not-allowed}
+#repomesh-rooms-prototype button:focus-visible,#repomesh-rooms-prototype textarea:focus-visible,#repomesh-rooms-prototype input:focus-visible,#repomesh-rooms-prototype select:focus-visible{outline:2px solid #9ba8b1;outline-offset:3px}
+#repomesh-rooms-prototype svg{width:17px;height:17px;flex-shrink:0}
+#repomesh-rooms-prototype .rm-shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:760px;background:var(--rm-bg);border:1px solid var(--rm-line);border-radius:10px;overflow:clip}
+#repomesh-rooms-prototype .rm-sidebar{background:var(--rm-side);border-right:1px solid var(--rm-line);padding:12px 10px;display:flex;flex-direction:column;min-width:0}
+#repomesh-rooms-prototype .rm-brand{display:flex;align-items:center;gap:9px;padding:2px 8px 17px;letter-spacing:.1px}
+#repomesh-rooms-prototype .rm-brand span{font-weight:500;flex:1}
+#repomesh-rooms-prototype .rm-quiet{color:var(--rm-muted)}
+#repomesh-rooms-prototype .rm-nav{display:flex;flex-direction:column;gap:3px}
+#repomesh-rooms-prototype .rm-nav button{width:100%;padding:9px 11px;color:#bababa}
+#repomesh-rooms-prototype .rm-nav button.rm-active{background:#252525;color:#eeeeee}
+#repomesh-rooms-prototype .rm-label{font-size:12px;color:var(--rm-muted);margin:27px 10px 10px;display:flex;justify-content:space-between;align-items:center}
+#repomesh-rooms-prototype .rm-project{margin-bottom:12px}
+#repomesh-rooms-prototype .rm-project-head{width:100%;color:#c7c7c7}
+#repomesh-rooms-prototype .rm-project-head .rm-project-title{flex:1;text-align:left;min-width:0;overflow-wrap:anywhere}
+#repomesh-rooms-prototype .rm-project-head small{font-size:12px;color:var(--rm-muted);white-space:nowrap}
+#repomesh-rooms-prototype .rm-issue{width:calc(100% - 17px);margin:2px 0 2px 17px;padding:8px 9px;gap:8px;color:#bebebe;font-size:13px}
+#repomesh-rooms-prototype .rm-issue.rm-active{background:var(--rm-hover);color:#f0f0f0}
+#repomesh-rooms-prototype .rm-issue .rm-ellipsis{white-space:nowrap;text-overflow:ellipsis;overflow:hidden;flex:1;min-width:0}
+#repomesh-rooms-prototype .rm-issue small{font-size:11px;color:var(--rm-muted);flex-shrink:0}
+#repomesh-rooms-prototype .rm-dot{width:6px;height:6px;background:#94af9d;border-radius:50%;flex-shrink:0}
+#repomesh-rooms-prototype .rm-dot.draft{background:transparent;border:1px solid #b6a187;width:7px;height:7px}
+#repomesh-rooms-prototype .rm-dot.done{background:#747474}
+#repomesh-rooms-prototype .rm-sidebar-bottom{margin-top:auto;padding:32px 5px 0}
+#repomesh-rooms-prototype .rm-project-health{padding:12px;border:1px solid var(--rm-line);border-radius:11px;font-size:12px;color:var(--rm-muted);margin-bottom:16px}
+#repomesh-rooms-prototype .rm-profile{display:flex;gap:9px;align-items:center;font-size:13px;padding:3px 5px}
+#repomesh-rooms-prototype .rm-avatar{width:27px;height:27px;display:inline-grid;place-items:center;border:1px solid #404040;border-radius:50%;background:#303030;color:#dedede;flex-shrink:0;font-size:12px}
+#repomesh-rooms-prototype .rm-profile .rm-quiet{margin-left:auto;font-size:11px}
+#repomesh-rooms-prototype .rm-main{display:flex;flex-direction:column;min-width:0}
+#repomesh-rooms-prototype .rm-top{min-height:57px;padding:12px 22px;display:flex;gap:12px;align-items:center;justify-content:space-between;font-size:12px;color:var(--rm-muted)}
+#repomesh-rooms-prototype .rm-top-left{display:flex;align-items:center;gap:9px;min-width:0;flex-wrap:wrap}
+#repomesh-rooms-prototype .rm-top-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+#repomesh-rooms-prototype .rm-mobile-button{display:none}
+#repomesh-rooms-prototype .rm-start{width:min(100%,730px);margin:auto;padding:145px 38px 192px}
+#repomesh-rooms-prototype .rm-context{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 5px 12px;color:#b9b9b9;font-size:13px}
+#repomesh-rooms-prototype select{background:var(--rm-bg);border:0;padding:4px 20px 4px 2px;max-width:100%;border-radius:4px}
+#repomesh-rooms-prototype .rm-composer{background:var(--rm-surface);border:1px solid #343434;border-radius:19px;padding:14px 14px 10px}
+#repomesh-rooms-prototype textarea{display:block;width:100%;min-height:77px;resize:vertical;background:transparent;border:0;padding:1px 3px;color:#e8e8e8;font-size:16px;line-height:1.6}
+#repomesh-rooms-prototype textarea::placeholder{color:#939393}
+#repomesh-rooms-prototype .rm-compose-bottom{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--rm-muted);font-size:12px;margin-top:8px}
+#repomesh-rooms-prototype .rm-compose-bottom .rm-mode{display:flex;align-items:center;gap:7px;padding:3px}
+#repomesh-rooms-prototype .rm-send{background:#e5e5e5;color:#202020;border-radius:50%;width:31px;height:31px;padding:0;justify-content:center;font-size:19px}
+#repomesh-rooms-prototype .rm-send:hover{background:#ffffff}
+#repomesh-rooms-prototype .rm-start-hint{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--rm-muted);padding:13px 5px}
+#repomesh-rooms-prototype .rm-example{margin:25px 2px 0;color:#ababab;font-size:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#repomesh-rooms-prototype .rm-example button{border:1px solid var(--rm-line);border-radius:20px;font-size:12px}
+#repomesh-rooms-prototype .rm-start-foot{text-align:center;margin:0 20px 24px;font-size:12px;color:#8e8e8e}
+#repomesh-rooms-prototype .rm-room-heading{padding:8px 26px 16px;border-bottom:1px solid #252525;display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap}
+#repomesh-rooms-prototype h1{font-size:17px;font-weight:500;margin:0 0 5px;line-height:1.5;overflow-wrap:anywhere}
+#repomesh-rooms-prototype .rm-room-meta{font-size:12px;color:var(--rm-muted);display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+#repomesh-rooms-prototype .rm-badge{font-size:11px;border:1px solid #3c3c3c;border-radius:5px;padding:1px 6px;color:#b9b9b9;white-space:nowrap;display:inline-block}
+#repomesh-rooms-prototype .rm-badge.green{color:var(--rm-green);border-color:#35463a;background:#1c2820}
+#repomesh-rooms-prototype .rm-badge.amber{color:var(--rm-amber);border-color:#504330;background:#2b251c}
+#repomesh-rooms-prototype .rm-local-nav{display:flex;gap:3px;flex-wrap:wrap;padding:8px 20px;font-size:12px;border-bottom:1px solid #242424}
+#repomesh-rooms-prototype .rm-local-nav .rm-active{background:#262626;color:#eeeeee}
+#repomesh-rooms-prototype .rm-room-body{display:grid;grid-template-columns:minmax(0,1fr);flex:1;min-width:0}
+#repomesh-rooms-prototype .rm-conversation{padding:21px 27px 0;min-width:0}
+#repomesh-rooms-prototype .rm-message{margin:0 0 24px;min-width:0;font-size:13px;overflow-wrap:anywhere}
+#repomesh-rooms-prototype .rm-message-status{margin:-17px 0 22px 32px;color:var(--rm-muted);font-size:11px;overflow-wrap:anywhere}
+#repomesh-rooms-prototype .rm-message-head{display:flex;align-items:center;gap:8px;margin-bottom:9px;font-size:12px}
+#repomesh-rooms-prototype .rm-message-head time{margin-left:auto;color:var(--rm-muted);font-size:11px}
+#repomesh-rooms-prototype .rm-manager-mark{width:24px;height:24px;border:1px solid #444;border-radius:7px;display:grid;place-items:center;color:#d9d9d9;font-size:11px}
+#repomesh-rooms-prototype .rm-message p{margin:8px 0;white-space:pre-wrap}
+#repomesh-rooms-prototype .rm-human{background:#242424;border-radius:13px;padding:12px 15px;margin-left:32px;color:#d0d0d0}
+#repomesh-rooms-prototype .rm-note{color:var(--rm-muted);font-size:12px}
+#repomesh-rooms-prototype .rm-confirm{border:1px solid #393939;border-radius:12px;padding:15px;margin-top:16px;background:#1a1a1a}
+#repomesh-rooms-prototype .rm-confirm-title{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px}
+#repomesh-rooms-prototype .rm-primary{background:#ddd;color:#202020;margin-top:11px;font-size:12px;padding:7px 12px}
+#repomesh-rooms-prototype .rm-primary:hover{background:#f4f4f4}
+#repomesh-rooms-prototype .rm-guidance{border:1px solid #354439;background:#19201b;border-radius:11px;margin:16px 0;padding:13px 14px}
+#repomesh-rooms-prototype .rm-guidance-head{display:flex;gap:8px;align-items:center;font-size:13px;color:#b6cfbb;margin-bottom:9px}
+#repomesh-rooms-prototype .rm-room-link{width:100%;border-top:1px solid #344037;border-radius:0;justify-content:space-between;padding:11px 0;gap:12px}
+#repomesh-rooms-prototype .rm-room-link span{min-width:0;overflow-wrap:anywhere}
+#repomesh-rooms-prototype .rm-room-link small{display:block;font-size:11px;color:#a4b3a7;margin-top:3px}
+#repomesh-rooms-prototype .rm-room-link:hover{background:#232e26}
+#repomesh-rooms-prototype .rm-room-composer{margin-top:auto;padding:16px 27px 22px}
+#repomesh-rooms-prototype .rm-room-composer textarea{min-height:49px;font-size:14px}
+#repomesh-rooms-prototype .rm-room-composer .rm-composer{border-radius:15px}
+#repomesh-rooms-prototype .rm-under-input{font-size:11px;color:#909090;text-align:center;margin-top:8px}
+#repomesh-rooms-prototype .rm-details{padding:23px 27px;min-width:0}
+#repomesh-rooms-prototype .rm-details h2{font-size:15px;font-weight:500;margin:0 0 12px}
+#repomesh-rooms-prototype .rm-details h3{font-size:13px;font-weight:500;margin:0 0 8px}
+#repomesh-rooms-prototype .rm-detail-row{padding:10px 0;border-bottom:1px solid #2b2b2b;display:flex;align-items:flex-start;gap:15px;justify-content:space-between;font-size:12px;overflow-wrap:anywhere}
+#repomesh-rooms-prototype .rm-detail-row>span:first-child{color:var(--rm-muted)}
+#repomesh-rooms-prototype .rm-detail-row>span:last-child{text-align:right;max-width:65%}
+#repomesh-rooms-prototype .rm-detail-section{margin-bottom:26px}
+#repomesh-rooms-prototype .rm-task-lanes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px;margin-top:20px}
+#repomesh-rooms-prototype .rm-task{border:1px solid #3b3b3b;border-radius:9px;padding:13px;background:#202020;font-size:12px;width:100%;display:block}
+#repomesh-rooms-prototype .rm-task small{display:block;color:var(--rm-muted);margin:6px 0}
+#repomesh-rooms-prototype .rm-lane-caption{font-size:12px;color:#a4a4a4;margin-bottom:10px;overflow-wrap:anywhere}
+#repomesh-rooms-prototype .rm-dependency{padding:6px;color:#9f9f9f;font-size:12px}
+#repomesh-rooms-prototype .rm-log-entry{padding:9px 0 13px 17px;border-left:1px solid #414141;margin-left:4px;font-size:12px}
+#repomesh-rooms-prototype .rm-log-entry time{display:block;color:#999;font-size:11px}
+#repomesh-rooms-prototype .rm-readonly{background:#1d1d1d;border:1px solid #333;border-radius:12px;padding:11px 13px;display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:12px;color:var(--rm-muted);flex-wrap:wrap}
+#repomesh-rooms-prototype .rm-alert{margin:10px 0;color:#d4b28b;font-size:12px}
+#repomesh-rooms-prototype .rm-search-input{width:100%;border:1px solid #3b3b3b;border-radius:8px;background:#232323;padding:8px 10px;font-size:13px;margin:10px 0}
+#repomesh-rooms-prototype .rm-design-notes{background:#171717;border-top:1px solid #303030;color:#b7b7b7;padding:10px 17px;font-size:12px;overflow-wrap:anywhere}
+#repomesh-rooms-prototype .rm-design-notes summary{cursor:pointer;color:#9d9d9d}
+#repomesh-rooms-prototype .rm-design-notes ol{padding-left:22px;margin:10px 0}
+#repomesh-rooms-prototype .rm-design-notes code{font-size:11px;color:#c7c7c7}
+#repomesh-rooms-prototype .rm-design-notes p{margin:7px 0}
+#repomesh-rooms-prototype .rm-trace{padding:8px 0;border-top:1px solid #333;color:#9fb6a6;white-space:pre-wrap;line-height:1.9}
+#repomesh-rooms-prototype .rm-search-empty{padding:18px 10px;color:var(--rm-muted);font-size:12px}
+#repomesh-rooms-prototype .rm-create-stage{background:#111;border:1px solid #303030;border-radius:10px;padding:19px 28px 32px;min-height:790px}
+#repomesh-rooms-prototype .rm-create-brand{font-size:13px;color:#a4a4a4;display:flex;align-items:center;gap:10px;margin-bottom:21px}
+#repomesh-rooms-prototype .rm-create-box{width:min(100%,620px);margin:0 auto;background:#191919;border:1px solid #343434;border-radius:14px;padding:27px 29px;box-shadow:0 12px 65px #0005}
+#repomesh-rooms-prototype .rm-create-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+#repomesh-rooms-prototype .rm-create-head h1{font-size:24px;color:#ececec;margin:0 0 6px;line-height:1.4}
+#repomesh-rooms-prototype .rm-create-head p{font-size:15px;color:#aaa;margin:0}
+#repomesh-rooms-prototype .rm-close{font-size:24px;line-height:1;padding:0 5px;color:#aaa}
+#repomesh-rooms-prototype .rm-repo-box{margin:25px 0 0;border:1px solid #303030;border-radius:11px;overflow:clip}
+#repomesh-rooms-prototype .rm-repo-search{display:flex;gap:9px;align-items:center;padding:14px 16px;border-bottom:1px solid #2c2c2c;color:#a3a3a3}
+#repomesh-rooms-prototype .rm-repo-search input{width:100%;min-width:0;background:transparent;border:0;font-size:15px;padding:0}
+#repomesh-rooms-prototype .rm-repo-label{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#9e9e9e;padding:13px 16px 9px}
+#repomesh-rooms-prototype .rm-repo-choice{display:flex;align-items:center;gap:11px;padding:11px 15px;margin:2px 0;cursor:pointer;border-radius:8px;color:#d9d9d9;font-size:15px}
+#repomesh-rooms-prototype .rm-repo-choice:hover,#repomesh-rooms-prototype .rm-repo-choice:has(input:checked){background:#252525}
+#repomesh-rooms-prototype .rm-repo-choice input{accent-color:#aaa;width:19px;height:19px;margin:0;flex-shrink:0}
+#repomesh-rooms-prototype .rm-repo-choice span{min-width:0;overflow-wrap:anywhere;flex:1}
+#repomesh-rooms-prototype .rm-repo-choice small{display:block;color:#a99a84;font-size:11px;margin-top:2px}
+#repomesh-rooms-prototype .rm-create-account{font-size:11px;color:#909090;display:flex;align-items:center;gap:6px;margin:13px 0 0}
+#repomesh-rooms-prototype .rm-create-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:28px}
+#repomesh-rooms-prototype .rm-create-actions button{font-size:14px;border-radius:8px;padding:8px 13px;background:#272727}
+#repomesh-rooms-prototype .rm-create-actions .rm-primary{background:#e5e5e5;margin:0;color:#202020}
+#repomesh-rooms-prototype .rm-create-box label.rm-field{display:block;color:#bdbdbd;font-size:12px;margin:20px 0}
+#repomesh-rooms-prototype .rm-field input,#repomesh-rooms-prototype .rm-field textarea{display:block;width:100%;border:1px solid #3c3c3c;background:#202020;border-radius:8px;padding:10px 12px;margin-top:7px;font-size:14px}
+#repomesh-rooms-prototype .rm-field textarea{min-height:85px}
+#repomesh-rooms-prototype .rm-selected-repos{display:flex;gap:6px;flex-wrap:wrap;margin:9px 0 16px}
+#repomesh-rooms-prototype .rm-selected-repos span{font-size:11px;color:#bababa;border:1px solid #3a3a3a;border-radius:5px;padding:3px 7px;overflow-wrap:anywhere;max-width:100%}
+#repomesh-rooms-prototype .rm-create-empty{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;flex:1;padding:45px;min-height:550px;gap:13px}
+#repomesh-rooms-prototype .rm-create-empty h1{font-size:22px}
+#repomesh-rooms-prototype .rm-top-project,#repomesh-rooms-prototype .rm-context>span{overflow-wrap:anywhere;min-width:0}
+#repomesh-rooms-prototype .rm-waiting{margin-top:23px;border:1px solid #3d3a34;border-radius:11px;padding:16px;color:#c9bda8;font-size:13px}
+#repomesh-rooms-prototype .rm-demo-ready{background:#191919;padding:11px 17px;border-top:1px solid #333;font-size:12px;color:#aaa;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#repomesh-rooms-prototype .rm-demo-ready button{border:1px solid #424242;padding:5px 9px}
+@media(max-width:560px){#repomesh-rooms-prototype .rm-create-stage{padding:15px 12px 22px;min-height:740px}#repomesh-rooms-prototype .rm-create-box{padding:20px 16px}#repomesh-rooms-prototype .rm-create-head h1{font-size:21px}#repomesh-rooms-prototype .rm-create-head p{font-size:13px}#repomesh-rooms-prototype .rm-repo-choice{padding:12px 10px;font-size:13px;gap:8px}#repomesh-rooms-prototype .rm-repo-choice svg{display:none}#repomesh-rooms-prototype .rm-field input,#repomesh-rooms-prototype .rm-field textarea,#repomesh-rooms-prototype .rm-repo-search input{font-size:16px}#repomesh-rooms-prototype .rm-create-empty{padding:26px}}
+@media(min-width:561px){#repomesh-rooms-prototype.rm-collapsed .rm-shell{grid-template-columns:minmax(0,1fr)}#repomesh-rooms-prototype.rm-collapsed .rm-sidebar{display:none}#repomesh-rooms-prototype.rm-collapsed .rm-mobile-button{display:inline-flex}}
+@media(min-width:1150px){#repomesh-rooms-prototype .rm-shell{grid-template-columns:254px minmax(0,1fr)}#repomesh-rooms-prototype .rm-conversation,#repomesh-rooms-prototype .rm-room-composer,#repomesh-rooms-prototype .rm-details{width:min(100%,850px);margin-left:auto;margin-right:auto}}
+@media(max-width:800px){#repomesh-rooms-prototype .rm-shell{grid-template-columns:195px minmax(0,1fr)}#repomesh-rooms-prototype .rm-sidebar{padding:12px 7px}#repomesh-rooms-prototype .rm-start{padding:136px 24px 160px}#repomesh-rooms-prototype .rm-top{padding:12px 16px}#repomesh-rooms-prototype .rm-room-heading{padding:7px 18px 14px}#repomesh-rooms-prototype .rm-conversation,#repomesh-rooms-prototype .rm-details{padding:20px 18px 0}#repomesh-rooms-prototype .rm-room-composer{padding:16px 18px 20px}#repomesh-rooms-prototype .rm-task-lanes{grid-template-columns:1fr}}
+@media(max-width:560px){#repomesh-rooms-prototype .rm-shell{display:flex;flex-direction:column;min-height:650px}#repomesh-rooms-prototype .rm-sidebar{display:none;border-right:0;border-bottom:1px solid #333}#repomesh-rooms-prototype .rm-shell.rm-show-sidebar .rm-sidebar{display:flex}#repomesh-rooms-prototype .rm-sidebar-bottom{padding-top:12px}#repomesh-rooms-prototype .rm-project-health{display:none}#repomesh-rooms-prototype .rm-mobile-button{display:inline-flex}#repomesh-rooms-prototype .rm-main{flex:1}#repomesh-rooms-prototype .rm-top{gap:5px;padding:10px 12px}#repomesh-rooms-prototype .rm-top-right{font-size:11px}#repomesh-rooms-prototype .rm-start{padding:91px 17px 122px}#repomesh-rooms-prototype .rm-start-foot{font-size:11px}#repomesh-rooms-prototype .rm-top-project{display:none}#repomesh-rooms-prototype .rm-conversation,#repomesh-rooms-prototype .rm-details{padding:19px 16px 0}#repomesh-rooms-prototype .rm-room-composer{padding:15px 14px 20px}#repomesh-rooms-prototype .rm-human{margin-left:15px}#repomesh-rooms-prototype .rm-local-nav{padding:8px 10px}#repomesh-rooms-prototype .rm-local-nav button{padding:7px}#repomesh-rooms-prototype .rm-context{gap:6px}#repomesh-rooms-prototype .rm-context select{max-width:190px}#repomesh-rooms-prototype textarea{font-size:16px}#repomesh-rooms-prototype .rm-room-composer textarea{font-size:16px}}
+@media(pointer:coarse){#repomesh-rooms-prototype button{min-height:44px}#repomesh-rooms-prototype .rm-send{min-width:44px}#repomesh-rooms-prototype .rm-room-link{min-height:60px}}
+
+html,body{margin:0;background:#131313}body{min-width:320px}
+#repomesh-rooms-prototype .rm-shell{min-height:calc(100vh - 55px);border:0;border-radius:0;grid-template-columns:216px minmax(0,1fr)}
+#repomesh-rooms-prototype .rm-create-stage{background:transparent;min-height:0;padding:22px 30px 42px;flex:1}
+#repomesh-rooms-prototype .rm-create-box{width:min(100%,670px);margin:0 auto;padding:26px 30px;background:#181818;border:1px solid #303030;border-radius:14px}
+#repomesh-rooms-prototype .rm-create-head h1{font-size:23px;font-weight:500;margin:0}
+#repomesh-rooms-prototype .rm-create-head p{font-size:13px;color:#999;margin:7px 0 0}
+#repomesh-rooms-prototype .rm-create-head{display:flex;justify-content:space-between;gap:15px}
+#repomesh-rooms-prototype .rm-progress{display:flex;gap:24px;width:min(100%,670px);margin:0 auto 19px;color:#737373;font-size:12px}
+#repomesh-rooms-prototype .rm-progress .on{color:#ddd}
+#repomesh-rooms-prototype .rm-coverage{margin-top:16px;font-size:12px;color:#a4a4a4;line-height:1.8}
+#repomesh-rooms-prototype .rm-repo-box{margin-top:18px}
+#repomesh-rooms-prototype .rm-repo-choice{font-size:13px;margin:0;border-radius:0;min-height:67px;border-bottom:1px solid #272727}
+#repomesh-rooms-prototype .rm-repo-choice small{color:#969696;display:flex;gap:10px;flex-wrap:wrap}
+#repomesh-rooms-prototype .rm-repo-choice .pending{color:#d7b788}
+#repomesh-rooms-prototype .rm-repo-choice .ok{color:#90b899}
+#repomesh-rooms-prototype .rm-load{width:100%;justify-content:center;font-size:12px;padding:11px;color:#aaa}
+#repomesh-rooms-prototype .rm-steps-footer{border-top:1px solid #303030;margin-top:21px;padding-top:16px;font-size:12px;color:#929292}
+#repomesh-rooms-prototype .rm-login{min-height:calc(100vh - 55px);display:grid;place-items:center;padding:30px}
+#repomesh-rooms-prototype .rm-login-box{width:min(100%,380px);text-align:center}
+#repomesh-rooms-prototype .rm-login-box h1{font-size:27px;margin:22px 0 10px}
+#repomesh-rooms-prototype .rm-login-box p{color:#999;font-size:13px;margin:0 0 28px}
+#repomesh-rooms-prototype .rm-login-button{width:100%;justify-content:center;background:#e4e4e4;color:#181818;border-radius:9px;padding:12px;font-size:14px}
+#repomesh-rooms-prototype .rm-login-button:hover{background:#fff}
+#repomesh-rooms-prototype .rm-login-mark{border:1px solid #474747;border-radius:14px;width:56px;height:56px;display:inline-grid;place-items:center;font-size:24px}
+#repomesh-rooms-prototype .rm-summary{width:min(100%,730px);margin:35px auto;padding:0 30px}
+#repomesh-rooms-prototype .rm-summary h1{font-size:24px}
+#repomesh-rooms-prototype .rm-success{color:#a8c7b0;margin-bottom:16px;font-size:13px}
+#repomesh-rooms-prototype .rm-config-row{padding:17px 0;border-bottom:1px solid #303030;display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:13px}
+#repomesh-rooms-prototype .rm-config-row small{display:block;color:#999;margin-top:4px}
+#repomesh-rooms-prototype .rm-config-row span{min-width:0;overflow-wrap:anywhere}
+#repomesh-rooms-prototype .rm-config-row button{border:1px solid #404040;font-size:12px;flex-shrink:0}
+#repomesh-rooms-prototype .rm-prototype-tools{border-top:1px solid #383838;background:#1b1b1b;padding:10px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:#999;font-size:11px;min-height:55px}
+#repomesh-rooms-prototype .rm-prototype-tools button{border:1px solid #424242;padding:4px 9px;font-size:11px}
+#repomesh-rooms-prototype .rm-prototype-tools strong{font-weight:500;color:#c6b59c}
+#repomesh-rooms-prototype .rm-empty{text-align:center;padding:46px 15px;color:#999;font-size:13px}
+#repomesh-rooms-prototype .rm-field select{display:block;background:#222;border:1px solid #3c3c3c;width:100%;padding:10px;margin-top:7px;font-size:13px}
+#repomesh-rooms-prototype .rm-search-empty{padding:12px;color:#888;font-size:12px}
+@media(max-width:800px){#repomesh-rooms-prototype .rm-shell{grid-template-columns:minmax(0,1fr)}#repomesh-rooms-prototype .rm-sidebar{display:none}#repomesh-rooms-prototype .rm-shell.rm-show-sidebar .rm-sidebar{display:flex}#repomesh-rooms-prototype .rm-mobile-button{display:inline-flex}}
+@media(max-width:560px){#repomesh-rooms-prototype .rm-create-stage{padding:10px 12px 24px}#repomesh-rooms-prototype .rm-create-box{padding:20px 16px}#repomesh-rooms-prototype .rm-create-head h1{font-size:21px}#repomesh-rooms-prototype .rm-progress{gap:16px}#repomesh-rooms-prototype .rm-summary{padding:0 22px;margin-top:24px}#repomesh-rooms-prototype .rm-top-project{display:inline}#repomesh-rooms-prototype .rm-repo-choice{padding:12px 10px}#repomesh-rooms-prototype .rm-config-row{flex-wrap:wrap}#repomesh-rooms-prototype .rm-login{padding:24px}}
+</style></head><body><!-- 原型问题：沿现有两步项目创建，登录/账号读取与工作授权是否清楚？仅内存模拟，不接入OAuth、密钥或业务接口。 --><div id="repomesh-rooms-prototype"></div><script>
+(()=>{
+const root=document.getElementById('repomesh-rooms-prototype');
+const repos=[{id:'r1',name:'repomesh/order-service',owner:'自己的仓库',app:true},{id:'r2',name:'repomesh/admin-console',owner:'自己的仓库',app:true},{id:'r3',name:'partner/billing-api',owner:'受邀协作',app:false},{id:'r4',name:'repomesh/storefront',owner:'自己的仓库',app:true},{id:'r5',name:'team/test-assets',owner:'组织仓库',app:true}];
+const state={page:'login',waiting:false,step:1,selected:new Set(),query:'',more:false,name:'',purpose:'',error:'',unknown:false,sidebar:false,saved:null,notice:''};
+if(new URLSearchParams(location.search).get('screen')==='repositories')state.page='create';
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const paths={folder:'M3 7h6l2-3h10v16H3Z',search:'M21 21l-5-5 M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0',grid:'M3 3h18v18H3Z M9 3v18',check:'M5 12l4 4L19 6',user:'M5 21v-2a7 7 0 0 1 14 0v2 M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0'};
+const icon=n=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="${paths[n]||paths.grid}"/></svg>`;
+const btn=(text,action,cls='',disabled=false)=>`<button type="button" data-action="${action}" class="${cls}" ${disabled?'disabled':''}>${text}</button>`;
+function side(){return `<aside class="rm-sidebar"><div class="rm-brand">${icon('grid')}<span>RepoMesh</span></div><nav class="rm-nav" aria-label="主导航">${btn('+ 新建项目','create',state.page==='create'?'rm-active':'')}${btn('项目设置','overview','',!state.saved)}</nav><div class="rm-label">项目与会话</div>${state.saved?`<div class="rm-project">${btn(icon('folder')+esc(state.saved.name),'overview','rm-project-head')}<div class="rm-search-empty">暂无会话</div></div>`:'<div class="rm-search-empty">还没有项目</div>'}<div class="rm-sidebar-bottom">${btn('⚙ 设置','settings')}<div class="rm-profile"><span class="rm-avatar">林</span>林悦<span class="rm-quiet">示例账号</span></div></div></aside>`}
+function login(){return `<main class="rm-login"><div class="rm-login-box"><div class="rm-login-mark">▧</div><h1>开始使用 RepoMesh</h1><p>把相关仓库组织成项目，和 Manager 一起推进工作。</p>${state.waiting?'<div class="rm-confirm" role="status">等待登录完成…<p class="rm-note" style="margin:10px 0 0">完成后回到这里，继续创建项目。</p></div>'+btn('返回','login-back'):btn('使用 GitHub 登录','login','rm-login-button')}<p style="font-size:11px;margin-top:23px">登录账号与仓库工作授权分别管理。</p></div></main>`}
+function repoList(){if(state.unknown)return `<div class="rm-confirm" role="status">仓库权限待重新核查，暂不展示旧仓库内容。</div>`;const matches=repos.filter(r=>r.name.toLowerCase().includes(state.query.toLowerCase()));const shown=state.more||state.query?matches:matches.slice(0,3);return `<div class="rm-repo-box"><div class="rm-repo-search">${icon('search')}<input aria-label="搜索仓库" placeholder="搜索当前已发现的仓库" value="${esc(state.query)}"></div><div class="rm-repo-label"><span>当前已发现</span><span aria-live="polite">已选择 ${state.selected.size} 个</span></div>${shown.map(r=>`<label class="rm-repo-choice"><input type="checkbox" data-repo="${r.id}" aria-label="选择 ${r.name}" ${state.selected.has(r.id)?'checked':''}>${icon('folder')}<span>${esc(r.name)}<small><span>${r.owner} · 账号可读取</span><span class="${r.app?'ok':'pending'}">${r.app?'App 工作授权可用':'App 工作授权待补齐'}</span></small></span></label>`).join('')||'<div class="rm-empty">没有匹配结果，试试其他关键词。</div>'}${!state.more&&!state.query&&matches.length>3?btn('加载更多已发现仓库','more','rm-load'):'<div class="rm-repo-label">当前已发现的结果已显示</div>'}</div>`}
+function wizard(){return `<section class="rm-create-stage"><div class="rm-progress"><span class="${state.step===1?'on':''}">01 选择仓库</span><span class="${state.step===2?'on':''}">02 项目资料</span></div><form class="rm-create-box" aria-label="创建多仓库项目"><div class="rm-create-head"><div><h1>${state.step===1?'创建多仓库项目':'给项目起个名字'}</h1><p>${state.step===1?'选择需要一起协作的仓库。':'说明共同目标，让 Manager 理解各仓关系。'}</p></div>${btn('×','cancel','rm-close')}</div>${state.step===1?`${repoList()}<div class="rm-create-account">${icon('user')}林悦 · GitHub 示例账号</div><div class="rm-coverage">当前只展示已发现并核实可读的仓库，可能还有未发现的仓库。<br>App 工作授权待补齐的仓库也可加入项目，执行前再补齐授权。</div>`:`<label class="rm-field">项目名称<input data-field="name" aria-label="项目名称" placeholder="例如：订单系统" value="${esc(state.name)}"></label><label class="rm-field">项目用途<textarea data-field="purpose" aria-label="项目用途" placeholder="例如：订单服务与运营后台，共同支持订单管理">${esc(state.purpose)}</textarea></label><div class="rm-note">已选项目范围 ${state.unknown?'待重新核查':'· '+state.selected.size+' 个仓库'}</div>${state.unknown?'<div class="rm-alert" role="status">暂时无法确认所选范围的读取权限。已保留输入，核查成功后再保存。</div>':`<div class="rm-selected-repos">${repos.filter(r=>state.selected.has(r.id)).map(r=>`<span>${esc(r.name)}</span>`).join('')}</div>`}<details class="rm-confirm"><summary>项目默认配置 <span class="rm-badge amber">模型待配置</span></summary><div class="rm-detail-row"><span>模型</span><span>继承默认 · 尚无可用配置</span></div><div class="rm-detail-row"><span>执行环境</span><span>继承默认配置</span></div><div class="rm-detail-row"><span>Worker 并发</span><span>1</span></div><div class="rm-detail-row"><span>预算与时限</span><span>尚未取得有效值</span></div><div class="rm-detail-row"><span>验证小组</span><span>关闭</span></div><p class="rm-note">可以先保存项目，在设置中补齐模型连接和必要配置。</p></details>`}${state.error?`<p class="rm-alert" role="alert">${esc(state.error)}</p>`:''}<div class="rm-create-actions">${btn(state.step===1?'取消':'上一步',state.step===1?'cancel':'back')}${btn(state.step===1?'继续':'保存项目',state.step===1?'next':'save','rm-primary',!state.selected.size||state.unknown)}</div><div class="rm-steps-footer">保存项目后，再创建会话或 Issue。项目保存本身不会启动实例。</div></form></section>`}
+function overview(){const p=state.saved;return `<section class="rm-summary">${state.notice?`<div class="rm-success" role="status">${icon('check')} ${esc(state.notice)}</div>`:''}<h1>${esc(p.name)}</h1><p class="rm-note">${esc(p.purpose)}</p><div class="rm-confirm"><div class="rm-confirm-title">继续完善项目 <span class="rm-badge amber">待配置</span></div><p class="rm-note">项目已经保留。补齐本次工作需要的配置后，就可以创建 Issue。</p><div class="rm-config-row"><span>模型连接<small>尚无可用默认配置</small></span>${btn('查看设置 →','settings')}</div><div class="rm-config-row"><span>执行配置<small>预算与时限尚未取得有效值</small></span>${btn('查看配置 →','settings')}</div>${p.ids.includes('r3')?'<div class="rm-config-row"><span>partner/billing-api<small>账号可读取，App 工作授权待补齐</small></span><span class="rm-badge amber">授权待补齐</span></div>':''}</div><h2 style="font-size:15px;font-weight:500;margin-top:28px">项目仓库 · ${p.ids.length}</h2>${repos.filter(r=>p.ids.includes(r.id)).map(r=>`<div class="rm-config-row"><span>${esc(r.name)}</span><span class="rm-badge ${r.app?'green':'amber'}">${r.app?'App 工作授权可用':'App 工作授权待补齐'}</span></div>`).join('')}<p class="rm-note" style="margin-top:24px">暂无会话 · 暂无 Issue · 实例尚未启动</p>${btn('新建另一个项目','create')}</section>`}
+function settings(){return `<section class="rm-summary"><h1>设置</h1><p class="rm-note">账号连接与默认配置</p><div class="rm-config-row"><span>GitHub 账号<small>林悦 · 示例账号已连接</small></span><span class="rm-badge green">已连接</span></div><div class="rm-config-row"><span>模型连接<small>在这里管理模型与 API Key，项目通过配置引用使用。</small></span><span class="rm-badge amber">尚未配置</span></div><div class="rm-config-row"><span>执行默认配置<small>Worker 并发 1 · 验证小组关闭</small></span><span class="rm-badge amber">预算与时限待补齐</span></div><p class="rm-note" style="margin:24px 0">本轮先讨论入口与项目流程；模型和授权设置表单将在后续原型中展开。</p>${btn(state.saved?'返回项目':'返回项目创建',state.saved?'overview':'resume')}</section>`}
+function empty(){return `<section class="rm-summary"><h1>先创建一个项目</h1><p class="rm-note">把相关仓库放在一起，再开始对话或创建 Issue。</p>${btn('创建项目','resume','rm-primary')}</section>`}
+function tools(){return `<footer class="rm-prototype-tools" aria-label="原型演示控制"><strong>独立原型 · 不连接真实账号</strong>${state.waiting?btn('模拟登录完成 →','login-done'):''}${state.page==='create'&&(state.step===2||state.unknown)?btn(state.unknown?'模拟权限核查恢复':'模拟所选范围核查未知','permission'):''}${btn('从登录开始','reset')}<span>仅内存数据，刷新重置</span></footer>`}
+let lastScreen='';
+function render(){const screen=state.page+':'+state.step;const scrollTop=screen!==lastScreen;lastScreen=screen;root.innerHTML=(state.page==='login'?login():`<div class="rm-shell ${state.sidebar?'rm-show-sidebar':''}">${side()}<main class="rm-main"><header class="rm-top"><div class="rm-top-left">${btn('☰','sidebar','rm-mobile-button')}<span class="rm-top-project">${state.saved?esc(state.saved.name):'RepoMesh'}</span><span>／ ${state.page==='create'?'新建项目':state.page==='settings'?'设置':'项目'}</span></div><span>林悦</span></header>${state.page==='create'?wizard():state.page==='overview'?overview():state.page==='settings'?settings():empty()}</main></div>`)+tools();if(scrollTop)window.scrollTo(0,0);}
+function save(){if(state.unknown||!state.selected.size)return;if(!state.name.trim()||!state.purpose.trim()){state.error='请填写项目名称与用途。';render();return}if([...state.name].length>200||[...state.purpose].length>20000){state.error='项目名称最多 200 个字符，用途最多 20,000 个字符。';render();return}state.saved={name:state.name,purpose:state.purpose,ids:[...state.selected]};state.page='overview';state.notice='项目已保存';render();}
+root.addEventListener('input',e=>{if(e.target.dataset.field)state[e.target.dataset.field]=e.target.value;if(e.target.matches('.rm-repo-search input')){const pos=e.target.selectionStart;state.query=e.target.value;render();const el=root.querySelector('.rm-repo-search input');el.focus();el.setSelectionRange(pos,pos)}});
+root.addEventListener('change',e=>{if(e.target.dataset.repo){e.target.checked?state.selected.add(e.target.dataset.repo):state.selected.delete(e.target.dataset.repo);state.error='';render();root.querySelector(`[data-repo="${e.target.dataset.repo}"]`)?.focus()}});
+root.addEventListener('submit',e=>{e.preventDefault();if(state.step===1&&state.selected.size&&!state.unknown){state.step=2;render()}else if(state.step===2)save()});
+root.addEventListener('click',e=>{const a=e.target.closest('[data-action]')?.dataset.action;if(!a)return;if(a==='login')state.waiting=true;if(a==='login-back')state.waiting=false;if(a==='login-done'){state.waiting=false;state.page='create'}if(a==='next'&&state.selected.size&&!state.unknown)state.step=2;if(a==='back'){state.step=1}if(a==='more')state.more=true;if(a==='cancel')state.page=state.saved?'overview':'empty';if(a==='resume')state.page='create';if(a==='create'){state.page='create';state.step=1;state.selected=new Set();state.name='';state.purpose='';state.query='';state.error='';state.unknown=false;state.more=false}if(a==='settings')state.page='settings';if(a==='overview'&&state.saved){state.page='overview';state.notice=''}if(a==='permission')state.unknown=!state.unknown;if(a==='sidebar')state.sidebar=!state.sidebar;if(a==='reset'){location.href=location.pathname;return}if(a==='save'){save();return}render();});
+render();
+})();
+</script></body></html>

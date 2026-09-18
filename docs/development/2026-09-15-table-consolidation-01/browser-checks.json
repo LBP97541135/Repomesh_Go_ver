@@ -1,0 +1,236 @@
+{
+  "artifact": "docs/api-database/index.html",
+  "sha256": "475948a66d800a4db3d35e522130cfd219d3c97ada15b064ec51c343632ab180",
+  "structure": {
+    "bad": [],
+    "nav": 14,
+    "labels": [
+      "foundations",
+      "B00",
+      "B01",
+      "B02",
+      "B03",
+      "B04",
+      "B05",
+      "B06",
+      "B07",
+      "B08",
+      "B09",
+      "B10",
+      "B11",
+      "目录"
+    ],
+    "batches": [
+      "B00",
+      "B01",
+      "B02",
+      "B03",
+      "B04",
+      "B05",
+      "B06",
+      "B07",
+      "B08",
+      "B09",
+      "B10",
+      "B11"
+    ],
+    "stats": [
+      "36已有数据库表（手册基线）",
+      "1扫描表（手册外）",
+      "34B05-B11 设计表",
+      "70手册范围合计",
+      "71全仓含扫描合计",
+      "13Markdown 章节",
+      "129设计专题（说明）",
+      "247文档卡片（说明）",
+      "265说明表格",
+      "126本地来源链接（去重）"
+    ],
+    "tableStat": "265说明表格",
+    "databaseStats": {
+      "已有数据库表（手册基线）": 36,
+      "扫描表（手册外）": 1,
+      "B05-B11 设计表": 34,
+      "手册范围合计": 70,
+      "全仓含扫描合计": 71,
+      "Markdown 章节": 13,
+      "设计专题（说明）": 129,
+      "文档卡片（说明）": 247,
+      "说明表格": 265,
+      "本地来源链接（去重）": 126
+    },
+    "physicalDeclarations": [
+      "物理表：repomesh_modelbudget.windows",
+      "物理表：repomesh_models.previews",
+      "物理表：repomesh_models.tests",
+      "物理表：repomesh_models.test_observations",
+      "物理表：repomesh_models.test_handler_instances",
+      "物理表：repomesh_models.application_operations",
+      "物理表：repomesh_sources.policy_versions",
+      "物理表：repomesh_sources.policy_bindings",
+      "物理表：repomesh_sources.policy_imports",
+      "物理表：repomesh_issues.conversations",
+      "物理表：repomesh_issues.issues",
+      "物理表：repomesh_issues.changesets",
+      "物理表：repomesh_issues.repository_scopes",
+      "物理表：repomesh_issues.issue_events",
+      "物理表：repomesh_issues.project_issue_counters",
+      "物理表：repomesh_issues.issue_room_links",
+      "物理表：repomesh_messaging.conversation_messages",
+      "物理表：repomesh_messaging.message_processing_entries",
+      "物理表：repomesh_messaging.clarifications",
+      "物理表：repomesh_messaging.control_operations",
+      "物理表：repomesh_messaging.manager_sessions",
+      "物理表：repomesh_messaging.manager_executions",
+      "物理表：repomesh_execution.rounds",
+      "物理表：repomesh_execution.repository_issues",
+      "物理表：repomesh_execution.plan_revisions",
+      "物理表：repomesh_execution.execution_tasks",
+      "物理表：repomesh_execution.attempts",
+      "物理表：repomesh_execution.resource_reservations",
+      "物理表：repomesh_execution.execution_operations",
+      "物理表：repomesh_execution.execution_records",
+      "物理表：repomesh_execution.change_set_versions",
+      "物理表：repomesh_execution.business_plan_versions",
+      "物理表：repomesh_execution.cross_repo_edges",
+      "物理表：repomesh_execution.result_admissions"
+    ],
+    "tables": 265,
+    "h2": "RepoMesh API 与数据库设计（B00-B11）",
+    "sub": "按 B00 至 B11 批次整理 API、数据库关系、采用状态与设计理由。内容来自 docs/api-database 下的 13 个 Markdown 章节，目录和文档计数按内容计算。数据库统计来自迁移与 table-manifest.json：手册基线 36 张（业务 35 + 系统表 1）、扫描表 1 张（手册外）、B05-B11 设计表 34 张（B05 9、B06 6、B07 1、B08 0、B09 6、B10 10、B11 2）；手册范围合计 70，全仓含扫描 71。设计专题、文档卡片、说明表格等数字是文档统计，不是 API 数或已实现表数。"
+  },
+  "results": [
+    {
+      "name": "nav 批次标签为大写 B00-B11",
+      "ok": true,
+      "detail": "foundations,B00,B01,B02,B03,B04,B05,B06,B07,B08,B09,B10,B11,目录"
+    },
+    {
+      "name": "nav 保留 foundations 与目录入口",
+      "ok": true,
+      "detail": "foundations,B00,B01,B02,B03,B04,B05,B06,B07,B08,B09,B10,B11,目录"
+    },
+    {
+      "name": "标题覆盖 B00-B11",
+      "ok": true,
+      "detail": "RepoMesh API 与数据库设计（B00-B11）"
+    },
+    {
+      "name": "首行说明采用状态与设计理由",
+      "ok": true,
+      "detail": "按 B00 至 B11 批次整理 API、数据库关系、采用状态与设计理由。内容来自 docs/api-database 下的 13 个 Markdown 章节，目录和文档计数按内容计算。数据库统计来自迁移与 table-manifest.json：手册基线 36 张（业务 35 + 系统表 1）、扫描表 1 张（手册外）、B05-B11 设计表 34 张（B05 9、B06 6、B07 1、B08 0、B09 6、B10 10、B11 2）；手册范围合计 70，全仓含扫描 71。设计专题、文档卡片、说明表格等数字是文档统计，不是 API 数或已实现表数。"
+    },
+    {
+      "name": "内部锚点全部存在",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "表格元素数与计数一致",
+      "ok": true,
+      "detail": "265 个说明表格 / 计数 265说明表格"
+    },
+    {
+      "name": "13章均有完整内容",
+      "ok": true,
+      "detail": "265"
+    },
+    {
+      "name": "数据库统计按已实现与设计分列",
+      "ok": true,
+      "detail": "{\"已有数据库表（手册基线）\":36,\"扫描表（手册外）\":1,\"B05-B11 设计表\":34,\"手册范围合计\":70,\"全仓含扫描合计\":71,\"Markdown 章节\":13,\"设计专题（说明）\":129,\"文档卡片（说明）\":247,\"说明表格\":265,\"本地来源链接（去重）\":126}"
+    },
+    {
+      "name": "34张物理表声明完整且唯一",
+      "ok": true,
+      "detail": 34
+    },
+    {
+      "name": "无页面横向溢出 @1440",
+      "ok": true,
+      "detail": "{\"scroll\":1440,\"client\":1440,\"wide\":[]}"
+    },
+    {
+      "name": "锚点标题完整落在导航下方 @1440",
+      "ok": true,
+      "detail": "{\"titleTop\":60.375,\"navBottom\":47.875}"
+    },
+    {
+      "name": "无页面横向溢出 @390",
+      "ok": true,
+      "detail": "{\"scroll\":390,\"client\":390,\"wide\":[]}"
+    },
+    {
+      "name": "锚点标题完整落在导航下方 @390",
+      "ok": true,
+      "detail": "{\"titleTop\":132,\"navBottom\":119.625}"
+    },
+    {
+      "name": "章节标题不重复批次编号",
+      "ok": true,
+      "detail": "B04 模型供应商保存与执行来源导入（已有实现；本地集成验证，非整批 VERIFIED）b04.md\n批次范围与状态公共约定HTTP API7 张卡片GET /api/model-providersG"
+    },
+    {
+      "name": "筛选 B04 只留该章与其分组",
+      "ok": true,
+      "detail": "11 可见 / 期望 11，共 142 行"
+    },
+    {
+      "name": "筛选不影响各章本地目录",
+      "ok": true,
+      "detail": "local 376/376"
+    },
+    {
+      "name": "筛选分组时保留所属章节行",
+      "ok": true,
+      "detail": "tgroup:foundation | tnode:采用状态与事实来源 | tnode:批次与唯一数据归属 | tnode:业务身份先于物理表 | tnode:API 围绕业务操作 | tnode:数据约束与生命周期 | tnode:后台与执行边界 | tnode:采用前检查"
+    },
+    {
+      "name": "清空筛选后全部恢复",
+      "ok": true,
+      "detail": "0"
+    },
+    {
+      "name": "锚点跳转落在目标章节",
+      "ok": true,
+      "detail": "{\"top\":60,\"scrollY\":140024}"
+    },
+    {
+      "name": "打印隐藏浮动导航与搜索框",
+      "ok": true,
+      "detail": "{\"nav\":\"none\",\"search\":\"none\",\"scroll\":1440,\"client\":1440,\"wide\":[]}"
+    },
+    {
+      "name": "打印无横向溢出",
+      "ok": true,
+      "detail": "1440/1440"
+    },
+    {
+      "name": "打印输出 PDF",
+      "ok": true,
+      "detail": "7031 KB"
+    },
+    {
+      "name": "无外部网络请求",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "无 JS 异常或 console 错误",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "窄屏行内代码未被卡片截断",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "screenshots": [
+    "screenshots/final-b04-1440.png",
+    "screenshots/final-b04-390.png",
+    "screenshots/final-b10-1440.png",
+    "screenshots/final-b10-390.png"
+  ],
+  "scope": "Chromium local file; documentation only; no product service or database integration verification"
+}

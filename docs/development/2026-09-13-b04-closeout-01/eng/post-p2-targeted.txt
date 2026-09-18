@@ -1,0 +1,5 @@
+ok  	repomesh.local/repomesh/internal/models	1.801s
+ok  	repomesh.local/repomesh/internal/sources	1.192s
+ok  	repomesh.local/repomesh/internal/web	3.482s
+ok  	repomesh.local/repomesh/internal/projects	0.532s
+ok  	repomesh.local/repomesh/internal/secrets	1.961s

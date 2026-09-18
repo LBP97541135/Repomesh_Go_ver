@@ -1,0 +1,454 @@
+// B05-DECL-r1 / DESIGN_RECOMMENDATION_NOT_ADOPTED. Astra, declarations only.
+// HTTP DTOs are projections of model-settings-browser-api-draft.md §§4,5,8 and
+// first-batch-browser-api-contract.md §10. No alternative transport schema here.
+// Each package section is separate. Existing types retain their source definitions.
+
+package projects
+import (
+    "context"
+    "time"
+    "github.com/jackc/pgx/v5"
+    "repomesh.local/repomesh/internal/secrets"
+)
+type ConfigurationRevision string
+type ProfileVersionRef struct { ID, Version string }
+type PolicyRef struct { ID, Version string }
+type ModelBinding struct {
+    Profile ProfileVersionRef
+    ProviderID, ProviderRevision, ModelRowID string
+    SecretVersion secrets.VersionID
+}
+type RequestPolicy struct {
+    Ref PolicyRef
+    Scope string // parser permits only actor_model_test or project_model_runtime
+    Limit, MaxUnresolved int64
+    Enabled bool
+}
+type TimePolicy struct { Ref PolicyRef; ModelRequestSeconds, WorkerAttemptSeconds int64 }
+type ExecutionRecipe struct {
+    Template ProfileVersionRef
+    WorkerConcurrency int
+    VerificationGroupEnabled bool
+    Budget RequestPolicy
+    Limits TimePolicy
+}
+// Opaque snapshots retain the exact existing JSON and all bindings; external callers cannot edit.
+type FixedConfiguration struct { record configurationRecord; model *ModelBinding; recipe *ExecutionRecipe }
+func (f FixedConfiguration) Revision() ConfigurationRevision
+func (f FixedConfiguration) Model() (ModelBinding, bool)
+func (f FixedConfiguration) HasModelReference() bool
+func (f FixedConfiguration) Execution() (ProfileVersionRef, bool)
+func (f FixedConfiguration) ExecutionRecipe() (ExecutionRecipe, bool)
+func (f FixedConfiguration) ModelChoice() ProfileChoice
+func (f FixedConfiguration) ExecutionChoice() ProfileChoice
+type LockedProject struct { record projectRecord }
+func (p LockedProject) ID() string
+func (p LockedProject) Revision() string
+func (p LockedProject) CreationContextRevision() string
+// Caller first locks principal. These methods share caller tx, never begin/commit it.
+func (s *Service) LockForConfiguration(ctx context.Context, tx pgx.Tx, actor, projectID string) (LockedProject, FixedConfiguration, error)
+func (s *Service) ReadFixed(ctx context.Context, tx pgx.Tx, actor, projectID string, revision ConfigurationRevision) (FixedConfiguration, error)
+// Hydrate exact immutable source closure while tx is held; getters never query a pool.
+// Missing historical linkage preserves record and HasModelReference but has no usable model/recipe.
+func hydrateFixedConfiguration(ctx context.Context, tx pgx.Tx, actor string, record configurationRecord) (FixedConfiguration, error)
+type ModelReplacement struct { ExpectedProjectRevision string; Before FixedConfiguration; Candidate ModelBinding }
+type ConfigurationChange struct { ProjectRevision string; ConfigurationRevision ConfigurationRevision; Changed bool; CommittedAt time.Time }
+// Requires project/catalog/profile/availability locks in documented order. Copies execution
+// atomically and validates candidate lineage; never calls resolveConfiguration.
+func (s *Service) ReplaceModel(ctx context.Context, tx pgx.Tx, project LockedProject, replacement ModelReplacement, at time.Time) (ConfigurationChange, error)
+func retainExecutionAndReplaceModel(before fixedConfiguration, candidate ModelBinding) (fixedConfiguration, error)
+// CheckedFixed separates available fixed material from current eligibility; no network call.
+type CheckedFixed struct { Configuration FixedConfiguration; Status string; Reasons []string; ObservedAt time.Time }
+func (s *Service) InspectFixedForCreation(ctx context.Context, tx pgx.Tx, actor string, fixed FixedConfiguration) (CheckedFixed, error)
+// Budget/time recipes are stored as append-only version details. v1 versions remain incomplete.
+func (w *CatalogWriter) RegisterCompleteExecution(ctx context.Context, tx pgx.Tx, owner, profileID, version, name string, recipe ExecutionRecipe) error
+func (w *CatalogWriter) RegisterRequestPolicy(ctx context.Context, tx pgx.Tx, policy RequestPolicy) error
+func (w *CatalogWriter) RegisterTimePolicy(ctx context.Context, tx pgx.Tx, policy TimePolicy) error
+// C05 build function does not begin a transaction, initialize quota or follow latest defaults.
+type FixedSummary struct {
+    ConfigurationRevision ConfigurationRevision `json:"configurationRevision"`
+    ExecutionVersionID *string `json:"executionVersionId"`
+    Budget BudgetSummary `json:"budget"`
+    TimeLimits TimeLimitSummary `json:"timeLimits"`
+}
+func buildFixedSummary(fixed FixedConfiguration) FixedSummary
+
+package modelbudget
+import (
+    "context"
+    "time"
+    "github.com/jackc/pgx/v5"
+    "repomesh.local/repomesh/internal/projects"
+)
+// Narrow counted-request accounting, no money/settlement/runtime dispatcher. Does not own pool.
+type Store struct{}
+type WindowID struct { ScopeKind, ScopeID string; StartUTC time.Time }
+type Window struct { ID WindowID; EndUTC time.Time; Limit, Reserved, Consumed int64; Revision string }
+type Reservation struct { ActorID, TestID string; Window WindowID; Policy projects.PolicyRef }
+type Observation interface { budgetObservation() }
+type Known struct { Window Window; EffectiveLimit, Remaining int64; At time.Time }
+func (Known) budgetObservation()
+type Unknown struct { Reasons []string; At *time.Time }
+func (Unknown) budgetObservation()
+// No allocation by read-only GET; lack of a trustworthy initialized window gives Unknown.
+func (s *Store) Observe(ctx context.Context, tx pgx.Tx, scope WindowID, policy projects.RequestPolicy) (Observation, error)
+// Caller supplies new-window evidence from locked durable local history; absence is not evidence.
+type EmptyWindowEvidence struct { scope WindowID; checkedHistoryRevision string }
+func (s *Store) CheckEmptyWindowHistory(ctx context.Context, tx pgx.Tx, scope WindowID) (EmptyWindowEvidence, error)
+func (s *Store) EnsureProjectWindow(ctx context.Context, tx pgx.Tx, scope WindowID, policy projects.RequestPolicy, evidence EmptyWindowEvidence) (Window, error)
+func (s *Store) ReserveTest(ctx context.Context, tx pgx.Tx, actor, testID string, policy projects.RequestPolicy, now time.Time) (Reservation, error)
+func (s *Store) ConsumeTest(ctx context.Context, tx pgx.Tx, reservation Reservation, externalOperationID string) error
+// Called only in transaction that proves no send permission can be used, never merely on timeout.
+func (s *Store) ReleaseUnsent(ctx context.Context, tx pgx.Tx, reservation Reservation, proof NotSentProof) error
+type NotSentProof struct { actorID, testID, permitRevision, evidenceID string }
+func (s *Store) ProveUnsent(ctx context.Context, tx pgx.Tx, actorID, testID string) (NotSentProof, error)
+func lockWindow(ctx context.Context, tx pgx.Tx, scope WindowID) (Window, error)
+func lowerWindowLimit(ctx context.Context, tx pgx.Tx, window Window, currentLimit int64) (Window, error)
+// projects does not import this package. Its outer configuration use case receives an injected
+// function for window initialization; callback runs caller tx, no new transaction or network.
+
+package models
+import (
+    "context"
+    "time"
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "repomesh.local/repomesh/internal/access"
+    "repomesh.local/repomesh/internal/projects"
+    "repomesh.local/repomesh/internal/secrets"
+    "repomesh.local/repomesh/internal/modelbudget"
+)
+type SnapshotTarget struct { ProviderID, ProviderRevision, ModelRowID string }
+type TestPolicy struct {
+    Revision string
+    Budget projects.RequestPolicy
+    Limits projects.TimePolicy
+    EgressID, EgressVersion string
+    ApprovedBaseURLs []string
+}
+type TestPreview struct {
+    ID, Actor string
+    Target SnapshotTarget
+    Model projects.ModelBinding
+    ModelID string
+    Policy TestPolicy
+    MaxOutputTokens int64
+    ExpiresAt time.Time
+    CanSubmit bool
+    Reasons []string
+    ExistingTestID *string
+}
+type TestCommand struct { key, previewID string; confirmPotentialCharge bool }
+func ParseTestCommand(key string, body []byte) (TestCommand, error)
+type TestOperationLinks struct { Operation string `json:"operation"` }
+type TestOutstandingDetails struct { ExistingTestID string `json:"existingTestId"`; Links TestOperationLinks `json:"links"` }
+type TestSubmitFailure struct { Status int; Code string; FieldErrors []FieldError; Details *TestOutstandingDetails }
+func (e *TestSubmitFailure) Error() string
+func (e *TestSubmitFailure) MarshalJSON() ([]byte, error)
+// Details is non-nil only for TEST_ALREADY_OUTSTANDING when the current actor can read the blocker.
+type TestService struct { pool *pgxpool.Pool; authorization *access.Service; secrets *secrets.Store; budgets *modelbudget.Store }
+// Test writes lock principal/account, operation, catalog/profile, Provider, policy/window, then
+// secret availability. No later lock path reacquires the owner account.
+func NewTestService(pool *pgxpool.Pool, authorization *access.Service, secrets *secrets.Store, budgets *modelbudget.Store) *TestService
+// Preview reads handler presence, actor outstanding responsibility and quota in one current
+// observation. Missing handler is a reason; handler-read failure is TEST_HANDLER_UNCONFIRMED.
+func (s *TestService) Preview(ctx context.Context, principal access.ProjectPrincipal, target SnapshotTarget) (TestPreview, error)
+func (s *TestService) Submit(ctx context.Context, principal access.ProjectPrincipal, command TestCommand) (TestResult, error)
+func (s *TestService) Get(ctx context.Context, principal access.ProjectPrincipal, testID string) (TestResult, error)
+type TestResult struct {
+    ID, Actor string
+    Target SnapshotTarget
+    AcceptedAt time.Time
+    ResultRevision string
+    State string // projection onto exactly the six states in the HTTP contract
+    Observation *DispatchObservation
+    BudgetStatus string
+    Recovery string
+    RemovedAt *time.Time
+}
+type DispatchObservation struct {
+    EvidenceID, ActorID, TestID, ExternalOperationID string
+    StartedAt, ObservedAt *time.Time
+    Code string
+    LatencyMS *int64
+    Usage *TokenUsage
+}
+type TokenUsage struct { InputTokens, OutputTokens int64 }
+type TestClaim struct { testID, owner string; generation int64; leaseUntil time.Time }
+type CredentialCapabilityRef struct { ID, Version string }
+type SendPermit struct { actorID, testID, externalOperationID, permitID, nonce string; credential CredentialCapabilityRef; consumed bool }
+// Only this process's successful permit commit can create a SendPermit; a DB read cannot.
+type TestRunner struct { service *TestService; transport *SingleRequestTransport; instanceID string }
+func NewTestRunner(service *TestService, transport *SingleRequestTransport) *TestRunner
+func (r *TestRunner) RunOne(ctx context.Context) (bool, error)
+func (r *TestRunner) claimUnsent(ctx context.Context) (TestClaim, bool, error)
+func (r *TestRunner) authorizeOneSend(ctx context.Context, claim TestClaim) (*AuthorizedDispatch, error)
+func (r *TestRunner) recordObservation(ctx context.Context, observation DispatchObservation) error
+func (r *TestRunner) reconcile(ctx context.Context, actorID, testID string) error
+// HTTPS only, no retry/redirect/env proxy, fixed prompt, output/time limits and verified-IP TLS.
+// Construction requires an adopted/tested protocol mapping, not arbitrary HTTP client options.
+type SingleRequestTransport struct { protocolVersion string }
+func NewSingleRequestTransport(protocolVersion string) (*SingleRequestTransport, error)
+type AuthorizedDispatch struct { permit SendPermit; model ProviderView; rowID string; policy TestPolicy; key []byte; maxOutput int64 }
+func (d *AuthorizedDispatch) clear()
+// Created only after the permit tx is positively confirmed. Key opened in that tx; any failure
+// clears it. The exact stored policy travels with each dispatch, not one startup global policy.
+func (r *TestRunner) loadDispatchInTx(ctx context.Context, tx pgx.Tx, claim TestClaim) (*AuthorizedDispatch, error)
+func (r *TestRunner) checkSendStillAuthorized(ctx context.Context, dispatch *AuthorizedDispatch) error
+func (t *SingleRequestTransport) sendOnce(ctx context.Context, dispatch *AuthorizedDispatch) DispatchObservation
+// Unknown maintenance uses its own coordinator-only DB principal. B04 Maintenance stays unchanged.
+type UnknownMaintenancePrincipal struct { deploymentID, sessionUser string }
+func AuthenticateUnknownMaintenance(ctx context.Context, pool *pgxpool.Pool) (UnknownMaintenancePrincipal, error)
+type UnknownMaintenance struct { pool *pgxpool.Pool; principal UnknownMaintenancePrincipal }
+func NewUnknownMaintenance(pool *pgxpool.Pool, principal UnknownMaintenancePrincipal) (*UnknownMaintenance, error)
+// Each method rechecks the actual DB session_user, deployment identity and maintainer role in tx.
+func (m *UnknownMaintenance) checkPrincipal(ctx context.Context, tx pgx.Tx) (string, error)
+type EvidenceMaterial struct { Ref, SHA256 string; CheckedAt time.Time }
+type UnknownCloseEvidence struct {
+    SchemaVersion int
+    ActorID, TestID, ExternalOperationID, SendPermitID, SenderInstanceID string
+    Credential CredentialCapabilityRef
+    SenderExit, CapabilityRevocation EvidenceMaterial
+}
+type UnknownCloseCommand struct { ActorID, TestID, CloseKey string; Evidence UnknownCloseEvidence }
+func ParseUnknownCloseCommand(actorID, testID, closeKey string, data []byte) (UnknownCloseCommand, error)
+type UnknownCloseReceipt struct { ActorID, TestID, CloseKey, Outcome, OperatorPrincipal string; ClosedAt time.Time }
+type UnknownInspection struct {
+    ActorID, TestID, ExternalOperationID, SendPermitID, SenderInstanceID string
+    Credential CredentialCapabilityRef
+    State, Recovery, BudgetStatus string
+    Closure *UnknownCloseReceipt
+}
+// Validation compares every immutable binding and both material digests. It does not prove the
+// operator's physical-exit attestation. Timeout, lease expiry, PID absence and restart are invalid.
+func (m *UnknownMaintenance) InspectUnknownTest(ctx context.Context, actorID, testID string) (UnknownInspection, error)
+func (m *UnknownMaintenance) ValidateUnknownClose(ctx context.Context, command UnknownCloseCommand) error
+// Same close key and input replay. The tx preserves unknown/consumed, closes recovery and
+// outstanding, and appends audit. Late observations cannot overwrite the closure.
+func (m *UnknownMaintenance) CloseUnknownTest(ctx context.Context, command UnknownCloseCommand) (UnknownCloseReceipt, error)
+func (m *Maintenance) RemoveTestResult(ctx context.Context, actor, testID string, cutoff time.Time) error
+// Submit calls replayTest before any new-operation handler, outstanding, preview or quota check.
+func (s *TestService) replayTest(ctx context.Context, tx pgx.Tx, actor string, command TestCommand) (TestResult, bool, error)
+func (s *TestService) registerTest(ctx context.Context, tx pgx.Tx, actor string, command TestCommand, preview TestPreview, reservation modelbudget.Reservation) (TestResult, error)
+func validatePreviewForNewTest(preview TestPreview, actor string, target SnapshotTarget, policy TestPolicy, now time.Time) error
+
+// C06 is a transport projection; internal before model retains exact original binding.
+type ApplicationPreview struct {
+    ID, Actor, ProjectID, ProjectRevision string
+    Before projects.FixedConfiguration
+    originalModel OriginalModel
+    candidateModelID string
+    Candidate projects.ModelBinding
+    Target SnapshotTarget
+    ExpiresAt time.Time
+    CanApply bool
+    Reasons []string
+}
+type ApplicationCommand struct { projectID, key, previewID, requestID string }
+func ParseApplicationCommand(projectID, key, requestID string, body []byte) (ApplicationCommand, error)
+type ApplicationReceipt interface { applicationReceipt() }
+type Applied struct {
+    ApplicationID, ProjectID, ProjectRevision string
+    ConfigurationRevision projects.ConfigurationRevision
+    Candidate projects.ModelBinding
+    RetainedExecution projects.ProfileVersionRef
+    CommittedAt time.Time
+}
+func (Applied) applicationReceipt()
+type ApplicationRejected struct { ApplicationID string; Error APIError; DecidedAt time.Time }
+func (ApplicationRejected) applicationReceipt()
+type ApplicationService struct { pool *pgxpool.Pool; authorization *access.Service; projects *projects.Service; secrets *secrets.Store }
+// Application writes retain the existing project path: principal/account, project, operation,
+// catalog/profile, Provider, preview and secret availability.
+func NewApplicationService(pool *pgxpool.Pool, authorization *access.Service, projects *projects.Service, secrets *secrets.Store) *ApplicationService
+func (s *ApplicationService) Preview(ctx context.Context, principal access.ProjectPrincipal, projectID string, target SnapshotTarget) (ApplicationPreview, error)
+func (s *ApplicationService) Apply(ctx context.Context, principal access.ProjectPrincipal, command ApplicationCommand) (ApplicationReceipt, error)
+func (s *ApplicationService) Get(ctx context.Context, principal access.ProjectPrincipal, projectID, applicationID string) (ApplicationReceipt, error)
+func (s *ApplicationService) replayApplication(ctx context.Context, tx pgx.Tx, actor string, command ApplicationCommand) (ApplicationReceipt, bool, error)
+func lockApplicationPreview(ctx context.Context, tx pgx.Tx, actor, projectID, previewID string) (ApplicationPreview, error)
+func compareApplicationPreview(preview ApplicationPreview, project projects.LockedProject, fixed projects.FixedConfiguration, currentCandidate projects.ModelBinding, now time.Time) error
+func persistApplication(ctx context.Context, tx pgx.Tx, command ApplicationCommand, preview ApplicationPreview, receipt ApplicationReceipt) error
+// BeforeModel projection methods read current authorization, then return the union defined in
+// frontend.ts.txt C06; restricted projection never calls latest-provider lookup.
+func (m *Maintenance) RemoveApplicationResult(ctx context.Context, actor, projectID, applicationID string) error
+
+package sources
+import (
+    "context"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/jackc/pgx/v5"
+    "repomesh.local/repomesh/internal/projects"
+)
+type EgressPolicy struct { ID, Version string; ApprovedBaseURLs []string; AllowedPort int; AllowPrivateAddresses, FollowRedirects bool }
+type TestBinding struct { OwnerID string; Budget, Limits, Egress projects.PolicyRef }
+type CompleteExecution struct { Identity ExecutionProfile; Budget, Limits projects.PolicyRef }
+// ManifestCommon contains the shared declarations but no execution collection. The B04 Manifest
+// remains the schema1 payload and keeps its original ExecutionProfiles field and replay bytes.
+type ManifestCommon struct {
+    SchemaVersion int
+    ImportID string
+    EnvironmentTemplates []EnvironmentTemplate
+    DefaultBindings []DefaultBinding
+}
+type ManifestV2 struct {
+    Common ManifestCommon
+    ExecutionProfiles []CompleteExecution
+    Budgets []projects.RequestPolicy
+    Limits []projects.TimePolicy
+    Egress []EgressPolicy
+    Tests []TestBinding
+}
+// ManifestV2 is normalized internal data. Its flat wire schema has exactly one executionProfiles
+// array. Common is not a wire key, and parseImportV2 retains canonical bytes for exact replay.
+func parseImportV2(data []byte) (ManifestV2, []byte, error)
+func (s *Importer) importV2(ctx context.Context, tx pgx.Tx, command ManifestV2, canonical []byte) (Receipt, error)
+func insertEgressPolicy(ctx context.Context, tx pgx.Tx, policy EgressPolicy) error
+func bindTestPolicy(ctx context.Context, tx pgx.Tx, binding TestBinding) error
+
+package projects
+import (
+    "context"
+    "github.com/jackc/pgx/v5"
+)
+// Dependency inversion keeps projects from importing modelbudget, which uses catalog policy types.
+// Only composition provides this policy-bearing initializer. Existing B03 New retains nil until B05.
+type InitializeRequestWindow func(context.Context, pgx.Tx, string, RequestPolicy) error
+func (s *Service) SetRequestWindowInitializer(initialize InitializeRequestWindow)
+// Explicit complete configuration commits invoke initializer in caller transaction; nil means
+// unavailable runtime quota, not unlimited allowance. Model-only replacement keeps execution.
+
+package models
+import (
+    "context"
+    "github.com/jackc/pgx/v5"
+    "repomesh.local/repomesh/internal/projects"
+)
+type OriginalModel interface { originalModel() }
+type UnconfiguredOriginal struct{}
+func (UnconfiguredOriginal) originalModel()
+type ReadableOriginal struct { Binding projects.ModelBinding; Reference projects.ProfileChoice; SnapshotPath string }
+func (ReadableOriginal) originalModel()
+type RestrictedOriginal struct { Reasons []string }
+func (RestrictedOriginal) originalModel()
+func (s *ApplicationService) projectOriginalModel(ctx context.Context, tx pgx.Tx, actor string, before projects.FixedConfiguration) (OriginalModel, error)
+// Unknown authorization is error503; restricted payload has no binding or identity fields.
+
+package sources
+import "time"
+// Schema2 receipt adds these four arrays; schema1 stays exactly its original receipt shape.
+type PolicyImportResults struct { BudgetPolicies, TimeLimitPolicies, EgressPolicies []VersionRef; TestBindings []TestBindingResult }
+type TestBindingResult struct { OwnerID, Revision string }
+// B05 REPLACEMENTS for B04's ImportCommand/Receipt in the same sources package.
+// ParseImport's existing signature dispatches version and constructs exactly one payload.
+type importPayload interface { importPayload() }
+func (Manifest) importPayload()
+func (ManifestV2) importPayload()
+type ImportCommand struct { payload importPayload; canonical []byte; schemaVersion int }
+type Receipt struct {
+    ImportID string
+    SchemaVersion int
+    EnvironmentTemplates, ExecutionProfiles []VersionRef
+    DefaultBindings []DefaultResult
+    CommittedAt time.Time
+    policyResults *PolicyImportResults
+}
+func (r Receipt) MarshalJSON() ([]byte, error)
+// No "policies" wire key. Both versions preserve schemaVersion and exact old receipt on replay.
+
+package web
+import (
+    "repomesh.local/repomesh/internal/models"
+)
+// Replace B04 Models declaration at B05 implementation, keeping existing Service field.
+type Models struct { Service *models.Service; Tests *models.TestService; Applications *models.ApplicationService }
+
+package access
+import "context"
+type ModelTestDestinationResolver func(context.Context, string, string) (*string, error)
+type ModelApplyDestinationResolver func(context.Context, string, string, string) (*string, error)
+func (s *Service) SetModelTestDestinationResolver(resolver ModelTestDestinationResolver)
+func (s *Service) SetModelApplyDestinationResolver(resolver ModelApplyDestinationResolver)
+// Existing Destination parse/dispatch extended through these resolver methods, no raw return URL.
+
+package projects
+import (
+    "context"
+    "time"
+    "github.com/jackc/pgx/v5"
+)
+// Go projections of unique C05 contract. Opaque sums serialize exactly one documented branch.
+type BudgetSummary struct { available *RequestPolicy; reasons []string }
+func (b BudgetSummary) MarshalJSON() ([]byte, error)
+type TimeLimitSummary struct { available *TimePolicy; reasons []string }
+func (t TimeLimitSummary) MarshalJSON() ([]byte, error)
+type KnownQuota struct {
+    Policy PolicyRef
+    WindowStart, WindowEnd, ObservedAt time.Time
+    EffectiveLimit, Reserved, Consumed, Remaining int64
+}
+type QuotaObservation struct { configurationRevision ConfigurationRevision; known *KnownQuota; unknown *quotaUnknown; notConfigured []string }
+type quotaUnknown struct { reasons []string; observedAt *time.Time }
+func KnownQuotaObservation(revision ConfigurationRevision, value KnownQuota) QuotaObservation
+func UnknownQuotaObservation(revision ConfigurationRevision, reasons []string, at *time.Time) QuotaObservation
+func NotConfiguredQuotaObservation(revision ConfigurationRevision, reasons []string) QuotaObservation
+func (q QuotaObservation) MarshalJSON() ([]byte, error)
+// Composition adapter modelbudget->projects projection; this injected read is no network/no writes
+// and uses caller tx. projects never imports modelbudget. Nil means unknown, never zero.
+type ObserveRequestQuota func(context.Context, pgx.Tx, string, ConfigurationRevision, RequestPolicy, time.Time) (QuotaObservation, error)
+func (s *Service) SetRequestQuotaObserver(observe ObserveRequestQuota)
+func (s *Service) readConfigurationSummary(ctx context.Context, tx pgx.Tx, projectID string, fixed FixedConfiguration, now time.Time) (FixedSummary, QuotaObservation, error)
+// Add these two fields to existing ConfigurationView alongside original fields:
+// FixedSummary FixedSummary `json:"fixedSummary"`
+// QuotaObservation QuotaObservation `json:"quotaObservation"`
+// Existing Service.Get pins one project/config revision in its read transaction, then builds
+// both fields there. Only missing budget -> not_configured. Missing window/read -> unknown.
+// A DB statement error aborts PG tx: optional observer uses SAVEPOINT/ROLLBACK TO before
+// producing unknown; connection/whole snapshot failure returns503 instead of a partial view.
+
+package models
+// Exact §4 preview whitelist: never encode Actor, full Model, Policy or ApprovedBaseURLs.
+// existingTestId and links.operation appear together only for a readable outstanding test.
+func (p TestPreview) MarshalJSON() ([]byte, error)
+func (r TestResult) MarshalJSON() ([]byte, error)
+func (r Applied) MarshalJSON() ([]byte, error)
+func (r ApplicationRejected) MarshalJSON() ([]byte, error)
+func (p ApplicationPreview) MarshalJSON() ([]byte, error)
+// Marshaling previews must use the already-authorized OriginalModel projection, not expose Before.
+// ApplicationPreview.originalModel is populated in Preview tx.
+
+package main
+import (
+    "context"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "repomesh.local/repomesh/internal/access"
+    "repomesh.local/repomesh/internal/models"
+    "repomesh.local/repomesh/internal/projects"
+    "repomesh.local/repomesh/internal/modelbudget"
+)
+// Web composition initializes the two narrow projects callbacks; coordinator uses the same
+// model store and an explicit supported protocol registry. No hidden extra pool/root reader.
+func configureModelBudgets(projects *projects.Service, budgets *modelbudget.Store)
+func assembleModelTestRunner(runtime *access.Runtime, budgets *modelbudget.Store) (*models.TestRunner, error)
+func runModelTestWorker(ctx context.Context, runner *models.TestRunner) error
+// Coordinator unknown subcommands authenticate from the maintenance DB session before assembly;
+// ActorID is only a target locator and never supplies the operator principal.
+func assembleUnknownMaintenance(ctx context.Context, pool *pgxpool.Pool) (*models.UnknownMaintenance, error)
+// runModelTestWorker scans only test_dispatch responsibility alongside existing auth discovery;
+// neither it nor access workers consume Issue continuation_work. Missing handler disables new tests.
+
+package models
+import (
+    "context"
+    "time"
+    "github.com/jackc/pgx/v5"
+)
+// A finite handler-presence record for model tests, not Issue/runtime readiness.
+type handlerObservation struct { instanceID, protocolVersion string; leaseUntil time.Time }
+func (r *TestRunner) RegisterHandler(ctx context.Context) error
+func (r *TestRunner) HeartbeatHandler(ctx context.Context) error
+func readTestHandler(ctx context.Context, tx pgx.Tx, protocolVersion string, now time.Time) (handlerObservation, error)
+func checkTestProtocol(target ProviderView, rowID string, protocolVersion string) error
+// Registration/heartbeat are independent short txs with no actor/business locks; RunOne never
+// carries their locks into claim/dispatch. Preview/Submit read recent matching support; absent
+// -> TEST_HANDLER_UNAVAILABLE, query failure -> 503 TEST_HANDLER_UNCONFIRMED with no preview or
+// test operation. A lease expiry is never revocation proof.

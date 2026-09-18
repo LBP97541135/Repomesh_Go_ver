@@ -1,0 +1,157 @@
+2026-09-12 05:17:23.431 PDT [69260] LOG:  starting PostgreSQL 17.11 (Ubuntu 17.11-1.pgdg22.04+2) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit
+2026-09-12 05:17:23.431 PDT [69260] LOG:  listening on IPv4 address "127.0.0.1", port 45023
+2026-09-12 05:17:23.436 PDT [69263] LOG:  database system was shut down at 2026-09-12 05:17:23 PDT
+2026-09-12 05:17:23.440 PDT [69260] LOG:  database system is ready to accept connections
+2026-09-12 05:17:36.649 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:36.788 PDT [69261] LOG:  checkpoint complete: wrote 2775 buffers (16.9%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.070 s, sync=0.056 s, total=0.140 s; sync files=80, longest=0.005 s, average=0.001 s; distance=18045 kB, estimate=18045 kB; lsn=0/26DB810, redo lsn=0/2683BA8
+2026-09-12 05:17:36.789 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:36.803 PDT [69261] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.004 s, sync=0.004 s, total=0.015 s; sync files=4, longest=0.002 s, average=0.001 s; distance=351 kB, estimate=16276 kB; lsn=0/26DB8F0, redo lsn=0/26DB888
+2026-09-12 05:17:36.903 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:36.985 PDT [69261] LOG:  checkpoint complete: wrote 1822 buffers (11.1%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.033 s, sync=0.022 s, total=0.082 s; sync files=16, longest=0.011 s, average=0.002 s; distance=13826 kB, estimate=16031 kB; lsn=0/347A168, redo lsn=0/345C0E0
+2026-09-12 05:17:36.985 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:37.005 PDT [69261] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.007 s, sync=0.005 s, total=0.020 s; sync files=4, longest=0.003 s, average=0.001 s; distance=120 kB, estimate=14440 kB; lsn=0/347A240, redo lsn=0/347A1E0
+2026-09-12 05:17:37.104 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:37.123 PDT [75228] ERROR:  private-database-error-sentinel
+2026-09-12 05:17:37.123 PDT [75228] CONTEXT:  PL/pgSQL function repomesh_secrets.reject_availability() line 2 at RAISE
+2026-09-12 05:17:37.123 PDT [75228] STATEMENT:  INSERT INTO repomesh_secrets.availability(version_id) VALUES ($1)
+2026-09-12 05:17:37.221 PDT [69261] LOG:  checkpoint complete: wrote 1940 buffers (11.8%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.064 s, sync=0.033 s, total=0.117 s; sync files=70, longest=0.004 s, average=0.001 s; distance=13423 kB, estimate=14338 kB; lsn=0/41DE0C0, redo lsn=0/4195EE8
+2026-09-12 05:17:37.222 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:37.232 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.003 s, total=0.011 s; sync files=2, longest=0.002 s, average=0.002 s; distance=288 kB, estimate=12933 kB; lsn=0/41DE198, redo lsn=0/41DE138
+2026-09-12 05:17:37.283 PDT [75235] ERROR:  function no_such_function_b01() does not exist at character 57
+2026-09-12 05:17:37.283 PDT [75235] HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+2026-09-12 05:17:37.283 PDT [75235] STATEMENT:  CREATE TABLE public.rollback_probe (id integer); SELECT no_such_function_b01();
+2026-09-12 05:17:37.291 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:37.337 PDT [75238] ERROR:  duplicate key value violates unique constraint "root_keys_fingerprint_key"
+2026-09-12 05:17:37.337 PDT [75238] DETAIL:  Key (fingerprint)=(\x932f81fc114c188920109e35d4828831b3259a3bc5969dd2a2029650d211805d) already exists.
+2026-09-12 05:17:37.337 PDT [75238] STATEMENT:  INSERT INTO repomesh_secrets.root_keys(root_id,fingerprint) VALUES ($1,$2) ON CONFLICT(root_id) DO NOTHING
+2026-09-12 05:17:37.432 PDT [69261] LOG:  checkpoint complete: wrote 1834 buffers (11.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.041 s, sync=0.092 s, total=0.141 s; sync files=159, longest=0.005 s, average=0.001 s; distance=11995 kB, estimate=12839 kB; lsn=0/4F77B80, redo lsn=0/4D94D50
+2026-09-12 05:17:37.432 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:37.443 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.003 s, total=0.012 s; sync files=2, longest=0.002 s, average=0.002 s; distance=1931 kB, estimate=11748 kB; lsn=0/4F77C58, redo lsn=0/4F77BF8
+2026-09-12 05:17:37.511 PDT [75244] ERROR:  duplicate key value violates unique constraint "repomesh_schema_migrations_pkey"
+2026-09-12 05:17:37.511 PDT [75244] DETAIL:  Key (version)=(2) already exists.
+2026-09-12 05:17:37.511 PDT [75244] STATEMENT:  INSERT INTO public.repomesh_schema_migrations (version, name, checksum) VALUES ($1, $2, $3)
+2026-09-12 05:17:37.524 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:37.647 PDT [69261] LOG:  checkpoint complete: wrote 1855 buffers (11.3%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.047 s, sync=0.065 s, total=0.124 s; sync files=101, longest=0.005 s, average=0.001 s; distance=12729 kB, estimate=12729 kB; lsn=0/5D24A10, redo lsn=0/5BE5FF8
+2026-09-12 05:17:37.648 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:37.659 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.003 s, total=0.012 s; sync files=2, longest=0.002 s, average=0.002 s; distance=1274 kB, estimate=11583 kB; lsn=0/5D24AE8, redo lsn=0/5D24A88
+2026-09-12 05:17:37.743 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:37.856 PDT [69261] LOG:  checkpoint complete: wrote 1875 buffers (11.4%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.041 s, sync=0.063 s, total=0.114 s; sync files=128, longest=0.004 s, average=0.001 s; distance=12737 kB, estimate=12737 kB; lsn=0/6AD1780, redo lsn=0/69951B8
+2026-09-12 05:17:37.857 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:37.868 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.011 s; sync files=2, longest=0.002 s, average=0.001 s; distance=1265 kB, estimate=11590 kB; lsn=0/6AD1858, redo lsn=0/6AD17F8
+2026-09-12 05:17:37.935 PDT [75278] ERROR:  function no_such_upgrade_function_b01() does not exist at character 68
+2026-09-12 05:17:37.935 PDT [75278] HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+2026-09-12 05:17:37.935 PDT [75278] STATEMENT:  CREATE TABLE public.upgrade_third (id integer PRIMARY KEY); SELECT no_such_upgrade_function_b01();
+2026-09-12 05:17:37.942 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:38.067 PDT [69261] LOG:  checkpoint complete: wrote 1872 buffers (11.4%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.037 s, sync=0.077 s, total=0.125 s; sync files=159, longest=0.007 s, average=0.001 s; distance=12737 kB, estimate=12737 kB; lsn=0/7880200, redo lsn=0/7741C80
+2026-09-12 05:17:38.067 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:38.077 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.003 s, total=0.011 s; sync files=2, longest=0.002 s, average=0.002 s; distance=1273 kB, estimate=11590 kB; lsn=0/78802D8, redo lsn=0/7880278
+2026-09-12 05:17:38.155 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:38.277 PDT [69261] LOG:  checkpoint complete: wrote 1874 buffers (11.4%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.047 s, sync=0.065 s, total=0.122 s; sync files=128, longest=0.004 s, average=0.001 s; distance=12737 kB, estimate=12737 kB; lsn=0/862DEB0, redo lsn=0/84F0790
+2026-09-12 05:17:38.278 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:38.289 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.003 s, total=0.011 s; sync files=2, longest=0.002 s, average=0.002 s; distance=1269 kB, estimate=11590 kB; lsn=0/862DF88, redo lsn=0/862DF28
+2026-09-12 05:17:38.362 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:38.488 PDT [69261] LOG:  checkpoint complete: wrote 1868 buffers (11.4%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.038 s, sync=0.079 s, total=0.127 s; sync files=203, longest=0.003 s, average=0.001 s; distance=12737 kB, estimate=12737 kB; lsn=0/93DEF50, redo lsn=0/929E640
+2026-09-12 05:17:38.489 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:38.498 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.010 s; sync files=2, longest=0.002 s, average=0.001 s; distance=1282 kB, estimate=11592 kB; lsn=0/93DF068, redo lsn=0/93DEFC8
+2026-09-12 05:17:38.566 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:38.709 PDT [69261] LOG:  checkpoint complete: wrote 1872 buffers (11.4%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.039 s, sync=0.096 s, total=0.144 s; sync files=232, longest=0.006 s, average=0.001 s; distance=12738 kB, estimate=12738 kB; lsn=0/A1930A0, redo lsn=0/A04FA78
+2026-09-12 05:17:38.710 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:38.719 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.010 s; sync files=2, longest=0.002 s, average=0.001 s; distance=1293 kB, estimate=11594 kB; lsn=0/A193178, redo lsn=0/A193118
+2026-09-12 05:17:38.789 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:38.860 PDT [69261] LOG:  checkpoint complete: wrote 952 buffers (5.8%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.019 s, sync=0.045 s, total=0.072 s; sync files=116, longest=0.003 s, average=0.001 s; distance=8642 kB, estimate=11299 kB; lsn=0/AA765D0, redo lsn=0/AA03D10
+2026-09-12 05:17:38.860 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:38.870 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.010 s; sync files=2, longest=0.002 s, average=0.001 s; distance=458 kB, estimate=10214 kB; lsn=0/AA766A8, redo lsn=0/AA76648
+2026-09-12 05:17:38.932 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:39.038 PDT [69261] LOG:  checkpoint complete: wrote 946 buffers (5.8%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.020 s, sync=0.078 s, total=0.107 s; sync files=212, longest=0.002 s, average=0.001 s; distance=8522 kB, estimate=10045 kB; lsn=0/B3603A0, redo lsn=0/B2C8FF0
+2026-09-12 05:17:39.038 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:39.047 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.009 s; sync files=2, longest=0.002 s, average=0.001 s; distance=605 kB, estimate=9101 kB; lsn=0/B360478, redo lsn=0/B360418
+2026-09-12 05:17:39.099 PDT [75345] ERROR:  canceling statement due to user request
+2026-09-12 05:17:39.099 PDT [75345] STATEMENT:  CREATE TABLE public.cancel_during_sql (id integer); SELECT pg_catalog.pg_sleep(30);
+2026-09-12 05:17:39.106 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:39.116 PDT [69261] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.011 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4269 kB, estimate=8618 kB; lsn=0/B78B970, redo lsn=0/B78B918
+2026-09-12 05:17:39.178 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:39.189 PDT [69261] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.003 s, total=0.011 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4263 kB, estimate=8182 kB; lsn=0/BBB5708, redo lsn=0/BBB56B0
+2026-09-12 05:17:39.404 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:39.416 PDT [69261] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.012 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4241 kB, estimate=7788 kB; lsn=0/BFD9C40, redo lsn=0/BFD9BE8
+2026-09-12 05:17:39.457 PDT [75360] FATAL:  password authentication failed for user "repomesh_test"
+2026-09-12 05:17:39.457 PDT [75360] DETAIL:  Connection matched file "/tmp/repomesh-verify-8edc772afb084929b9d2db7f9b22b408/data/pg_hba.conf" line 115: "host    all             all             127.0.0.1/32            scram-sha-256"
+2026-09-12 05:17:39.461 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:39.472 PDT [69261] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.002 s, sync=0.002 s, total=0.011 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4241 kB, estimate=7434 kB; lsn=0/C3FE270, redo lsn=0/C3FE218
+2026-09-12 05:17:39.564 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:39.637 PDT [69261] LOG:  checkpoint complete: wrote 929 buffers (5.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.012 s, sync=0.054 s, total=0.073 s; sync files=306, longest=0.002 s, average=0.001 s; distance=8504 kB, estimate=8504 kB; lsn=0/CC4C2E8, redo lsn=0/CC4C290
+2026-09-12 05:17:39.647 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:39.658 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.012 s; sync files=2, longest=0.002 s, average=0.001 s; distance=6 kB, estimate=7654 kB; lsn=0/CC4DD58, redo lsn=0/CC4DD00
+2026-09-12 05:17:39.709 PDT [75380] ERROR:  insert or update on table "commit_failure_probe" violates foreign key constraint "commit_failure_probe_parent_fkey"
+2026-09-12 05:17:39.709 PDT [75380] DETAIL:  Key (parent)=(2) is not present in table "commit_failure_probe".
+2026-09-12 05:17:39.709 PDT [75380] STATEMENT:  commit
+2026-09-12 05:17:39.716 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:17:39.731 PDT [69261] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.003 s, sync=0.003 s, total=0.016 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4279 kB, estimate=7316 kB; lsn=0/D07BC88, redo lsn=0/D07BC30
+2026-09-12 05:18:01.714 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:01.830 PDT [69261] LOG:  checkpoint complete: wrote 1957 buffers (11.9%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.044 s, sync=0.053 s, total=0.116 s; sync files=140, longest=0.004 s, average=0.001 s; distance=13860 kB, estimate=13860 kB; lsn=0/DE1A228, redo lsn=0/DE04E80
+2026-09-12 05:18:01.831 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:01.841 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.003 s, total=0.011 s; sync files=2, longest=0.002 s, average=0.002 s; distance=85 kB, estimate=12483 kB; lsn=0/DE1A300, redo lsn=0/DE1A2A0
+2026-09-12 05:18:02.039 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:02.072 PDT [69261] LOG:  checkpoint complete: wrote 6 buffers (0.0%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.009 s, sync=0.006 s, total=0.034 s; sync files=6, longest=0.002 s, average=0.001 s; distance=9248 kB, estimate=12159 kB; lsn=0/E724018, redo lsn=0/E722348
+2026-09-12 05:18:02.072 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:02.083 PDT [69261] LOG:  checkpoint complete: wrote 0 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.001 s, sync=0.001 s, total=0.011 s; sync files=0, longest=0.000 s, average=0.000 s; distance=7 kB, estimate=10944 kB; lsn=0/E7240F0, redo lsn=0/E724090
+2026-09-12 05:18:02.238 PDT [83344] ERROR:  private-database-error-sentinel
+2026-09-12 05:18:02.238 PDT [83344] CONTEXT:  PL/pgSQL function repomesh_secrets.reject_availability() line 2 at RAISE
+2026-09-12 05:18:02.238 PDT [83344] STATEMENT:  INSERT INTO repomesh_secrets.availability(version_id) VALUES ($1)
+2026-09-12 05:18:02.260 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:02.290 PDT [69261] LOG:  checkpoint complete: wrote 450 buffers (2.7%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.008 s, sync=0.004 s, total=0.031 s; sync files=4, longest=0.002 s, average=0.001 s; distance=9240 kB, estimate=10773 kB; lsn=0/F02D038, redo lsn=0/F02A3F0
+2026-09-12 05:18:02.290 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:02.301 PDT [69261] LOG:  checkpoint complete: wrote 1 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.001 s, sync=0.002 s, total=0.011 s; sync files=1, longest=0.002 s, average=0.002 s; distance=11 kB, estimate=9697 kB; lsn=0/F02D110, redo lsn=0/F02D0B0
+2026-09-12 05:18:02.414 PDT [83349] ERROR:  duplicate key value violates unique constraint "root_keys_fingerprint_key"
+2026-09-12 05:18:02.414 PDT [83349] DETAIL:  Key (fingerprint)=(\x78c25755129a530a847e7384e49a2a8a43f7e536221024716bacb83acb1a42be) already exists.
+2026-09-12 05:18:02.414 PDT [83349] STATEMENT:  INSERT INTO repomesh_secrets.root_keys(root_id,fingerprint) VALUES ($1,$2) ON CONFLICT(root_id) DO NOTHING
+2026-09-12 05:18:02.435 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:02.552 PDT [69261] LOG:  checkpoint complete: wrote 982 buffers (6.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.024 s, sync=0.085 s, total=0.118 s; sync files=223, longest=0.003 s, average=0.001 s; distance=9228 kB, estimate=9650 kB; lsn=0/F938A38, redo lsn=0/F9301B8
+2026-09-12 05:18:02.552 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:02.563 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.003 s, total=0.011 s; sync files=2, longest=0.002 s, average=0.002 s; distance=34 kB, estimate=8689 kB; lsn=0/F938B10, redo lsn=0/F938AB0
+2026-09-12 05:18:02.752 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:02.834 PDT [69261] LOG:  checkpoint complete: wrote 995 buffers (6.1%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.019 s, sync=0.024 s, total=0.083 s; sync files=55, longest=0.003 s, average=0.001 s; distance=9240 kB, estimate=9240 kB; lsn=0/10244878, redo lsn=0/1023EB70
+2026-09-12 05:18:02.835 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:02.846 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.003 s, total=0.012 s; sync files=2, longest=0.002 s, average=0.002 s; distance=23 kB, estimate=8318 kB; lsn=0/10244950, redo lsn=0/102448F0
+2026-09-12 05:18:02.987 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:03.049 PDT [69261] LOG:  checkpoint complete: wrote 995 buffers (6.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.025 s, sync=0.026 s, total=0.062 s; sync files=64, longest=0.003 s, average=0.001 s; distance=9237 kB, estimate=9237 kB; lsn=0/10B4C338, redo lsn=0/10B4A0A0
+2026-09-12 05:18:03.049 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:03.060 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.003 s, total=0.011 s; sync files=2, longest=0.002 s, average=0.002 s; distance=8 kB, estimate=8315 kB; lsn=0/10B4C410, redo lsn=0/10B4C3B0
+2026-09-12 05:18:03.183 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:03.273 PDT [69261] LOG:  checkpoint complete: wrote 1003 buffers (6.1%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.019 s, sync=0.048 s, total=0.091 s; sync files=171, longest=0.003 s, average=0.001 s; distance=9235 kB, estimate=9235 kB; lsn=0/11457A38, redo lsn=0/11451228
+2026-09-12 05:18:03.274 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:03.284 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.011 s; sync files=2, longest=0.002 s, average=0.001 s; distance=26 kB, estimate=8314 kB; lsn=0/11457B10, redo lsn=0/11457AB0
+2026-09-12 05:18:03.434 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:03.482 PDT [69261] LOG:  checkpoint complete: wrote 1002 buffers (6.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.015 s, sync=0.016 s, total=0.048 s; sync files=44, longest=0.002 s, average=0.001 s; distance=9240 kB, estimate=9240 kB; lsn=0/11D60658, redo lsn=0/11D5DB20
+2026-09-12 05:18:03.482 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:03.492 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.003 s, total=0.011 s; sync files=2, longest=0.002 s, average=0.002 s; distance=10 kB, estimate=8317 kB; lsn=0/11D60730, redo lsn=0/11D606D0
+2026-09-12 05:18:03.617 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:03.729 PDT [69261] LOG:  checkpoint complete: wrote 987 buffers (6.0%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.018 s, sync=0.074 s, total=0.113 s; sync files=220, longest=0.003 s, average=0.001 s; distance=9233 kB, estimate=9233 kB; lsn=0/1266DE40, redo lsn=0/12664D60
+2026-09-12 05:18:03.729 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:03.740 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.003 s, total=0.012 s; sync files=2, longest=0.002 s, average=0.002 s; distance=36 kB, estimate=8313 kB; lsn=0/1266DF18, redo lsn=0/1266DEB8
+2026-09-12 05:18:03.880 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:03.971 PDT [69261] LOG:  checkpoint complete: wrote 995 buffers (6.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.013 s, sync=0.060 s, total=0.092 s; sync files=189, longest=0.003 s, average=0.001 s; distance=9243 kB, estimate=9243 kB; lsn=0/12F7E158, redo lsn=0/12F74E80
+2026-09-12 05:18:03.972 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:03.982 PDT [69261] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.011 s; sync files=2, longest=0.002 s, average=0.001 s; distance=36 kB, estimate=8323 kB; lsn=0/12F7E230, redo lsn=0/12F7E1D0
+2026-09-12 05:18:04.133 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:04.148 PDT [69261] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.003 s, sync=0.003 s, total=0.015 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4634 kB, estimate=7954 kB; lsn=0/13404AD0, redo lsn=0/13404A78
+2026-09-12 05:18:04.344 PDT [69261] LOG:  checkpoint starting: immediate force wait
+2026-09-12 05:18:04.377 PDT [69261] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.004 s, sync=0.003 s, total=0.034 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4646 kB, estimate=7623 kB; lsn=0/1388E470, redo lsn=0/1388E418
+2026-09-12 05:18:07.113 PDT [69260] LOG:  received fast shutdown request
+2026-09-12 05:18:07.125 PDT [69260] LOG:  aborting any active transactions
+2026-09-12 05:18:07.127 PDT [69260] LOG:  background worker "logical replication launcher" (PID 69266) exited with exit code 1
+2026-09-12 05:18:07.127 PDT [69261] LOG:  shutting down
+2026-09-12 05:18:07.129 PDT [69261] LOG:  checkpoint starting: shutdown immediate
+2026-09-12 05:18:07.210 PDT [69261] LOG:  checkpoint complete: wrote 108 buffers (0.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.004 s, sync=0.071 s, total=0.083 s; sync files=112, longest=0.003 s, average=0.001 s; distance=623 kB, estimate=6923 kB; lsn=0/1392A0F0, redo lsn=0/1392A0F0
+2026-09-12 05:18:07.221 PDT [69260] LOG:  database system is shut down
+2026-09-12 05:18:07.346 PDT [83730] LOG:  starting PostgreSQL 17.11 (Ubuntu 17.11-1.pgdg22.04+2) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit
+2026-09-12 05:18:07.346 PDT [83730] LOG:  listening on IPv4 address "127.0.0.1", port 45023
+2026-09-12 05:18:07.351 PDT [83733] LOG:  database system was shut down at 2026-09-12 05:18:07 PDT
+2026-09-12 05:18:07.359 PDT [83730] LOG:  database system is ready to accept connections
+2026-09-12 05:18:07.710 PDT [83730] LOG:  received fast shutdown request
+2026-09-12 05:18:07.712 PDT [83730] LOG:  aborting any active transactions
+2026-09-12 05:18:07.714 PDT [83730] LOG:  background worker "logical replication launcher" (PID 83736) exited with exit code 1
+2026-09-12 05:18:07.714 PDT [83731] LOG:  shutting down
+2026-09-12 05:18:07.716 PDT [83731] LOG:  checkpoint starting: shutdown immediate
+2026-09-12 05:18:07.732 PDT [83731] LOG:  checkpoint complete: wrote 14 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.004 s, sync=0.006 s, total=0.018 s; sync files=9, longest=0.003 s, average=0.001 s; distance=21 kB, estimate=21 kB; lsn=0/1392F718, redo lsn=0/1392F718
+2026-09-12 05:18:07.737 PDT [83730] LOG:  database system is shut down
+

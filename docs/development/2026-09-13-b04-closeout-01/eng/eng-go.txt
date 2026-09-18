@@ -1,0 +1,8 @@
+=== go build ===
+build_exit=0
+=== go vet ===
+vet_exit=0
+=== go test ===
+pass=259 fail=0 skip=2
+SKIP repomesh.local/repomesh/internal/secrets TestRootFileOwner
+SKIP repomesh.local/repomesh/internal/web TestProjectBrowserServer

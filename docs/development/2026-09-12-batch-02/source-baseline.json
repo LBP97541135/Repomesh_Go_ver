@@ -1,0 +1,27 @@
+{
+  "capturedAt": "2026-09-12T11:49:39.347275+00:00",
+  "head": "ad9a49b2fe3b5fe743a65c838ded6cb022e79363",
+  "files": {
+    "cmd/repomesh-host-executor/main.go": "4d4e1e595c4c39f15b55f5ddd641d17e689284ef5b8cd46a094acac377b27479",
+    "cmd/repomesh-web/main.go": "408702e41b1121abf3bbe471b9852965ad3b3c0e5434df0ce25b76eaac903fdd",
+    "cmd/repomesh-web/main_test.go": "67bd62cca72e09513e976983531bd50b71a951c8fb3663ddb93cfdf01f30a374",
+    "cmd/repomesh-coordinator/main.go": "4ee87558175880c5d4a2321f46e964fb3cdcde3f16d5cb3abb8e24ff0b448842",
+    "internal/database/database.go": "4d1988416ea6262f28a010bb17b09ef433e5226754ee775a757abcd67ed5301a",
+    "internal/database/migrations.go": "86a14822e5a4c761d1bedeafe5a24f521ff4826d2a8aa1e9f4e6273b1f37137f",
+    "internal/database/postgres_test.go": "a7a2e67231048fbba219921fa0b893e455d5b2de6a38ffdaaddd5c3549e51a21",
+    "internal/database/database_test.go": "9b87c39168945453f138544e37d1773f3fd32b9e395452e9539f5c05a30e3405",
+    "internal/database/migrations/0001_schema_migrations.sql": "6d180f1b2be3c4904b699c11a13ee827e5405fd2f2ce05041da48e273a210c3a",
+    "internal/buildinfo/version.go": "43240966b7efe6a6c1387e365a2fddfb6f42bd219bd6affb91c174fdc52013c6",
+    "internal/web/server.go": "35e10a61736b6953e09791c260e79e0b0caa35421163d1844d3cca4c92e4953e",
+    "internal/web/server_test.go": "c43d82882af5cecd88f4fb2274251ed0cdcce62e922bf8ee1374b7532770b24d",
+    "web/src/main.tsx": "991df6c9e072104a9cd414cc21a450e06be652f4b7fe35caa640892a8c99b172",
+    "web/src/style.css": "a54b5591e390e3fd2e86b570b28ca316e0cb81ea98c6b74d0fe38d42ad4af4d3",
+    "configs/repomesh.env.example": "a809bd0031eb5ec5dd3f72f9ec11a2a773cc7f30d6acd6aa1d1ce8159632f19e"
+  },
+  "writers": {
+    "root": "main workspace integration and authentication",
+    "secrets": "/tmp/repomesh-b02-secrets",
+    "github": "/tmp/repomesh-b02-github",
+    "ui": "/tmp/repomesh-b02-ui"
+  }
+}

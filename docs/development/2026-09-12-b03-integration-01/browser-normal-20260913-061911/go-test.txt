@@ -1,0 +1,18 @@
+=== RUN   TestProjectBrowserServer
+2026/09/12 23:19:14 http: TLS handshake error from 127.0.0.1:60638: remote error: tls: unknown certificate
+2026/09/12 23:19:14 http: TLS handshake error from 127.0.0.1:60652: remote error: tls: unknown certificate
+2026/09/12 23:19:14 http: TLS handshake error from 127.0.0.1:60670: remote error: tls: unknown certificate
+2026/09/12 23:19:15 http: TLS handshake error from 127.0.0.1:60692: remote error: tls: unknown certificate
+2026/09/12 23:19:15 http: TLS handshake error from 127.0.0.1:60710: remote error: tls: unknown certificate
+2026/09/12 23:19:15 http: TLS handshake error from 127.0.0.1:60734: remote error: tls: unknown certificate
+2026/09/12 23:19:16 http: TLS handshake error from 127.0.0.1:60756: remote error: tls: unknown certificate
+2026/09/12 23:19:16 http: TLS handshake error from 127.0.0.1:60788: remote error: tls: unknown certificate
+2026/09/12 23:19:16 http: TLS handshake error from 127.0.0.1:60810: remote error: tls: unknown certificate
+2026/09/12 23:19:17 http: TLS handshake error from 127.0.0.1:60818: remote error: tls: unknown certificate
+2026/09/12 23:19:17 http: TLS handshake error from 127.0.0.1:60836: remote error: tls: unknown certificate
+2026/09/12 23:19:17 http: TLS handshake error from 127.0.0.1:60848: remote error: tls: unknown certificate
+2026/09/12 23:19:17 http: TLS handshake error from 127.0.0.1:60870: remote error: tls: unknown certificate
+2026/09/12 23:19:18 http: TLS handshake error from 127.0.0.1:60892: remote error: tls: unknown certificate
+2026/09/12 23:19:18 http: TLS handshake error from 127.0.0.1:60900: remote error: tls: unknown certificate
+2026/09/12 23:19:18 http: TLS handshake error from 127.0.0.1:60920: remote error: tls: unknown certificate
+2026/09/12 23:19:21 http: TLS handshake error from 127.0.0.1:46172: remote error: tls: unknown certificate

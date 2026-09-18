@@ -1,0 +1,126 @@
+{
+  "captured_at": "2026-09-14T17:59:08.435379",
+  "account": {
+    "github_id": 137759882,
+    "display_name": "catmem"
+  },
+  "attempt_counts": [
+    {
+      "purpose": "login",
+      "state": "confirmed",
+      "n": 5
+    },
+    {
+      "purpose": "reconnect",
+      "state": "confirmed",
+      "n": 1
+    }
+  ],
+  "latest_attempts": [
+    {
+      "id": "e8271f6b-71f0-4653-ad10-f0fb6dfa54fa",
+      "purpose": "reconnect",
+      "state": "confirmed",
+      "expected_github_id": 137759882,
+      "observed_at": "2026-09-14T17:26:41.811125+00:00",
+      "created_at": "2026-09-14T17:26:39.897996+00:00"
+    },
+    {
+      "id": "264f460b-a72c-4c8a-9e2f-0ea8d99f7270",
+      "purpose": "login",
+      "state": "confirmed",
+      "expected_github_id": null,
+      "observed_at": "2026-09-14T17:21:28.844159+00:00",
+      "created_at": "2026-09-14T17:21:27.915321+00:00"
+    },
+    {
+      "id": "0c8eb712-b6c7-4716-b6ce-63bcec1b10c8",
+      "purpose": "login",
+      "state": "confirmed",
+      "expected_github_id": null,
+      "observed_at": "2026-09-14T16:20:59.014214+00:00",
+      "created_at": "2026-09-14T16:20:57.844229+00:00"
+    },
+    {
+      "id": "dcf98fcf-a677-424d-9fe3-7f86227428f8",
+      "purpose": "login",
+      "state": "confirmed",
+      "expected_github_id": null,
+      "observed_at": "2026-09-14T12:30:01.2574+00:00",
+      "created_at": "2026-09-14T12:30:00.49907+00:00"
+    },
+    {
+      "id": "e9445a51-332e-4e51-aeca-f6cb98dc9e9b",
+      "purpose": "login",
+      "state": "confirmed",
+      "expected_github_id": null,
+      "observed_at": "2026-09-14T12:28:51.599711+00:00",
+      "created_at": "2026-09-14T12:28:49.765126+00:00"
+    },
+    {
+      "id": "a221b0c1-6548-44d0-b2c0-efc2ce980d7c",
+      "purpose": "login",
+      "state": "confirmed",
+      "expected_github_id": null,
+      "observed_at": "2026-09-14T12:12:56.42951+00:00",
+      "created_at": "2026-09-14T12:10:46.343199+00:00"
+    }
+  ],
+  "sessions": [
+    {
+      "generation": 4,
+      "revoked": false,
+      "created_at": "2026-09-14T17:26:41.811125+00:00",
+      "last_active_at": "2026-09-14T17:57:47.475278+00:00"
+    },
+    {
+      "generation": 3,
+      "revoked": true,
+      "created_at": "2026-09-14T17:21:28.844159+00:00",
+      "last_active_at": "2026-09-14T17:26:39.795957+00:00"
+    },
+    {
+      "generation": 2,
+      "revoked": true,
+      "created_at": "2026-09-14T16:20:59.014214+00:00",
+      "last_active_at": "2026-09-14T16:38:58.111168+00:00"
+    },
+    {
+      "generation": 1,
+      "revoked": true,
+      "created_at": "2026-09-14T12:30:01.2574+00:00",
+      "last_active_at": "2026-09-14T15:05:33.69419+00:00"
+    },
+    {
+      "generation": 3,
+      "revoked": false,
+      "created_at": "2026-09-14T12:28:51.599711+00:00",
+      "last_active_at": "2026-09-14T12:57:40.842609+00:00"
+    },
+    {
+      "generation": 1,
+      "revoked": true,
+      "created_at": "2026-09-14T12:12:56.42951+00:00",
+      "last_active_at": "2026-09-14T12:28:48.565384+00:00"
+    }
+  ],
+  "connection": {
+    "status": "connected",
+    "access_epoch": 6,
+    "revision": "c909b3e9-fe5b-432c-af62-78bf4810baae",
+    "refresh_state": "idle",
+    "observed_at": "2026-09-14T17:26:41.811125+00:00",
+    "access_expires_at": "2026-09-15T01:26:40.191266+00:00",
+    "refresh_expires_at": "2027-03-14T17:26:40.191266+00:00",
+    "credential_committed_at": "2026-09-14T17:26:41.811613+00:00"
+  },
+  "latest_discovery": {
+    "complete": true,
+    "had_success": true,
+    "delivered": true,
+    "access_epoch": 6,
+    "observed_at": "2026-09-14T17:53:00.022933+00:00",
+    "item_count": 15,
+    "fixture_present": true
+  }
+}

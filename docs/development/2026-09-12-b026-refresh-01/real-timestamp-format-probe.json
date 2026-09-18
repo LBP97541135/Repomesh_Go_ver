@@ -1,0 +1,8 @@
+{
+  "scope": "Read-only actual PostgreSQL clock_timestamp JSON format probe, no expiry mutation or simulated clock",
+  "pythonVersion": "3.10",
+  "sampleCount": 100,
+  "fromisoformatRejected": 11,
+  "firstRejectedActualTimestamp": "2026-09-12T10:05:40.81552-07:00",
+  "originalFailedSampleWasNotCaptured": true
+}

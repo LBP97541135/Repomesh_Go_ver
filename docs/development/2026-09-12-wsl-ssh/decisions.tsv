@@ -1,0 +1,8 @@
+batch	decision	reason	evidence	result
+S1	Host-specific WSL ProxyCommand	Automatic cold start without changing other hosts	Independent SSH review and official remote-connections documentation	planned
+S1	Dedicated SSH alias, key, pinned host key and loopback service	Keep existing Windows projects and SSH hosts unchanged	setup.json and verification.json	VERIFIED
+S2	Reuse existing local login cache following official headless method	Authenticate remote Codex without exposing credentials	Authenticated account API and model list over SSH	VERIFIED
+S3	Leave desktop connection pending	Node REPL failed after retry and reset	trusted Node process exited unexpectedly; project listing has no repomesh-wsl host	BLOCKED
+S4	Supersede global WSL switching recommendation	User selected project-specific SSH environment	README, HANDOFF, IMPLEMENTATION-PLAN, WSL recommendation	VERIFIED
+S2-auth-recovered	Independent WSL device login completed	Replace revoked cached session without changing Windows login	SSH account/read and account/rateLimits/read pass; Windows usage API passes	VERIFIED
+S2-desktop	Restart only the stale unmanaged WSL app-server, keeping its executable and arguments	Fresh-process API checks did not cover the daemon used by desktop SSH	Original desktop task failed before restart and returned WSL_AUTH_OK afterward	VERIFIED

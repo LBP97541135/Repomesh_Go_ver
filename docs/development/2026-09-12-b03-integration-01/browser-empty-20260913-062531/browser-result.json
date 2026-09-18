@@ -1,0 +1,201 @@
+{
+  "suite": "B03 frontend empty configuration catalog acceptance",
+  "passed": true,
+  "environment": "fresh Playwright context with the shared TLS harness",
+  "events": [
+    {
+      "id": "EMPTY_CATALOG",
+      "event": "an empty configuration catalog saves and recovers an unresolved inherit project",
+      "passed": true,
+      "assertions": {
+        "profileResponses": 2,
+        "defaultProfileIdsNull": true,
+        "createStatus": 201,
+        "inheritStored": true,
+        "unresolvedEffectiveFieldsNull": true,
+        "canCreateIssue": false,
+        "metadataUpdateOmittedConfiguration": true,
+        "explicitInheritAccepted": true,
+        "creationReceiptStable": true,
+        "updateReceiptStable": true
+      }
+    }
+  ],
+  "network": [
+    {
+      "method": "GET",
+      "path": "/api/repositories",
+      "status": 503,
+      "code": "RESULT_UNCONFIRMED",
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects",
+      "status": 201,
+      "code": null,
+      "key": "229c6ea9-64ec-4841-980e-a36e94e42551"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/b0666e67-40a6-4530-b595-96d01720a38f",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/b0666e67-40a6-4530-b595-96d01720a38f",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/b0666e67-40a6-4530-b595-96d01720a38f/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/b0666e67-40a6-4530-b595-96d01720a38f",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/b0666e67-40a6-4530-b595-96d01720a38f/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/projects/b0666e67-40a6-4530-b595-96d01720a38f",
+      "status": 200,
+      "code": null,
+      "key": "969bb1de-515c-4f7f-a2d7-4a2d931d7fac"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/b0666e67-40a6-4530-b595-96d01720a38f",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/b0666e67-40a6-4530-b595-96d01720a38f",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/b0666e67-40a6-4530-b595-96d01720a38f/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/b0666e67-40a6-4530-b595-96d01720a38f",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/b0666e67-40a6-4530-b595-96d01720a38f/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/projects/b0666e67-40a6-4530-b595-96d01720a38f",
+      "status": 200,
+      "code": null,
+      "key": "257ce138-4a46-4651-9951-766e4b8059aa"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/b0666e67-40a6-4530-b595-96d01720a38f",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/project-creations/229c6ea9-64ec-4841-980e-a36e94e42551",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/b0666e67-40a6-4530-b595-96d01720a38f",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/b0666e67-40a6-4530-b595-96d01720a38f/updates/257ce138-4a46-4651-9951-766e4b8059aa",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/b0666e67-40a6-4530-b595-96d01720a38f",
+      "status": 200,
+      "code": null,
+      "key": null
+    }
+  ]
+}

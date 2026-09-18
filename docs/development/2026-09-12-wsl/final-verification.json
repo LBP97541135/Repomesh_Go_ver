@@ -1,0 +1,79 @@
+{
+  "result": "VERIFIED",
+  "unchangedFilesRehashed": 10647,
+  "expectedContentChanges": [
+    {
+      "path": "README.md",
+      "before": "e0c2eb27412f1496c82b109782a2960918e5817e3aa44cd81da56baba76bcaf2",
+      "after": "fbb6e16d132f6ebdb8191d2c8e61aeee1b5d038e4323b21486868ac12f3fe8bd"
+    },
+    {
+      "path": ".codex/config.toml",
+      "before": "1e9aed1bf623358cdc5b1eeff2f527c9ee31e47022f8ec0a8c934a1c18d4db0c",
+      "after": "58c3d47686d46de2074c7acc7bb897d41807b4ed89fad8d20482448048e5cbad"
+    },
+    {
+      "path": "docs/current/HANDOFF.md",
+      "before": "91b43d53e6cd61069208a6d30423b154bac936860e1df8f6c2447e27f40a4c8f",
+      "after": "2ca045533aeb3cdce1ffd381fa84d60f65535de3418a02adf60217a8d3e62016"
+    },
+    {
+      "path": "docs/current/IMPLEMENTATION-PLAN.md",
+      "before": "3bf117591e1b872674745853cda37c7449683ae1499f5dd13569ad635ba7b4f1",
+      "after": "37926abe3ca525a1f9243f90c28987f37a2e213365a5a536d5eb06625d51b5a0"
+    },
+    {
+      "path": "docs/current/wsl-development-recommendation.md",
+      "before": "2293a256aa1b84e7afaca9bcd9761b5875ac7b525d5f7cbf1f0219b9aea58b6f",
+      "after": "2f2b9cdac8197aeabd534ee357e830fa8bd3786fa1de3a64dba0bf4f124f7678"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/copy-workspace.py",
+      "before": "051ed57277ca73f87d636a12d3d133d01f0f8dd5dc5ecaff8b93fd0d4950c2f8",
+      "after": "fbf49f5d7690b0a77b6a4c67e631ad961756d652b9d824f84a6f8d6bfb61d5b6"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/PLAN.md",
+      "before": "64d438796b148a4c70b70436e9c76b1c69352a9ad674f7e5b4720e18e8c172f6",
+      "after": "214a51b5e8129074d4603aec9402a1173e3ff918e50257b96ae49ba58803c4dd"
+    }
+  ],
+  "mutableGitMetadata": [
+    ".git/config",
+    ".git/index",
+    "third_party/AgentTeams/.git/config",
+    "third_party/AgentTeams/.git/index"
+  ],
+  "git": {
+    ".": {
+      "head": "ad9a49b2fe3b5fe743a65c838ded6cb022e79363",
+      "branch": "main",
+      "status": "M .codex/config.toml\n M README.md\n M docs/current/HANDOFF.md\n M docs/current/IMPLEMENTATION-PLAN.md\n M docs/current/wsl-development-recommendation.md\n M scripts/verify-batch.ps1\n?? docs/development/2026-09-12-wsl/",
+      "staged": "",
+      "modeChecks": 399
+    },
+    "third_party/AgentTeams": {
+      "head": "517caff9280242a00a4d4c06365352b9e41659c6",
+      "branch": "main",
+      "status": "",
+      "staged": "",
+      "modeChecks": 837
+    }
+  },
+  "postgresPassEvents": {
+    "windows-b01": {
+      "name": "postgres-test-gate",
+      "passedTests": 19,
+      "skippedTests": 0
+    },
+    "linux-b01": {
+      "name": "postgres-test-gate",
+      "passedTests": 19,
+      "skippedTests": 0
+    }
+  },
+  "failureCleanupVerified": true,
+  "runtimeCleanupVerified": true,
+  "codexDesktopSwitch": "USER_PENDING",
+  "businessBatch": "B02_PAUSED"
+}

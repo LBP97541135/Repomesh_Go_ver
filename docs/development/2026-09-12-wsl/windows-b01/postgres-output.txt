@@ -1,0 +1,75 @@
+2026-09-12 03:19:27.774 PDT [38892] LOG:  starting PostgreSQL 17.11 on x86_64-windows, compiled by msvc-19.44.35228, 64-bit
+2026-09-12 03:19:27.776 PDT [38892] LOG:  listening on IPv4 address "127.0.0.1", port 62113
+2026-09-12 03:19:27.919 PDT [46808] LOG:  database system was shut down at 2026-09-12 03:19:26 PDT
+2026-09-12 03:19:28.038 PDT [38892] LOG:  database system is ready to accept connections
+2026-09-12 03:19:34.008 PDT [41484] LOG:  checkpoint starting: immediate force wait
+2026-09-12 03:19:34.020 PDT [41484] LOG:  checkpoint complete: wrote 6 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.003 s, total=0.013 s; sync files=5, longest=0.001 s, average=0.001 s; distance=4564 kB, estimate=4564 kB; lsn=0/19EA1C8, redo lsn=0/19EA170
+2026-09-12 03:19:35.445 PDT [41484] LOG:  checkpoint starting: immediate force wait
+2026-09-12 03:19:35.482 PDT [41484] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 1 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.038 s; sync files=4, longest=0.001 s, average=0.001 s; distance=4565 kB, estimate=4565 kB; lsn=0/1E5F750, redo lsn=0/1E5F6F8
+2026-09-12 03:19:36.252 PDT [47900] ERROR:  function no_such_function_b01() does not exist at character 57
+2026-09-12 03:19:36.252 PDT [47900] HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+2026-09-12 03:19:36.252 PDT [47900] STATEMENT:  CREATE TABLE public.rollback_probe (id integer); SELECT no_such_function_b01();
+2026-09-12 03:19:36.328 PDT [41484] LOG:  checkpoint starting: immediate force wait
+2026-09-12 03:19:36.341 PDT [41484] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.003 s, sync=0.003 s, total=0.014 s; sync files=4, longest=0.001 s, average=0.001 s; distance=4567 kB, estimate=4567 kB; lsn=0/22D5668, redo lsn=0/22D5610
+2026-09-12 03:19:37.020 PDT [46264] ERROR:  duplicate key value violates unique constraint "repomesh_schema_migrations_pkey"
+2026-09-12 03:19:37.020 PDT [46264] DETAIL:  Key (version)=(2) already exists.
+2026-09-12 03:19:37.020 PDT [46264] STATEMENT:  INSERT INTO public.repomesh_schema_migrations (version, name, checksum) VALUES ($1, $2, $3)
+2026-09-12 03:19:37.098 PDT [41484] LOG:  checkpoint starting: immediate force wait
+2026-09-12 03:19:37.109 PDT [41484] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.011 s; sync files=4, longest=0.001 s, average=0.001 s; distance=4572 kB, estimate=4572 kB; lsn=0/274C6E8, redo lsn=0/274C690
+2026-09-12 03:19:37.883 PDT [41484] LOG:  checkpoint starting: immediate force wait
+2026-09-12 03:19:37.893 PDT [41484] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.010 s; sync files=4, longest=0.001 s, average=0.001 s; distance=4580 kB, estimate=4580 kB; lsn=0/2BC5900, redo lsn=0/2BC58A8
+2026-09-12 03:19:38.571 PDT [47332] ERROR:  function no_such_upgrade_function_b01() does not exist at character 68
+2026-09-12 03:19:38.571 PDT [47332] HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+2026-09-12 03:19:38.571 PDT [47332] STATEMENT:  CREATE TABLE public.upgrade_third (id integer PRIMARY KEY); SELECT no_such_upgrade_function_b01();
+2026-09-12 03:19:38.745 PDT [41484] LOG:  checkpoint starting: immediate force wait
+2026-09-12 03:19:38.760 PDT [41484] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.004 s, sync=0.002 s, total=0.015 s; sync files=4, longest=0.001 s, average=0.001 s; distance=4579 kB, estimate=4580 kB; lsn=0/303E6E0, redo lsn=0/303E688
+2026-09-12 03:19:39.648 PDT [41484] LOG:  checkpoint starting: immediate force wait
+2026-09-12 03:19:39.658 PDT [41484] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.011 s; sync files=4, longest=0.001 s, average=0.001 s; distance=4579 kB, estimate=4580 kB; lsn=0/34B7370, redo lsn=0/34B7318
+2026-09-12 03:19:40.438 PDT [41484] LOG:  checkpoint starting: immediate force wait
+2026-09-12 03:19:40.448 PDT [41484] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.010 s; sync files=4, longest=0.001 s, average=0.001 s; distance=4579 kB, estimate=4580 kB; lsn=0/3930048, redo lsn=0/392FFD8
+2026-09-12 03:19:41.230 PDT [41484] LOG:  checkpoint starting: immediate force wait
+2026-09-12 03:19:41.239 PDT [41484] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.009 s; sync files=4, longest=0.001 s, average=0.001 s; distance=4579 kB, estimate=4580 kB; lsn=0/3DA8EC0, redo lsn=0/3DA8E68
+2026-09-12 03:19:42.003 PDT [41484] LOG:  checkpoint starting: immediate force wait
+2026-09-12 03:19:42.017 PDT [41484] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.003 s, sync=0.002 s, total=0.014 s; sync files=4, longest=0.001 s, average=0.001 s; distance=4579 kB, estimate=4580 kB; lsn=0/4221D78, redo lsn=0/4221D20
+2026-09-12 03:19:42.816 PDT [41484] LOG:  checkpoint starting: immediate force wait
+2026-09-12 03:19:42.826 PDT [41484] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.010 s; sync files=4, longest=0.001 s, average=0.001 s; distance=4579 kB, estimate=4580 kB; lsn=0/469AD48, redo lsn=0/469ACF0
+2026-09-12 03:19:43.763 PDT [44508] ERROR:  canceling statement due to user request
+2026-09-12 03:19:43.763 PDT [44508] STATEMENT:  CREATE TABLE public.cancel_during_sql (id integer); SELECT pg_catalog.pg_sleep(30);
+2026-09-12 03:19:43.839 PDT [41484] LOG:  checkpoint starting: immediate force wait
+2026-09-12 03:19:43.848 PDT [41484] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.010 s; sync files=4, longest=0.001 s, average=0.001 s; distance=4573 kB, estimate=4579 kB; lsn=0/4B12338, redo lsn=0/4B122E0
+2026-09-12 03:19:44.768 PDT [41484] LOG:  checkpoint starting: immediate force wait
+2026-09-12 03:19:44.779 PDT [41484] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.011 s; sync files=4, longest=0.001 s, average=0.001 s; distance=4567 kB, estimate=4578 kB; lsn=0/4F88208, redo lsn=0/4F881B0
+2026-09-12 03:19:45.762 PDT [41484] LOG:  checkpoint starting: immediate force wait
+2026-09-12 03:19:45.775 PDT [41484] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.003 s, sync=0.002 s, total=0.013 s; sync files=4, longest=0.001 s, average=0.001 s; distance=4545 kB, estimate=4574 kB; lsn=0/53F8888, redo lsn=0/53F8830
+2026-09-12 03:19:46.453 PDT [43632] FATAL:  password authentication failed for user "repomesh_test"
+2026-09-12 03:19:46.453 PDT [43632] DETAIL:  Connection matched file "C:/Users/18092/AppData/Local/Temp/repomesh-verify-6c6fe01364c042928029b65b6b17e94e/data/pg_hba.conf" line 115: "host    all             all             127.0.0.1/32            scram-sha-256"
+2026-09-12 03:19:46.524 PDT [41484] LOG:  checkpoint starting: immediate force wait
+2026-09-12 03:19:46.535 PDT [41484] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.012 s; sync files=4, longest=0.001 s, average=0.001 s; distance=4545 kB, estimate=4572 kB; lsn=0/5868FC8, redo lsn=0/5868F70
+2026-09-12 03:19:47.859 PDT [41484] LOG:  checkpoint starting: immediate force wait
+2026-09-12 03:19:48.050 PDT [41484] LOG:  checkpoint complete: wrote 975 buffers (6.0%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.059 s, sync=0.121 s, total=0.191 s; sync files=306, longest=0.002 s, average=0.001 s; distance=9117 kB, estimate=9117 kB; lsn=0/6150778, redo lsn=0/6150720
+2026-09-12 03:19:48.247 PDT [41484] LOG:  checkpoint starting: immediate force wait
+2026-09-12 03:19:48.256 PDT [41484] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.009 s; sync files=2, longest=0.001 s, average=0.001 s; distance=3 kB, estimate=8206 kB; lsn=0/61514C8, redo lsn=0/6151470
+2026-09-12 03:19:49.052 PDT [32044] ERROR:  insert or update on table "commit_failure_probe" violates foreign key constraint "commit_failure_probe_parent_fkey"
+2026-09-12 03:19:49.052 PDT [32044] DETAIL:  Key (parent)=(2) is not present in table "commit_failure_probe".
+2026-09-12 03:19:49.052 PDT [32044] STATEMENT:  commit
+2026-09-12 03:19:49.125 PDT [41484] LOG:  checkpoint starting: immediate force wait
+2026-09-12 03:19:49.135 PDT [41484] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.011 s; sync files=4, longest=0.001 s, average=0.001 s; distance=4584 kB, estimate=7844 kB; lsn=0/65CB520, redo lsn=0/65CB4C8
+2026-09-12 03:20:02.527 PDT [38892] LOG:  received fast shutdown request
+2026-09-12 03:20:02.528 PDT [38892] LOG:  aborting any active transactions
+2026-09-12 03:20:02.533 PDT [38892] LOG:  background worker "logical replication launcher" (PID 46744) exited with exit code 1
+2026-09-12 03:20:02.533 PDT [41484] LOG:  shutting down
+2026-09-12 03:20:02.534 PDT [41484] LOG:  checkpoint starting: shutdown immediate
+2026-09-12 03:20:02.561 PDT [41484] LOG:  checkpoint complete: wrote 51 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.008 s, sync=0.014 s, total=0.028 s; sync files=40, longest=0.001 s, average=0.001 s; distance=212 kB, estimate=7081 kB; lsn=0/6600518, redo lsn=0/6600518
+2026-09-12 03:20:02.575 PDT [38892] LOG:  database system is shut down
+2026-09-12 03:20:03.161 PDT [46180] LOG:  starting PostgreSQL 17.11 on x86_64-windows, compiled by msvc-19.44.35228, 64-bit
+2026-09-12 03:20:03.162 PDT [46180] LOG:  listening on IPv4 address "127.0.0.1", port 62113
+2026-09-12 03:20:03.304 PDT [36224] LOG:  database system was shut down at 2026-09-12 03:20:02 PDT
+2026-09-12 03:20:03.427 PDT [46180] LOG:  database system is ready to accept connections
+2026-09-12 03:20:05.510 PDT [46180] LOG:  received fast shutdown request
+2026-09-12 03:20:05.511 PDT [46180] LOG:  aborting any active transactions
+2026-09-12 03:20:05.517 PDT [46180] LOG:  background worker "logical replication launcher" (PID 5524) exited with exit code 1
+2026-09-12 03:20:05.517 PDT [42396] LOG:  shutting down
+2026-09-12 03:20:05.518 PDT [42396] LOG:  checkpoint starting: shutdown immediate
+2026-09-12 03:20:05.535 PDT [42396] LOG:  checkpoint complete: wrote 9 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.005 s, sync=0.004 s, total=0.018 s; sync files=8, longest=0.001 s, average=0.001 s; distance=0 kB, estimate=0 kB; lsn=0/6600810, redo lsn=0/6600810
+2026-09-12 03:20:05.545 PDT [46180] LOG:  database system is shut down
+

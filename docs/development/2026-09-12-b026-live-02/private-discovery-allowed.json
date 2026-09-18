@@ -1,0 +1,12 @@
+{
+  "observedOn": "2026-09-12",
+  "installation": {"id": "161172403", "settingsPath": "/settings/installations/161172403", "repositorySelection": "selected", "repositoryIds": ["1367444901"], "installButtonAbsent": true, "saveButtonPresent": true},
+  "operation": "Normal workspace retry button after initial discovery returned 503",
+  "status": 200,
+  "itemCount": 14,
+  "fixture": {"id": "repo_00000000001367444901", "userParticipation": {"status": "allowed", "reasonCodes": [], "observedAt": "2026-09-12T16:09:43.668452Z"}, "appCapability": {"status": "allowed", "reasonCodes": [], "observedAt": "2026-09-12T16:10:42.13470064Z"}},
+  "counts": {"userAllowed": 14, "appAllowed": 1, "appDenied": 13},
+  "hasNext": false,
+  "coverage": {"status": "partial", "reasonCodes": ["APP_INSTALLATION_SCOPE"], "observedAt": "2026-09-12T16:09:43.668452Z"},
+  "limitations": "No permission reduction/restoration, second-account test, multi-page traversal or natural refresh claimed by this observation."
+}

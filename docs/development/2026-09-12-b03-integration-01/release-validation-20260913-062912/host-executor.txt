@@ -1,0 +1,1 @@
+repomesh-host-executor: not implemented (scaffold only); no listener, host commands, containers or Python analysis are enabled

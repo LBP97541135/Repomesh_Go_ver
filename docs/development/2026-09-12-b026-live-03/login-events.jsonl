@@ -1,0 +1,17 @@
+{"ts":"2026-09-12T16:58:08.902Z","event":"response","origin":"https://repomesh.bohanxu.me:8443","pathname":"/login","status":200}
+{"ts":"2026-09-12T16:58:08.913Z","event":"framenavigated","origin":"https://repomesh.bohanxu.me:8443","pathname":"/login"}
+{"ts":"2026-09-12T16:58:09.008Z","event":"response","origin":"https://repomesh.bohanxu.me:8443","pathname":"/assets/index-Cq0F5qZC.css","status":200}
+{"ts":"2026-09-12T16:58:09.024Z","event":"response","origin":"https://repomesh.bohanxu.me:8443","pathname":"/assets/index-CH4x9jbV.js","status":200}
+{"ts":"2026-09-12T16:58:09.272Z","event":"response","origin":"https://repomesh.bohanxu.me:8443","pathname":"/healthz","status":200}
+{"ts":"2026-09-12T16:58:09.089Z","event":"response","origin":"https://repomesh.bohanxu.me:8443","pathname":"/api/session","status":401}
+{"ts":"2026-09-12T16:58:09.334Z","event":"response","origin":"https://repomesh.bohanxu.me:8443","pathname":"/readyz","status":503}
+{"ts":"2026-09-12T16:58:18.783Z","event":"framenavigated","origin":"https://repomesh.bohanxu.me:8443","pathname":"/auth/result/3fe25d1c-de6f-4996-98e5-cd3304038582"}
+{"ts":"2026-09-12T16:58:22.996Z","event":"response","origin":"https://repomesh.bohanxu.me:8443","pathname":"/api/auth/github/callback","status":303,"location":{"origin":"https://repomesh.bohanxu.me:8443","pathname":"/auth/result/3fe25d1c-de6f-4996-98e5-cd3304038582"},"setCookie":[{"name":"__Host-repomesh-session","secure":true,"httpOnly":true,"sameSite":"Lax","path":"/"}]}
+{"ts":"2026-09-12T16:58:23.009Z","event":"response","origin":"https://repomesh.bohanxu.me:8443","pathname":"/auth/result/3fe25d1c-de6f-4996-98e5-cd3304038582","status":200}
+{"ts":"2026-09-12T16:58:23.023Z","event":"framenavigated","origin":"https://repomesh.bohanxu.me:8443","pathname":"/auth/result/3fe25d1c-de6f-4996-98e5-cd3304038582"}
+{"ts":"2026-09-12T16:58:23.101Z","event":"response","origin":"https://repomesh.bohanxu.me:8443","pathname":"/assets/index-CH4x9jbV.js","status":200}
+{"ts":"2026-09-12T16:58:23.103Z","event":"response","origin":"https://repomesh.bohanxu.me:8443","pathname":"/assets/index-Cq0F5qZC.css","status":200}
+{"ts":"2026-09-12T16:58:18.845Z","event":"response","origin":"https://repomesh.bohanxu.me:8443","pathname":"/api/auth/github/login","status":201}
+{"ts":"2026-09-12T16:58:23.148Z","event":"response","origin":"https://repomesh.bohanxu.me:8443","pathname":"/api/session","status":200,"session":{"user":{"id":"16198e14-7249-4cc2-a15e-57cd8b568874"},"connection":{"status":"connected"}}}
+{"ts":"2026-09-12T16:58:23.192Z","event":"response","origin":"https://repomesh.bohanxu.me:8443","pathname":"/api/session","status":200,"session":{"user":{"id":"16198e14-7249-4cc2-a15e-57cd8b568874"},"connection":{"status":"connected"}}}
+{"ts":"2026-09-12T16:58:23.301Z","event":"response","origin":"https://repomesh.bohanxu.me:8443","pathname":"/api/auth/attempts/3fe25d1c-de6f-4996-98e5-cd3304038582","status":200,"attempt":{"attemptId":"3fe25d1c-de6f-4996-98e5-cd3304038582","state":"confirmed","reasonCode":null,"purpose":"login","observedAt":"2026-09-12T16:58:22.441154Z"}}

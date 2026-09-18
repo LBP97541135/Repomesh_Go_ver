@@ -1,0 +1,19 @@
+{
+  "name": "RepoMesh",
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "web",
+      "command": "REPOMESH_DATABASE_URL=\"$(cat \"${REPOMESH_DEV_PG_ROOT:-$HOME/repomesh-pg}/connection-url.txt\")\" && export REPOMESH_DATABASE_URL && go run ./cmd/repomesh-web --addr 127.0.0.1:8080 --assets ./web/dist",
+      "description": "RepoMesh Web on port 8080. Without auth config: healthz 200, readyz 503, auth/project APIs 503, model/unknown APIs 404. Authentication requires Linux secrets, HTTPS and a separately started coordinator; see README.md."
+    }
+  ],
+  "ports": [
+    {
+      "name": "web",
+      "port": 8080
+    }
+  ]
+}

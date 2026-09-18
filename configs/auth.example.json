@@ -1,0 +1,12 @@
+{
+  "origin": "https://repomesh.example.com",
+  "appId": "REPLACE_WITH_APP_ID",
+  "clientId": "REPLACE_WITH_CLIENT_ID",
+  "callbackUrl": "https://repomesh.example.com/api/auth/github/callback",
+  "clientSecretFile": "/etc/repomesh/github-client-secret",
+  "privateKeyFile": "/etc/repomesh/github-app.pem",
+  "activeRootId": "root-1",
+  "roots": [{"id": "root-1", "path": "/etc/repomesh/root-1.key"}],
+  "tlsCertificateFile": "",
+  "tlsKeyFile": ""
+}

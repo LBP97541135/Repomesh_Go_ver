@@ -1,0 +1,161 @@
+{
+  "files": [
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/ACCEPTANCE.md",
+      "sha256": "a4ba02e16347e4025789f30fac6f29f11a8e42d053b7ab4e595a205665794b39"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/B04.md",
+      "sha256": "b87e604b43a9662f17b534649d46822345a52d043f5c377b600e3419479a7308"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/B05.md",
+      "sha256": "832154e44878de639548f1ba47a9eae8287817b420317ee9ab104648d7b8c61b"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/B06.md",
+      "sha256": "1049cc640ca4ae0af88b85a9338d014c4d3e9d1d2c324de530068389056c4972"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/COMPATIBILITY.md",
+      "sha256": "cac0af6ff7343d58e6480c1b7bcd6627e60907177d07f58b21bfa37cdac2f3d8"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/DECISIONS.md",
+      "sha256": "15d1b963cca99b2d121aaf36a7d2f29e683d2445d15fc318bd78c60006bea89e"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/PLAN.md",
+      "sha256": "19cb4d73004731edf55a7ab50e143f77b276d591f5bde02c61dd8be768e3d8c7"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/README.md",
+      "sha256": "44b633f297f7e93f41a5f70fcf809586da950749f6cc9f3957255114fbaa73bd"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/REVIEW.md",
+      "sha256": "d3c728563556ce5c42f8bb64ecce9b047c9efd7cda2b1f350e1d5996f8376640"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/SOURCE-AUDIT.md",
+      "sha256": "240abdede22085abbfc8308761bfc396dce006f3fc9fcd5d4e82c062b92742a8"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/b04.go.txt",
+      "sha256": "9eb62302e75789ddba08af39c3c5302109e5dfc8259236f902ab2ed503d3fece"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/b05.go.txt",
+      "sha256": "09cafafaf7235a3fceefad8bc951fbaa56a8fcb19e175f8fb83e2c5a39d31883"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/b06.go.txt",
+      "sha256": "d4f3f05041b2233b5e26ed2720731df040ccef73ae6d765d8984d70bc5dec8f2"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/baseline.json",
+      "sha256": "724f184834bb3edae02bbf62a03f78737cf21b273f40180dfce7e38cd543fd29"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/changes.diff",
+      "sha256": "ba59f80126c7880e50ec297412ae5b27758160575fd270aac63544a6f2d8db62"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/checks.json",
+      "sha256": "1b3a3a4733c544126050a3e335a84ee08c40be731b0f31e499cc5e5122a38aa1"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/frontend.ts.txt",
+      "sha256": "819c937976cb6ea002f01872f0f9125237e3dff22873ffa7cffd79aa73f9f9dc"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/initial-status.txt",
+      "sha256": "56df699aad6e6214404b476d560db4a4ecb15e9287ab14645c6ea148f1b2db06"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/migration-design.md",
+      "sha256": "5e8bd9c4d76d767e290e6cbe6426739056c8857659efe769873b62a86f472734"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/original-documents.zip",
+      "sha256": "4bcc9420db616d25958fedea7a249da6453303744c33b5b16c425a2f7a7a47e9"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/source-evidence.json",
+      "sha256": "0f9fb335a09c962219ae62c23886c67fb211bad9bc8ce6ede4da39eea21bd34b"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/verify-design.py",
+      "sha256": "475aa69ace6eb1b8d70d57074ec0e1f3de48cbf1a6d3225cd9f6dbf5e3065b3b"
+    },
+    {
+      "path": "docs/current/ASTRA-DESIGN-PREPARATION.md",
+      "sha256": "cd3cb5af1004ca1e9d5caae97684647fd420c89f13ec1ff6a088a6108147d386"
+    },
+    {
+      "path": "docs/current/DEVELOPMENT-START.md",
+      "sha256": "285c03081130c1c0a0b5719f234606674add9831099136b384912cbac54daf9f"
+    },
+    {
+      "path": "docs/current/HANDOFF-BACKEND-DESIGN.md",
+      "sha256": "5e3d6d70f109cbcbd2ae478262117571e117af52d15ef433498862b99215d7e4"
+    },
+    {
+      "path": "docs/current/HANDOFF-PAGE-API-DESIGN.md",
+      "sha256": "542b2c2524c28015e97a996730653b8b77f8fc0f1992ddad5ef8ca8060bfc3e2"
+    },
+    {
+      "path": "docs/current/HANDOFF.md",
+      "sha256": "3ac36687af3f73f711db1ca10f0bf328a3ce50781d38e648bc94e2945fad43c2"
+    },
+    {
+      "path": "docs/current/IMPLEMENTATION-PLAN.md",
+      "sha256": "d110921e8c106bb788f9a6b1b228e8bb16acdde92f850c5db2d788687d76ca03"
+    },
+    {
+      "path": "docs/current/NEXT-TASK-B04-PROMPT.md",
+      "sha256": "2c3ef188faab2294ab1b06b2fa3871d279c004f9952dacf6b01777ef924e3475"
+    },
+    {
+      "path": "docs/current/README.md",
+      "sha256": "d34d9c1f3044a5943f501619f5239c568c62f137388bf1c994b76aaeaa777559"
+    },
+    {
+      "path": "docs/current/backend-first-batch-persistence.md",
+      "sha256": "925e0b1da0b1c1f75174974cef8baba670e037942248147f1b3bc1502f9ed563"
+    },
+    {
+      "path": "docs/current/backend-first-batch-sources-draft.md",
+      "sha256": "7932c0574626d139ffa83d4da1ce3e64ecc325b3c8061e3a072680251275ab31"
+    },
+    {
+      "path": "docs/current/backend-model-operations-draft.md",
+      "sha256": "316ca95ae9ccdae2460fd5b46d3686e5707515314d1d826ecc5f7f5420243afc"
+    },
+    {
+      "path": "docs/current/first-batch-browser-api-contract.md",
+      "sha256": "d4206810423967a8012ce1aa4a03ddd9a0fe5f70cebd8fbdb241196ee09a5d2c"
+    },
+    {
+      "path": "docs/current/issue-configuration-binding-design.md",
+      "sha256": "f2b88f7bf5f774d9fd7e38e68750bf14429e31c251f47de2274b073754806181"
+    },
+    {
+      "path": "docs/current/issue-page-create-api-contract.md",
+      "sha256": "2d7ffad0844e0dae0c7e19f041d73d48718761a8c6459870b68c82e81c1d3ca9"
+    },
+    {
+      "path": "docs/current/model-project-apply-design.md",
+      "sha256": "a1a0990a5ca676da918ca97e210c568f1f080ff0445700e58341850a8cdf1f59"
+    },
+    {
+      "path": "docs/current/model-settings-browser-api-draft.md",
+      "sha256": "7c587458b5ca09087653c8c63f038ab00e0a3b01cea22be0bd4dc6c55d4cdef1"
+    },
+    {
+      "path": "docs/current/project-development.md",
+      "sha256": "5406309fb06fa73d89fc6be212b3165cb75694e65ac9f0df6b37bc591e7e06ea"
+    }
+  ],
+  "note": "Manifest excludes itself; source baseline remains separate."
+}

@@ -1,0 +1,17 @@
+{
+  "verifiedAt": "2026-09-12T11:27:41.398598+00:00",
+  "desktopProjectVerified": true,
+  "hostId": "remote-ssh-discovered:repomesh-wsl",
+  "path": "/home/xubohan/projects/Repomesh_Go_ver",
+  "deviceLoginExitCode": 0,
+  "deviceLoginResult": "Successfully logged in",
+  "windowsAccountApi": "pass",
+  "wslAccountRead": "pass",
+  "wslRateLimitsApi": "pass",
+  "refreshRevoked": false,
+  "recovery": "VERIFIED in original desktop SSH task after targeted daemon restart",
+  "originalDesktopModelRetry": "completed: WSL_AUTH_OK",
+  "businessDevelopment": "B02 paused",
+  "desktopThreadId": "01a0955a-370c-7a03-9f99-2dbf0117d1c1",
+  "desktopTurnId": "01a0955e-310b-73a3-87b5-6b99ce4c5004"
+}

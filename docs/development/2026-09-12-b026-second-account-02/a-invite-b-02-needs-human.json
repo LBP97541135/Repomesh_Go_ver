@@ -1,0 +1,10 @@
+{
+  "sampledAt": "2026-09-13T04:44:55.626409Z",
+  "status": "NEEDS_HUMAN",
+  "pathClass": "REPOSITORY_ACCESS",
+  "controlState": "PENDING_STATE_NOT_CONFIRMED",
+  "aTargetId": "89BE0DE153AC22A3CB4B7DE41A035BB0",
+  "finalInviteControlClicked": true,
+  "actualInvitationState": "UNCONFIRMED",
+  "repeatInviteProhibitedUntilReadOnlyCheck": true
+}

@@ -1,0 +1,4 @@
+=== RUN   TestPostgresConfigurationProfileSecretAvailability
+--- PASS: TestPostgresConfigurationProfileSecretAvailability (0.21s)
+PASS
+ok  	repomesh.local/repomesh/internal/web	0.216s

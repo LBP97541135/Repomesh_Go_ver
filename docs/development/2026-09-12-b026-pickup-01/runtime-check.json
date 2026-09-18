@@ -1,0 +1,82 @@
+{
+  "capturedAt": "2026-09-12T17:59:22.659638+00:00",
+  "sampleCount": 55,
+  "firstSampleAt": "2026-09-12T17:07:42.64901+00:00",
+  "lastSampleAt": "2026-09-12T17:59:06.69888+00:00",
+  "allSampleClassificationsContinue": true,
+  "allConnectionsEqualBaseline": true,
+  "allAttemptSetsEqualBaseline": true,
+  "currentClassification": [
+    "continue",
+    null
+  ],
+  "currentOriginalSessionValid": true,
+  "processes": [
+    {
+      "pid": 287037,
+      "executable": "/home/xubohan/projects/Repomesh_Go_ver/dist/repomesh-0.2.0-b026-cookie-20260912-r3/bin/repomesh-web",
+      "state": "S",
+      "version": "repomesh-web 0.2.0-b026-cookie-20260912-r3"
+    },
+    {
+      "pid": 287038,
+      "executable": "/home/xubohan/projects/Repomesh_Go_ver/dist/repomesh-0.2.0-b026-cookie-20260912-r3/bin/repomesh-coordinator",
+      "state": "S",
+      "version": "repomesh-coordinator 0.2.0-b026-cookie-20260912-r3"
+    },
+    {
+      "pid": 293161,
+      "executable": "/usr/bin/python3.10",
+      "state": "S"
+    }
+  ],
+  "keeperWindowsPid": 52940,
+  "keeperProcessReadMethod": "Get-CimInstance Win32_Process filtered by node.exe and session-keepalive-02.mjs",
+  "keeperEvents": [
+    {
+      "ts": "2026-09-12T17:00:40.785Z",
+      "status": 200,
+      "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+      "errorCode": null
+    },
+    {
+      "ts": "2026-09-12T17:10:40.919Z",
+      "status": 200,
+      "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+      "errorCode": null
+    },
+    {
+      "ts": "2026-09-12T17:20:41.019Z",
+      "status": 200,
+      "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+      "errorCode": null
+    },
+    {
+      "ts": "2026-09-12T17:30:41.148Z",
+      "status": 200,
+      "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+      "errorCode": null
+    },
+    {
+      "ts": "2026-09-12T17:40:41.243Z",
+      "status": 200,
+      "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+      "errorCode": null
+    },
+    {
+      "ts": "2026-09-12T17:50:41.377Z",
+      "status": 200,
+      "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+      "errorCode": null
+    }
+  ],
+  "resultsPresent": {
+    "outcome.json": false,
+    "confirmed-refresh.json": false,
+    "browser-result.json": false
+  },
+  "refreshDueAt": "2026-09-13T00:58:45.991534+00:00",
+  "B02": "IN_PROGRESS",
+  "B03": "IN_PROGRESS_ISOLATED_WORKTREE",
+  "integrationGate": "B02.6 VERIFIED then integrate B03"
+}

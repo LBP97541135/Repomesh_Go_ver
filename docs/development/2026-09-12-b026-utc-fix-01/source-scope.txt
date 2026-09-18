@@ -1,0 +1,14 @@
+Files owned by this UTC fix:
+- internal/database/database.go: added pgtype import and database.Open AfterConnect registration of TimestamptzCodec with ScanLocation time.UTC.
+- internal/database/utc_test.go: new isolated subprocess regression test.
+
+Pre-existing work preserved in internal/database/database.go:
+- DB.Pool was already present before this UTC fix and is not part of this change.
+
+The UTC fix did not change any other source file. It did not change database values, database timezone, process timezone, expiry rules, or the frontend timestamp parser. The test starts a child test process with TZ=America/Los_Angeles and does not assign time.Local in the parent process.
+
+Current source SHA-256:
+- internal/database/database.go: d8426f75c28e3b678a2e5bf771b295b17c58f7c2b27227a2662ebe3faf70f7ee
+- internal/database/utc_test.go: 56e501fdaac18f4eec58e030eb919376143d8e2e107c1635dfd4745096c80026
+
+HEAD database.go SHA-256 before all uncommitted B02 work: 4d1988416ea6262f28a010bb17b09ef433e5226754ee775a757abcd67ed5301a. This is not the immediate pre-UTC source because DB.Pool was an existing uncommitted change.

@@ -1,0 +1,313 @@
+{
+  "capturedAt": "2026-09-12T11:34:23.999791+00:00",
+  "cwd": "/home/xubohan/projects/Repomesh_Go_ver",
+  "commands": [
+    {
+      "command": [
+        "uname",
+        "-a"
+      ],
+      "exit_code": 0,
+      "stdout": "Linux XuBoHanPC 5.15.167.4-microsoft-standard-WSL2 #1 SMP Tue Nov 5 00:21:55 UTC 2024 x86_64 x86_64 x86_64 GNU/Linux",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "pwd"
+      ],
+      "exit_code": 0,
+      "stdout": "/home/xubohan/projects/Repomesh_Go_ver",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit_code": 0,
+      "stdout": "ad9a49b2fe3b5fe743a65c838ded6cb022e79363",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "branch",
+        "--show-current"
+      ],
+      "exit_code": 0,
+      "stdout": "main",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "go",
+        "version"
+      ],
+      "exit_code": 0,
+      "stdout": "go version go1.26.4 linux/amd64",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "node",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "v22.22.1",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "npm",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "10.9.4",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "pwsh",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "PowerShell 7.6.6",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "codex",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "codex-cli 0.153.4",
+      "stderr": "WARNING: proceeding, even though we could not create PATH aliases: Read-only file system (os error 30)"
+    },
+    {
+      "command": [
+        "/usr/lib/postgresql/17/bin/postgres",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "postgres (PostgreSQL) 17.11 (Ubuntu 17.11-1.pgdg22.04+2)",
+      "stderr": ""
+    }
+  ],
+  "existingChanges": [
+    {
+      "path": "README.md",
+      "status": " M",
+      "sha256": "62754f898a9e1a00ccac2e177e7600afc33f996f92ef28fb4d2c6ef1b4d05c40"
+    },
+    {
+      "path": "docs/current/HANDOFF.md",
+      "status": " M",
+      "sha256": "57f254c7a80fbf394bf293613f1fb289b5201ff065413bc109eee0bd03e8a717"
+    },
+    {
+      "path": "docs/current/IMPLEMENTATION-PLAN.md",
+      "status": " M",
+      "sha256": "7d45ff6166bc6a1a34b1eaaf7628816882a4d067da76cef6b3ce0eefe90326c1"
+    },
+    {
+      "path": "docs/current/wsl-development-recommendation.md",
+      "status": " M",
+      "sha256": "5a9cfb9c6f54695e6cd30e13a4bdcf3064894fe40a94acd74479da97f93661e3"
+    },
+    {
+      "path": "scripts/verify-batch.ps1",
+      "status": " M",
+      "sha256": "f864a1bc51942f4961a8a3d4315791f5f4050bc548687e598896c71532136e46"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/AUTH-RECOVERY.md",
+      "status": "??",
+      "sha256": "ace4c11d506562db7035b048549af81a708b5a067592770bd381fec55232868f"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/DESKTOP-AUTH-VERIFIED.md",
+      "status": "??",
+      "sha256": "f2bfabb773f93c9aefd91519b7d00bffa57b78955609618eba697a1ce936bf64"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/PLAN.md",
+      "status": "??",
+      "sha256": "2ae13ad677bf36a4bde4a7998ea2092ebf80cfd85466c1235401ab3b92ca1f29"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/README.md",
+      "status": "??",
+      "sha256": "8b768361f050d07069a82e55c68015dbb41eacfc5dbc851172042d1e4a493618"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/auth-recovery-status.json",
+      "status": "??",
+      "sha256": "92a494244bb430d27e44054a9b85494e471622a4b0fa4d7ff6c2dc37f9bf8ed0"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/decisions.tsv",
+      "status": "??",
+      "sha256": "4bbe2ab762751320ad22d009be4b0a4c29a2d77422f32fb56b56dc7837c1b6a1"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/desktop-auth-verification.json",
+      "status": "??",
+      "sha256": "faf9d58ff2fa6b2751f7bd3f1d6107fe3615fc3c421d808672fd6485ab7417fd"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/desktop-daemon-restart.json",
+      "status": "??",
+      "sha256": "4581b4dc8af0f0d81fab1910ba5b7873515c9867b7f2cb0c3b569b52df40f62f"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/final-check.json",
+      "status": "??",
+      "sha256": "776fd0d7f7e7fa177706e7e20ee01582c221d1073ccf5e8779f3530a9252976f"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/setup.json",
+      "status": "??",
+      "sha256": "913d69e6cdc7ae6984ea98c4d43bfec157e5d968f9882bd7f3207ea277087928"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/verification.json",
+      "status": "??",
+      "sha256": "79c90edfa19b6c2e1feb943c18b600ae64a9d22da57557f18d4c69a6804c975b"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/PLAN.md",
+      "status": "??",
+      "sha256": "214a51b5e8129074d4603aec9402a1173e3ff918e50257b96ae49ba58803c4dd"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/README.md",
+      "status": "??",
+      "sha256": "a55972ed0190d3c722e2bf27c2220e447e524c09f36b7008f06cc3b4aa6f04e6"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/codex-app-server-stderr.txt",
+      "status": "??",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/codex-verification.json",
+      "status": "??",
+      "sha256": "516fe123e737af4f064896bf441a569463fb2d359440b9204ebcf46f1f5c1eaa"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/copy-manifest.json",
+      "status": "??",
+      "sha256": "b4b32df403ddf3e4374b20f1885ca2dd7ee20cccabc3e4fb54c11a074ba4d51f"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/copy-workspace.py",
+      "status": "??",
+      "sha256": "fbf49f5d7690b0a77b6a4c67e631ad961756d652b9d824f84a6f8d6bfb61d5b6"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/decisions.tsv",
+      "status": "??",
+      "sha256": "36815c62a19f6a1431c529217f3a0912337fa92797437734117e9bfc13c0c2fd"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/final-verification.json",
+      "status": "??",
+      "sha256": "2189fa1de351b8981f45f5136481e6ee06e2253390d1b53069a5ce6117603f2e"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/install-native-tools.py",
+      "status": "??",
+      "sha256": "d20766530baf6bccbdb4e359a63219c5bc452850ea7d149634fb4dbd332ff105"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/linux-b01/checks.json",
+      "status": "??",
+      "sha256": "04f3c250734ff2483adda5f215e1f2521346dfd85fd1680757411f3fda03cfda"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/linux-b01/postgres-output.txt",
+      "status": "??",
+      "sha256": "06730c46528c5591fb7901c5b407100bc7335750c600ad90fd6431df79ed81ef"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/linux-cleanup-negative/checks.json",
+      "status": "??",
+      "sha256": "00c51e865cab2f12e01e6e05a98e9382625eea01c5f9b158874a85d8061ca731"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/main.tsx.before-hmr",
+      "status": "??",
+      "sha256": "991df6c9e072104a9cd414cc21a450e06be652f4b7fe35caa640892a8c99b172"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/native-tool-sources.json",
+      "status": "??",
+      "sha256": "944783d10110ec9d107ebc87a7cd24e9c3afb7cefa19ad9aeb1d8b82e4ea7e42"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/network-verification.json",
+      "status": "??",
+      "sha256": "56fd57b35b35c3e9f07b55826a9cdb4bf2013ef631d08b69fb466edb3ab95846"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/platform-verification.json",
+      "status": "??",
+      "sha256": "5aeb262ba862fbb182b4a86f66d64b7f0baa4220c72c01a46fe59f8d7c397607"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/review.md",
+      "status": "??",
+      "sha256": "84b0b706a8e894173da56366db942f040e48bd12af22803f68c02e148efea45e"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/runtime.json",
+      "status": "??",
+      "sha256": "15dd1f2c77877ef2135d68498b1e835c1e6bf312360113b230c4dafa15f56a69"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/stop-runtime",
+      "status": "??",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/windows-b01/checks.json",
+      "status": "??",
+      "sha256": "142bb8265c781c98dd12033c4e0a17ea98a4582b1311756faa897f5de667f536"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/windows-b01/postgres-output.txt",
+      "status": "??",
+      "sha256": "cc0e39d26631cd9a5dfaa8f3dfcabe3f1e5f85ded55daa654db7a253d8c8ce27"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/windows-browser-hmr.json",
+      "status": "??",
+      "sha256": "9975d2422fdcb684273d961ca2297c1ef6ede7a82bd24165644e189e2daf9c44"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/windows-browser-package.json",
+      "status": "??",
+      "sha256": "43a3fccc7427737fcfd1cdc70765f608327315e158660bf0d608f6fbe912a33a"
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/windows-browser-restored.json",
+      "status": "??",
+      "sha256": "2102352f9ef4bf5bc86af098303703e5334195af158f64e2d67b85b6cdd0bff4"
+    }
+  ],
+  "backupDirectory": "/tmp/repomesh-pickup-baseline-7l9qlx91",
+  "repomeshEnvironmentNames": [],
+  "configFileCandidates": [
+    "configs/repomesh.env.example"
+  ],
+  "toolPaths": {
+    "go": "/usr/local/bin/go",
+    "node": "/usr/local/bin/node",
+    "npm": "/usr/local/bin/npm",
+    "pwsh": "/usr/bin/pwsh",
+    "codex": "/usr/local/bin/codex",
+    "bwrap": "/usr/bin/bwrap"
+  },
+  "configurationConclusion": "No RepoMesh runtime environment variables or non-example config found in the inspected locations. External configuration not yet confirmed."
+}

@@ -1,0 +1,22 @@
+.cursor/*.sh text eol=lf
+internal/database/migrations/*.sql text eol=lf
+
+# Preserve evidence bytes and the current documents named by the design manifest.
+docs/development/** -text
+docs/current/ASTRA-DESIGN-PREPARATION.md -text
+docs/current/DEVELOPMENT-START.md -text
+docs/current/HANDOFF-BACKEND-DESIGN.md -text
+docs/current/HANDOFF-PAGE-API-DESIGN.md -text
+docs/current/HANDOFF.md -text
+docs/current/IMPLEMENTATION-PLAN.md -text
+docs/current/NEXT-TASK-B04-PROMPT.md -text
+docs/current/README.md -text
+docs/current/backend-first-batch-persistence.md -text
+docs/current/backend-first-batch-sources-draft.md -text
+docs/current/backend-model-operations-draft.md -text
+docs/current/first-batch-browser-api-contract.md -text
+docs/current/issue-configuration-binding-design.md -text
+docs/current/issue-page-create-api-contract.md -text
+docs/current/model-project-apply-design.md -text
+docs/current/model-settings-browser-api-draft.md -text
+docs/current/project-development.md -text

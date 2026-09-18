@@ -1,0 +1,2476 @@
+--- a/docs/current/backend-first-batch-sources-draft.md
++++ b/docs/current/backend-first-batch-sources-draft.md
+@@ -117,6 +117,8 @@
+ S05不会把保存项目／配置也变成消费。缺少有限运行政策或权威账本时不以“未接运行”放宽创建门槛。单纯选可用仓库的Issue不因无关失权仓被禁；新业务及必要事件／待办仍按原事务保存。后台未接时保留INTEGRATION_NOT_AVAILABLE责任，预算剩余不生成preparing／ready。
+ 
+ ## 5. S06：GitHub App逐动作规则
++
++2026-09-13定点说明：下述15秒写观察是旧接入候选。B06新建的观察覆盖和时限由[持久化§7.2](backend-first-batch-persistence.md#72-权限观察与统一锁序)提出明确替代（用户与App完整观察、提交前60秒），仍待采用；不扩张B02已采用范围，其余未来动作门槛未在本轮定稿。
+ 
+ 首批宿主固定github.com，不接任意Host。外部身份、安装仓库和permission来自GitHub当前查询，不来自浏览器回跳id、自报名称或部署期望。读取观察最多60秒、新写重新核实且距提交≤15秒仍为接入r1候选参数，采用状态与认证后续稿统一；本地accessEpoch改变立即使旧观察失效。
+ 
+@@ -156,3 +158,68 @@
+ 6. 缺execution／预算／密钥来源时项目可受限保存，Issue按必要条件阻止；实际建项保存全部持久责任。
+ 
+ 已阅读现行项目／创建／持久化、模型设置、团队策略、ADR0013及架构受控操作边界。2026-09-11只核Go／GitHub／OWASP官方资料，没有生成真实密钥、导入清单、访问私仓或调用模型。正式采用需用户逐项确定S01—S08；实现仍另做。
++
++## 8. B04 来源收敛候选，2026-09-13
++
++状态 `B04-SOURCES-r2 / PROPOSED_NOT_ADOPTED`。本节是 B04 的精确推荐，替代 §3 中拟一次导入全部组和多 owner 的候选范围；B02 已采用的认证来源保持。比较依据见[本轮 D01—D04](../development/2026-09-13-b04-b06-design-01/DECISIONS.md)。本轮只设计，声明与迁移说明均在设计附件，不是可执行导入命令。
++
++### 8.1 归属、版本和完整性
++
++Provider 归一个稳定 actor；modelRow 归一个 Provider，并一一映射一个 modelProfile。每次保存生成完整不可变 ProviderRevision；所有模型行产生同 revision 的 profile version。映射键为 `(modelProfileId, version) -> (providerId, providerRevision, modelRowId)`，要求 version=providerRevision、三者 owner 一致。每条历史模型版本能定位 Base URL、协议、外部 modelId、显示名、contextWindow、maxOutputTokens、reasoning、vision 和确切 SecretVersion。reasoning 是能力布尔值，不能解释成推理强度。模型数据与秘密 tuple 的复合约束见[迁移设计](../development/2026-09-13-b04-b06-design-01/migration-design.md)。
++
++模型秘密 owner 为 `(model-provider, providerId)`，purpose=`model-provider-key`。操作 vault 为 `(provider-save-input, actorUUID + ':' + saveUUID)`，purpose=`operation-input`；二者权限目的隔离。秘密用途白名单精确增加这两种组合，不允许给任意 owner 开放新 purpose。调用模型只能取得业务秘密，不能通过 vault 或原回执绕过吊销。
++
++profile 目录及 ProjectConfigRevision 继续由 projects 持有。models 写业务快照后在同事务通过 projects 的目录写接口登记映射；sources 同样登记 execution 版本。项目固定配置保存现有 selection、model/execution binding、defaultRevision 和有效参数，历史 JSON 不改写。模型默认本批不提供设置入口，首个模型不自动默认。
++
++新增默认 `pinned_version` 及对应 profile version 复合外键。新来源导入 execution 默认必须带版本，inherit 按该版本解析；显式 reference 按当前 head 解析。旧 defaults.pinned_version=null 是 B03 历史语义，显式重解析时仍取其 head，不能迁移时猜写旧默认版本。已保存项目永远读自己的固定 binding。默认 revision 只在 `(profileId,pinnedVersion)` 实际变化时更新。
++
++材料完整性、版本启用、秘密可用性和运行集成分别记录。B04 v1 execution 不含预算/时限，`parameters_complete=false`；B04 不更改 B03 的 canCreateIssue=false。B05 增加完整的新 execution 版本后，管理条件才能由实际材料与观察决定；模板登记不证明环境存在或 Ready。
++
++### 8.2 B04 导入 schema 1
++
++仅部署管理用例读取本地非秘密 UTF-8 JSON，≤1 MiB，拒绝重复属性、未知字段、非法 Unicode、重复逻辑身份。顶层所有数组必填、可空；id/version 非空≤128字符，ownerId 是已有本地账户；所有整数有限，名字非空≤200。部署身份由受控本地入口提供，正文不能自报。建议未来在现有 Web 二进制提供 `sources import --file <path>` 和 `sources result --import-id <UUID>`，不是第四个服务，也不是当前可执行命令。
++
++| 顶层组 | 唯一导入字段 |
++| --- | --- |
++| schemaVersion / importId | 整数1 / UUID |
++| environmentTemplates | id、version、executorPoolId、approvedTemplateDigest、networkPolicyRef、resourceClassId、enabled；digest=`sha256:`加64位小写十六进制。后三种定位是不可变登记标签，不代表已有消费者或自由宿主路径。 |
++| executionProfiles | id、version、ownerId、name、templateId、templateVersion、workerConcurrency（1..16，显式值）、verificationGroupEnabled |
++| defaultBindings | kind 固定 execution、ownerId、profileId、profileVersion；同 owner/kind 至多一项。只改列出的默认，不隐式清空。 |
++
++无 Key、App 凭据、allowedOwnerIds、任意 env/header/command/mount 或网页导入。模板依赖可引用本清单或已登记确切版本；未知 pool/network/resource 标签只允许登记为未验证材料，不把它们提升为可执行。禁止借清单冒领其他 owner 或模型来源的 profile。
++
++相同 importId 的规范化输入相同只返回原回执，不再次推动 head；异内容冲突。新 importId 重列已有 id/version 同内容允许复用，但不因重列旧版本把 head 倒退；每个 profile 在一笔清单最多一版，新插入版才成为 head。不同内容拒绝整笔。显式 defaultBinding 可以选择已登记的旧版本，属于明确选择。schemaVersion 属于输入比较，旧比较器保留。
++
++### 8.3 导入事务与恢复
++
++Importer 持有短 READ COMMITTED 事务。先取预置 import 单例排他锁，查询 `(deploymentIdentity, importId)`；已提交先重放／冲突，之前不校验新 owner 是否仍启用。新输入才排序锁 owner account，核当前本地启用与归属，然后取 catalog 排他锁，按 profile ID 排序登记版本、head、默认、审计与稳定回执。所有版本依赖在最终事务内重核，任一失败全回滚。导入不获取 binding/session/project 锁；交互路径不获取 import 单例。
++
++回执只保存 importId、schemaVersion、实际登记/复用的版本、当次默认修订和 committedAt。没有可见 pending/rejected 导入记录。预查空不代表拿到槽位，依赖单例与最终唯一键；冲突回读必须用新语句。提交不确定先查原 importId，暂时不存在仍未知；复用原输入与键可重试，禁止自动换键。导入不触发配置应用、测试或 Issue。
++
++### 8.4 部署身份与冷启动边界
++
++部署导入 CLI 单独用 database.Open/Check 装配，只访问同一产品数据库及来源服务，不调用 access.OpenRuntime，不导入 App 凭据、不读取包装根。migration 登记一次不可复用 deployment UUID；经数据库认证的专用本地部署角色取得 opaque DeploymentPrincipal，包含该 UUID 和数据库 session_user 的审计定位。manifest 不能指定 principal；HTTP 服务不持有 Importer。导入操作作用域为该 deployment UUID/importId；同一数据库恢复仍保持原 UUID 和回执。改名本地管理员不改变操作作用域。实际角色/连接凭据由后续部署实施落实，本轮不读取或配置。
++
++模型 close 不解密 Key/vault，允许已启动且可认证的服务在业务秘密失效时终结空槽。现有 secrets.New/OpenRuntime 会在启动时检查根并导入认证材料；整套根缺失导致当前进程无法冷启动时，不能声称 close API 仍可用。恢复部署秘密可用性后用原键核查/关闭；本轮不新增无认证的灾难恢复端点，也不绕过 B02 启动保证。
++
++## 9. B05 必要政策来源候选
++
++状态 `B05-SOURCES-r1 / PROPOSED_NOT_ADOPTED`。采用 D05 的有限 request 预算后，schemaVersion=2 才接受本节扩展。其共同事务/操作规则沿 §8，不是修改 schema1 的含义；同 importId 跨 schema 视为异输入。
++
++schema2 顶层保留 schema1 五组，并必填以下数组，可空。executionProfiles 每项增加必填 budgetPolicyRef、timeLimitPolicyRef，引用严格为 `{id,version}`；每项在 v2 均须完整，不接受 null。模板、原两项参数与政策引用共同形成新不可变 execution 版本。相同 id/version 的 v1 记录不得补全；必须新 version。
++
++| 新组 | 精确字段与约束 |
++| --- | --- |
++| budgetPolicies | id、version、scopeKind=`actor_model_test`或`project_model_runtime`、unit=`request`、period=`utc_day`、limit（1..2147483647）、maxUnresolved（正整数，测试首批要求1）、enabled。旧 S05 示例20/1000为建议，不是省略默认。 |
++| timeLimitPolicies | id、version、modelRequestTimeoutSeconds（5..120）、workerAttemptLimitSeconds（60..86400）。无默认；测试固定输入限额按实际绑定此处期限，30秒是推荐值。 |
++| egressPolicies | id、version、approvedBaseUrls（非空、无重复 HTTPS 基础地址）、allowedPort=443、allowPrivateAddresses=false、followRedirects=false。地址标准沿 §6。政策登记不发 DNS/HTTP。 |
++| testBindings | ownerId、budgetPolicyRef、timeLimitPolicyRef、egressPolicyRef；每 owner 一项，预算 scope 必须 actor_model_test。只更新列出的绑定，生成稳定政策组合修订。 |
++
++项目 execution 预算 scope 必须 project_model_runtime。公共政策是无秘密的部署对象，只有被 owner 私有 execution 或 testBinding 引用才对其产生适用性。来源不共享 Provider，不让 actor 自报更宽策略。额度窗口唯一 `(scopeKind,scopeId,windowStartUTC)`，policyVersion 不参与唯一键；policy 变化不清零历史。预览和应用不消费额度。
++
++B05 只实现测试所需最小账本及项目的有限只读额度依据。项目首次显式绑定完整运行政策时，在该配置事务中创建或关联本项目当前 UTC 日窗口；同一天换配置复用窗口，登记上限只能降低，新上限从次日适用。此前运行消费者尚未启用，没有本地消费的事实可以令新窗口为0；无法证明历史占用时窗口状态 unknown，不能填0。跨日缺窗口可由配置/创建门槛用例依据前日持久记录在写事务中初始化，本地只读 GET 不写窗口，缺失时报告 unknown。它不估算供应商已有账单。
++
++Issue 创建只检查所绑定运行政策和当前窗口还有至少1单位，不预留或消费，不承诺多个排队 Issue 的未来额度。未实现运行消费者时仍可保存满足管理条件的 Issue，待办保持受阻。运行时原子预留的真实消费者与项目用量采集仍属后续批次，不在本轮设计实现。
++
++
++schema2 导入回执在 schema1 字段之外增加 budgetPolicies、timeLimitPolicies、egressPolicies（各为实际登记/复用的 `{id,version}` 数组）和 testBindings（`{ownerId,revision}` 数组），这些数组即使为空也返回；schema1 不新增这四字段。CLI 原样重放已存回执，不把旧回执升级。
+--- a/docs/current/backend-model-operations-draft.md
++++ b/docs/current/backend-model-operations-draft.md
+@@ -201,3 +201,84 @@
+ | 原结果被清理 | 有权410、旧键不复用；404也不证明可重建。 |
+ 
+ 实施时需覆盖并发、进程崩溃、数据库提交响应丢失、DNS变更、日志脱敏、错根、scope与权限隔离测试。当前只完成候选设计，没有执行任何用例。完整运行消费者、Controller／Manager映射与HostExecutor安全调用不由本稿启用。
++
++## 7. B04 保存事务收敛候选，2026-09-13
++
++状态 `B04-OPERATIONS-r2 / PROPOSED_NOT_ADOPTED`。本节定点替代 §3.1 的 MAC/比较 Key 以及 §3.2 未明确的秘密独立事务问题；保存／关闭终态与原 HTTP 保持候选范围。完整声明见[b04.go.txt](../development/2026-09-13-b04-b06-design-01/b04.go.txt)。全批共同锁约束以本节为基础，B05 在 §8 扩展，B06 在持久化 §7 扩展。
++
++### 7.1 用例与秘密责任
++
++models.Service.Save 持有业务事务并核当前可信 ProjectPrincipal；该现有类型名字不代表必须已有 projectId。Web 只负责严格信封、Origin/CSRF、调用与白名单投影。projects 提供事务内目录登记，secrets 不判断模型 owner 业务资格。旧 Seal 自行提交，不能直接用于模型保存原子事务。
++
++Prepare 只在没有业务事务／行锁时运行：独立持久预扣包装次数，生成随机 DEK 和密文，返回不可序列化的 PreparedSecret。InsertPrepared 使用调用者 tx，只插入密文和 availability，核 store 身份、用途及该 prepared.rootID 仍允许包装，不 Begin/Commit、不再次预扣。不在持有根共享锁后独立 reserveWrap。多份准备统一在事务前完成；故障／close 赢／丢弃的预扣不退款。
++
++replace 保存的完整规范化输入放在一个 operation-input vault，包含非秘密字段与实际 Key 字节，按固定长度编码和 schemaVersion 编码；不另存 MAC 或 Key 哈希。成功另外写 model-provider-key 业务秘密，确定 rejected 只写 vault。keep 仅保存规范化非秘密输入，意图永远是 keep，重放不解析当前 Key。vault 解密只向原操作比较函数提供有限生命周期字节，精确等值比较秘密部分；不使用业务 SecretVersion 解密来判断旧请求相等。业务 Key 被禁用后原操作仍可凭独立 vault 比较，vault 自身不可用则503。GET/close 不解密任何比较材料。
++
++### 7.2 锁及提交步骤
++
++交互共同偏序为 binding→session→account→project（若有）→connection（若需外部观察）→操作槽→业务对象→catalog→profiles→政策/预算→secret availability→root。B04 的业务对象为 Provider；B05 会先锁原项目再候选 Provider。catalog 读取不反向读取 Provider 行锁；需要模型 head 的路径一律先 Provider 后 catalog。catalog 写方不在持锁后取得账户/项目/Provider 锁。多对象按稳定 ID 排序；根预扣只有 root，重包只 root→secret version，不取得 availability/account/project。
++
++同 actor 的空保存槽依靠现有 account 排他锁串行，最终 `(actor,saveId)` 唯一约束兜底。不存在行的 SELECT FOR UPDATE 不作为锁证明。save/close/rejected/清理都先取得相同 account 锁。清理无 session 时从 account 开始，之后不补取 binding/session。
++
++1. 严格 JSON/UUID/大小信封及当前身份；短事务核原槽、结果 owner。removed 先410，closed 的 save 先 MODEL_SAVE_CLOSED；原 committed/rejected 按旧 schema 比较。先处理重放，再判断新修订。
++2. 无槽释放全部事务；规范化、核目标 owner、准备候选 Provider ID 和必要密文。此时未建立持久保存责任，准备失败不能称已拒绝终结。
++3. 重新开始短事务、重锁 principal 与槽，处理期间出现的赢家。新操作锁 Provider，核 owner、expectedRevision 和完整旧行集合。先取得 catalog 写锁，再按 profile ID 核稳定映射。所有旧 secret availability 锁先于 prepared 根锁；新增不可见 availability 行不与外部竞争。
++4. 确定修订冲突且输入可比较时插入 vault/非秘密输入和 rejected；拒绝码、fieldErrors、原 requestId、decidedAt 固定。不可披露目标不写含目标拒绝回执。暂时 root/DB/权限未知不持久 rejected。
++5. 成功在同 tx 保存业务密文、vault、ProviderRevision、完整 rows/snapshots/profile versions、head、目录修订、回执与审计。deferred 约束阻止 incomplete 槽提交。任何持久阶段失败全回滚；没有测试/运行待办。
++6. 提交确认后新 Provider201、更新200；原保存重放200。COMMIT 失败无法证明回滚则503 RESULT_UNCONFIRMED，仍由原 saveId GET/close 恢复，禁止内部生成新键。
++
++close 持同一 principal/account/槽，当前有权后原 committed/rejected 原样返回，空槽写无输入 closed_without_save。关闭不核 Provider 新版本、不需要根或 Key。关闭回执丢失仍同 GET/close；closedAt 固定。合法迟到保存无论修改目标还是 Key 都不能写入。GET 本身不写槽。
++
++### 7.3 清理与秘密吊销
++
++models.Maintenance 只能由受控进程组装注入，不作为 HTTP 能力。按 account→operation→Provider 归属→vault availability 锁，把操作转 removed，清 canonical/vault引用/回执正文/拒绝文本及任何可重建输入的派生副本；同事务 DestroyInTx 销毁 vault 密文，保留版本身份。清理不依赖根解密。没有自动按短 TTL 删除比较材料的路径。
++
++业务 SecretVersion 不由操作清理销毁，历史配置仍引用它。专门的业务秘密停用/销毁更新 availability/accessEpoch，停止新调用但保留身份、配置和原操作；根重包不改变 SecretVersion。现有 access.cleanOrphans 只处理认证用途，不扩大成全用途扫描。后台不得先持 secret 锁再反向锁项目：先完成可用性变更事务，后续逐项目更新条件观察；B06 在最终事务直接核 availability，不能依赖这一步传播及时性。
++
++清理／停用不免除 B05 已可能发送操作的核查责任。未知不能按年龄变 rejected。账号最终清理需先封闭该稳定身份写入口，旧 actor ID 不复用；本轮不实现账号删除。
++
++## 8. B05 测试、应用及只读投影收敛候选
++
++状态 `B05-OPERATIONS-r2 / PROPOSED_NOT_ADOPTED`。沿 §4—5 的固定输入与专用应用目标；本节补外发提交未知、锁序、配置材料检查和声明责任。HTTP 仍只在[模型字段稿](model-settings-browser-api-draft.md)与[首批 C05](first-batch-browser-api-contract.md#10-c05-固定预算时限摘要候选)维护。相关候选数值、费用策略及受限投影均待采用。
++
++### 8.1 单次测试与一次发送许可
++
++models.TestService 持登记事务，coordinator 组装 models.TestRunner 独占发送职责，Web 不持出站调用对象。固定消息、单模型、无工具/流式及输出上限沿 §4.1；新测试要求当前保存 head、preview 固定 secret/policy 组合未变。参数适配能力必须明确支持输出限制；不支持返回 LIMIT_UNSUPPORTED，不能删除限制后发送。
++
++注册使用 account→operation→Provider→catalog/profile→Preview→testBinding/政策→BudgetWindow→actor未核计数→secret availability。Preview 同一事务绑定 consumedBy=testId，登记 queued、预算 reserved=1、唯一测试工作及接受事实；202不证明已发送。原键先于新 preview 期限/资格，异 preview 409。处于 queued/running/unknown-open 的同 actor 测试跨日阻止另一次测试。预算操作与状态变更由一个用例持事务。
++
++Runner 领取短事务不持任何业务锁跨网络。发送前重新以 account 起始顺序核 actor 启用、固定 secret 当前可用、出站政策资格、预算和旧 permit；Provider head 后来改变不改已登记测试的输入。新请求的预览要求 head，而已登记处理不重新绑定 head。
++
++每 testId 只能从未发阶段原子生成一次随机 sendPermit 与 externalOperationId，持久 may_have_sent，同时 reserved→consumed。只有本次事务得到明确 COMMIT 确认且匹配内存一次性 permit 的原执行者可进入 transport；许可事务 COMMIT 回执丢失时，即使 GET 后发现 permit 已存在，也进入 unknown，不重新取得或恢复发送能力。重启恢复只重新领取尚未有 permit 的 queued；存在 permit 的一律核查，不重发。服务内调用对象消耗 permit 一次，禁止网络库/SDK重试、重定向和重连后自动重放 POST。
++
++实际传输开始才有 running 观察，may_have_sent 不是 running 证据。发送前本地检查可发现撤销，但检查与网络不是跨系统原子；许可不得在旧执行者可能存活时被重新授予。进程租约到期不能证明旧执行者或远端停止。未知核查不调用模型测试端点，首批无可靠供应商查询时保持 unknown，继续保守消费。
++
++白名单 Observation 只含原 testId/externalOperationId、开始/完成时间、协议结果、latency、可核 usage及证据身份，不含原始响应正文/凭据。迟到者只能提交同一 externalOperation 的证据，不能更新新测试、退额度或写正式终态；当前核查者按版本 CAS 采纳。冲突证据保持 unknown并审计，不能最后写入者覆盖。原 actor 失权后仍可内部收证以收口责任，用户 GET 继续当前核权。
++
++明确收到错误/无效完整响应可 failed，可能收费；网络断点 unknown。rejected 只用于有证据未进入可能发送或证明未发且旧权能失效，才释放。长期未知的运维关闭沿 §4.3，必须有旧发送进程和凭据能力已撤销的证据；远端仍可能运行，不声称实际并发已降为零。未有该证据则不提供解除 outstanding 的快捷动作。
++
++### 8.2 专用应用与配置检查
++
++models.ApplicationService 持事务；projects 事务内 `ReplaceModel` 用原 FixedConfiguration 构造结果，内部完整复制 execution 的 selection、profile/version、defaultRevision、政策版本和有效参数。禁止调用双项 resolver。模型 choice 固定 reference，模型 version 取预览候选；原来是 inherit 即使有效模型相同也属于 choice 变化。完全相同才 no-op，保留配置/项目/创建修订，仍消费 preview 并存稳定 application 回执。
++
++锁序 account→project→operation→Provider→catalog/profile→Preview→secret availability。锁后先重放，再比较 project/configuration revision、候选 head、精确 execution 摘要和相关可用性代次。known unavailable 的旧 execution 或可引用候选允许受限应用；权限或完整原 execution 版本无法确认则不应用。原模型受限不阻止修复。Preview 保存内部完整对照，公开 C06 受限形状不削减内部比较依据。
++
++projects 增加材料完整性检查和管理条件视图：解析固定模型/执行及政策历史、检查 secret 元数据及当前资格；不测试模型、不要求 runtime Ready。B03 的 INTEGRATION_NOT_AVAILABLE 历史观察不能直接用作新管理条件；也不能把它删掉后无条件 allowed。B04 v1/旧固定 JSON 无完整政策来源则保持受限。只有 B05 完整版本经显式选择形成的新 ProjectConfigRevision 才提供 C05 的完整数值。
++
++### 8.3 查询、清理与恢复
++
++C05 同一次项目读取得固定摘要，当前额度是独立、带观察时间及窗口的结果。C06 返回原模型确切历史定位；读取历史版本的当前权限另核。GET 不生成新配置、预览或测试。原 receipt 固定，current GET 可更新。
++
++测试结果30天后可清展示正文并置 removed，但 testId、固定版本、permit、未核/预算责任保留；unknown不因清理消失，410也不能换键绕过未核计数。预览过期清理需保留 consumedBy 最小占位，不能复活同 preview。应用清理只清输入/回执正文，保留项目/actor/key 与 removed；原配置版本不销毁。清理与结果采纳共用 account→operation 顺序，旧 Observation 不重建已清理展示正文。
++
++
++### 8.4 复核后的组装与投影责任
++
++C05 的公开摘要/额度联合由 projects 拥有，保持现有 ProjectView/ConfigurationView 所有权。modelbudget 通过组装注入的 ObserveRequestQuota 返回 projects 投影，在 Service.Get 所持同一配置读取事务中运行；初始化与观察是两个不同接口，GET只调观察。可选额度SQL失败需在savepoint回滚后才能返回unknown，整连接/配置快照不可读则503，不能在PostgreSQL已abort的事务继续装配响应。无政策not_configured与有政策但无可信账本unknown分开。
++
++TestRunner每次发送持一个opaque AuthorizedDispatch，含本次固定policy、Provider/row、一次permit及短期Key。秘密在授权事务内OpenInTx，提交未知或失败清理内存；仅确认提交才把此对象交给transport。transport只持协议实现版本，不在启动时缓存一个所有用户共用的政策。实际发出前重核本地许可仍有效，不因此重授许可；请求完成/出错均清短期秘密。构造、核权、发送、证据和清理函数已在声明附件中分开，不让handler获得transport。
++
++Go内部receipt/preview不是未经处理的JSON：TestResult/应用结果用明确MarshalJSON投影唯一HTTP字段，ApplicationPreview必须先生成当前核权后的OriginalModel才序列化；不得把内部完整Before直接暴露。B06的创建回执由issues自身MarshalJSON给出同一HTTP形状，Web只选择201/200及Location。
++
++
++测试处理器资格由有限test_handler_leases记录观察：coordinator实例启动登记随机不可复用instanceId和确切protocolVersion，候选租约60秒/20秒续期。Web预览/新提交只读取未过期且支持本目标输出限制的登记，无记录为TEST_HANDLER_UNAVAILABLE、读取未知保留未知；不把编译了transport等同可运行。登记/续期独立短事务不持actor锁，领取/发送不携该锁进入业务事务。dispatch保存确切sender instance用于后续核查。租约只是处理器近期存在观察，不证明外发能力被撤销；过期不能自动关闭unknown或再授permit。
+--- a/docs/current/model-settings-browser-api-draft.md
++++ b/docs/current/model-settings-browser-api-draft.md
+@@ -178,3 +178,36 @@
+ Key三项见[候选页面](model-key-save-design.md)；测试新原型在主预览model-test；应用沿[F04已采用三项](model-project-apply-design.md)。此次不请求共享／默认编辑／删除／禁用／完整费用平台。
+ 
+ 待验收：同键含Key不同正文冲突、密钥失败全回滚、预览过期重放优先、旧execution默认变但精确保留、测试登记后崩溃／外发后丢响应不重复收费、额度／处理器未知不可确认、次数预算不冒充金额上限、无权原结果不披露、原Key丢失仍可查询／终结、原回执与最新配置分开、模型快照切换不移植旧测试。R01还须覆盖请求未到服务器、持槽前503、关闭与迟到保存竞争、双close、关闭回执丢失、已提交后关闭、无权／错主体、关闭后清理及旧保存重放。只设计，不执行任何真实模型请求。
++
++## 8. B04/B05 本轮字段收敛候选
++
++状态 `RM-MODEL-API-r2-candidate / PROPOSED_NOT_ADOPTED`，2026-09-13。本节只替代明确列出的旧候选歧义；12端点目录和 B04/B05 划分保持，未新增产品实现或整体采用。
++
++B04 的 ModelView.displayName 始终输出字符串。输入 null/空字符串规范化为同一空显示名意图，展示时取 modelId；本轮仍要求输入模型对象带 displayName，省略不额外成为合法输入。所有 error.fieldErrors 必返数组，持久 rejected.error.requestId 固定为作出决定的原请求 ID，不能回读时重写。POST 的确定拒绝用对应标准错误 HTTP 响应，GET/close 返回200的 rejected 联合；客户端不能仅凭409认定终结，先查原回执。根/DB暂时故障不持久伪造 rejected。
++
++保存比较机制由[内部 §7](backend-model-operations-draft.md#7-b04-保存事务收敛候选2026-09-13)单 vault 推荐替代 §3 的具体 HMAC 指称；不改变 Key 禁裸哈希与精确比较目标。信封解析先于槽检查；合法 JSON 的业务字段验证不能覆盖有权 removed/closed 终态。新输入仍严格拒绝未知字段。
++
++### 8.1 C06 原模型的完整分支
++
++定点替代 §5 示例的 `before.model` 和原“尚未补齐 C06”描述。其余 before/candidate/提交字段保持。before.model 不再使用裸 null，而是以下精确联合：
++
++| 分支 | 完整字段 |
++| --- | --- |
++| 未配置 | `{status:"unconfigured"}`。没有绑定模型版本，不能用于表示失权。 |
++| 可读 | `{status:"readable",reference:ProfileChoice,modelProfileId:string,modelProfileVersion:string,providerId:string,providerRevision:string,modelRowId:string,links:{snapshot:string}}`。ProfileChoice 沿首批 §5；snapshot 是既有指定版本 GET 的 API 路径。modelProfileVersion 与 providerRevision 必须对应同一不可变映射。 |
++| 受限 | `{status:"restricted",reasonCodes:["ORIGINAL_MODEL_UNAVAILABLE"]}`。不返回 reference、profile/provider/row/secret ID、名称、地址或版本链接。 |
++
++权限未知仍整次503 AUTHORIZATION_UNCONFIRMED。可读旧快照缺失/材料已清理且不可再展示时用 restricted，不用最新模型替代，也不遍历供应商猜定位。模型已经禁用但历史仍可读时可给 readable，其当前秘密可用性在指定版本详情表示；不把历史可读解释为可调用。
++
++返回 readable 后，前端只 GET links.snapshot 对应固定 providerId/providerRevision，并选 modelRowId；核响应身份、版本和行归属。迟到旧请求不得覆盖当前预览。原模型受限不单独禁止有权配置修复；execution 的固定版本与当前应用比较仍完整保存于服务端 Preview，不因公开原模型裁剪而丢失。
++
++### 8.2 测试与恢复补充
++
++§4 示例 timeoutSeconds=30 为候选示例，实际 preview.requestLimit.timeoutSeconds 取固定 timeLimitPolicy 版本值；不得预览30秒、实际执行另一值。output 上限仍 min(16,已保存 maxOutputTokens)，无法正确映射时 LIMIT_UNSUPPORTED。TestResult 的 budget 是本地次数，charge.status 在可能发送且无金额依据时为 unknown，currency/amount始终null。收到明确成功或错误仍不能把 charge 改成免费或已结算。
++
++§5 的预览 POST 完整路径以 M02 为准，即 `/api/projects/{projectId}/model-application-previews`。testId 原接受回执的 acceptedAt 与固定模型身份不变，resultRevision 只作等值比较；操作状态可前进，但不把观察写回 ProviderRevision。B04/B05 的登录恢复 Destination 使用已有认证稿的 provider_save/model_test/model_apply 种类，服务端只允许固定同源恢复路径，先核当前主体与目标；首次查询404仍可返回原操作恢复页供核查，不触发提交或close。
++
++C05 在[首批契约 §10](first-batch-browser-api-contract.md#10-c05-固定预算时限摘要候选)维护。本节仅补 C06 和模型字段，不再复制项目预算摘要。C05/C06 均为设计已补、待采用、待实现、待真实验收。
++
++
++本候选 B04/B05 的 apiFormat 首批仅 `openai_chat_completions`，不从已有原型格式选项推导 Responses/其他协议已经可消费。保存与读取校验此明确枚举；扩展格式需要新的协议映射和本地验证。
+--- a/docs/current/first-batch-browser-api-contract.md
++++ b/docs/current/first-batch-browser-api-contract.md
+@@ -309,3 +309,30 @@
+ 实施后至少验证：无变更配置保存保留修订并保存原操作回执；项目同键并发与丢响应；更新旧修订与同键重放优先；正文清理后旧键不复活；受限原仓库不影响配置修复；明确添加失败整次回滚；默认配置变化不暗换版本；候选部分覆盖与空页游标；列表核权未知返回503；跨主体游标／过滤不能泄露；失权和晚到响应不能覆盖新页面。后端故障矩阵和页面 UI-01—12 分别见各自专题。
+ 
+ 本稿文档／JSON 检查不等于接口实测。首批项目／列表字段已收口；完整认证、可参与仓库覆盖、模型 Key 设置、会话详情／消息／房间与运行恢复仍是明确设计依赖，P01/B01、P05 和整个产品设计不能据本稿一并标为完成。
++
++## 10. C05 固定预算时限摘要候选
++
++状态 `C05-r1 / PROPOSED_NOT_ADOPTED`，2026-09-13。本节补 §5 的字段缺口，原 RM-API-01 r3 已采用字段不变。本节按 S05 的有限 request 预算推荐设计；若选择金额方案，本节 budget 分支须重新设计，不把次数改名为金额。实现与验收均未开始。
++
++推荐在 `GET /api/projects/{projectId}` 的 configuration 内新增 `fixedSummary` 与 `quotaObservation`，不新增策略查询端点。二者与原 `effective.configurationRevision` 指向同一配置；固定摘要从不可变记录读取，额度独立核当前窗口。只读 GET 不创建窗口、消费额度或重解析默认。
++
++`fixedSummary` 必含 configurationRevision、executionVersionId（string或null）、budget、timeLimits。两个政策字段各自使用以下分支：
++
++| 字段／分支 | 完整形状 |
++| --- | --- |
++| budget，已完整固定 | `{status:"available",policyId:string,policyVersion:string,scope:"project_model_runtime",unit:"request",period:"utc_day",limit:integer,maxUnresolved:integer}` |
++| budget，未解析或缺历史材料 | `{status:"unresolved",reasonCodes:string[]}`，无策略 ID 或数值 |
++| timeLimits，已完整固定 | `{status:"available",policyId:string,policyVersion:string,modelRequestTimeoutSeconds:integer,workerAttemptLimitSeconds:integer}` |
++| timeLimits，未解析或缺历史材料 | `{status:"unresolved",reasonCodes:string[]}`，无数值 |
++
++available 表示原固定参数可读取，不表示当前已启用/额度充足/进程停止。政策已禁用但历史材料仍可读时仍展示原固定值，由 configuration.checks 表达当前限制。unresolved 不能填0、无限或推荐默认。原配置未解析 execution 时 executionVersionId=null；有可信版本但材料不完整时保留其确切版本和 unresolved 分支。
++
++`quotaObservation` 只针对上述固定运行政策，完整分支为：
++
++- `{status:"known",configurationRevision,policyId,policyVersion,unit:"request",windowStart,windowEnd,effectiveLimit,reserved,consumed,remaining,observedAt}`。UTC 时间；非负整数，remaining=max(0,effectiveLimit-reserved-consumed)。effectiveLimit 是原政策限额与该窗口保守下调限额的较小值，可能小于 fixedSummary.budget.limit。
++- `{status:"unknown",configurationRevision,reasonCodes,observedAt}`。observedAt 为本次核查 UTC 时间或null；没有可靠账本／读取失败不得伪造0。
++- `{status:"not_configured",configurationRevision,reasonCodes}`。原固定配置没有可解析运行预算；无额度数值。
++
++本地项目 owner 可读上述本项目摘要，不要求所有原仓恢复读权。策略来源身份不可披露时不返回相关政策名或数值；当前 owner 资格无法确认仍整次503 AUTHORIZATION_UNCONFIRMED。本批 owner 私有执行引用的政策没有额外共享 ACL；若以后增加策略 ACL，需要新增受限分支，不用 unresolved 隐藏已知无权。普通账本故障可返回 quotaObservation.unknown，但项目主体/配置快照无法可靠读取时仍返回503，不拼旧快照。
++
++响应中的固定摘要与 effective 必须来自同一配置版本；额度观察允许稍后变化，不承诺跨网络最新或已为 Issue 预留。默认改变后旧项目仍显示旧版本数值，模型专用应用保持原 execution 数值。契约设计覆盖[原检查 C05](../reviews/2026-09-12-project-contracts/README.md#c05-项目预算和时限缺少只读响应)，采用与真实验收尚待后续完成。
+--- a/docs/current/model-project-apply-design.md
++++ b/docs/current/model-project-apply-design.md
+@@ -33,3 +33,5 @@
+ 页面维护本文件、原型片段、浏览器接口提案和共用导航／日志；后端维护内部设计与后端日志。主题最多三轮；技术ACK不代替用户对本页三项安排的同意。
+ 
+ 后端已核r1页面目标语义及唯一修订落盘，1／3，无剩余分歧；完整收发见页面09-11日志CP10及后端CP06／CP07。核对范围只为文档，不是JS／浏览器／真实验证。用户现已采用三项UI，准确范围见页面CP11；完整F04与专用协议仍未完成。
++
++2026-09-13：C06 已形成[唯一字段候选 §8.1](model-settings-browser-api-draft.md#81-c06-原模型的完整分支)，替代上文“尚缺机器形状”的当前判断。原审查记录保留；新分支待采用、未实现、未验收，不扩大 F04 原 UI 采用范围。
+--- a/docs/current/backend-first-batch-persistence.md
++++ b/docs/current/backend-first-batch-persistence.md
+@@ -226,3 +226,64 @@
+ | DB17 | 项目更新成功后再次修改，再重放旧updateId | 返回旧提交revision／时间；当前快照另GET；无实际变更的操作也有稳定结果。 | 用当前revision冒充旧回执。 |
+ 
+ 文档检查只验证引用、语义和表格一致性，不替代这些真实数据库、权限和并发实验。B03已有首批事务实现的主体设计；真实 Issue／待办首次落库前还须收口 §2.5 的配置绑定选择，并执行其候选专题 CB01—CB05。完整系统就绪仍依赖B01认证接入、页面字段基线及B05—B08各自批次，不能从本文推导整个后端设计完成。
++
++
++## 7. B06 创建事务收敛候选（2026-09-13）
++
++状态 `B06-PERSIST-r1 / PROPOSED_NOT_ADOPTED`。本节细化已采用 §1—4 的原子创建、重放和内容保护；P9 的新增外键、权限观察门槛和具体物理约束仍待采用。声明及约束设计见[本轮 B06](../development/2026-09-13-b04-b06-design-01/B06.md)，唯一 HTTP 字段仍在创建契约。本批没有 rejected 创建操作、独立受理占位、Manager 入口、运行消费者、详情或 SSE 实现。
++
++### 7.1 用例与数据所有权
++
++新增有限 `internal/issues` 包拥有页面创建、原操作查询、创建条件及已有会话候选；它调用 access 当前主体/仓库授权、projects 固定配置读口、modelbudget 门槛读写口，不反向让这些包依赖 issues。issues.Service 是一个创建事务的唯一持有者，handler 只解析边界和映射现行响应。`CreatePage` 与 `GetPageCreation` 共用原操作加载、完整内容核权和稳定回执投影。来源由该受信页面方法固定 `issue_page`，请求不能传 actor/entry；不为尚未确定的 MCP 预铺公共泛型 Source 或 Manager 方法。
++
++Issue 新建身份、项目内展示编号、主 ChangeSet 身份和主会话身份分别生成。编号由已锁项目计数行分配并以 `(projectId, number)` 唯一，允许间隙，不用 MAX+1。会话可关联多个 Issue；每 Issue 此时恰一个主会话和主 ChangeSet。页面创建来源记录和会话卡片关联真实 creation operation，不伪造 Message 或投递。工作仓库非空且全部引用同项目 ProjectRepository；Issue 内容保护集合包含工作仓库，会话保护集合追加原集合与该 Issue 内容集合的并集，不能缩小。每对象内容范围拥有修订；卡片、范围与修订同事务写入。未来新增消息/材料必须沿相同对象锁扩展范围，不能只改变卡片。
++
++本批创建一个 `issue_continue` DurableWork，唯一 `(causeOperationId, kind, targetId)`，状态为 `blocked/INTEGRATION_NOT_AVAILABLE`，重新评估条件为安装并采用相应消费者；externalOperationId、phase、leaseOwner 为空。它只引用 Issue 固定配置，不复制可变配置。创建一个 Issue `snapshot_invalidated` 事件，流序号1及计数行同事务。事件类型沿现行通知契约，保留期24小时；本批不发送、不实现心跳。RepositoryIssue 初始零条，不给未生效计划生成仓内任务。
++
++### 7.2 权限观察与统一锁序
++
++现有 B03 CheckProjectObservation 只验证用户参与观察和 connection 代次，使用 transaction_timestamp 与60秒窗口；这不足以证明 Issue App 能力和完整历史内容可读。本候选增加 Issue 专用 opaque 观察，仍由 access 产生：actor、credentialVersion/connectionRevision、accessEpoch、准确仓库集合、每仓用户观察时间、所选工作仓库的 App 安装身份/权限版本/观察时间。当前用户须可读提交范围及所关联会话完整内容范围；新创建的工作仓库须有已采用能力政策。推荐 S06 最低 Metadata read、Contents write、Pull requests write，作为待采用的新门槛；不从 B02 登录成功推导此能力。
++
++推荐新创建所有必要观察在最终提交前以数据库 clock_timestamp 检查不超过60秒、不得来自未来；这是延续 B03 数值、补齐覆盖和提交时钟的候选，不代表远端权限原子性。观察过期或本地代次变化，回滚后重新获取，不能持锁访问 GitHub。外部明确不足按当前契约隐藏404或可披露的409；未知503 AUTHORIZATION_UNCONFIRMED。原结果读取只要求当前内容读取权，不要求重新通过 App 写权限、预算和创建条件。
++
++各交互写路径共用偏序：binding → session → account → project → connection（需要观察时）→ creation operation → 同项目已有 conversation/issue（按对象类型及ID排序）→ catalog → profile/version → policy/额度窗口 → secret availability → 包装根。不存在的 operation 不靠 SELECT FOR UPDATE 得锁，由 account/project 序列化与最终唯一约束保障。创建不锁 Provider head，不重新解析默认。已有会话范围更新者必须先 project 再 conversation；清理亦遵此序，不反拿 account/project。目录作者仍先 owner account、再 catalog，禁止 catalog 持有者回拿 owner/project/Provider。
++
++本地秘密撤销以秘密可用性行串行；撤销先提交再异步传播项目观察，因此创建直接检查精确 secretVersion，不能等待 creationContextRevision 更新。模型/执行停用同理核确切版本状态。读取结果先拿最小身份和内容范围修订，不取敏感正文，在事务外核观察；短读事务锁主体/project/connection及目标范围，重比范围版本后投影。会话集合已扩大则重新观察全部集合，绝不凭旧小范围返回新正文。此处授权观察与快照复核也供候选会话查询使用。
++
++### 7.3 新创建与原结果的事务步骤
++
++1. 限制信封/JSON体并认证。主库按 `(projectId, actor, issue_page, creationId)` 预查。存在结果时先以存量 Issue及关联会话完整内容范围核当前读权；removed 有权410先于正文比较；完整结果用所存 schemaVersion 的比较器返回200或409。客户端新传的会话/仓库不得影响旧结果读权。语法上无法解析的请求仍400；不把新的业务有效性校验放在已提交重放之前。
++2. 无结果才严格规范化新的允许字段，读取范围/会话版本与确切当前固定配置，事务外取得全范围观察。预核失败仍用短事务再查原操作，让期间提交的赢家优先；无赢家才返回新操作错误，不保存拒绝记录。
++3. 开短 READ COMMITTED 事务，设置 lock_timeout=2s 与事务总预算5s（候选初值）。锁主体、项目和 observation 所需 connection，再查/锁原操作。赢家存在但范围与预核不同，释放事务后按赢家完整范围重核，不能用当前提交范围替代。
++4. 新操作比较 expectedCreationContextRevision，锁已有会话并比较可关联性与范围修订，锁目录和固定版本/政策。沿当前不可变 ProjectConfigRevision 检查完整参数、确切秘密版本可用性、运行预算政策及当前窗口；必要新窗口只在此写事务中有可核本地无消费历史证明时初始化。额度不足/未知不通过。创建本身不消费或预留额度，不要求 runtime Ready、已生效计划或模型测试成功。
++5. 同项目锁下选定唯一 initialConfigurationRevision；插入事务内 operation、必要会话、Issue、工作/内容范围、主 ChangeSet、页面来源和会话卡片、确切输入/回执、blocked 待办、事件，填齐所有关系。尾部再验证观察时限及主体本地时间资格。任何写入或延迟约束失败全回滚。
++6. COMMIT 获确认才201；已知同键赢家200。提交回执丢失为503 RESULT_UNCONFIRMED，由浏览器原键查询；查询一次404不能证明不会迟到提交。确认回滚可复用原键输入重试，提交未知先查主库。局部异常不能变成“可能成功”的空201。
++
++P9 的项目锁串行化见配置绑定专题。源版本变化不得改写旧修订；不可用时保存事实仍可读，新创建受限。B06 对操作只保存 committed 或 removed，两者和 B04/B05 的 durable rejected 是刻意不同的已采用入口语义。
++
++### 7.4 清理与恢复责任
++
++清理是 composition 才可获得的维护入口，本批无浏览器删除路由。先锁身份/项目/原操作/Issue/会话，再清除 Issue正文、确切输入、摘要、卡片/来源正文和相关派生副本；取消确定未外发的本批 blocked 待办，保留无正文目标、scope、配置引用与 removedAt。同事务转 tombstone，返回字段不留下可重建正文的副本。来源/关系的必要身份与只增内容权限集合仍保留，旧键永远不能新建。尚不设计物理项目删除或带未知外发动作的强制清理。
++
++跨重启只靠主库原操作、Issue pin 与 blocked 工作重建责任。本批交付保存/查询用例与数据库约束；任何消费者、真实投递及页面详情仍由后续批次另行采用并验证。
++
++
++### 7.5 复核后的观察来源与输出接口
++
++S06观察由现有固定GitHub适配器新增ObserveAppInstallation保留当前AppCapability已取得但丢弃的installation ID、App ID、suspended及完整permissions。permissionRevision是版本化长度编码的这些非秘密值（permissions按key排序）的SHA-256本地观察指纹，不是GitHub服务器提供的CAS或持续授权。当前AppCapability继续投影原Capability，不改变B02公开语义。access.Provider新增方法的真适配和替身均在U06.2实现，不能只在Issue类型写一个无法取得的字段。
++
++access.OpenRuntime将已导入且PrivateKey回调确切使用的privateRef记录为Issue观察App凭据版本；用户credentialVersion绑定实际access_ref，与connectionRevision/accessEpoch分开。最终事务先核固定模型秘密，再按版本ID顺序核该观察的用户/App秘密当前可用性及权威owner/purpose，最后做时限/主体到期核验。持认证秘密锁的其他路径不得反拿模型秘密锁。外部观察与本地提交之间仍有未观察远端变更的窗口，不能用该指纹声称消除了它。
++
++创建/查询共用issues.CreationReceipt和MarshalJSON；GetPageCreation直接返回同一种receipt，Web统一投影，首次确认提交201、重放/查询200。Location由receipt的固定Issue路径取得。内部pin及确切正文不被编码进创建回执。
++
++本批需主体/范围行锁的原操作读取采用短READ COMMITTED事务复核；只读是业务无写副作用，不将SELECT FOR UPDATE放进PostgreSQL READ ONLY事务。§4.1的通用详情READ ONLY REPEATABLE READ建议不直接套在此路径，B07详情策略仍另行设计。本批不引入原操作查询时的运行准备或新额度窗口。
++
++
++### 7.6 复核后的归属与派生正文约束
++
++同项目P9外键仍不足以证明配置引用属于该project owner。沿当前owner-only规则，新增延迟configuration_owner_and_binding_consistent检查：两项固定profile owner必须等于project.owner；fixed.secret四元组和物化值必须匹配所引用不可变版本。现有0004的两个immutable trigger保留。旧B03合法受限记录不重写；发现旧错属记录则迁移拒绝，另行明确修复，不能让新Issue通过同项目配置间接读取他人秘密。
++
++必要新会话保存created_by_operation_id，且其复制Issue标题时保存title_origin_operation_id；关联已有会话不改这两个来源。清理Issue派生正文只清仍带该title_origin的标题并置redacted标志，保留关联身份和内容scope。会话以后独立改名须清除标题派生标记，不能因为会话最初由本Issue创建就删除后来独立标题。候选投影使用固定无正文清理标签，既有会话原名不被清理。DB08分别覆盖new、existing和已独立改名的分支。
++
++
++B06清理的持久待办只允许 `blocked/INTEGRATION_NOT_AVAILABLE → cancelled/CONTENT_REMOVED`，同事务写cancelled_at，保留cause/Issue与其pin可追溯关系；不删除责任身份，不允许回到blocked。它只处理本批尚无外发记录的工作；发现external事实则拒绝本清理入口，留后续协议处理。
+--- a/docs/current/issue-configuration-binding-design.md
++++ b/docs/current/issue-configuration-binding-design.md
+@@ -115,3 +115,16 @@
+ | CB10 | 无 Issue 的讨论、重试、项目换配置、随后指定 Issue | 同一模型处理请求重试保持原版本；新独立请求的选择可追溯；目标 Issue 动作不继承任意会话配置。 |
+ 
+ 文档自查只能核对这些规则是否一致，不能替代数据库并发、秘密撤销、模型调用或 runtime 隔离验收。采用本候选也只关闭 R04 的创建绑定选择缺口，不等于 B05—B08 或完整后端已经可以无条件接入。
++
++
++## 8. B06 P9 约束细化候选（2026-09-13）
++
++`P9-r2 / PROPOSED_NOT_ADOPTED`：推荐继续采用 §1 的强引用方案。与按时间寻找/复制配置相比，同项目不可变外键可复用 B03 事实源，并能由数据库拒绝空引用、跨项目和操作不一致。新 Issue 必须有 NOT NULL `(project_id, initial_configuration_revision)` 外键，引用现有 project_config_revisions 主键；历史配置删除 RESTRICT。Issue 的项目、初始引用和首次创建身份更新被数据库拒绝，正文删除只设置墓碑。
++
++CreationOperation 保存同项目、同 Issue、同配置的内部结果，复合外键引用 Issue 的 `(project_id,id,initial_configuration_revision)` 唯一键；待办的 `(project_id,issue_id,cause_operation_id)` 引用这一操作结果。配置字段不加入 HTTP 输入或回执。主 ChangeSet、主会话、非空范围、操作完整性用[迁移设计](../development/2026-09-13-b04-b06-design-01/migration-design.md)的组合键及延迟约束实现；当前没有持久 Issue，实施不允许以 nullable 遗留例外先写新数据，也不在本轮设计历史修复工具。
++
++创建与应用共用 project 行锁。创建先持锁读C1并提交，应用随后可写C2，旧 Issue 永留C1；应用先写C2则旧创建条件冲突，刷新后用新输入/新操作才能创建于C2。应用 no-op 保留全部修订；相同模型但从 inherit 改为 reference 是选择依据变化，会形成新修订。创建提交未知时先查旧键，不能在新条件下自动重建；原成功重放不受C2影响。
++
++可解析闭包为 Issue → ProjectConfigRevision → 固定 ModelProfileVersion → ProviderRevision/ModelSnapshot/SecretVersion，以及固定 ExecutionProfileVersion → 模板/预算/时限政策。参数不是 latest 查找；任何闭包材料缺失/被限制时保持 blocked，禁止 fallback。秘密正文可销毁，但版本身份与当前不可用事实保留。被引用版本停用不应妨碍有权读取历史事实。
++
++本文旧 §6 将普通讨论消费者/真实模型证明写为 B05/B06 条件，属于先前批次映射，**不适用于本轮授权**。本轮只保留普通请求与正式 Issue 可以分别固定配置的空间；普通讨论的受理身份/消息协议、运行读取与实际消费在 B09 及相应消息批次另定。本轮 CB03 只验证重启后数据库引用可追溯及 blocked，不证明模型参数已实际消费。CB06—CB10 和完整 G1/G2 未完成。
+--- a/docs/current/issue-page-create-api-contract.md
++++ b/docs/current/issue-page-create-api-contract.md
+@@ -333,3 +333,12 @@
+ 9. SSE 丢失、重复、断线、旧游标及查询竞争均通过快照恢复；切换页面后旧响应不覆盖新 Issue，失权后停止内容泄露。
+ 
+ 当前只校验文档结构、JSON 示例与状态／字段的一致性。没有真实接口、数据库、模型或 SSE 实现，以上不是已通过测试。
++
++
++## 11. B06 分阶段实施说明候选（2026-09-13）
++
++本轮只完成前置设计；既有建项字段和回执仍按 §2—6，不增加 initialConfigurationRevision、entry 或可信运行身份。新增内部事务约束见[持久化 §7](backend-first-batch-persistence.md#7-b06-创建事务收敛候选2026-09-13)，P9 待采用状态见[配置绑定 §8](issue-configuration-binding-design.md#8-b06-p9-约束细化候选2026-09-13)。
++
++B06 后续实施限创建条件、已有会话候选、POST 页面创建和 GET 原创建结果四条路由；§7—8 的 Issue详情、rooms 和 SSE 属 B07 以后。创建回执保留既有链接，但 B06 页面先稳定展示提交回执与三种ID、保存恢复定位，不将未接详情404翻译为创建失败或伪造 ready 页面。四条路由未实现前不改变当前404事实。
++
++仓库分析不在 B06 实施范围。options 诚实返回 repositoryAnalysis.availability=unavailable、reasonCodes=["INTEGRATION_NOT_AVAILABLE"]（此 reason 为本候选新增明确值）。仍识别并规范化已有可选 repositoryAnalysisId，不能把它当未知字段或静默丢弃。新操作附带该ID时，当前无可信分析来源存储可解析，按既有不可见来源404 RESOURCE_NOT_FOUND，不调用分析器、不写入；如权威读取本身未知则503。前端仅手动无来源创建。将来有分析来源数据时，必须完成 §3 的同项目/操作者、输入、成功终态及原子关联规则才能启用；不能沿用“缺模块直接忽略来源”。已提交原操作仍先重放，不重新核来源可用性。
+--- a/docs/current/README.md
++++ b/docs/current/README.md
+@@ -1,4 +1,6 @@
+ # RepoMesh 现行文档索引
++
++2026-09-13 B04—B06 前置设计已形成[本轮交付](../development/2026-09-13-b04-b06-design-01/README.md)，含架构比较、事务/核心声明、C05/C06、P9及DB/CB验收映射；[独立复核](../development/2026-09-13-b04-b06-design-01/REVIEW.md)已通过，无开放P0/P1/P2。新推荐仍待采用，未开始产品实现或运行验收。B02外部暂停、B03 INTEGRATED_LOCAL_VERIFIED及B04 DESIGN_PREPARED_NOT_ADOPTED保持；B05/B06实施仍TODO。B09仅本轮四项数据兼容问题的静态部分覆盖，完整G1/G2未完成。
+ 
+ 更新：2026-09-13。开发先读[开发前阅读与行动指南](DEVELOPMENT-START.md)及[Astra 前置设计分工](ASTRA-DESIGN-PREPARATION.md)，当前完成度见[HANDOFF](HANDOFF.md)。本页只导航，不累计历史进度。
+ 
+@@ -13,7 +15,7 @@
+ | [数据库基础开发](database-development.md) | 显式迁移、核查、失败处理及独立数据库验证。 |
+ | [项目管理开发](project-development.md) | B03 INTEGRATED_LOCAL_VERIFIED：项目事务、固定配置、恢复机制及最终主目录证据。 |
+ | [B03 最终独立复核](../development/2026-09-12-b03-integration-01/FINAL-INDEPENDENT-REVIEW.md) | 主目录 PG 73/0、前端 28/28、浏览器 25+1 和 r1 发布；无开放 P0/P1/P2，businessReady=false，非整批业务 VERIFIED。 |
+-| [B04 下会话交接](../development/2026-09-12-b04-handoff-01/HANDOFF.md)、[可复制 Prompt](NEXT-TASK-B04-PROMPT.md) | DESIGN_PREPARED_NOT_ADOPTED；本轮仅准备，下一会话先 Astra 集中采用与接口，再 Sol 实现。 |
++| [B04 下会话交接](../development/2026-09-12-b04-handoff-01/HANDOFF.md)、[可复制 Prompt](NEXT-TASK-B04-PROMPT.md) | 历史准备材料；现先读[B04—B06设计交付](../development/2026-09-13-b04-b06-design-01/README.md)，采用后才能实施。 |
+ | [开发前必读及行动顺序](DEVELOPMENT-START.md) | 按角色阅读、首批实现依赖与失败验收。 |
+ | [当前交接](HANDOFF.md) | 当前完成度和分阶段边界。 |
+ | [页面／接口交接](HANDOFF-PAGE-API-DESIGN.md) | F01—F15 的唯一专题和后续去向。 |
+--- a/docs/current/HANDOFF.md
++++ b/docs/current/HANDOFF.md
+@@ -1,8 +1,14 @@
+ # RepoMesh 当前交接
+ 
+-更新：2026-09-12。施工进度见[分批 TODO plan](IMPLEMENTATION-PLAN.md)。开始开发时先读[开发前阅读与行动指南](DEVELOPMENT-START.md)，再按[现行索引](README.md)进入唯一专题。旧阶段进度、通信和接手 Prompt 已移入[本次归档](../archive/2026-09-12-development-preparation/README.md)，不再作为当前任务指令。
++更新：2026-09-13。施工进度见[分批 TODO plan](IMPLEMENTATION-PLAN.md)。开始开发时先读[开发前阅读与行动指南](DEVELOPMENT-START.md)，再按[现行索引](README.md)进入唯一专题。旧阶段进度、通信和接手 Prompt 已移入[本次归档](../archive/2026-09-12-development-preparation/README.md)，不再作为当前任务指令。
+ 
+ ## 当前完成度
++
++### 2026-09-13 B04—B06 设计交付
++
++2026-09-13 B04—B06 前置设计已形成[本轮交付](../development/2026-09-13-b04-b06-design-01/README.md)，含架构比较、事务/核心声明、C05/C06、P9及DB/CB验收映射；[独立复核](../development/2026-09-13-b04-b06-design-01/REVIEW.md)已通过，无开放P0/P1/P2。新推荐仍待采用，未开始产品实现或运行验收。B02外部暂停、B03 INTEGRATED_LOCAL_VERIFIED及B04 DESIGN_PREPARED_NOT_ADOPTED保持；B05/B06实施仍TODO。B09仅本轮四项数据兼容问题的静态部分覆盖，完整G1/G2未完成。
++
++后续实施前须明确采用交付中的D01—D08、S06及模型Key UI/协议范围，按U04/U05/U06单元落实；本轮交回后不自动实施或继续B07—B11。下方同日“分工记录”和09-12交接是历史检查点，不能覆盖本次设计进度。
+ 
+ ### 2026-09-13 前置设计分工记录
+ 
+--- a/docs/current/DEVELOPMENT-START.md
++++ b/docs/current/DEVELOPMENT-START.md
+@@ -1,6 +1,8 @@
+ # 开发前阅读与行动指南
+ 
+-本页提供开发阅读清单与依赖顺序，不新增产品决定。实际批次状态见[施工计划](IMPLEMENTATION-PLAN.md)和[当前交接](HANDOFF.md)。用户已解除 B03 等待 B02 VERIFIED 的旧门槛，项目管理代码已合入主目录，当前为 `INTEGRATED_LOCAL_VERIFIED`，[最终独立复核](../development/2026-09-12-b03-integration-01/FINAL-INDEPENDENT-REVIEW.md)无开放 P0/P1/P2；businessReady=false，不是外部、部署或整批业务 VERIFIED。B04 为 DESIGN_PREPARED_NOT_ADOPTED，本轮仅准备[交接](../development/2026-09-12-b04-handoff-01/HANDOFF.md)和[下一会话 Prompt](NEXT-TASK-B04-PROMPT.md)，下会话先 Astra 集中采用与接口，再由 gpt-5.6-sol 实现。B02 外部验收按用户决定暂停，未来真实账号验证只使用主账号 A；历史跨账号失败和未完成恢复仍保留。B03 的具体实现与验证边界见[项目管理开发说明](project-development.md)。后续按明确采用的基线完成管理闭环，不要求先实现全部 F01—F15。
++2026-09-13 B04—B06 前置设计已形成[本轮交付](../development/2026-09-13-b04-b06-design-01/README.md)，含架构比较、事务/核心声明、C05/C06、P9及DB/CB验收映射；[独立复核](../development/2026-09-13-b04-b06-design-01/REVIEW.md)已通过，无开放P0/P1/P2。新推荐仍待采用，未开始产品实现或运行验收。B02外部暂停、B03 INTEGRATED_LOCAL_VERIFIED及B04 DESIGN_PREPARED_NOT_ADOPTED保持；B05/B06实施仍TODO。B09仅本轮四项数据兼容问题的静态部分覆盖，完整G1/G2未完成。
++
++本页提供开发阅读清单与依赖顺序，不新增产品决定。实际批次状态见[施工计划](IMPLEMENTATION-PLAN.md)和[当前交接](HANDOFF.md)。用户已解除 B03 等待 B02 VERIFIED 的旧门槛，项目管理代码已合入主目录，当前为 `INTEGRATED_LOCAL_VERIFIED`，[最终独立复核](../development/2026-09-12-b03-integration-01/FINAL-INDEPENDENT-REVIEW.md)无开放 P0/P1/P2；businessReady=false，不是外部、部署或整批业务 VERIFIED。B04 为 DESIGN_PREPARED_NOT_ADOPTED；B04—B06设计已形成顶部所链交付，采用后才交gpt-5.6-sol实施。旧[交接](../development/2026-09-12-b04-handoff-01/HANDOFF.md)和[Prompt](NEXT-TASK-B04-PROMPT.md)保留历史，不自动恢复实施授权。B02 外部验收按用户决定暂停，未来真实账号验证只使用主账号 A；历史跨账号失败和未完成恢复仍保留。B03 的具体实现与验证边界见[项目管理开发说明](project-development.md)。后续按明确采用的基线完成管理闭环，不要求先实现全部 F01—F15。
+ 
+ ## 所有人先读的入口
+ 
+--- a/docs/current/IMPLEMENTATION-PLAN.md
++++ b/docs/current/IMPLEMENTATION-PLAN.md
+@@ -1,9 +1,9 @@
+ # 分批施工 TODO plan
+ 
+ 环境进度：本次接手已直接核实 WSL2 Linux、`/home/xubohan/projects/Repomesh_Go_ver`、Linux 工具路径及桌面项目绑定的 `repomesh-wsl` 主机。此前 SSH、登录恢复和 Windows／Linux 验收保留，见 [SSH 接入记录](../development/2026-09-12-wsl-ssh/README.md)及 [WSL 环境验收](../development/2026-09-12-wsl/README.md)。本次证据见 [B02 接手记录](../development/2026-09-12-b02-preflight/README.md)。
+-更新于 2026-09-12。用户已确认 B02 最小实施包，范围见 [B02 采用记录](b02-authentication-adoption.md)。B00、B01 保持 VERIFIED；B02 保持 IN_PROGRESS，本地单元为 LOCAL_VERIFIED，外部账号验收为 PAUSED_BY_USER。LIVE-09、LIVE-10 的既有 PASS 不重跑；second-account-02 的 LIVE-05 历史 FAIL、LIVE-08 NOT_RUN 与 RESTORE_IN_PROGRESS 保留。未来跨账号 LIVE-05 和 LIVE-08-USER-READ 为 DEFERRED_BY_USER，不计为 PASS；今后真实账号验证只使用主账号 A。状态为 TODO、IN_PROGRESS、INTEGRATED_LOCAL_VERIFIED、DESIGN_PREPARED_NOT_ADOPTED、LOCAL_VERIFIED、VERIFIED、PAUSED_BY_USER、DEFERRED_BY_USER 或 BLOCKED。只有相应验收证据齐全的组可以标为 VERIFIED。
++更新于 2026-09-13。用户已确认 B02 最小实施包，范围见 [B02 采用记录](b02-authentication-adoption.md)。B00、B01 保持 VERIFIED；B02 保持 IN_PROGRESS，本地单元为 LOCAL_VERIFIED，外部账号验收为 PAUSED_BY_USER。LIVE-09、LIVE-10 的既有 PASS 不重跑；second-account-02 的 LIVE-05 历史 FAIL、LIVE-08 NOT_RUN 与 RESTORE_IN_PROGRESS 保留。未来跨账号 LIVE-05 和 LIVE-08-USER-READ 为 DEFERRED_BY_USER，不计为 PASS；今后真实账号验证只使用主账号 A。状态为 TODO、IN_PROGRESS、INTEGRATED_LOCAL_VERIFIED、DESIGN_PREPARED_NOT_ADOPTED、LOCAL_VERIFIED、VERIFIED、PAUSED_BY_USER、DEFERRED_BY_USER 或 BLOCKED。只有相应验收证据齐全的组可以标为 VERIFIED。
+ 
+-B03 已按用户授权完成主目录集成，状态为 `INTEGRATED_LOCAL_VERIFIED`。[最终独立复核](../development/2026-09-12-b03-integration-01/FINAL-INDEPENDENT-REVIEW.md)确认两项 P1、一项 P2 闭环，无开放 P0/P1/P2；真实 PostgreSQL 73/0、前端 28/28、普通/空目录浏览器 25+1、Go/race、HTTP、实际进程恢复与发布通过。新包为 `dist/repomesh-0.3.0-b03-integrated-20260912-r1/`，businessReady=false；不代表外部 GitHub、部署或整批业务 VERIFIED。历史证据与包保留，新证据见[主目录集成 01](../development/2026-09-12-b03-integration-01/README.md)。B04 为 DESIGN_PREPARED_NOT_ADOPTED，本轮止于[交接](../development/2026-09-12-b04-handoff-01/HANDOFF.md)和[下一会话 Prompt](NEXT-TASK-B04-PROMPT.md)；先 Astra 收口采用与接口，再 Sol 实现。
++B03 已按用户授权完成主目录集成，状态为 `INTEGRATED_LOCAL_VERIFIED`。[最终独立复核](../development/2026-09-12-b03-integration-01/FINAL-INDEPENDENT-REVIEW.md)确认两项 P1、一项 P2 闭环，无开放 P0/P1/P2；真实 PostgreSQL 73/0、前端 28/28、普通/空目录浏览器 25+1、Go/race、HTTP、实际进程恢复与发布通过。新包为 `dist/repomesh-0.3.0-b03-integrated-20260912-r1/`，businessReady=false；不代表外部 GitHub、部署或整批业务 VERIFIED。历史证据与包保留，新证据见[主目录集成 01](../development/2026-09-12-b03-integration-01/README.md)。B04 保持 DESIGN_PREPARED_NOT_ADOPTED；B04—B06已形成[本轮前置设计](../development/2026-09-13-b04-b06-design-01/README.md)，独立复核已通过，候选未采用、产品未实现。旧交接/Prompt保留历史，不能自动恢复实施授权。
+ 
+ ## 执行步骤
+ 
+@@ -24,8 +24,8 @@
+ | B01 | VERIFIED | PostgreSQL 连接、显式迁移与版本核查、独立临时数据库验证 | B00；完成实现方案比较 | 真实数据库连接；重复和并发迁移；故障回滚；迁移历史不匹配拒绝；超时；二进制启动与退出；readyz 仍为 503 |
+ | B02 | IN_PROGRESS；外部账号验收 PAUSED_BY_USER，本地验收见[B02 结果](../development/2026-09-12-batch-02/README.md) | GitHub 登录、会话、固定返回目的地、Origin 与 CSRF、仓库发现；含认证秘密基础及 coordinator 持久发现续扫 | B01 已通过；A1 至 A7 及认证所需 S01、S02、S06 子集已明确采用。App 材料、固定 HTTPS 和服务已配置 | 既有 LIVE-09/10 PASS 保留；second-account-02 的 FAIL/NOT_RUN 与恢复中状态保留；未来真实验证只用 A，跨账号项 DEFERRED_BY_USER |
+ | B03 | INTEGRATED_LOCAL_VERIFIED；整批业务未 VERIFIED | 待配置项目创建、读取与列表、资料编辑、明确增仓、固定配置引用与原操作恢复，已实现 | 已授权并完成主目录集成；Astra 规划与接口、Sol 实现 | PG 73/0、前端 28/28、浏览器 25+1、Go/race、HTTP、实际进程恢复和 r1 配套发布通过；最终独立复核无开放 P0/P1/P2，businessReady=false |
+-| B04 | DESIGN_PREPARED_NOT_ADOPTED | 模型与执行配置来源、不可变版本、模型秘密保存和安全终结的候选，未实现 | B03 已本地集成验证；下一会话先 Astra 集中采用与接口，再 Sol 实现 | 本轮只准备交接和 Prompt；采用后验保存/终结互斥、迟到保存不能复活、秘密清理、默认不暗换固定版本 |
+-| B05 | TODO | 模型单次测试、专用应用、预算与时限只读摘要 | B04；补齐 C05 和 C06 字段契约 | 测试未知不重发；快照隔离；只换模型保留 execution；无变化保存不造修订；受限原模型预览不泄露 |
++| B04 | DESIGN_PREPARED_NOT_ADOPTED | 模型与执行配置来源、不可变版本、模型秘密保存和安全终结的候选，未实现 | B03 已本地集成验证；本轮设计附件已复核，待明确采用 | 本轮只做前置设计；采用并实施后验保存/终结互斥、迟到保存不能复活、秘密清理、默认不暗换固定版本 |
++| B05 | TODO | 模型单次测试、专用应用、预算与时限只读摘要 | B04；C05/C06设计已补，待采用和实施 | 测试未知不重发；快照隔离；只换模型保留 execution；无变化保存不造修订；受限原模型预览不泄露 |
+ | B06 | TODO | 手动 Issue 原子创建、必要会话、主 ChangeSet、来源、范围与持久待办 | B05；采用并落实 P9 固定配置绑定 | DB01 至 DB08 和 CB01 至 CB05；任一写入失败全回滚；创建与换配置并发绑定完整版本；不伪造运行接入 |
+ | B07 | TODO | Issue 列表、最小详情、已有会话只读、rooms 分读、SSE 与恢复页面 | B06；收口详情和恢复候选 | 当前完整内容范围核权；分页隔离；401 和失权清缓存；旧响应隔离；SSE 失效通知与快照重读 |
+ | B08 | TODO | 首批管理闭环整体验收与配套发布验证 | B02 至 B07 | 登录、项目、配置、建项、查看、编辑全流程；故障和恢复矩阵；完整工程检查及打包；记录未接入运行状态 |
+@@ -33,31 +33,31 @@
+ | B10 | TODO | G3 与 G4，受限宿主下单仓单轮执行 | B09；全部写入路径与生命周期确定 | 派工、提交、停止、写权限撤销、回收；REST、MCP、shared 旁路验证 |
+ | B11 | TODO | G5，两轮执行与跨仓恢复 | B10；合法换图和部分应用协议确定 | 两轮换图；双仓失败；部分应用恢复；证据、验证和交付一致 |
+ 
+-C05 为项目预算与时限实际参数的只读契约缺口。C06 为原模型受限形状及历史定位缺口。详见[契约审查](../reviews/2026-09-12-project-contracts/README.md)。它们进入 B05 的前置项，不阻塞 B01。历史文档的后端 B01 至 B08 编号与本表的施工批次编号不同。
++C05项目预算/时限摘要和C06原模型受限/历史定位已在本轮候选中补齐设计，尚待采用及真实验收。详见[契约审查](../reviews/2026-09-12-project-contracts/README.md)。它们进入 B05 的前置项，不阻塞 B01。历史文档的后端 B01 至 B08 编号与本表的施工批次编号不同。
+ 
+ ## Astra 前置设计待办与范围
+ 
+-2026-09-13，用户要求将提前设计分工列入必读和计划，并限制各项工作范围。[Astra 前置设计分工](ASTRA-DESIGN-PREPARATION.md)为必读，逐项规定允许内容、排除项、文件／操作边界和交付终点。下列为设计待办，不替代上方实施批次及验收状态；本次仅登记，未完成新的设计或采用具体候选。
++2026-09-13，用户要求将提前设计分工列入必读和计划，并限制各项工作范围。[Astra 前置设计分工](ASTRA-DESIGN-PREPARATION.md)为必读，逐项规定允许内容、排除项、文件／操作边界和交付终点。下列为设计待办，不替代上方实施批次及验收状态；B04—B06实际交付与采用范围见[本轮设计](../development/2026-09-13-b04-b06-design-01/README.md)及[复核](../development/2026-09-13-b04-b06-design-01/REVIEW.md)，其余设计未推进。
+ 
+ | 完成 | 设计任务 | 主要范围与依赖 |
+ | --- | --- | --- |
+-| [ ] | B04，Astra 设计，Sol 后续实现 | 优先收口来源／不可变版本／秘密保存与安全终结，形成接口声明；对齐 B03，不包含测试、应用或 Issue。 |
+-| [ ] | B05，Astra 设计，Sol 后续实现 | 单次模型测试、专用应用及 C05／C06 只读契约；B04 类型与版本确定后定稿，不做预算编辑。 |
+-| [ ] | B06，Astra 设计，Sol 后续实现 | 手动 Issue 原子创建、P9、共享本地用例与待办关系；结合 B04／B05 定稿，不接运行消费者。 |
++| [x] | B04，Astra候选设计完成；Sol待采用后实现 | [设计](../development/2026-09-13-b04-b06-design-01/B04.md)／[复核PASS](../development/2026-09-13-b04-b06-design-01/REVIEW.md)； 优先收口来源／不可变版本／秘密保存与安全终结，形成接口声明；对齐 B03，不包含测试、应用或 Issue。 |
++| [x] | B05，Astra候选设计完成；Sol待采用后实现 | [设计](../development/2026-09-13-b04-b06-design-01/B05.md)／[复核PASS](../development/2026-09-13-b04-b06-design-01/REVIEW.md)； 单次模型测试、专用应用及 C05／C06 只读契约；B04 类型与版本确定后定稿，不做预算编辑。 |
++| [x] | B06，Astra候选设计完成；Sol待采用后实现 | [设计](../development/2026-09-13-b04-b06-design-01/B06.md)／[复核PASS](../development/2026-09-13-b04-b06-design-01/REVIEW.md)； 手动 Issue 原子创建、P9、共享本地用例与待办关系；结合 B04／B05 定稿，不接运行消费者。 |
+ | [ ] | B07，Astra 契约复核，Sol 后续实现 | 最小读取、rooms／SSE 与页面恢复；数据类型依赖 B06，不开放消息发送或完整执行面板。 |
+ | [ ] | B08，Astra 验收设计，Sol 后续执行 | 管理闭环故障／恢复／发布验收矩阵；可先设计，实际验收仍依赖 B02—B07。 |
+-| [ ] | B09-G1，Astra 提前兼容审查 | 定向检查 B04—B06 固定配置将来可被运行端消费；仅交约束与缺口，不等于完整 G1／G2。 |
++| [ ] | B09-G1，Astra 提前兼容审查 | 本轮四问题静态部分覆盖见[兼容审查](../development/2026-09-13-b04-b06-design-01/COMPATIBILITY.md)；实际消费/重启/撤销实验NOT_RUN，完整G1/G2未完成。 |
+ | [ ] | B09 G1／G2，Astra 完整设计，Sol 后续实现 | 固定配置消费、首条消息、可信 MCP、投递／回复及恢复；限最小 Manager 往返，不做 Worker 执行。 |
+ | [ ] | B10 G3／G4，Astra 设计，Sol 后续实现 | 可提前核对上游、比较写入与资源归属方案；与 B09 对齐后定稿单仓单轮执行接口，不做跨仓换图。 |
+ | [ ] | B11 G5，Astra 设计，Sol 后续实现 | 可先推演两轮／双仓失败；基于 B10 写方与生命周期定稿换图、Graph 边界和部分应用恢复，不重写 DAG。 |
+ 
+ 近期设计按 B04、B05／B06、B07 推进；G1 兼容审查应提前参与 B04—B06，完整 B09／B10 可先研究，B11 接口定稿等待 B10 协议。无需等待前置批次全部编码完成才能设计，但实际实施顺序和外部验收门槛保持。独立复核由非主要实现者承担。
+ 
+-每项设计勾选完成时链接其实际交付和复核记录，另列采用／候选／待验证范围；不能将勾选设计完成改写为产品 VERIFIED。纯设计默认仅编辑声明的文档和设计附件，不修改产品代码、迁移或运行配置，不启动服务或执行真实外部调用。完成指定单项后交回，不自动推进相邻批次；具体边界见[单项任务范围](ASTRA-DESIGN-PREPARATION.md#单项任务的工作范围)。
++每项设计勾选完成时链接其实际交付和复核记录，另列采用／候选／待验证范围；不能将勾选设计完成改写为产品 VERIFIED。纯设计默认仅编辑声明的文档和设计附件，不修改产品代码、迁移或运行配置，不启动服务或执行真实外部调用。当前已授权的B04—B06组合完成后交回，不自动推进B07—B11或实现；通常单项边界见[单项任务范围](ASTRA-DESIGN-PREPARATION.md#单项任务的工作范围)。
+ 
+ ## 当前吞吐与文件归属
+ 
+-2026-09-13 补充：前置设计按上节新增待办与[Astra 分工指南](ASTRA-DESIGN-PREPARATION.md)安排；下列“本轮不继续 B04”等文字记录 B03 集成轮次的工作范围。此次只记录后续分工，不执行设计或实现，不改变批次状态。
++2026-09-13 补充：前置设计按上节新增待办与[Astra 分工指南](ASTRA-DESIGN-PREPARATION.md)安排；下列“本轮不继续 B04”等文字记录 B03 集成轮次的工作范围。本轮已执行B04—B06设计，独立复核已通过；未执行实现，不改变上方实施批次状态。
+ 
+ - Blocking first steps. B00、B01 已有证据；B03 已 INTEGRATED_LOCAL_VERIFIED。B02 外部账号验收暂停，本轮不继续 B04；下一会话先收口并集中采用 B04 设计，再实施。真实 GitHub 外部操作不在当前开发步骤中。
+ - Independent workstreams. 主代理维护交接及本轮证据；只读代理独立核对源码、采用范围和跨批依赖；另一模型复核实际文档及证据。
+--- a/docs/current/ASTRA-DESIGN-PREPARATION.md
++++ b/docs/current/ASTRA-DESIGN-PREPARATION.md
+@@ -1,10 +1,12 @@
+ # Astra 前置设计分工与交付要求
++
++2026-09-13 B04—B06 前置设计已形成[本轮交付](../development/2026-09-13-b04-b06-design-01/README.md)，含架构比较、事务/核心声明、C05/C06、P9及DB/CB验收映射；[独立复核](../development/2026-09-13-b04-b06-design-01/REVIEW.md)已通过，无开放P0/P1/P2。新推荐仍待采用，未开始产品实现或运行验收。B02外部暂停、B03 INTEGRATED_LOCAL_VERIFIED及B04 DESIGN_PREPARED_NOT_ADOPTED保持；B05/B06实施仍TODO。B09仅本轮四项数据兼容问题的静态部分覆盖，完整G1/G2未完成。
+ 
+ 记录日期：2026-09-13。用户要求将本次讨论的提前设计安排“记录下来，列入必读和计划”，并明确补充“需要限制工作范围”。本文是后续批次规划、架构、接口声明和实现交接的必读指南；批次编号沿[施工计划](IMPLEMENTATION-PLAN.md)，不使用旧后端交接中同名的 B01—B08 编号。
+ 
+ GPT-6 Astra 负责 B04、B05、B06、B09、B10、B11 的关键前置设计，B07 的契约复核和 B08 的验收设计。gpt-5.6-sol 按已收口设计承担实现，独立复核由非主要实现者承担。这是按本项目任务复杂度确定的分工，不是模型性能评测结论。
+ 
+-本次完成的是分工与计划记录，没有完成新的架构或函数声明，也没有采用 B04、P9 或执行协议中的具体候选。B04 仍为 DESIGN_PREPARED_NOT_ADOPTED，其他批次状态沿施工表。提前设计可以先于前置批次编码完成；实现、运行验证和外部验收仍遵守各自依赖与授权范围。
++最初记录只完成分工；当前B04—B06已交设计附件，复核状态见顶部。仍未采用B04、P9或执行协议中的新候选。B04 仍为 DESIGN_PREPARED_NOT_ADOPTED，其他批次状态沿施工表。提前设计可以先于前置批次编码完成；实现、运行验证和外部验收仍遵守各自依赖与授权范围。
+ 
+ ## 各批提前设计范围
+ 
+--- a/docs/current/HANDOFF-BACKEND-DESIGN.md
++++ b/docs/current/HANDOFF-BACKEND-DESIGN.md
+@@ -1,4 +1,6 @@
+ # 后端开发交接
++
++2026-09-13 B04—B06 前置设计已形成[本轮交付](../development/2026-09-13-b04-b06-design-01/README.md)，含架构比较、事务/核心声明、C05/C06、P9及DB/CB验收映射；[独立复核](../development/2026-09-13-b04-b06-design-01/REVIEW.md)已通过，无开放P0/P1/P2。新推荐仍待采用，未开始产品实现或运行验收。B02外部暂停、B03 INTEGRATED_LOCAL_VERIFIED及B04 DESIGN_PREPARED_NOT_ADOPTED保持；B05/B06实施仍TODO。B09仅本轮四项数据兼容问题的静态部分覆盖，完整G1/G2未完成。
+ 
+ 更新：2026-09-12。先读[开发指南](DEVELOPMENT-START.md)、[当前交接](HANDOFF.md)，再按下表进入唯一设计。旧阶段、通信与完整历史表保留于[09-11 后端交接](../archive/2026-09-12-development-preparation/docs/current/HANDOFF-BACKEND-DESIGN-2026-09-11.md)，不恢复旧任务身份。
+ 
+--- a/docs/current/HANDOFF-PAGE-API-DESIGN.md
++++ b/docs/current/HANDOFF-PAGE-API-DESIGN.md
+@@ -1,4 +1,6 @@
+ # 页面与接口开发交接
++
++2026-09-13 B04—B06 前置设计已形成[本轮交付](../development/2026-09-13-b04-b06-design-01/README.md)，含架构比较、事务/核心声明、C05/C06、P9及DB/CB验收映射；[独立复核](../development/2026-09-13-b04-b06-design-01/REVIEW.md)已通过，无开放P0/P1/P2。新推荐仍待采用，未开始产品实现或运行验收。B02外部暂停、B03 INTEGRATED_LOCAL_VERIFIED及B04 DESIGN_PREPARED_NOT_ADOPTED保持；B05/B06实施仍TODO。B09仅本轮四项数据兼容问题的静态部分覆盖，完整G1/G2未完成。
+ 
+ 更新：2026-09-12。先读[开发指南](DEVELOPMENT-START.md)、[当前交接](HANDOFF.md)和[原型导航](../prototypes/README.md)。累计讨论和旧协作安排见[整理前全文](../archive/2026-09-12-development-preparation/docs/current/HANDOFF-PAGE-API-DESIGN.md)，不要求开发者按历史顺序重读。
+ 
+--- a/docs/current/NEXT-TASK-B04-PROMPT.md
++++ b/docs/current/NEXT-TASK-B04-PROMPT.md
+@@ -1,4 +1,6 @@
+ # RepoMesh 下一任务：审查 B04 精确采用包，再实施配置与模型秘密管理
++
++历史 Prompt 说明（2026-09-13）：本文件保留09-12的实施建议，不构成本轮或后续新任务的自动授权。B04—B06已形成[新的设计交付](../development/2026-09-13-b04-b06-design-01/README.md)；应先读其推荐、采用状态和[复核](../development/2026-09-13-b04-b06-design-01/REVIEW.md)，不重复按旧final附件定稿。本轮仅设计，未启动本Prompt中的实现、迁移、浏览器、打包或外部步骤。
+ 
+ 准备状态：`DESIGN_PREPARED_NOT_ADOPTED`。这份 Prompt 授权下一会话先审查并收口 B04 的精确范围与接口，再按采用结果实现；它不把现有候选整体自动采用。
+ 
+--- a/docs/current/project-development.md
++++ b/docs/current/project-development.md
+@@ -1,4 +1,6 @@
+ # B03 项目管理开发说明
++
++2026-09-13 B04—B06 前置设计已形成[本轮交付](../development/2026-09-13-b04-b06-design-01/README.md)，含架构比较、事务/核心声明、C05/C06、P9及DB/CB验收映射；[独立复核](../development/2026-09-13-b04-b06-design-01/REVIEW.md)已通过，无开放P0/P1/P2。新推荐仍待采用，未开始产品实现或运行验收。B02外部暂停、B03 INTEGRATED_LOCAL_VERIFIED及B04 DESIGN_PREPARED_NOT_ADOPTED保持；B05/B06实施仍TODO。B09仅本轮四项数据兼容问题的静态部分覆盖，完整G1/G2未完成。
+ 
+ 用户已解除 B03 等待 B02 VERIFIED 的旧门槛，项目管理代码已合入主目录，当前为 `INTEGRATED_LOCAL_VERIFIED`，整批未 `VERIFIED`。历史 worktree `/home/xubohan/projects/Repomesh_B03` 为 `LOCAL_VERIFIED`；其证据保留在 `/home/xubohan/projects/Repomesh_B03/docs/development/2026-09-12-b03-01/`。B02 外部验收已按用户决定暂停，未来真实账号验证只使用主账号 A。本文描述已实现机制，当前状态见[交接](HANDOFF.md)，本轮文件集成见[集成证据](../development/2026-09-12-b03-integration-01/README.md)。
+ 
+@@ -50,4 +52,4 @@
+ 
+ 规划、架构与接口由 GPT-6 Astra 完成，实现由 gpt-5.6-sol 执行，未主要实现的模型复核。证据中的两轮私有 helper 事后声明偏差保留，不声称全程满足前置声明流程。B02.6 外部验收与 B03 主目录验证按各自真实结果判定。
+ 
+-B04 为 `DESIGN_PREPARED_NOT_ADOPTED`，本轮只准备[交接](../development/2026-09-12-b04-handoff-01/HANDOFF.md)和[下一会话 Prompt](NEXT-TASK-B04-PROMPT.md)。下会话先由 Astra 完成集中采用及函数接口，再由 Sol 实现；本轮不自动采用 B04 候选。
++B04 为 `DESIGN_PREPARED_NOT_ADOPTED`，09-12轮次只准备[交接](../development/2026-09-12-b04-handoff-01/HANDOFF.md)和[下一会话 Prompt](NEXT-TASK-B04-PROMPT.md)。下会话先由 Astra 完成集中采用及函数接口，再由 Sol 实现；本轮不自动采用 B04 候选。
+--- /dev/null
++++ b/docs/development/2026-09-13-b04-b06-design-01/ACCEPTANCE.md
+@@ -0,0 +1,66 @@
++# 设计验收映射
++
++状态：PLAN_ONLY / ALL_RUNTIME_CASES_NOT_RUN。本轮检查的是声明和规则之间的对应关系；下表全是后续实施验收，未启动数据库、服务、浏览器、容器或模型。不能将行数/静态检查通过代作业务通过。测试时使用实施者自有临时数据库、受控HTTP/TLS记录端点和明确故障点；真实外部验收另获授权。
++
++## B04
++
++| ID | 条件/故障注入 | 独立观察与预期 |
++| --- | --- | --- |
++| S01 | 同actor/key、同输入20并发 | SQL计数仅一Provider revision/完整snapshot组/业务secret/vault/receipt；所有确认响应指向同结果。 |
++| S02 | 同key不同Key/输入，业务Key后来撤销 | 独立vault按旧schema精确比较，异输入409；不把秘密撤销当输入相等或重建依据；Key不出日志。 |
++| S03 | 每个写入阶段失败，包括secret插入后 | 最终业务、秘密版本、availability、目录和receipt全回滚；root.wrap_count预扣保留，无负退款。 |
++| S04 | save先提交、close后；close先提交、迟到save后 | 第一种close原committed；第二种唯一closed，迟到save409且无新secret/provider。并发双close时间相同。 |
++| S05 | 包装根切换/退役在Prepare与Insert之间 | exact prepared root重核；不偷偷换root或在持业务锁时reserve；失败无半套，关闭无需解密。 |
++| S06 | vault根暂缺、整个服务冷启动根缺 | 运行中比较503保留原槽；正常认证可close空槽；现有冷启动拒绝时需恢复根再原键查询，不声称API存活。 |
++| S07 | COMMIT成功但HTTP丢失、一次GET先404 | 主库最终原receipt；原key一直保留；close若取胜也阻止晚保存，不能自动新key。 |
++| S08 | 清理原操作、跨actor、旧钥请求重放 | 当前无权隐藏404；有权removed410且无vault/正文/digest；Provider业务secret不因receipt清理销毁。 |
++| S09 | 导入schema1正常、重放旧版、同ID/version异内容 | 同key回原receipt；新key重列旧版不倒退head；异内容全回滚；新默认明确可钉旧版。 |
++| S10 | 多owner导入与Provider保存并发 | 先import单例→sorted accounts→catalog，不出现catalog回拿owner；账户/默认归属不串写。 |
++| S11 | 非部署角色/manifest自报actor/冷启动无App配置 | 角色不符拒绝；manifest未知字段拒绝；有效DB部署身份可用独立CLI导入，不调用auth runtime。 |
++| S12 | 未完整execution/旧null默认、新pinned默认 | 固定C1不变；旧null保留原解析语义；v1不能充当B06完整配置。 |
++
++## B05
++
++| ID | 条件/故障注入 | 独立观察与预期 |
++| --- | --- | --- |
++| T01 | 预览到期/政策变化/不同key复用preview | 新提交409且不预留；原接受操作先重放；消费唯一保留。 |
++| T02 | 注册每阶段失败、同actor多key竞争 | test/work/preview/reservation/outstanding全同事务；最多一未核责任，存在原可读test定位。 |
++| T03 | 许可commit前、commit回执丢失、确认后发送前崩溃 | 前者可重新处理未许可记录；后两者保守unknown、记录端点零或一次，永不从DB恢复发送许可。 |
++| T04 | 发出请求后丢响应/旧lease失效/重启 | 原externalOperation稳定；端点计数不增加，unknown不退款、不自动新请求。 |
++| T05 | 真实调用开始、HTTP成功/明确错误/超时 | running只在发送观察后；passed/failed有独立响应证据；超时unknown；费用金额始终null。 |
++| T06 | 旧provider head更新、原secret失效、DNS/private/redirect | 已登记test只用原snapshot；不可用拒绝/unknown，不换新Key；受控端点证明无越界请求/重定向/重试。 |
++| T07 | UTC换日、降低额度/换政策、unknown跨日 | 原window消费，counter不重置；新日不清actorOutstanding；当前remaining不能凭缺行填0。 |
++| T08 | 运维关unknown缺证据/有撤销证据 | 缺证据保持open；已确认旧发送能力撤销才closed_without_result，state仍unknown、预算consumed。 |
++| T09 | 迟到旧generation响应/失权/30日清理 | 只登记相同external op证据，当前reconciler采纳；不覆盖新test；失权不披露；清理不丢未核责任。 |
++| A01 | execution默认C1→C2后应用模型 | SQL fixed JSON中execution选择/版本/参数完全等于原项目；不用当前default。 |
++| A02 | 同模型同reference/版本；inherit→同模型reference | 前者no-op保留三修订和稳定回执；后者选择依据变化产生一新配置。 |
++| A03 | 应用与项目PATCH/Provider保存交错 | project→Provider→catalog固定偏序；CAS冲突全回滚，原操作重放优先。 |
++| A04 | 原模型受限/未配置/可读但disabled | C06三分支精确；受限无ID泄露且不阻止修复；可读只取指定snapshot，不取latest。 |
++| A05 | execution材料无法确认与已知当前不可用 | 无法确认canApply=false；已知固定历史但不可用可受限保存，仍完全保留execution。 |
++| C05 | 固定policy历史、无可信window、政策停用 | GET fixedSummary与effective同revision；未知不填0；historical available不等于可执行；GET不写表。 |
++| C06 | 快照迟到/切actor/查询失权 | 前端按actor+目标+代次核对，不移植旧preview/测试；只读受限立即清敏感数据。 |
++
++## B06
++
++| 既有编号 | 输入/交错与注入点 | 独立观察与本方案覆盖 |
++| --- | --- | --- |
++| DB01 | 20个同key同规范输入 | 一operation/Issue/mainCS/必要会话/来源/card/blocked work/创建事件；其余200或503后原查200；U06.1/3。 |
++| DB02 | 同key不同规范输入并发 | 仅赢家输入持久，其他409或未知核查；正文不能后到覆盖；保留文本、验收顺序、repo集合规范；U06.3。 |
++| DB03 | b06 transactionPhase每写点失败及COMMIT约束失败 | 主库无半套聚合/工作；故意提交孤operation、孤Issue、空scope、错mainCS均拒绝；U06.1/3。 |
++| DB04 | 丢HTTP响应、一次查询先于提交 | UI冻结原key/body，404仍未知；最终唯一原三ID与回执；U06.4。 |
++| DB05 | 配置CAS和建项交错、再重放 | 锁后条件相同才提交，冲突409；重放不核新条件；对应CB02；U06.3。 |
++| DB06 | 关联已有会话时扩大内容scope/撤权 | 卡片与scope原子；旧观察先回滚再核全范围；原结果读取不凭旧小scope披露；U06.2/3。 |
++| DB07 | B03部分仓失权后修复模型；明确加仓之一失败 | 原project仓全集保留；应用无需旧仓全读权；添加失败无局部配置/范围变更。必须运行B03回归，不能用Issue测试替代。 |
++| DB08 | 清理后原key任意合法正文、并发迟到创建 | 同tx清正文/digest/派生、保留pin/范围/墓碑；new仅清仍派生的标题，existing/独立改名保留；有权410先于比较，无权404；旧key零新Issue；work只转cancelled/CONTENT_REMOVED且保留cause，不能删/反向复活。 |
++| CB01 | 成功、每步失败、丢回执 | operation与Issue同一initial config，work经Issue可追；失败全无；原查询同配置。 |
++| CB02 | create先拿project锁/应用先拿锁/no-op应用 | 前者Issue钉C1；后者旧context409，刷新新输入才能C2；no-op不换修订。 |
++| CB03 | 项目切C2后清进程缓存、重启只读恢复 | SQL work→Issue→C1取得同model/params/secret/version，仍blocked；不调用真实消费者、不证明G1。 |
++| CB04 | 空pin、跨project pin、operation错pin、改初始pin | NOT NULL/复合FK/immutable与延迟一致性在DB拒绝；再用Alice项目/Bob profile、篡改fixed.secret/执行参数证明归属/物化一致性拒绝；无nullable新行例外。 |
++| CB05 | 缺材料的项目受限保存、SecretVersion撤销、删除被引用配置 | B03保存仍可受限；新Issue失败无聚合；历史配置删除RESTRICT；旧Issue pin保持且接续blocked。 |
++| I06 | 用户读权/App能力观察过期、connection epoch变、锁等耗尽 | 最终DB时钟核60秒与代次；回滚后重核；unknown503不冒充denied；不持锁网络。 |
++| I07 | supplied repositoryAnalysisId、同名不同key、new/existing会话 | 无分析来源不静默丢ID，新输入404；同名两独立Issue；已有会话不改名/造消息；new才创建必要会话。 |
++| I08 | 原结果存量内容scope大于新请求scope、结果已removed | 按存量完整scope核权，removed有权410先正文比较；scope不由新输入驱动。 |
++
++## 跨批交付门槛
++
++实现验证必须按实际函数、事务和存储运行；真实模型请求另行授权。B02 外部暂停不被此矩阵解除。B03全量原回归是U04.1/U05.3/U06.3集成门槛；最终readiness仍区分管理面可创建与运行未实现。文档/声明校验结果单列在 checks.json，不能填进上述业务用例的“通过”。
+--- /dev/null
++++ b/docs/development/2026-09-13-b04-b06-design-01/B04.md
+@@ -0,0 +1,30 @@
++# B04 设计交付
++
++状态：DESIGN_RECOMMENDATION_NOT_ADOPTED。源码核对完成；实现与运行验收未开始。新规则唯一维护于[来源 §8](../../current/backend-first-batch-sources-draft.md#8-b04-来源收敛候选2026-09-13)和[模型内部 §7](../../current/backend-model-operations-draft.md#7-b04-保存事务收敛候选2026-09-13)，HTTP 沿[模型字段稿](../../current/model-settings-browser-api-draft.md)。[D01—D04 比较](DECISIONS.md)解释对旧候选 A、B、中断 final 的选择。
++
++用户路径是保存一个自己的供应商完整快照，再查询这次保存；未知时明确安全终结原槽位。部署人员只登记执行元数据及显式固定默认。没有模型请求、测试、专用应用、Issue 或运行接入。
++
++## 调用链与声明
++
++[b04.go.txt](b04.go.txt) 为 Go 声明，[frontend.ts.txt](frontend.ts.txt) 的 B04 部分为 TS 映射，均只存附件。当前 Web 使用 `registerProjects` 注册模式，新增 models 注册沿同一方式。入口注入 pool、access、secrets 和 projects.CatalogWriter；models→projects/access/secrets，sources→projects；projects 不反向依赖 models/sources，内部包不依赖 cmd。
++
++| 调用者 | 入口和责任 | 成功／失败后的持有者 |
++| --- | --- | --- |
++| 模型设置页 | Save(principal, command)，严格信封与完整模型输入；唯一用例持事务 | 确认提交后回原结果；不确定由原 saveId 继续查询／close，不能换键 |
++| 恢复页 | GetSave / CloseSave，当前身份与目标 owner，每次重新核验 | close 与 save 同 account/槽位；已提交不撤销；无槽持久终结后阻止迟到保存 |
++| models 私有写路径 | prepareSave 在锁外；commitSave 在 tx 内；replaySave 先墓碑／closed 再旧比较器 | prepared 临时材料由本请求清理，独立预扣不退款；已提交 vault 由模型维护负责 |
++| projects 目录写口 | 在已持 catalog 写锁的 caller tx 中登记模型或执行版本及默认 | 不独立提交、不更新既有项目；目录映射与业务来源原子一致 |
++| 部署 CLI | Import / Get，deployment 身份不来自 JSON | 原 importId 稳定回执；同键同输入优先当前 head/owner 重校验 |
++| 受控维护 | RemoveSaveResult，目的隔离的 DestroyInTx | 操作墓碑和权限归属永久防旧键复活，业务秘密不随操作清理销毁 |
++
++内部 Prepare/InsertPrepared 的分离是密码学预扣的需要，不向浏览器暴露分步保存。已在权威记录中绑定的 owner/purpose 是输入解密依据，不能接受浏览器自报秘密引用。
++
++## 数据与实现拆分
++
++模型表、源导入和默认扩展见[迁移设计](migration-design.md)。B04 保留 B03 现有配置 JSON 字节与修订；新增关联定位旧配置无法证明的材料时返回受限，不能补造 runtime 参数。旧 import 候选的全量政策纳入与多 owner 已由 D04 推荐裁减，B05 使用新的 schema 2 扩展，不向 B04 偷加数值预算。
++
++采用 D01—D04、B04 HTTP/Key UI 范围后可交 Sol：U04.1 事务内秘密接口及认证回归；U04.2 Provider/目录/保存/close；U04.3 执行导入；U04.4 六端点及浏览器恢复。按此顺序交付，每项只填附件已声明的职责。U04.2 等待 U04.1，前端真实联调等待六端点。不能把原型或空目录转为假配置。
++
++## 验收与待验证
++
++完整用例见[验收矩阵 B04](ACCEPTANCE.md#b04)。同键20并发、异Key、root预扣/插入竞争、保存与close两种赢家、提交后丢响应、墓碑、跨主体和不能取消的晚到响应均须有真实本地验证。此次没有执行。输入 vault 保留期、部署身份实际认证装配和备份权限在实施前按本方案落实；没有以 root 存在推断密文可解密或供应商接受 Key。
+--- /dev/null
++++ b/docs/development/2026-09-13-b04-b06-design-01/B05.md
+@@ -0,0 +1,28 @@
++# B05 设计交付
++
++状态：DESIGN_RECOMMENDATION_NOT_ADOPTED。依赖 B04 精确版本、秘密及目录写入；无需等待 B04 编码即可审阅，本轮未实现。唯一规则为[来源 §9](../../current/backend-first-batch-sources-draft.md#9-b05-必要政策来源候选)、[模型内部 §8](../../current/backend-model-operations-draft.md#8-b05-测试应用及只读投影收敛候选)、[C05](../../current/first-batch-browser-api-contract.md#10-c05-固定预算时限摘要候选)与[C06](../../current/model-settings-browser-api-draft.md#81-c06-原模型的完整分支)。[D05/D06](DECISIONS.md)比较预算、应用和摘要方案。
++
++## 调用者与责任
++
++用户先为已保存的单模型建立预览，明确可能收费，再登记一次测试。Web 只登记，coordinator 的 TestRunner 负责一次发送和原操作观察。SendPermit 必须来自本进程一次确认提交的事务，无法从数据库恢复成再次发送许可。证据不足时费用为未知，GET 不发送请求。
++
++用户应用模型时预览候选与项目旧固定配置，ApplicationService 持一个事务，projects.ReplaceModel 完整保留 execution。无实际变化仍写稳定回执并消费预览，不制造修订。C05 随项目 GET 返回固定参数，C06 给可读原模型的历史定位；受限原模型不阻止配置修复。
++
++[b05.go.txt](b05.go.txt) 和 [frontend.ts.txt](frontend.ts.txt) 提供类型及声明。modelbudget 是两个真实消费者共用的有限 request 记账模块，只承担窗口、预留和保守消费；无金额结算、调度或网络。models/最终用例依赖它，它依赖 projects 中的政策值类型；projects 通过组装注入窗口初始化和同事务只读额度观察函数，不反向导入 modelbudget。函数只接 caller tx，不自行提交或外发。
++
++| 入口 | 输入／输出及失败责任 |
++| --- | --- |
++| TestService.Preview / Submit / Get | 固定目标、预览、testId及收费确认；错误不自动重发，202只是持久登记 |
++| TestRunner.authorizeOneSend / sendOnce | 锁后再核权限/秘密/政策；事务内消费1次，提交未知不发送，进程重启只核查 |
++| recordObservation / reconcile | 只采纳同 test/externalOperation 的白名单事实，迟到者无权覆写正式状态或新操作 |
++| ApplicationService.Preview / Apply / Get | 原项目、configuration、execution与候选CAS；重放优先于期限；冲突整笔不改配置 |
++| projects.ReplaceModel | caller持项目及目录锁；原 execution 全量复制，比较后no-op或新修订 |
++| modelbudget.Store | 同 tx 接受/消费/释放；只有可证明未发送才能释放，UTC换日不清未核责任 |
++
++## 可交实现单元和条件
++
++U05.1 采用 S05 后，schema2 政策与窗口/预览持久化；U05.2 测试登记和受控单次 transport；U05.3 专用模型应用；U05.4 C05/C06与浏览器恢复。测试出站必须先通过 URL/DNS/限制映射、一次许可和未知恢复的本地验收，之后另获真实模型调用授权才做外部验收。项目运行消费者不在这些单元。
++
++B06 依赖完整 execution 版本和可核查的运行请求窗口；B04 v1元数据不能填默认数值满足这一依赖。模型保存与应用不以近期测试通过为门槛。实际预算单位、推荐数值、政策导入、C05/C06字段尚需用户采用。
++
++成功、并发和失败场景见[验收矩阵 B05](ACCEPTANCE.md#b05)。本轮没有模型调用、账本运行或 HTTP 验收。单次 permit 限制本地重发，并不保证供应商内部计费次数；最大货币费用仍未知。
+--- /dev/null
++++ b/docs/development/2026-09-13-b04-b06-design-01/B06.md
+@@ -0,0 +1,25 @@
++# B06 设计交付
++
++状态：DESIGN_RECOMMENDATION_NOT_ADOPTED。沿用已采用手动创建契约与原子关系；P9、具体约束及 S06 观察细化待采用。HTTP 唯一来源为[创建契约](../../current/issue-page-create-api-contract.md)，新增规则唯一在[持久化 §7](../../current/backend-first-batch-persistence.md#7-b06-创建事务收敛候选2026-09-13)和[绑定 §8](../../current/issue-configuration-binding-design.md#8-b06-p9-约束细化候选2026-09-13)。
++
++## 职责与调用链
++
++页面 → web.issueHandler → issues.Service.CreatePage → access 当前主体/仓库观察 → projects 当前固定配置 → 单个 caller-owned tx 写完整聚合 → 确认提交回执。GetPageCreation 复用同一原操作和当前完整内容授权投影。issues 依赖 projects/access/modelbudget，后者不依赖 issues；不新建泛用 unit-of-work 或 Manager transport。
++
++[b06.go.txt](b06.go.txt)声明外部方法、opaque 输入/观察、聚合结构和架构私有 helper；[迁移设计](migration-design.md)落实数据库组合外键、不可改字段、原子完整性。Go 内部结果携 pin，但 HTTP 投影不增加字段。字段及前端恢复映射见[TS 声明](frontend.ts.txt)。
++
++| 调用者 | 输入/输出与事务 | 失败与接续责任 |
++| --- | --- | --- |
++| 创建表单 | Options/Conversations 当前有权候选；不写 Issue | 未知权限503，令牌变化409；不静默选仓 |
++| 页面提交 | CreatePage(principal, opaque PageCommand)，Service 拥有短事务 | 首次201、重放200；其他错误不保存 rejected；提交未知原键查 |
++| 恢复定位 | GetPageCreation，仅项目/actor/issue_page/key | 当前完整结果读权，hidden404/未知503/正文removed410；404不释放键 |
++| 私有核权 | 探测身份/范围 → 外部观察 → 锁后重比 | 失效退出锁后重核，旧操作使用旧结果范围，不用新请求范围 |
++| 维护 | 清正文与操作 tombstone 同事务 | 取消本批明确未外发待办，保留scope/pin/关系；无HTTP删除接口 |
++
++## 实现单元与前提
++
++采用 D07/P9 和 S06，并完成 B04 不可变模型闭包、B05 完整 execution 政策与 C05 有限额度后，可交 Sol：U06.1 数据约束迁移及 DB/CB 数据库验证；U06.2 options/会话候选与当前完整内容观察；U06.3 本地创建/原查询/清理；U06.4 四端点与冻结原操作的页面恢复。必须先 U06.1，再持久接收首个 Issue；U06.2 与 U06.3 可在明确文件归属下准备，集成前全部核对同一偏序。
++
++[验收矩阵](ACCEPTANCE.md#b06)逐项映射 DB01—08、CB01—05。DB07 专门保护 B03 配置修复/增仓语义，不替换成另一个 Issue 成功测试。CB03 只验数据库重启追溯和真实 blocked；没有运行消费者、真实模型往返或 G1/G2 通过结论。
++
++尚无 adopted P9 迁移，也没有实施/本地运行验收。本批输出可审查方案；不接 Manager、消息、分析、运行消费者、计划、Worker、历史批修、B07 详情和完整SSE。
+--- /dev/null
++++ b/docs/development/2026-09-13-b04-b06-design-01/COMPATIBILITY.md
+@@ -0,0 +1,32 @@
++# B04—B06 最小运行兼容审查
++
++状态：STATIC_PARTIAL_COVERAGE。Sol/high定向读取，Astra复核决定架构的类型、reconcile、gateway及脚本。当前本地 AgentTeams HEAD `517caff9280242a00a4d4c06365352b9e41659c6`，main、嵌套工作树干净；未fetch，不称今日远端最新。两份09-07调研锁定 `eeaab64391ccaec9118e84977f538aefd40720d6`。来源和所读文件内容哈希见[source-evidence.json](source-evidence.json)。
++
++## 四项覆盖
++
++| 问题 | 锁定源码/历史事实 | 本轮设计要求与未验证项 |
++| --- | --- | --- |
++| Issue能否定位完整参数/秘密版本 | [ManagerSpec](../../../third_party/AgentTeams/agentteams-controller/api/v1beta1/types.go)约642行只有model/provider，无Issue/configRevision/secretVersion；[启动脚本](../../../third_party/AgentTeams/manager/scripts/init/start-manager-agent.sh)637—719按名称/env推导参数，已有ID模型只补缺。 | RepoMesh必须保存 Issue→配置修订→modelProfileVersion→完整snapshot/secretVersion，execution亦固定政策。上游不能替代此闭包；实际请求消费仍NOT_RUN。 |
++| 普通讨论和正式Issue归属 | [会话专题](../../current/conversation-issue-separation-design.md)允许一会话多个Issue；[消息目标](../../current/conversation-message-target-design.md)可no_work。[TeamHarness](../../../third_party/AgentTeams/plugins/teamharness/mcp/server.py)普通回复禁projectflow，但创建source/requester由调用者提供。 | 普通持久请求与正式Issue分别固定配置；目标未确认不得套“最近Issue”。本轮只保留边界，不定义消息受理/MCP或可信runtime。 |
++| 重启读取同版 | [reconcile](../../../third_party/AgentTeams/agentteams-controller/internal/controller/manager_controller.go)134—160读当前Spec；[配置发布](../../../third_party/AgentTeams/agentteams-controller/internal/controller/manager_reconcile_config.go)14—41覆盖当前共享配置。 | 重启读work→Issue→initialConfigurationRevision。重建Manager只收敛当前共享Spec，不能证明旧Issue仍用C1。CB03仅本地持久追溯待验。 |
++| 秘密撤销后禁止fallback | [provisioner](../../../third_party/AgentTeams/agentteams-controller/internal/service/provisioner.go)733—743先AuthorizeAIRoutes空provider；[Higress](../../../third_party/AgentTeams/agentteams-controller/internal/gateway/higress.go)181—194空filter授权全部；[Aliyun](../../../third_party/AgentTeams/agentteams-controller/internal/gateway/aigateway.go)180—186空值回退全局。非空provider后来再收窄，清空则保持全路由。 | 上游Manager consumer不是秘密版本隔离边界。新动作查原secret当前可用性，失效blocked；已可能发送只核原操作，无新Key重发。真实撤销/隔离实验NOT_RUN。 |
++
++这些源码足以否定“设置共享Manager当前model/provider即可实现每Issue绑定”的设计推断，尚不足以给出完整运行Adapter或G1/G2方案。本轮未设计这些内容。
++
++## 历史实测的证明范围
++
++[CFG-05报告](../../../validation/agentteams-2026-09-10/reports/manager-config-live.md)在517caff9镜像中证明共享Manager配置切换重建进程并改变内存active model；错误provider保留旧配置，显式清空恢复默认chat。不是并发Issue隔离或完整参数实际消费。主设计本轮重读该报告，未重跑。
++
++[单次模型smoke](../../../validation/agentteams-2026-09-10/reports/manager-model-smoke-new.md)另证明一条默认chat Matrix推理与usage；未观察工具。不是完整参数、provider秘密版本或重启隔离验收。旧Worker凭据撤销实验以eeaab643为基线，只说明不同凭据面撤销速度不同，不能推成模型Key撤销。历史入口见[骨架证据索引](../../current/scaffold-agentteams-evidence.md)。旧FAIL/NOT_RUN/RESTORE_IN_PROGRESS原始记录不改写。
++
++## 后续有界实验，全部 NOT_RUN
++
++| 实验 | 条件及观察 | 启动前提/归属 |
++| --- | --- | --- |
++| E01 持久闭包 | 自有临时DB建立C1/S1与C2/S2，先后创建A/B；重启只读恢复查询，逐字段核参数及secretVersion；非法空/跨项目/混pin由DB拒绝。 | B04—B06实施后，采用P9；本地CB01—05，不需真实模型。 |
++| E02 普通讨论归属 | 同会话no_work/A/B输入，记录正式目标解析前后及各自pin。 | 消息受理/目标解析协议采用并实施后；超本批，不借此标B08完成。 |
++| E03 实际消费 | 两个自有记录端点与不同测试凭据，交错A/B、切当前项目配置并重启；观察实际模型、参数、secretVersion映射。 | 未来G1消费者设计与授权；本批不设计Adapter或执行。 |
++| E04 撤销无fallback | 受理A后外发前撤销S1，S2/默认仍可用；A blocked且零出站，B继续；已可能发送分支只核原操作。 | 未来运行边界；另授权环境，绝不使用真实秘密做本轮探测。 |
++| E05 上游授权机制 | 自有517caff9隔离实例观察P1绑定、清空、重启前后route授权，不做付费推理。 | 独立实验授权，仅验证上游fallback；不等于G1/G2。 |
++
++B09提前审查仅覆盖本轮四问题的数据限制。完整G1/G2、真实Manager往返、MCP、执行Adapter和后续Gate均未完成。
+--- /dev/null
++++ b/docs/development/2026-09-13-b04-b06-design-01/DECISIONS.md
+@@ -0,0 +1,35 @@
++# 方案比较与推荐
++
++状态：DESIGN_RECOMMENDATION_NOT_ADOPTED。Astra 负责综合。既有采用规则直接沿用；本表 D01—D08 是需本轮交回用户取舍的新推荐，不能据本文件开始实现。
++
++| 决定 | 方案 A | 方案 B | 推荐、适配成本和替代关系 |
++| --- | --- | --- | --- |
++| D01 目录归属 | 将 B03 配置解析迁至新 configurations 包，models/sources/projects/issues 全部依赖它 | 保留 projects 对目录和项目固定配置的所有权，新增有限的事务内目录写入／配置读写接口；models/sources 不复制解析器 | 推荐 B。现有表、私有 fixedConfiguration 和 B03 调用集中在 projects；B 可少搬迁现有稳定代码。跨包入口必须完成一个目录登记或项目配置变更，不能暴露一串 SQL setter。A 更适合将来确有独立配置消费者后评估，本轮不预铺通用配置服务。 |
++| D02 秘密比较 | 候选 A 的随机 MAC key＋InputVault，命中 MAC 后精确比较 | 一个独立目的的加密完整规范化输入 vault；解密后精确比较，keep 保存非秘密规范化输入 | 推荐 B。两者都能精确比较且不绕过业务 Key 吊销；B 少一个秘密版本及一次包装，无裸 Key 哈希。每次 replace 成功有业务密文＋vault 两份，清理分别归属。替代旧内部稿 §3.1 MAC 方案及旧 A，收敛中断 final 的方向。 |
++| D03 秘密事务 | 继续 Seal 独立提交，业务失败后清理孤儿 | Prepare 在无业务锁时预扣包装并加密，InsertPrepared 加入用例事务 | 推荐 B，沿旧 A/final。A 会留下可见的半套秘密及恢复责任，不能满足保存原子性。B 复用现有 envelope/AAD/计数，保留现有认证 Seal API；后续仅其内部复用新方法，不重写认证协议。 |
++| D04 来源和默认 | 原 S03 全量多 owner 清单同时启用 App/预算/出站/容量 | B04 schema 1 每项单一 owner 的私有执行元数据（清单可有多个 owner，排序锁定）；B05 schema 2 增加必要不可变时限／次数政策和出站登记 | 推荐 B。不引入共享 Provider 和配置后台。B04 允许材料不完整的固定版本，B05 补全必须新 execution version。默认绑定显式 pinned_version；旧 null 默认保留 B03 历史语义，新导入不允许 null。替代 S03/S04 对 B04 的全量采用推断，不撤销 B02 App 配置渠道。 |
++| D05 测试预算和外发 | 金额预算＋报价／用量核算；进程恢复自动尝试完成一次请求 | 有限 request 次数，单 testId 仅一张发送许可；可能发送后只核查 | 推荐 B，沿 S05/M04—06 候选。金额仍未知，不能承诺最大货币支出。5分钟预览、≤16输出 token、20次/UTC日、最多1笔未核责任及30秒请求期限均需明确采用；配置中必须写值，不自动填示例默认。关闭未知仅在旧发送者能力已撤销有证据时，由受控维护用例审计完成。 |
++| D06 应用与摘要 | 复用完整 PATCH；另查策略服务拼摘要；原模型用 null 占位 | 专用应用复制 execution 原绑定和参数；项目 GET 内返回 C05 固定摘要；C06 可读/未配置/受限分型 | 推荐 B。满足已采用的 F04 目标，避免 execution 默认漂移及跨请求混版本。新增 HTTP 只读字段仍待采用，唯一字段分别归首批契约和模型契约。 |
++| D07 P9 绑定 | Issue 自带完整配置副本，或按创建时间推定项目版本 | Issue 非空复合外键引用既有 ProjectConfigRevision，操作内部结果同版本 | 推荐 B，沿 P9。副本会制造两处权威配置和秘密保留责任；按时间推断没有事务证明。数据库约束验证同项目、一致结果、不可改写；不向既有创建 HTTP 增加字段。 |
++| D08 Issue 关系与事务 | 多模块各自保存会话、Issue、CS，再补偿 | issues 共享本地用例持有一个短事务；在该模块内保存必要业务关系和待办、事件 | 推荐 B，具体物理约束为本轮新推荐；原子业务范围本身已采用。首批不建通用会话/消息/工作流框架；将来真实消息实现再按稳定关系分包，不允许当前独立事务。 |
++
++## 直接沿用的决定
++
++B02 信封加密与包装根分离；B03 owner-only、完整范围保留、显式双配置重解析、不可变修订和原回执、当前核权；F04 只换模型并保留 execution；Issue P1 原子范围、创建 201/重放200、唯一原键、清理占位、完整内容范围核权；ADR-0013/0016/0019 的进程与对象边界。模型 M/S 候选的具体协议、P9 与 C05/C06 仍未采用。
++
++## 关键冲突的定点处理
++
++- 旧 A 在 owner 后锁 import 单例，中断 final 改为单例先行。采用推荐：所有导入先取单例，查原键后才按 owner ID 排序锁账户；交互事务永不取该单例，导入持有它时也不取 binding/session/project，消除倒序。
++- 原模型内部稿用业务 SecretVersion 比较成功 replace，业务 Key 停用后会影响原操作比较。D02 vault 有独立 owner/purpose，任何调用方都不能将 vault 当模型凭据。
++- 原 final 用不存在的 web.Server 接收者声明 handler。当前源码用 registerProjects + ServeMux；本轮声明沿当前注册方式。
++- 原来源默认包含 version，但 B03 defaults 只存 ID，resolver 读取 head。本轮新增 pinned_version，保留旧 null 的历史读取，显式新导入固定版本。
++- B04 v1 执行材料无预算/时限，不能通过 B06。B05 v2 增加新不可变执行版本与政策来源，禁止 UPDATE 旧 profile_versions 或 fixed JSON 补值。
++- B03 inspectProfile 固定 INTEGRATION_NOT_AVAILABLE 是已实现阶段事实。B05/B06 增加管理条件投影，只有完整材料与当前观察通过才允许新建；运行接入状态不混入配置材料完整性。
++
++## 本次取舍的停止点
++
++推荐已足以审阅和拆分实现任务；仍需用户明确采用 D01—D08 中的新产品选择，尤其 D04、D05、D06、D07。当前不执行实现。若拒绝次数预算，B05 测试额度及 C05 预算分支、B06 预算门槛一起退回设计；不得只改页面单位。
++
++补充 S06 推荐：B06 新建所选仓库最低 Metadata read、Contents write、Pull requests write；用户与App观察均在提交前60秒内。它是待采用门槛，原结果查询只需要当前完整内容读权。若选择不同能力/时限，access观察、options和创建最终检查须一起调整。
++
++D05的处理器可用性补充亦待采用：有限coordinator handler登记/60秒租约/20秒续期，只用于新测试资格；不将租约到期作为旧发送者能力撤销证明。首批apiFormat仅openai_chat_completions，扩展协议另审。
+--- /dev/null
++++ b/docs/development/2026-09-13-b04-b06-design-01/PLAN.md
+@@ -0,0 +1,26 @@
++# B04、B05、B06 本轮设计计划
++
++状态：DESIGN_COMPLETE_CANDIDATE_NOT_ADOPTED。2026-09-13。主设计 Astra，目标 effort=xhigh；三个只读调研明确路由 gpt-5.6-sol / high。当前任务授权优先于旧 Prompt 和技能默认实现流程。
++
++- [x] Ground：环境、基线、既有候选及源码调用链核对。内容版本见 baseline.json；调研和关键证据由主设计复核。
++- [x] Sketch B04：来源、版本、秘密保存与安全终结，比较实际不同的方案，写唯一专题及声明。
++- [x] Sketch B05：单次测试、专用应用、C05/C06，复用 B04 的版本和秘密基础。
++- [x] Sketch B06：P9、原子创建、约束、恢复、DB01—08/CB01—05。
++- [x] Agree：已交付推荐与待采用选择；用户尚未采用，不把本轮设计授权当产品采用。
++- [x] 独立复核及结构检查，闭环本轮问题，更新实际设计待办。[复核PASS](REVIEW.md)，[实际检查](checks.json)。
++- Implement：本轮排除。
++- Scrap：若证据推翻候选，在文档中修订，不写临时产品实现。
++
++## 文件编辑归属
++
++主设计唯一编辑者。Sol 调研只读，不拥有产品或文档写权限。独立复核者不参与设计附件编写。
++
++| 单元 | 可编辑文件 |
++| --- | --- |
++| 全轮附件 | 本目录 README.md、PLAN.md、baseline.json、initial-status.txt、source-evidence.json、original-documents.zip、SOURCE-AUDIT.md、DECISIONS.md、B04.md、B05.md、B06.md、b04.go.txt、b05.go.txt、b06.go.txt、frontend.ts.txt、migration-design.md、ACCEPTANCE.md、COMPATIBILITY.md、REVIEW.md、checks.json、verify-design.py、changes.diff、output-manifest.json |
++| B04 唯一专题 | docs/current/backend-first-batch-sources-draft.md、backend-model-operations-draft.md、model-settings-browser-api-draft.md 中 B04 增量 |
++| B05 唯一专题 | 上述跨批专题中 B05 增量；docs/current/first-batch-browser-api-contract.md 的 C05；model-project-apply-design.md 只回链 C06 |
++| B06 唯一专题 | docs/current/backend-first-batch-persistence.md、issue-configuration-binding-design.md、issue-page-create-api-contract.md 中本轮约束／采用状态说明 |
++| 最终导航／交接 | docs/current/README.md、HANDOFF.md、DEVELOPMENT-START.md、IMPLEMENTATION-PLAN.md、ASTRA-DESIGN-PREPARATION.md、HANDOFF-BACKEND-DESIGN.md、HANDOFF-PAGE-API-DESIGN.md、NEXT-TASK-B04-PROMPT.md、project-development.md，仅本轮状态／链接及已核实过期描述 |
++
++根 README 使用方式未变，不编辑。旧 reviews、worktree、B02 失败／暂停／恢复记录不编辑。cmd/internal/web/src、迁移、依赖、构建脚本、运行配置不编辑。不运行服务、数据库、浏览器、容器、模型/GitHub请求或历史实验，不读取秘密，不提交或推送。
+--- /dev/null
++++ b/docs/development/2026-09-13-b04-b06-design-01/README.md
+@@ -0,0 +1,17 @@
++# B04—B06 前置设计交付
++
++2026-09-13，状态：DESIGN_COMPLETE / RECOMMENDATIONS_NOT_ADOPTED / IMPLEMENTATION_NOT_STARTED。主设计Astra（任务要求xhigh），三个只读调研明确使用GPT-5.6 Sol/high；独立复核者未参与编写，最终PASS、无开放P0/P1/P2。本轮只改声明过的文档与附件。
++
++| 批次 | 设计交付 | 唯一规则/边界 |
++| --- | --- | --- |
++| B04 | [设计](B04.md)、[Go声明](b04.go.txt) | 来源§8、模型内部§7、模型HTTP§8；秘密原子保存/终结、固定版本和部署导入 |
++| B05 | [设计](B05.md)、[Go声明](b05.go.txt) | 来源§9、模型内部§8、首批HTTP C05、模型HTTP C06；一次测试、只换模型及摘要 |
++| B06 | [设计](B06.md)、[Go声明](b06.go.txt) | 持久化§7、配置绑定§8、创建HTTP§11；P9和手动原子创建，不接运行 |
++
++共用附件：[方案比较与待采用决定](DECISIONS.md)、[TS声明](frontend.ts.txt)、[迁移设计](migration-design.md)、[验收映射](ACCEPTANCE.md)、[兼容审查](COMPATIBILITY.md)、[源码核对](SOURCE-AUDIT.md)、[独立复核](REVIEW.md)、[检查结果](checks.json)、[任务增量](changes.diff)、[输出清单](output-manifest.json)。所有业务运行验收均NOT_RUN。
++
++[计划及编辑边界](PLAN.md)区分设计、采用、实现和验收。原始环境/内容版本为[baseline.json](baseline.json)及[initial-status.txt](initial-status.txt)，允许编辑文档的原始字节存于[归档](original-documents.zip)，后续来源绑定在[source-evidence.json](source-evidence.json)。changes.diff与开始任务时工作区字节相比，避免把既有未提交B02/B03算成本轮改动。
++
++推荐采用D01—D08及S06后按各批U04/U05/U06单元实施；模型Key UI/协议、次数预算和参数、C05/C06、P9及S06仍需用户取舍。采用前不能将附件直接当现行产品规范，拒绝其中跨批依赖时须一起修订。
++
++B02外部暂停与历史失败/恢复记录保留；B03本地集成验收状态不变；B04/B05/B06实现状态不因设计交付变更。B09只完成本轮必要数据兼容静态审查，完整G1/G2未完成。完成本轮设计后停止，不提交、不推送、不开始B07—B11。
+--- /dev/null
++++ b/docs/development/2026-09-13-b04-b06-design-01/REVIEW.md
+@@ -0,0 +1,32 @@
++# 独立设计复核记录
++
++状态：PASS_FOR_DESIGN / RECOMMENDATIONS_NOT_ADOPTED / RUNTIME_NOT_RUN。审阅代理 `b04_b06_independent_review` 明确使用 GPT-5.6 Sol、effort=high，未参与本轮设计产物编写，全程只读。Astra为唯一设计/整改编辑者。本文件由主设计据独立审阅返回结论登记，不把主设计自查冒作独立复核。
++
++最终原结论摘录：
++
++> Verdict: PASS for design review. No open P0/P1/P2 defects remain in the current B04–B06 artifact bytes. No P0 was found; all reported P1/P2 findings are closed.
++
++## 发现与闭环
++
++| 审阅主题/级别 | 修订与最终复核依据 |
++| --- | --- |
++| C05所有权/同事务，P1 | [b05声明](b05.go.txt)由projects拥有公开联合，以ObserveRequestQuota注入同tx额度读取；固定revision，SQL失败savepoint回退或503。 |
++| 单次外发/处理器资格，P1 | AuthorizedDispatch绑定permit/固定snapshot/policy/输出限额/短期Key；只有确知提交的进程有发送能力；有限handler登记、租约与sender身份，租约不当作撤销证据。 |
++| B05闭包与公开投影，P1/P2 | FixedConfiguration在caller tx补齐确切历史材料；保存OriginalModel分支；schema2具体替换声明；TestPreview/TestResult/应用MarshalJSON只输出唯一HTTP白名单，防泄露内部actor/allowlist。 |
++| B06回执/候选字段，P1/P2 | [b06声明](b06.go.txt)POST/GET共用marshalable receipt和Location；创建options、仓库、分析状态及conversation精确DTO与writer齐全。 |
++| S06观察/凭据闭包，P1 | richer AppInstallationObservation保留安装/完整权限指纹；绑定实际privateRef和access_ref，最终检查精确凭据availability，未把旧Capability当连续授权证明。 |
++| P9归属/物化值，P1 | [迁移设计](migration-design.md)配置owner、两个profile、secret四元组/物化参数一致；旧错属记录使迁移拒绝；[CB04](ACCEPTANCE.md#b06)增加直接破坏SQL。 |
++| 派生正文与待办清理，P1 | 区分conversation创建和当前title来源；只清仍派生标题，保留existing/独立改名。work仅blocked→cancelled/CONTENT_REMOVED，保留cause/Issue/pin，禁止删除/复活；DB08覆盖。 |
++| 最终组装，P2 | [b04声明](b04.go.txt)及b06声明沿真实RunConfigured/handlerConfigured补齐分批替换签名和旧wrapper调用，不再依赖不存在的Server对象。 |
++
++独立审阅重新读取最终字段和声明后确认上述闭环；无遗留P0/P1/P2。具体产品取舍仍在[DECISIONS](DECISIONS.md)待采用，不能以设计PASS解除采用或实测前提。
++
++## 源码与检查范围
++
++独立审阅确认主仓main、HEAD `ad9a49b2fe3b5fe743a65c838ded6cb022e79363`及既有dirty工作区；AgentTeams为`517caff9280242a00a4d4c06365352b9e41659c6`、clean、未fetch。审阅读取baseline/source-evidence/checks/output-manifest并确认JSON可解析；最终机器结果在[checks.json](checks.json)，最终字节清单在[output-manifest.json](output-manifest.json)。
++
++Astra的结构验证使用标准Go parser解析分包声明、现有TypeScript编译器严格noEmit（复用真实api.Result类型）、新增本地链接/锚点和任务差异检查。Go附件有意没有函数体，未进行产品包类型编译；声明语法通过不能称功能通过。原17份文档以[原始字节归档](original-documents.zip)保存并与baseline哈希核对；444个范围外非秘密源码/文档字节保持，排除的配置正文未读，只核Git状态及本轮无写入范围。
++
++初次检查发现结果文件尚未生成造成两个链接缺失，以及临时检查目录的Git自动换行告警；生成文件并仅为检查命令关闭转换后重核。另一次检查捕获验证脚本一处尾空格，已去除。没有改Git全局配置。最后生成状态/导航和清单后重跑结构检查，见checks.json，不重跑与本轮无关的产品/历史验证。
++
++独立审阅者和主设计均未启动服务、数据库、浏览器、容器、真实模型/GitHub请求或实验；未读取秘密、修改产品/上游、提交或推送。所有业务/外部验收仍NOT_RUN。B09仅最小数据兼容静态部分覆盖，完整G1/G2未完成。
+--- /dev/null
++++ b/docs/development/2026-09-13-b04-b06-design-01/SOURCE-AUDIT.md
+@@ -0,0 +1,34 @@
++# 源码与采用范围核对
++
++主仓工作目录 `/home/xubohan/projects/Repomesh_Go_ver`，分支main，HEAD `ad9a49b2fe3b5fe743a65c838ded6cb022e79363`；已有大量未提交B02/B03修改，不能仅用HEAD表示本次阅读版本。[baseline.json](baseline.json)保存461个非秘密源码/文档的原始SHA-256；[source-evidence.json](source-evidence.json)另绑定旧worktree附件与上游关键文件。哈希绑定字节，不把未提交代码称为该提交的全部内容。
++
++## 分工和核对结果
++
++| 只读调研者 | 范围与输出 | Astra关键复核 |
++| --- | --- | --- |
++| b04_source_audit / Lovelace，Sol high | internal/projects/access/secrets/database/web、入口组装、B04旧候选/声明、B03验收。结论为调用链、字段/锁序冲突和未验证项，无文件写入。 | 亲自读取projects storage/fixed配置和默认解析、access主体/observation、secrets Seal/reserveWrap/Inspect、web free注册及Runtime组装；据此选D01—04。 |
++| b06_contract_audit / Hilbert，Sol high | Issue创建、持久化、P9、DB/CB、C05/C06、B03当前实现。输出操作身份、scope和授权缺口，无文件写入。 | 核对唯一HTTP规范化/回执与当前数据库0004；P9未采用、Issue无durable rejected、DB07是B03回归；据此细化D06—08。 |
++| agentteams_compat_audit / Faraday，Sol high | 锁定上游类型、共享Manager配置/授权、旧调查与后续证据，仅四兼容问题。无fetch/实验/文件写入。 | 读取ManagerSpec、reconcile顺序、provisioner空授权、Higress/Aliyun fallback、start脚本和CFG-05报告；结论见COMPATIBILITY。 |
++
++模型名称与effort是本轮明确路由；不声称系统外遥测证明。主设计独占附件和专题编辑；独立审阅不参与这些产物编写，详见[复核记录](REVIEW.md)。
++
++## 影响架构的现有事实
++
++| 证据位置 | 本次工作树事实 | 设计影响 |
++| --- | --- | --- |
++| internal/projects/storage.go resolveProfile/lockCatalog，0004_projects.sql defaults | inherit沿default profile current_version；没有pinned_version。 | 新默认必须增加明确版本，旧null语义与原fixed不改。 |
++| internal/projects/types.go fixedConfiguration、storage.go inspectProfile、service.go Get/Update | fixed内有profile/version/秘密引用；inspect带INTEGRATION_NOT_AVAILABLE，canCreateIssue=false；显式完整配置才重解，no-op用深比较。 | 不复制独立配置系统；专用应用要新有限ReplaceModel，不能走完整PATCH；B06另核完整材料与当前资格。 |
++| internal/secrets/store.go及相关包装实现 | Seal独立预扣root次数，再独立插密文；Inspect共享availability锁，New检查所需root。 | caller tx InsertPrepared前置Prepare；不持业务锁预扣；root全缺不能许诺close冷启动可用。 |
++| internal/access/project_access.go 67—95,200—231 | 主体锁binding/session/account；观察connection锁只检查参与时间，transaction_timestamp减60秒。 | 全局偏序延续；B06新增App和完整scope观察、最终clock_timestamp核时。 |
++| internal/access/cleanup.go 的auth孤儿清理 | 认证目的/owner白名单。 | B04 model vault独立维护，不能把认证清理拓成全secret扫描。 |
++| internal/web/server.go:31、projects.go | RunConfigured + registerProjects，没有web.Server对象。 | 声明沿free register组装，分批更新一个RunConfigured与caller。 |
++| internal/access/deployment.go / destination.go | Runtime持同一pool/service；已有Destination种类但只有已实现resolver。 | 同Store注入模型；模型/Issue恢复补目的resolver，不接受自由return URL。 |
++| docs/development/2026-09-12-b03-integration-01/FINAL-INDEPENDENT-REVIEW.md | B03 INTEGRATED_LOCAL_VERIFIED，独立复核PASS无开放P0/P1/P2；businessReady=false。 | 不重跑、不改完成状态；后续集成必须保护DB07等回归。 |
++
++## 原始候选与采用区分
++
++旧B04附件在 `/home/xubohan/projects/Repomesh_B03/docs/development/2026-09-12-b04-design-01/`，本轮全读六份：backend-candidate-a、backend-interfaces-a、http-ui-b、frontend-b、backend-final、frontend-final。文件名final未表示采用；原handoff/NEXT中的实施指令也未被本轮恢复。所有六文件的实际路径和SHA-256在source-evidence.json。
++
++根AGENTS/README/CONTEXT、current导航/HANDOFF/启动/计划/Astra准备/前后端交接、首批浏览器/持久化/project说明、ADR索引及0013/0016/0019、用户列出的所有模型来源/操作/Key/应用/创建/P9/恢复/项目契约审查均已阅读。判断按具体章节和替代范围：B02采用子集、B03原固定规则、F04与Issue P1沿用；模型M/S、P9、C05/C06新字段仍候选。README内历史“全部API未实现”等文字只作历史阶段事实，当前实现以源码及HANDOFF为准。
++
++旧upstream调查eeaab643和517caff9实测分开。未启动服务/DB/浏览器/容器，未读取凭据或私有证据目录，未更新上游或重跑实验。剩余需要实测的条件在ACCEPTANCE和COMPATIBILITY，不能由静态阅读或声明解析证明。
+--- /dev/null
++++ b/docs/development/2026-09-13-b04-b06-design-01/migration-design.md
+@@ -0,0 +1,103 @@
++# B04—B06 迁移设计附件
++
++状态：MIGRATION_DESIGN_NOT_ADOPTED_NOT_EXECUTED。这是可评审的表与约束设计，未向产品 migrations 写入 SQL。实际迁移编号在实施时按现存 0001—0004 之后分配，并由 B01 显式迁移/历史校验执行；普通启动不迁移。下述名称是候选物理名，已有表名称以当前 `0004_projects.sql` 为准，尤其是 `repomesh_projects.configuration_revisions`。
++
++## B04
++
++| 表/扩展 | 列、身份与关键约束 |
++| --- | --- |
++| repomesh_sources.deployment | singleton=true PK；deployment_id UUID UNIQUE NOT NULL，创建后不可改；数据库备份保留。部署角色成员资格来自数据库认证，非manifest。 |
++| sources.import_serialization / imports | 单例行预置；imports PK(deployment_id,import_id)，schema_version、canonical bytea、receipt jsonb、committed_at非空。没有可提交pending。旧比较器保留。 |
++| sources.environment_templates | PK(id,version)，完整登记字段沿来源§8；所有业务列不可更新；同ID/version异内容不能覆盖。 |
++| sources.execution_versions | PK(profile_id,version)，owner、template_id/version、worker_concurrency、verification_group_enabled；复合FK(profile_kind='execution',profile_id,owner)至profiles，FK至profile_versions及模板；本记录为來源的完整元数据。 |
++| projects.defaults | 加 nullable pinned_version，FK(kind,profile_id,pinned_version)至profile_versions。旧行保留null；新导入强制非空。只该来源渠道建立 execution 默认，不新增model默认UI。 |
++| models.providers | id PK、owner FK account、head_revision NOT NULL、enabled/access_epoch；UNIQUE(id,owner)，head复合FK可延迟。owner和id不可改。 |
++| models.provider_revisions | PK(provider_id,revision)，owner、name、base_url、api_format、secret_version_id、secret_owner_kind='model-provider'、secret_owner_id=provider_id、purpose='model-provider-key'、created_at。provider/owner复合FK；完整secret四元组FK；所有事实不可改。 |
++| models.model_rows | id PK，provider_id、owner、profile_id；UNIQUE(provider_id,id)、UNIQUE(profile_id)，FK provider/owner及(kind='model',profile_id,owner)；行只增不删。 |
++| models.model_snapshots | PK(provider_id,provider_revision,row_id)，外部model_id及完整模型参数；UNIQUE(provider_id,provider_revision,model_id)，FK revision、row。每revision有1..50行且保留该Provider全部已存在行，由最终状态延迟约束检查。 |
++| models.profile_links | PK(profile_id,profile_version)，固定kind='model'、provider_id/revision/row_id、owner、secret_version_id。FK profile_versions及完整snapshot；CHECK profile_version=provider_revision。延迟约束核对profile owner、snapshot row的profile、revision秘密和profile_versions秘密四元组全同。 |
++| models.save_operations | PK(actor,save_id)，kind=save_input/save_closed；target provider可空；schema_version、canonical_nonsecret、input_vault_version、receipt、outcome、removed_at。target带actor复合FK。vault四元组固定 owner=(provider-save-input,actorUUID:saveUUID)、purpose=operation-input。 |
++
++save_operations 在最终状态只允许三种形态：①save_input、committed/rejected、schema/canonical和完整稳定回执非空；replace须vault，keep无vault；②save_closed、closed_without_save、closedAt和固定回执非空，所有输入/target/vault为空；③removed占位，正文/canonical/receipt/vault关联清空，必要target/owner/key/removedAt保留。已提交 kind/outcome/result 不可改，唯一例外是合法原子清理转removed。不能把普通CHECK写成中间占位必须完整导致两阶段同事务写入失败；最终完整性使用延迟constraint trigger，按PK回读当前行。
++
++秘密层复用现有 versions/availability/root_keys，不新增秘密系统。PreparedSecret 在进入业务事务前已独立预扣且不返还；InsertPrepared同事务写版本和availability，应用结果回滚即二者均无记录。availability的可变状态与不可变secret身份分离；密文合法销毁保留identity。认证 orphan清理白名单不扩到新model目的，模型维护自己清理vault。部署导入无须secrets启动。
++
++保留0004已经存在的configuration_revisions_immutable/profile_versions_immutable触发器，不重复创建同义检查；新增模型事实同样不可变。enabled等资格只在单独可用性行或现有profile行变化。root rewrap只改秘密包装列，不得触发误把合法重包当版本身份改变。旧 configuration fixed JSON 不重写，未能证明完整旧映射时只报告受限。
++
++## B05
++
++| 表/扩展 | 约束 |
++| --- | --- |
++| projects.request_policy_versions / time_policy_versions | PK(id,version)，来源§9的显式参数CHECK；不可变，不以ID覆盖旧版。scope不混用actor测试与project运行。 |
++| sources.egress_policy_versions / test_bindings | egress PK(id,version)不可变，白名单数组规范化无重项；test binding PK(owner)，三个确切政策FK、组合revision。改绑定不改历史preview/test。 |
++| sources.execution_versions完整扩展 | v2版本增加预算/时限id/version复合FK及完整标志；v1保持不完整。相同id/version不得UPDATE补全；新版本须模板、政策和project profile_version共同存在。project profile_versions的旧policy_id列与新复合引用由延迟一致性检查对应。 |
++| modelbudget.windows | PK(scope_kind,scope_id,start_utc)，end_utc恰次日、limit>0、reserved/consumed>=0，revision；同窗口limit只能减少。policy不在主键。scope以actor/project二选一列和各自FK约束，不能任意字符串冒领。 |
++| modelbudget.test_reservations | test_id唯一FK test、actor、window FK、policy FK、amount=1、状态reserved/consumed/released；状态变更与窗口计数同tx。consumed不可转released。跨日仍结算原window。 |
++| models.previews | id随机PK，kind=test/apply分型，actor/固定snapshot/完整政策/有效期；apply额外project/version/完整before；不可变输入，consumed_by只能空→一个operation，不可释放再用。保留最小消费墓碑，不随5分钟TTL删去消费事实。 |
++| models.tests | PK(actor,test_id)，固定snapshot FK、preview及policy、accepted_at；canonical输入、当前state/result_revision/recovery、removed_at；身份与accepted_at不可改，观察列按状态机更新。preview唯一消费约束。 |
++| models.test_handler_leases | instance_id随机不可复用PK、protocol_version、last_seen/lease_until、retired_at；仅coordinator登记/续期，Web只读。过期不是撤销证明。 |
++| models.test_dispatch | test_id唯一且FK；external_operation_id唯一、may_have_sent_at、generation/lease、sender_instance_id FK handler租约记录及sender身份、证据引用。may_have_sent只能空→非空，不能重置。发送身份与test固定目标对应。 |
++| models.test_observations | evidence_id PK，test/external_operation复合FK、已知观察字段；append-only；不存完整供应商响应/Key。旧generation可追加该逻辑调用证据，只有当前reconciler采纳，不让迟到者直接更新正式状态。 |
++| models.actor_outstanding_tests | actor PK、test_id唯一FK及recovery-open依据。注册和责任清除锁account后在同tx处理；30天结果清理不能删未核清责任。 |
++| models.application_operations | PK(project_id,actor,application_id)，规范化输入/preview消费、committed或rejected稳定结果/removed；项目/配置复合FK及候选snapshot FK；no-op也有回执，retained execution与before及结果配置一致。 |
++
++测试登记事务一次写accepted test、preview消费、reservation、actor outstanding及test_dispatch可扫描责任。预算预留后但尚无许可可证明未发而取消；可能发送许可持久化同时消费1单位，并且只有收到该次COMMIT成功回执的进程获得内存SendPermit。读库不能复原发权。消费/permit约束必须同事务，网络不入事务。平台预算数据只计算此scope下受控本地请求，非供应商全账户额度。
++
++B05项目额度窗口的无历史证明由本地受控账本版本/消费者启用事实产生；缺表/读错/已有消费未知不等于空。未来增加运行消费者时必须在同窗口计数原子写用量，不能另造绕过计数路径。只读GET无写窗口；模型专用应用保留 execution，不重置或增加额度。
++
++## B06
++
++新增 `repomesh_issues` schema；只保存这批业务聚合，尚不迁入完整计划/消息/运行表。
++
++| 表 | 最小键与完整性 |
++| --- | --- |
++| conversations | id PK、project_id FK、title可清理为null、title_redacted_at、created_by_operation_id、title_origin_operation_id、content_scope_revision、removed_at；UNIQUE(project_id,id)。两operation引用均同项目复合FK可延迟；必要新会话将两者设本creation，关联已有会话不改。title与redacted标志二选一。独立改名时title_origin_operation_id置null但创建来源保留；已有会话可多Issue，无project当前配置绑定列。 |
++| issues | id PK、project_id、number、title/description/criteria、revision、main_conversation_id、main_changeset_id、initial_configuration_revision、creation_operation_id、removed_at；UNIQUE(project_id,number)，UNIQUE(project_id,id)，UNIQUE(project_id,id,initial_configuration_revision)。初始引用、项目、创建操作不可变。 |
++| creation_operations | PK(project_id,actor,entry,creation_id)，entry CHECK issue_page；id稳定UNIQUE用于关系；UNIQUE(project_id,id)、UNIQUE(project_id,id,issue_id)；schema/canonical/exact/digest、issue_id/main_cs_id/conversation_id/initial_configuration_revision/created_at及receipt、removed_at。只有完整成功或清理占位可提交。 |
++| changesets | id PK、project_id、issue_id、kind CHECK main；UNIQUE(project_id,issue_id,id)、UNIQUE(project_id,issue_id)在本批仅一个main；未来增加子CS须显式迁移放宽到partial unique kind=main。 |
++| issue_repository_scope | PK(issue_id,repository_id)，project_id、scope_revision；FK(project_id,issue_id)与FK(project_id,repository_id)至project_repositories；最终非空。 |
++| issue_content_scope / conversation_content_scope | 分开两表，各PK(object_id,repository_id)、project_id、introduced_by_operation，两个同project复合FK；只增不减，scope修订同锁内更新。避免object_kind通用FK无法约束的空洞。 |
++| page_sources / conversation_cards | source以operation_id唯一，issue/project/conversation复合关系；card以source_id唯一，并引用同一conversation/issue/operation。页面来源无message_id；敏感摘要可清空，关系保留。 |
++| continuation_work | work_id PK，project_id、issue_id、cause_operation_id，kind=issue_continue；UNIQUE(cause_operation_id,kind,issue_id)；FK(project_id,cause_operation_id,issue_id)至operation，创建state=blocked、reason=INTEGRATION_NOT_AVAILABLE；本批唯一后续转换blocked→cancelled，reason=CONTENT_REMOVED、cancelled_at非空；保留cause/Issue/pin关联，禁止反向或删除。后续消费者另审其他状态迁移。 |
++| issue_event_streams / issue_events | stream PK(issue_id)、generation、last_sequence；events PK(issue_id,generation,sequence)，事件snapshot_invalidated、created_at；创建sequence=1。每Issue计数锁串行，不用全局sequence证明提交顺序。 |
++| project_issue_counters | project_id PK/FK，next_number>0；分配事务先锁project，UPDATE RETURNING下一号；允许回滚/未来迁移造成间隙。 |
++
++核心关系约束以如下 DDL 形状审查，省略的是表内普通字段而非条件分支：
++
++```sql
++-- 全部引用字段在完整活记录中非空；FK默认RESTRICT，无正文级联删除。
++FOREIGN KEY (project_id, initial_configuration_revision)
++  REFERENCES repomesh_projects.configuration_revisions(project_id, revision);
++-- operation的固定版本必然与该Issue一致。
++FOREIGN KEY (project_id, issue_id, initial_configuration_revision)
++  REFERENCES repomesh_issues.issues(project_id, id, initial_configuration_revision)
++  DEFERRABLE INITIALLY DEFERRED;
++-- Issue.main_changeset_id必须是自己的CS，不能只引用全局id。
++FOREIGN KEY (project_id, id, main_changeset_id)
++  REFERENCES repomesh_issues.changesets(project_id, issue_id, id)
++  DEFERRABLE INITIALLY DEFERRED;
++-- Issue主会话与operation结果同项目；另有最终一致性核对主会话/CS/operation相同。
++FOREIGN KEY (project_id, main_conversation_id)
++  REFERENCES repomesh_issues.conversations(project_id, id);
++```
++
++为上述循环关系使用 DEFERRABLE INITIALLY DEFERRED。Issue主CS列为NOT NULL，先生成所有ID再插入，不能先提交空引用。operation与Issue互相引用，延迟检查最后一个状态；客户端看不到中间占位。
++
++必须具名实现以下 constraint triggers，并在实施中直接用破坏性SQL证明拒绝，不能只跑handler成功：
++
++1. `creation_aggregate_complete`：按operation PK读取最终行；非removed要求非空规范输入/receipt/结果、schema支持、唯一Issue/主CS/主会话/来源/card/非空scope、一个初始blocked work及至少创建事件存在（removed操作允许该work变cancelled）；各结果身份与pin一致。不要求事件永久保留：创建事务检查事件，之后合法保留期清理不触发旧操作错误。未提交operation占位不能漏检。
++2. `issue_origin_consistent`：Issue和operation双方插入/身份变更都排队检查相等、同project/actor归属，防只插孤立Issue绕开上一个trigger。removed也保留pin及必要关系；清理只删正文。
++3. `scope_complete`：Issue插入与work scope插入/删除均排队，最终至少一仓；issue content为工作范围超集，关联conversation content为该Issue content超集。所有scope写路径先锁同project再对象。内容行删除拒绝，不把工作缩减变成历史内容权限缩减。
++4. `immutable_configuration_fact`、`immutable_provider_fact`、`immutable_creation_identity`：禁止事实UPDATE/DELETE；显式白名单只允许正文清理及操作→removed，绝不允许removed→活。允许合法secret rewrap/availability更新不改变其身份。
++5. `creation_receipt_consistent`：结构化结果列是权威，receipt由同一result构造且最终校验JSON关键身份/时间/配置投影一致；清理时删除receipt，不以残留JSON绕过正文清理。相同规则适用于model操作稳定回执。
++
++以上最终约束查的是当前行，不使用触发时尚未填全的 NEW 旧快照。SQL一致性需要以真实PostgreSQL证明；本次仅设计检查，尚未执行。新Issue无nullable历史例外。若未来引入别的来源/消费者，须增量设计新的受信身份及约束，不能把本批entry CHECK直接去掉后接受客户端字符串。
++
++
++## 独立复核补强
++
++`configuration_owner_and_binding_consistent` 在configuration_revisions插入时排队，按最终行核两个固定profile的owner均等于project.owner；model/execution固定JSON中的secret四元组必须等于确切profile_version元数据，物化参数必须等于所绑定不可变来源。用profile ID/version的复合FK只证明版本存在，不能替代此owner/值一致性检查。profile和project的owner身份也不可更新；若以后引入共享ACL须另行替代此owner-only约束。本批运行消费者不得跳过这条持久归属事实。
++
++对已有B03记录只按其原固定schema和原profile版本验证（包括旧model-policy后由execution非null覆盖的物化规则），不跟随当前head/default；原合法未解析/不完整记录继续受限。新v2完整配置必须有execution政策闭包。迁移发现既有归属/秘密/物化值不一致时整体拒绝，不批量重绑或猜修历史，记录不含正文的定位供另行处理。实施须故意用Alice项目/Bob profile、篡改fixed.secret、篡改workerConcurrency的SQL证明拒绝，P9同项目FK不能单独满足该验收。
++
++正文清理还核会话标题来源：当title_origin_operation_id等于被清理创建操作时，才清title并置title_redacted_at；单纯created_by_operation_id相同不足以清掉之后独立改名的标题。关联的已有会话标题不动，保留必要会话/卡片/scope身份；候选列表将已redacted标题投影为无正文固定标签。显式改名必须同事务移除派生标记，防后来错误删除独立内容。本批不新增改名路由，但储存关系可判定清理责任。
+--- /dev/null
++++ b/docs/development/2026-09-13-b04-b06-design-01/b04.go.txt
+@@ -0,0 +1,475 @@
++// B04-DECL-r2 / DESIGN_RECOMMENDATION_NOT_ADOPTED. Astra synthesis 2026-09-13.
++// Normative rules: current/backend-first-batch-sources-draft.md §8; backend-model-operations-draft.md §7.
++// Public DTOs below are a Go projection of the single model HTTP candidate, not a second schema.
++// Package sections are independently parsed declarations, not buildable product code.
++// Separate package sections are declaration specifications, not one Go source file.
++// Existing types referenced below retain their current definitions.
++// No function bodies. All names/signatures require final adoption before Sol implementation.
++
++// FILE: internal/secrets/transaction.go
++package secrets
++
++import (
++    "context"
++    "github.com/jackc/pgx/v5"
++)
++
++const (
++    ModelProviderKey Purpose = "model-provider-key"
++    OperationInput Purpose = "operation-input"
++)
++
++// Opaque ciphertext prepared by this Store after durable wrapping precharge.
++// No public bytes, plaintext, root, DEK, constructor or JSON serialization.
++type PreparedSecret struct {
++    value envelope
++    store *Store
++}
++func (p *PreparedSecret) VersionID() VersionID
++func (p *PreparedSecret) Discard()
++
++// Prepare must execute before acquiring any business transaction locks.
++// Reserve wrapping quota in its independent durable transaction; never refund.
++func (s *Store) Prepare(ctx context.Context, owner Owner, purpose Purpose, plaintext []byte) (*PreparedSecret, error)
++// InsertPrepared neither begins nor commits tx. Reject foreign Store/prepared root retired.
++// Caller owns all business authorization and transaction lifetime.
++func (s *Store) InsertPrepared(ctx context.Context, tx pgx.Tx, prepared *PreparedSecret) (VersionID, error)
++// OpenInTx retains availability lock until caller commits/rolls back.
++func (s *Store) OpenInTx(ctx context.Context, tx pgx.Tx, id VersionID, owner Owner, purpose Purpose) ([]byte, error)
++// Must validate stored owner/purpose; does not require root decryption.
++func (s *Store) DestroyInTx(ctx context.Context, tx pgx.Tx, id VersionID, owner Owner, purpose Purpose) error
++// Existing Seal/Open/Destroy APIs preserved; their implementations delegate appropriately.
++// Add checks for the two new exact owner/purpose combinations; retain existing auth rules:
++// model-provider/model-provider-key;
++// provider-save-input/operation-input; no separate comparison-key secret.
++// Existing InspectVersion signature remains unchanged.
++
++// FILE: internal/models/types.go
++package models
++
++import (
++    "context"
++    "encoding/json"
++    "time"
++    "github.com/jackc/pgx/v5"
++    "github.com/jackc/pgx/v5/pgxpool"
++    "repomesh.local/repomesh/internal/access"
++    "repomesh.local/repomesh/internal/projects"
++    "repomesh.local/repomesh/internal/secrets"
++)
++
++type FieldError struct {
++    Field string `json:"field"`
++    Code string `json:"code"`
++}
++type Failure struct {
++    Status int
++    Code string
++    FieldErrors []FieldError
++}
++func (e *Failure) Error() string
++
++type APIError struct {
++    Code string `json:"code"`
++    Message string `json:"message"`
++    FieldErrors []FieldError `json:"fieldErrors"`
++    RequestID string `json:"requestId"`
++}
++type SecretView struct {
++    Configured bool `json:"configured"`
++    VersionID *string `json:"versionId"`
++    Availability string `json:"availability"`
++}
++type ModelView struct {
++    ID string `json:"id"`
++    ModelProfileID string `json:"modelProfileId"`
++    ModelID string `json:"modelId"`
++    DisplayName string `json:"displayName"`
++    ContextWindow int64 `json:"contextWindow"`
++    MaxOutputTokens int64 `json:"maxOutputTokens"`
++    Reasoning bool `json:"reasoning"`
++    Vision bool `json:"vision"`
++}
++type ProviderView struct {
++    ID string `json:"id"`
++    Name string `json:"name"`
++    Revision string `json:"revision"`
++    BaseURL string `json:"baseUrl"`
++    APIFormat string `json:"apiFormat"`
++    Secret SecretView `json:"secret"`
++    Models []ModelView `json:"models"`
++    UpdatedAt time.Time `json:"updatedAt"`
++}
++type ProviderSummary struct {
++    ID string `json:"id"`
++    Name string `json:"name"`
++    Revision string `json:"revision"`
++    ModelCount int `json:"modelCount"`
++}
++type ProviderPage struct {
++    Items []ProviderSummary `json:"items"`
++    NextCursor *string `json:"nextCursor"`
++}
++type ModelInput struct {
++    ID *string `json:"id"`
++    ModelID string `json:"modelId"`
++    DisplayName *string `json:"displayName"`
++    ContextWindow int64 `json:"contextWindow"`
++    MaxOutputTokens int64 `json:"maxOutputTokens"`
++    Reasoning bool `json:"reasoning"`
++    Vision bool `json:"vision"`
++}
++// Secret input never belongs to a persistent/public DTO.
++// Body and parsed command must be explicitly cleared after use.
++type RawSaveBody struct { data []byte; fields map[string]json.RawMessage }
++type SaveCommand struct { key string; requestID string; body RawSaveBody }
++type CloseCommand struct { key string }
++func ReadSaveBody(data []byte) (RawSaveBody, error)
++func NewSaveCommand(key, requestID string, body RawSaveBody) (SaveCommand, error)
++func (c *SaveCommand) Clear()
++func NewCloseCommand(pathKey, headerKey string, body []byte) (CloseCommand, error)
++
++type SaveLinks struct {
++    Provider string `json:"provider"`
++    Operation string `json:"operation"`
++}
++type OperationLinks struct { Operation string `json:"operation"` }
++type CommittedSave struct {
++    SaveID string `json:"saveId"`
++    Outcome string `json:"outcome"`
++    ProviderID string `json:"providerId"`
++    ProviderRevision string `json:"providerRevision"`
++    SecretVersionID string `json:"secretVersionId"`
++    CommittedAt time.Time `json:"committedAt"`
++    Links SaveLinks `json:"links"`
++}
++type RejectedSave struct {
++    SaveID string `json:"saveId"`
++    Outcome string `json:"outcome"`
++    Error APIError `json:"error"`
++    DecidedAt time.Time `json:"decidedAt"`
++}
++type ClosedSave struct {
++    SaveID string `json:"saveId"`
++    Outcome string `json:"outcome"`
++    ClosedAt time.Time `json:"closedAt"`
++    Links OperationLinks `json:"links"`
++}
++// Only service constructors create this sum. Exactly one payload.
++type SaveReceipt struct {
++    committed *CommittedSave
++    rejected *RejectedSave
++    closed *ClosedSave
++}
++func (r SaveReceipt) MarshalJSON() ([]byte, error)
++type SaveResult struct { Receipt SaveReceipt; HTTPStatus int }
++type ListQuery struct { Text string; Cursor string; Limit int }
++func ParseListQuery(text, cursor, limit string) (ListQuery, error)
++
++type Service struct {
++    pool *pgxpool.Pool
++    authorization *access.Service
++    secrets *secrets.Store
++    catalog *projects.CatalogWriter
++    hook transactionHook
++}
++func New(pool *pgxpool.Pool, authorization *access.Service, secretStore *secrets.Store, catalog *projects.CatalogWriter) *Service
++func (s *Service) List(ctx context.Context, principal access.ProjectPrincipal, query ListQuery) (ProviderPage, error)
++func (s *Service) Get(ctx context.Context, principal access.ProjectPrincipal, providerID string) (ProviderView, error)
++func (s *Service) GetVersion(ctx context.Context, principal access.ProjectPrincipal, providerID, revision string) (ProviderView, error)
++func (s *Service) Save(ctx context.Context, principal access.ProjectPrincipal, command SaveCommand) (SaveResult, error)
++func (s *Service) GetSave(ctx context.Context, principal access.ProjectPrincipal, saveID string) (SaveReceipt, error)
++// Callback resolver receives authoritative authenticated actor from access, no browser actor.
++func (s *Service) ResolveDestination(ctx context.Context, actor, saveID string) (*string, error)
++func (s *Service) CloseSave(ctx context.Context, principal access.ProjectPrincipal, command CloseCommand) (SaveReceipt, error)
++// Trusted maintenance entry only; no HTTP route. Caller must have maintenance capability.
++type Maintenance struct { service *Service }
++func NewMaintenance(service *Service) *Maintenance
++func (m *Maintenance) RemoveSaveResult(ctx context.Context, actor, saveID string) error
++
++type saveInput struct {
++    providerID *string
++    expectedRevision *string
++    name string
++    baseURL string
++    apiFormat string
++    replace bool
++    secret []byte
++    models []ModelInput
++}
++// Closed sum avoids a keep command carrying secret bytes. Constructors are parser-private.
++type canonicalInput interface { canonicalSaveInput() }
++type keepInput struct { schemaVersion int; canonical []byte }
++func (keepInput) canonicalSaveInput()
++type replaceInput struct { schemaVersion int; canonical []byte; secret []byte }
++func (replaceInput) canonicalSaveInput()
++type operationRecord struct {
++    actor string
++    key string
++    schemaVersion int
++    kind string
++    target *string
++    canonical []byte
++    inputVersion *secrets.VersionID
++    receipt []byte
++    removedAt *time.Time
++}
++type savePreparation struct {
++    providerID string
++    business *secrets.PreparedSecret
++    vault *secrets.PreparedSecret
++}
++func (p *savePreparation) clear()
++func parseSave(body RawSaveBody, schemaVersion int) (saveInput, canonicalInput, error)
++func encodeProtectedInput(input canonicalInput) ([]byte, error)
++func compareProtectedInput(stored, incoming []byte) error
++func (s *Service) prepareSave(ctx context.Context, actor, saveID, providerID string, input canonicalInput, prepareBusiness bool) (savePreparation, error)
++func (s *Service) beginWrite(ctx context.Context) (pgx.Tx, error)
++func readOperation(ctx context.Context, tx pgx.Tx, actor, key string) (operationRecord, bool, error)
++func requireOperationOwner(ctx context.Context, tx pgx.Tx, actor string, operation operationRecord) error
++func (s *Service) replaySave(ctx context.Context, tx pgx.Tx, operation operationRecord, body RawSaveBody) (SaveResult, error)
++func (s *Service) compareInput(ctx context.Context, tx pgx.Tx, operation operationRecord, input canonicalInput) error
++func insertOperationInput(ctx context.Context, tx pgx.Tx, actor, key string, input canonicalInput, preparation savePreparation) error
++func persistReceipt(ctx context.Context, tx pgx.Tx, actor, key string, target *string, receipt SaveReceipt, at time.Time) error
++func insertClosed(ctx context.Context, tx pgx.Tx, actor, key string, at time.Time) (SaveReceipt, error)
++func (s *Service) writeProvider(ctx context.Context, tx pgx.Tx, actor string, input saveInput, preparation savePreparation, at time.Time) (CommittedSave, error)
++func (s *Service) readProvider(ctx context.Context, tx pgx.Tx, actor, providerID string, revision *string) (ProviderView, error)
++// Final new-save transaction requires prepared secrets from a completed no-lock phase.
++func (s *Service) commitSave(ctx context.Context, principal access.ProjectPrincipal, command SaveCommand, prepared savePreparation) (SaveResult, error)
++// Used after an outside preflight failure so an already committed winner still has priority.
++func (s *Service) replayAfterPreflight(ctx context.Context, principal access.ProjectPrincipal, command SaveCommand, preflightErr error) (SaveResult, error)
++func lockProvider(ctx context.Context, tx pgx.Tx, actor, providerID string) (ProviderView, error)
++func validateRetainedRows(current ProviderView, input saveInput) error
++func rejectedReceipt(key, requestID, code string, fields []FieldError, at time.Time) SaveReceipt
++func committedReceipt(value CommittedSave) SaveReceipt
++func closedReceipt(key string, at time.Time) SaveReceipt
++func (s *Service) phase(ctx context.Context, phase transactionPhase) error
++type transactionPhase string
++const (
++    principalLocked transactionPhase = "principal_locked"
++    slotLocked transactionPhase = "slot_locked"
++    secretPrepared transactionPhase = "secret_prepared"
++    secretsInserted transactionPhase = "secrets_inserted"
++    providerInserted transactionPhase = "provider_inserted"
++    modelsInserted transactionPhase = "models_inserted"
++    profilesInserted transactionPhase = "profiles_inserted"
++    headUpdated transactionPhase = "head_updated"
++    receiptInserted transactionPhase = "receipt_inserted"
++    closedInserted transactionPhase = "closed_inserted"
++    beforeCommit transactionPhase = "before_commit"
++)
++type transactionHook func(context.Context, transactionPhase) error
++
++// FILE: internal/projects/catalog_writer.go
++package projects
++
++import (
++    "context"
++    "github.com/jackc/pgx/v5"
++    "repomesh.local/repomesh/internal/secrets"
++)
++
++// Internal composition-only writer: caller owns authorization and transaction.
++// No new browser writer route. Methods require LockExclusive already held.
++type CatalogWriter struct{}
++func NewCatalogWriter() *CatalogWriter
++func (w *CatalogWriter) LockExclusive(ctx context.Context, tx pgx.Tx) error
++type ModelVersionRegistration struct {
++    Owner string
++    ProfileID string
++    Name string
++    ParametersComplete bool // structural model parameters only; not runtime readiness
++    ProviderID string
++    ProviderRevision string
++    ModelRowID string
++    SecretVersion secrets.VersionID
++}
++type ExecutionVersionRegistration struct {
++    Owner string
++    ProfileID string
++    Version string
++    Name string
++    WorkerConcurrency int
++    VerificationGroupEnabled bool
++}
++func (w *CatalogWriter) RegisterModelVersion(ctx context.Context, tx pgx.Tx, value ModelVersionRegistration) error
++func (w *CatalogWriter) RegisterExecutionVersion(ctx context.Context, tx pgx.Tx, value ExecutionVersionRegistration) error
++func (w *CatalogWriter) BindExecutionDefault(ctx context.Context, tx pgx.Tx, owner, profileID, version string) (string, error)
++// Existing resolveProfile must read nullable defaults.pinned_version and use it
++// for inherit, preserving old-null fallback and all B03 fixed-receipt semantics.
++
++// FILE: internal/sources/types.go
++package sources
++
++import (
++    "context"
++    "time"
++    "github.com/jackc/pgx/v5"
++    "github.com/jackc/pgx/v5/pgxpool"
++    "repomesh.local/repomesh/internal/projects"
++)
++
++type EnvironmentTemplate struct {
++    ID string `json:"id"`
++    Version string `json:"version"`
++    ExecutorPoolID string `json:"executorPoolId"`
++    ApprovedTemplateDigest string `json:"approvedTemplateDigest"`
++    NetworkPolicyRef string `json:"networkPolicyRef"`
++    ResourceClassID string `json:"resourceClassId"`
++    Enabled bool `json:"enabled"`
++}
++type ExecutionProfile struct {
++    ID string `json:"id"`
++    Version string `json:"version"`
++    OwnerID string `json:"ownerId"`
++    Name string `json:"name"`
++    TemplateID string `json:"templateId"`
++    TemplateVersion string `json:"templateVersion"`
++    WorkerConcurrency int `json:"workerConcurrency"`
++    VerificationGroupEnabled bool `json:"verificationGroupEnabled"`
++}
++type DefaultBinding struct {
++    Kind string `json:"kind"`
++    OwnerID string `json:"ownerId"`
++    ProfileID string `json:"profileId"`
++    ProfileVersion string `json:"profileVersion"`
++}
++type Manifest struct {
++    SchemaVersion int `json:"schemaVersion"`
++    ImportID string `json:"importId"`
++    EnvironmentTemplates []EnvironmentTemplate `json:"environmentTemplates"`
++    ExecutionProfiles []ExecutionProfile `json:"executionProfiles"`
++    DefaultBindings []DefaultBinding `json:"defaultBindings"`
++}
++type ImportCommand struct { value Manifest; canonical []byte }
++func ParseImport(data []byte) (ImportCommand, error)
++type VersionRef struct { ID string `json:"id"`; Version string `json:"version"` }
++type DefaultResult struct {
++    OwnerID string `json:"ownerId"`
++    ProfileID string `json:"profileId"`
++    ProfileVersion string `json:"profileVersion"`
++    DefaultRevision string `json:"defaultRevision"`
++}
++type Receipt struct {
++    ImportID string `json:"importId"`
++    SchemaVersion int `json:"schemaVersion"`
++    EnvironmentTemplates []VersionRef `json:"environmentTemplates"`
++    ExecutionProfiles []VersionRef `json:"executionProfiles"`
++    DefaultBindings []DefaultResult `json:"defaultBindings"`
++    CommittedAt time.Time `json:"committedAt"`
++}
++type ImportResult struct { Receipt Receipt; Replayed bool }
++type Importer struct {
++    pool *pgxpool.Pool
++    principal DeploymentPrincipal
++    catalog *projects.CatalogWriter
++    hook importHook
++}
++type DeploymentPrincipal struct { deploymentID, sessionUser string }
++// Each borrowed transaction verifies session_user equals principal and permitted role membership;
++// principal is minted from this pool's database identity, never from CLI/manifest actor strings.
++func AuthenticateDeployment(ctx context.Context, pool *pgxpool.Pool) (DeploymentPrincipal, error)
++func checkDeployment(ctx context.Context, tx pgx.Tx, principal DeploymentPrincipal) error
++func NewImporter(pool *pgxpool.Pool, principal DeploymentPrincipal, catalog *projects.CatalogWriter) (*Importer, error)
++func (s *Importer) Import(ctx context.Context, command ImportCommand) (ImportResult, error)
++func (s *Importer) Get(ctx context.Context, importID string) (Receipt, error)
++func lockOwners(ctx context.Context, tx pgx.Tx, owners []string) error
++func lockImport(ctx context.Context, tx pgx.Tx, deploymentID, importID string) error
++func readImport(ctx context.Context, tx pgx.Tx, deploymentID, importID string) (Receipt, []byte, bool, error)
++func insertTemplate(ctx context.Context, tx pgx.Tx, value EnvironmentTemplate) error
++func insertExecutionSource(ctx context.Context, tx pgx.Tx, value ExecutionProfile) error
++func commitImport(ctx context.Context, tx pgx.Tx, deploymentID string, command ImportCommand, receipt Receipt) error
++type importPhase string
++const (
++    ownersLocked importPhase = "owners_locked"
++    importLocked importPhase = "import_locked"
++    templatesInserted importPhase = "templates_inserted"
++    executionProfilesInserted importPhase = "execution_profiles_inserted"
++    defaultsBound importPhase = "defaults_bound"
++    importReceiptInserted importPhase = "import_receipt_inserted"
++    importBeforeCommit importPhase = "import_before_commit"
++)
++type importHook func(context.Context, importPhase) error
++
++// FILE: internal/web/models.go. Current implementation has no Server receiver.
++package web
++import (
++    "net/http"
++    "repomesh.local/repomesh/internal/models"
++    "repomesh.local/repomesh/internal/access"
++)
++type modelHandler func(http.ResponseWriter, *http.Request, access.ProjectPrincipal) error
++type Models struct { Service *models.Service }
++func registerModels(mux *http.ServeMux, auth Auth, api Models)
++func registerModelRoute(mux *http.ServeMux, pattern string, auth Auth, handler modelHandler)
++// modelHandler uses authenticated access.ProjectPrincipal, same shape as projectHandler.
++// Reuse strict body/UUID/error-envelope helpers after moving names in their owning package.
++// Only six B04 routes from model-settings-browser-api-draft.md M02. No source import HTTP.
++
++// FILE: cmd/repomesh-web/sources.go — package main additions
++package main
++import ("context"; "io"; "repomesh.local/repomesh/internal/sources")
++func runSourceImport(ctx context.Context, importer *sources.Importer, manifestPath string, output io.Writer) error
++func runSourceResult(ctx context.Context, importer *sources.Importer, importID string, output io.Writer) error
++// Root command resolves trusted deployment identity/config; arguments never carry secrets.
++// Import lockImport takes the preinserted import_serialization singleton BEFORE
++// owner locks, reads prior committed import first, then locks new owners sorted.
++// sources queries return stable prior receipt without revalidating new input owners.
++// Tests use isolated PG and owned TLS server; fault hooks are package-private.
++// Additional helper signatures must be proposed to Astra before implementation.
++
++// FILE: internal/access/model_destination.go — additions, existing Destination retained.
++package access
++import "context"
++type ModelSaveDestinationResolver func(context.Context, string, string) (*string, error)
++func (s *Service) SetModelSaveDestinationResolver(resolver ModelSaveDestinationResolver)
++func (d Destination) ModelSaveDestination() (string, bool)
++func (s *Service) resolveModelSaveDestination(ctx context.Context, actor string, destination Destination) (*string, error)
++func normalizeProviderSaveID(raw string) (string, error)
++// Existing ParseDestination already recognizes provider_save; add UUID normalization in its resolver.
++// Existing callback destination dispatch calls model resolver for provider_save only.
++// No runtime model_test/model_apply destination is activated by this batch.
++
++// FILE: internal/access/deployment.go addition. Only composition root calls this accessor.
++package access
++import "repomesh.local/repomesh/internal/secrets"
++func (r *Runtime) SecretStore() *secrets.Store
++// Does not read another config/root or register another wrapping store. Web handlers receive
++// models.Service, not Runtime/Store. Existing Auth construction and maintenance remain.
++
++// Non-HTTP failure classification: committed business outcomes are returned in SaveResult;
++// errors carry only safe codes. Commit ambiguity is RESULT_UNCONFIRMED and retains the key.
++// A rejected POST maps its stored error to HTTP 409; GET/close return its stable receipt as 200.
++// PreparedSecret may be inserted only once into one caller transaction; Discard is idempotent.
++// InsertPrepared checks prepared.rootID, not a newly selected Store active root.
++// All new behavior remains NOT IMPLEMENTED. Additional architecture helper signatures must
++// be reviewed before later implementation, not retroactively documented.
++
++package main
++import (
++    "context"
++    "io"
++    "repomesh.local/repomesh/internal/database"
++    "repomesh.local/repomesh/internal/sources"
++)
++// Root dispatch recognizes sources import --file PATH and sources result --import-id UUID.
++// Bounded local file read max 1MiB; stdout only safe JSON receipt; diagnostics never DSN/body.
++type sourceArguments struct { mode, manifestPath, importID string }
++func parseSourceArguments(arguments []string) (sourceArguments, error)
++func openSourceRuntime(ctx context.Context, databaseURL string) (*database.DB, *sources.Importer, error)
++func runSources(ctx context.Context, arguments []string, output, diagnostics io.Writer) int
++// openSourceRuntime: database.Open -> Check current schema -> AuthenticateDeployment -> NewImporter.
++// Always close DB. No migration/App/root import. Exit 0 confirmed/replayed, 2 invalid input or
++// stable conflict, 1 unavailable/unconfirmed; unknown message retains importId and query command.
++
++package web
++import "context"
++// Extend existing RunConfigured in the same wave as its cmd caller; no duplicate server API.
++// Existing Auth/Projects retained; B04 gains Models, later B05 extends Models fields.
++func RunConfigured(ctx context.Context, addr, assets string, auth Auth, projectAPI Projects, modelAPI Models, certFile, keyFile string) error
++
++package web
++import ("io/fs"; "net/http")
++func handlerConfigured(assets fs.FS, auth Auth, projectAPI Projects, modelAPI Models) http.Handler
++// Existing Run/RunAuthenticated/handlerWithAuth wrappers keep signatures and pass Models{}.
++// cmd.run assembles Models before RunConfigured; registerModels is conditional on Service.
+--- /dev/null
++++ b/docs/development/2026-09-13-b04-b06-design-01/b05.go.txt
+@@ -0,0 +1,393 @@
++// B05-DECL-r1 / DESIGN_RECOMMENDATION_NOT_ADOPTED. Astra, declarations only.
++// HTTP DTOs are projections of model-settings-browser-api-draft.md §§4,5,8 and
++// first-batch-browser-api-contract.md §10. No alternative transport schema here.
++// Each package section is separate. Existing types retain their source definitions.
++
++package projects
++import (
++    "context"
++    "time"
++    "github.com/jackc/pgx/v5"
++    "repomesh.local/repomesh/internal/secrets"
++)
++type ConfigurationRevision string
++type ProfileVersionRef struct { ID, Version string }
++type PolicyRef struct { ID, Version string }
++type ModelBinding struct {
++    Profile ProfileVersionRef
++    ProviderID, ProviderRevision, ModelRowID string
++    SecretVersion secrets.VersionID
++}
++type RequestPolicy struct {
++    Ref PolicyRef
++    Scope string // parser permits only actor_model_test or project_model_runtime
++    Limit, MaxUnresolved int64
++    Enabled bool
++}
++type TimePolicy struct { Ref PolicyRef; ModelRequestSeconds, WorkerAttemptSeconds int64 }
++type ExecutionRecipe struct {
++    Template ProfileVersionRef
++    WorkerConcurrency int
++    VerificationGroupEnabled bool
++    Budget RequestPolicy
++    Limits TimePolicy
++}
++// Opaque snapshots retain the exact existing JSON and all bindings; external callers cannot edit.
++type FixedConfiguration struct { record configurationRecord; model *ModelBinding; recipe *ExecutionRecipe }
++func (f FixedConfiguration) Revision() ConfigurationRevision
++func (f FixedConfiguration) Model() (ModelBinding, bool)
++func (f FixedConfiguration) HasModelReference() bool
++func (f FixedConfiguration) Execution() (ProfileVersionRef, bool)
++func (f FixedConfiguration) ExecutionRecipe() (ExecutionRecipe, bool)
++func (f FixedConfiguration) ModelChoice() ProfileChoice
++func (f FixedConfiguration) ExecutionChoice() ProfileChoice
++type LockedProject struct { record projectRecord }
++func (p LockedProject) ID() string
++func (p LockedProject) Revision() string
++func (p LockedProject) CreationContextRevision() string
++// Caller first locks principal. These methods share caller tx, never begin/commit it.
++func (s *Service) LockForConfiguration(ctx context.Context, tx pgx.Tx, actor, projectID string) (LockedProject, FixedConfiguration, error)
++func (s *Service) ReadFixed(ctx context.Context, tx pgx.Tx, actor, projectID string, revision ConfigurationRevision) (FixedConfiguration, error)
++// Hydrate exact immutable source closure while tx is held; getters never query a pool.
++// Missing historical linkage preserves record and HasModelReference but has no usable model/recipe.
++func hydrateFixedConfiguration(ctx context.Context, tx pgx.Tx, actor string, record configurationRecord) (FixedConfiguration, error)
++type ModelReplacement struct { ExpectedProjectRevision string; Before FixedConfiguration; Candidate ModelBinding }
++type ConfigurationChange struct { ProjectRevision string; ConfigurationRevision ConfigurationRevision; Changed bool; CommittedAt time.Time }
++// Requires project/catalog/profile/availability locks in documented order. Copies execution
++// atomically and validates candidate lineage; never calls resolveConfiguration.
++func (s *Service) ReplaceModel(ctx context.Context, tx pgx.Tx, project LockedProject, replacement ModelReplacement, at time.Time) (ConfigurationChange, error)
++func retainExecutionAndReplaceModel(before fixedConfiguration, candidate ModelBinding) (fixedConfiguration, error)
++// CheckedFixed separates available fixed material from current eligibility; no network call.
++type CheckedFixed struct { Configuration FixedConfiguration; Status string; Reasons []string; ObservedAt time.Time }
++func (s *Service) InspectFixedForCreation(ctx context.Context, tx pgx.Tx, actor string, fixed FixedConfiguration) (CheckedFixed, error)
++// Budget/time recipes are stored as append-only version details. v1 versions remain incomplete.
++func (w *CatalogWriter) RegisterCompleteExecution(ctx context.Context, tx pgx.Tx, owner, profileID, version, name string, recipe ExecutionRecipe) error
++func (w *CatalogWriter) RegisterRequestPolicy(ctx context.Context, tx pgx.Tx, policy RequestPolicy) error
++func (w *CatalogWriter) RegisterTimePolicy(ctx context.Context, tx pgx.Tx, policy TimePolicy) error
++// C05 build function does not begin a transaction, initialize quota or follow latest defaults.
++type FixedSummary struct {
++    ConfigurationRevision ConfigurationRevision `json:"configurationRevision"`
++    ExecutionVersionID *string `json:"executionVersionId"`
++    Budget BudgetSummary `json:"budget"`
++    TimeLimits TimeLimitSummary `json:"timeLimits"`
++}
++func buildFixedSummary(fixed FixedConfiguration) FixedSummary
++
++package modelbudget
++import (
++    "context"
++    "time"
++    "github.com/jackc/pgx/v5"
++    "repomesh.local/repomesh/internal/projects"
++)
++// Narrow counted-request accounting, no money/settlement/runtime dispatcher. Does not own pool.
++type Store struct{}
++type WindowID struct { ScopeKind, ScopeID string; StartUTC time.Time }
++type Window struct { ID WindowID; EndUTC time.Time; Limit, Reserved, Consumed int64; Revision string }
++type Reservation struct { TestID string; Window WindowID; Policy projects.PolicyRef }
++type Observation interface { budgetObservation() }
++type Known struct { Window Window; EffectiveLimit, Remaining int64; At time.Time }
++func (Known) budgetObservation()
++type Unknown struct { Reasons []string; At *time.Time }
++func (Unknown) budgetObservation()
++// No allocation by read-only GET; lack of a trustworthy initialized window gives Unknown.
++func (s *Store) Observe(ctx context.Context, tx pgx.Tx, scope WindowID, policy projects.RequestPolicy) (Observation, error)
++// Caller supplies new-window evidence from locked durable local history; absence is not evidence.
++type EmptyWindowEvidence struct { scope WindowID; checkedHistoryRevision string }
++func (s *Store) CheckEmptyWindowHistory(ctx context.Context, tx pgx.Tx, scope WindowID) (EmptyWindowEvidence, error)
++func (s *Store) EnsureProjectWindow(ctx context.Context, tx pgx.Tx, scope WindowID, policy projects.RequestPolicy, evidence EmptyWindowEvidence) (Window, error)
++func (s *Store) ReserveTest(ctx context.Context, tx pgx.Tx, actor, testID string, policy projects.RequestPolicy, now time.Time) (Reservation, error)
++func (s *Store) ConsumeTest(ctx context.Context, tx pgx.Tx, reservation Reservation, externalOperationID string) error
++// Called only in transaction that proves no send permission can be used, never merely on timeout.
++func (s *Store) ReleaseUnsent(ctx context.Context, tx pgx.Tx, reservation Reservation, proof NotSentProof) error
++type NotSentProof struct { testID, permitRevision, evidenceID string }
++func (s *Store) ProveUnsent(ctx context.Context, tx pgx.Tx, testID string) (NotSentProof, error)
++func lockWindow(ctx context.Context, tx pgx.Tx, scope WindowID) (Window, error)
++func lowerWindowLimit(ctx context.Context, tx pgx.Tx, window Window, currentLimit int64) (Window, error)
++// projects does not import this package. Its outer configuration use case receives an injected
++// function for window initialization; callback runs caller tx, no new transaction or network.
++
++package models
++import (
++    "context"
++    "time"
++    "github.com/jackc/pgx/v5"
++    "github.com/jackc/pgx/v5/pgxpool"
++    "repomesh.local/repomesh/internal/access"
++    "repomesh.local/repomesh/internal/projects"
++    "repomesh.local/repomesh/internal/secrets"
++    "repomesh.local/repomesh/internal/modelbudget"
++)
++type SnapshotTarget struct { ProviderID, ProviderRevision, ModelRowID string }
++type TestPolicy struct {
++    Revision string
++    Budget projects.RequestPolicy
++    Limits projects.TimePolicy
++    EgressID, EgressVersion string
++    ApprovedBaseURLs []string
++}
++type TestPreview struct {
++    ID, Actor string
++    Target SnapshotTarget
++    Model projects.ModelBinding
++    ModelID string
++    Policy TestPolicy
++    MaxOutputTokens int64
++    ExpiresAt time.Time
++    CanSubmit bool
++    Reasons []string
++}
++type TestCommand struct { key, previewID string; confirmPotentialCharge bool }
++func ParseTestCommand(key string, body []byte) (TestCommand, error)
++type TestService struct { pool *pgxpool.Pool; authorization *access.Service; secrets *secrets.Store; budgets *modelbudget.Store }
++func NewTestService(pool *pgxpool.Pool, authorization *access.Service, secrets *secrets.Store, budgets *modelbudget.Store) *TestService
++func (s *TestService) Preview(ctx context.Context, principal access.ProjectPrincipal, target SnapshotTarget) (TestPreview, error)
++func (s *TestService) Submit(ctx context.Context, principal access.ProjectPrincipal, command TestCommand) (TestResult, error)
++func (s *TestService) Get(ctx context.Context, principal access.ProjectPrincipal, testID string) (TestResult, error)
++type TestResult struct {
++    ID, Actor string
++    Target SnapshotTarget
++    AcceptedAt time.Time
++    ResultRevision string
++    State string // projection onto exactly the six states in the HTTP contract
++    Observation *DispatchObservation
++    BudgetStatus string
++    Recovery string
++    RemovedAt *time.Time
++}
++type DispatchObservation struct {
++    EvidenceID, TestID, ExternalOperationID string
++    StartedAt, ObservedAt *time.Time
++    Code string
++    LatencyMS *int64
++    Usage *TokenUsage
++}
++type TokenUsage struct { InputTokens, OutputTokens int64 }
++type TestClaim struct { testID, owner string; generation int64; leaseUntil time.Time }
++type SendPermit struct { testID, externalOperationID, nonce string; consumed bool }
++// Only this process's successful permit commit can create a SendPermit; a DB read cannot.
++type TestRunner struct { service *TestService; transport *SingleRequestTransport; instanceID string }
++func NewTestRunner(service *TestService, transport *SingleRequestTransport) *TestRunner
++func (r *TestRunner) RunOne(ctx context.Context) (bool, error)
++func (r *TestRunner) claimUnsent(ctx context.Context) (TestClaim, bool, error)
++func (r *TestRunner) authorizeOneSend(ctx context.Context, claim TestClaim) (*AuthorizedDispatch, error)
++func (r *TestRunner) recordObservation(ctx context.Context, observation DispatchObservation) error
++func (r *TestRunner) reconcile(ctx context.Context, testID string) error
++// HTTPS only, no retry/redirect/env proxy, fixed prompt, output/time limits and verified-IP TLS.
++// Construction requires an adopted/tested protocol mapping, not arbitrary HTTP client options.
++type SingleRequestTransport struct { protocolVersion string }
++func NewSingleRequestTransport(protocolVersion string) (*SingleRequestTransport, error)
++type AuthorizedDispatch struct { permit SendPermit; model ProviderView; rowID string; policy TestPolicy; key []byte; maxOutput int64 }
++func (d *AuthorizedDispatch) clear()
++// Created only after the permit tx is positively confirmed. Key opened in that tx; any failure
++// clears it. The exact stored policy travels with each dispatch, not one startup global policy.
++func (r *TestRunner) loadDispatchInTx(ctx context.Context, tx pgx.Tx, claim TestClaim) (*AuthorizedDispatch, error)
++func (r *TestRunner) checkSendStillAuthorized(ctx context.Context, dispatch *AuthorizedDispatch) error
++func (t *SingleRequestTransport) sendOnce(ctx context.Context, dispatch *AuthorizedDispatch) DispatchObservation
++// Maintenance capability passed only by composition, never by browser-supplied actor.
++type SenderRevocationEvidence struct { testID, senderID, evidenceID string; revokedAt time.Time }
++// No timeout/lease expiry manufactures this evidence. This constructor requires operator-owned
++// process termination evidence for the exact sender plus dispatcher generation revocation.
++// Adoption and local fault validation are prerequisites; no browser path and no second send.
++func (m *Maintenance) VerifySenderRevocation(ctx context.Context, testID, evidenceID string) (SenderRevocationEvidence, error)
++func (m *Maintenance) CloseUnknownTest(ctx context.Context, testID string, evidence SenderRevocationEvidence) error
++func (m *Maintenance) RemoveTestResult(ctx context.Context, actor, testID string, cutoff time.Time) error
++func (s *TestService) replayTest(ctx context.Context, tx pgx.Tx, actor string, command TestCommand) (TestResult, bool, error)
++func (s *TestService) registerTest(ctx context.Context, tx pgx.Tx, actor string, command TestCommand, preview TestPreview, reservation modelbudget.Reservation) (TestResult, error)
++func validatePreviewForNewTest(preview TestPreview, actor string, target SnapshotTarget, policy TestPolicy, now time.Time) error
++
++// C06 is a transport projection; internal before model retains exact original binding.
++type ApplicationPreview struct {
++    ID, Actor, ProjectID, ProjectRevision string
++    Before projects.FixedConfiguration
++    originalModel OriginalModel
++    candidateModelID string
++    Candidate projects.ModelBinding
++    Target SnapshotTarget
++    ExpiresAt time.Time
++    CanApply bool
++    Reasons []string
++}
++type ApplicationCommand struct { projectID, key, previewID, requestID string }
++func ParseApplicationCommand(projectID, key, requestID string, body []byte) (ApplicationCommand, error)
++type ApplicationReceipt interface { applicationReceipt() }
++type Applied struct {
++    ApplicationID, ProjectID, ProjectRevision string
++    ConfigurationRevision projects.ConfigurationRevision
++    Candidate projects.ModelBinding
++    RetainedExecution projects.ProfileVersionRef
++    CommittedAt time.Time
++}
++func (Applied) applicationReceipt()
++type ApplicationRejected struct { ApplicationID string; Error APIError; DecidedAt time.Time }
++func (ApplicationRejected) applicationReceipt()
++type ApplicationService struct { pool *pgxpool.Pool; authorization *access.Service; projects *projects.Service; secrets *secrets.Store }
++func NewApplicationService(pool *pgxpool.Pool, authorization *access.Service, projects *projects.Service, secrets *secrets.Store) *ApplicationService
++func (s *ApplicationService) Preview(ctx context.Context, principal access.ProjectPrincipal, projectID string, target SnapshotTarget) (ApplicationPreview, error)
++func (s *ApplicationService) Apply(ctx context.Context, principal access.ProjectPrincipal, command ApplicationCommand) (ApplicationReceipt, error)
++func (s *ApplicationService) Get(ctx context.Context, principal access.ProjectPrincipal, projectID, applicationID string) (ApplicationReceipt, error)
++func (s *ApplicationService) replayApplication(ctx context.Context, tx pgx.Tx, actor string, command ApplicationCommand) (ApplicationReceipt, bool, error)
++func lockApplicationPreview(ctx context.Context, tx pgx.Tx, actor, projectID, previewID string) (ApplicationPreview, error)
++func compareApplicationPreview(preview ApplicationPreview, project projects.LockedProject, fixed projects.FixedConfiguration, currentCandidate projects.ModelBinding, now time.Time) error
++func persistApplication(ctx context.Context, tx pgx.Tx, command ApplicationCommand, preview ApplicationPreview, receipt ApplicationReceipt) error
++// BeforeModel projection methods read current authorization, then return the union defined in
++// frontend.ts.txt C06; restricted projection never calls latest-provider lookup.
++func (m *Maintenance) RemoveApplicationResult(ctx context.Context, actor, projectID, applicationID string) error
++
++package sources
++import (
++    "context"
++    "github.com/jackc/pgx/v5"
++    "repomesh.local/repomesh/internal/projects"
++)
++type EgressPolicy struct { ID, Version string; ApprovedBaseURLs []string; AllowedPort int; AllowPrivateAddresses, FollowRedirects bool }
++type TestBinding struct { OwnerID string; Budget, Limits, Egress projects.PolicyRef }
++type CompleteExecution struct { Identity ExecutionProfile; Budget, Limits projects.PolicyRef }
++type ManifestV2 struct { Base Manifest; Execution []CompleteExecution; Budgets []projects.RequestPolicy; Limits []projects.TimePolicy; Egress []EgressPolicy; Tests []TestBinding }
++// ManifestV2 is normalized internal data; the single wire schema is sources §9, no nested Base key.
++func parseImportV2(data []byte) (ManifestV2, []byte, error)
++func (s *Importer) importV2(ctx context.Context, tx pgx.Tx, command ManifestV2, canonical []byte) (Receipt, error)
++func insertEgressPolicy(ctx context.Context, tx pgx.Tx, policy EgressPolicy) error
++func bindTestPolicy(ctx context.Context, tx pgx.Tx, binding TestBinding) error
++
++package projects
++import (
++    "context"
++    "github.com/jackc/pgx/v5"
++)
++// Dependency inversion keeps projects from importing modelbudget, which uses catalog policy types.
++// Only composition provides this policy-bearing initializer. Existing B03 New retains nil until B05.
++type InitializeRequestWindow func(context.Context, pgx.Tx, string, RequestPolicy) error
++func (s *Service) SetRequestWindowInitializer(initialize InitializeRequestWindow)
++// Explicit complete configuration commits invoke initializer in caller transaction; nil means
++// unavailable runtime quota, not unlimited allowance. Model-only replacement keeps execution.
++
++package models
++import (
++    "context"
++    "github.com/jackc/pgx/v5"
++    "repomesh.local/repomesh/internal/projects"
++)
++type OriginalModel interface { originalModel() }
++type UnconfiguredOriginal struct{}
++func (UnconfiguredOriginal) originalModel()
++type ReadableOriginal struct { Binding projects.ModelBinding; Reference projects.ProfileChoice; SnapshotPath string }
++func (ReadableOriginal) originalModel()
++type RestrictedOriginal struct { Reasons []string }
++func (RestrictedOriginal) originalModel()
++func (s *ApplicationService) projectOriginalModel(ctx context.Context, tx pgx.Tx, actor string, before projects.FixedConfiguration) (OriginalModel, error)
++// Unknown authorization is error503; restricted payload has no binding or identity fields.
++
++package sources
++import "time"
++// Schema2 receipt adds these four arrays; schema1 stays exactly its original receipt shape.
++type PolicyImportResults struct { BudgetPolicies, TimeLimitPolicies, EgressPolicies []VersionRef; TestBindings []TestBindingResult }
++type TestBindingResult struct { OwnerID, Revision string }
++// B05 REPLACEMENTS for B04's ImportCommand/Receipt in the same sources package.
++// ParseImport's existing signature dispatches version and constructs exactly one payload.
++type importPayload interface { importPayload() }
++func (Manifest) importPayload()
++func (ManifestV2) importPayload()
++type ImportCommand struct { payload importPayload; canonical []byte; schemaVersion int }
++type Receipt struct {
++    ImportID string
++    SchemaVersion int
++    EnvironmentTemplates, ExecutionProfiles []VersionRef
++    DefaultBindings []DefaultResult
++    CommittedAt time.Time
++    policyResults *PolicyImportResults
++}
++func (r Receipt) MarshalJSON() ([]byte, error)
++// No "policies" wire key. Both versions preserve schemaVersion and exact old receipt on replay.
++
++package web
++import (
++    "repomesh.local/repomesh/internal/models"
++)
++// Replace B04 Models declaration at B05 implementation, keeping existing Service field.
++type Models struct { Service *models.Service; Tests *models.TestService; Applications *models.ApplicationService }
++
++package access
++import "context"
++type ModelTestDestinationResolver func(context.Context, string, string) (*string, error)
++type ModelApplyDestinationResolver func(context.Context, string, string, string) (*string, error)
++func (s *Service) SetModelTestDestinationResolver(resolver ModelTestDestinationResolver)
++func (s *Service) SetModelApplyDestinationResolver(resolver ModelApplyDestinationResolver)
++// Existing Destination parse/dispatch extended through these resolver methods, no raw return URL.
++
++package projects
++import (
++    "context"
++    "time"
++    "github.com/jackc/pgx/v5"
++)
++// Go projections of unique C05 contract. Opaque sums serialize exactly one documented branch.
++type BudgetSummary struct { available *RequestPolicy; reasons []string }
++func (b BudgetSummary) MarshalJSON() ([]byte, error)
++type TimeLimitSummary struct { available *TimePolicy; reasons []string }
++func (t TimeLimitSummary) MarshalJSON() ([]byte, error)
++type KnownQuota struct {
++    Policy PolicyRef
++    WindowStart, WindowEnd, ObservedAt time.Time
++    EffectiveLimit, Reserved, Consumed, Remaining int64
++}
++type QuotaObservation struct { configurationRevision ConfigurationRevision; known *KnownQuota; unknown *quotaUnknown; notConfigured []string }
++type quotaUnknown struct { reasons []string; observedAt *time.Time }
++func KnownQuotaObservation(revision ConfigurationRevision, value KnownQuota) QuotaObservation
++func UnknownQuotaObservation(revision ConfigurationRevision, reasons []string, at *time.Time) QuotaObservation
++func NotConfiguredQuotaObservation(revision ConfigurationRevision, reasons []string) QuotaObservation
++func (q QuotaObservation) MarshalJSON() ([]byte, error)
++// Composition adapter modelbudget->projects projection; this injected read is no network/no writes
++// and uses caller tx. projects never imports modelbudget. Nil means unknown, never zero.
++type ObserveRequestQuota func(context.Context, pgx.Tx, string, ConfigurationRevision, RequestPolicy, time.Time) (QuotaObservation, error)
++func (s *Service) SetRequestQuotaObserver(observe ObserveRequestQuota)
++func (s *Service) readConfigurationSummary(ctx context.Context, tx pgx.Tx, projectID string, fixed FixedConfiguration, now time.Time) (FixedSummary, QuotaObservation, error)
++// Add these two fields to existing ConfigurationView alongside original fields:
++// FixedSummary FixedSummary `json:"fixedSummary"`
++// QuotaObservation QuotaObservation `json:"quotaObservation"`
++// Existing Service.Get pins one project/config revision in its read transaction, then builds
++// both fields there. Only missing budget -> not_configured. Missing window/read -> unknown.
++// A DB statement error aborts PG tx: optional observer uses SAVEPOINT/ROLLBACK TO before
++// producing unknown; connection/whole snapshot failure returns503 instead of a partial view.
++
++package models
++// Exact §4 preview whitelist: never encode Actor, full Model, Policy or ApprovedBaseURLs.
++func (p TestPreview) MarshalJSON() ([]byte, error)
++func (r TestResult) MarshalJSON() ([]byte, error)
++func (r Applied) MarshalJSON() ([]byte, error)
++func (r ApplicationRejected) MarshalJSON() ([]byte, error)
++func (p ApplicationPreview) MarshalJSON() ([]byte, error)
++// Marshaling previews must use the already-authorized OriginalModel projection, not expose Before.
++// ApplicationPreview.originalModel is populated in Preview tx.
++
++package main
++import (
++    "context"
++    "repomesh.local/repomesh/internal/access"
++    "repomesh.local/repomesh/internal/models"
++    "repomesh.local/repomesh/internal/projects"
++    "repomesh.local/repomesh/internal/modelbudget"
++)
++// Web composition initializes the two narrow projects callbacks; coordinator uses the same
++// model store and an explicit supported protocol registry. No hidden extra pool/root reader.
++func configureModelBudgets(projects *projects.Service, budgets *modelbudget.Store)
++func assembleModelTestRunner(runtime *access.Runtime, budgets *modelbudget.Store) (*models.TestRunner, error)
++func runModelTestWorker(ctx context.Context, runner *models.TestRunner) error
++// runModelTestWorker scans only test_dispatch responsibility alongside existing auth discovery;
++// neither it nor access workers consume Issue continuation_work. Missing handler disables new tests.
++
++package models
++import (
++    "context"
++    "time"
++    "github.com/jackc/pgx/v5"
++)
++// A finite handler-presence record for model tests, not Issue/runtime readiness.
++type handlerObservation struct { instanceID, protocolVersion string; leaseUntil time.Time }
++func (r *TestRunner) RegisterHandler(ctx context.Context) error
++func (r *TestRunner) HeartbeatHandler(ctx context.Context) error
++func readTestHandler(ctx context.Context, tx pgx.Tx, protocolVersion string, now time.Time) (handlerObservation, error)
++func checkTestProtocol(target ProviderView, rowID string, protocolVersion string) error
++// Registration/heartbeat are independent short txs with no actor/business locks; RunOne never
++// carries their locks into claim/dispatch. Preview/Submit read recent matching support; absent
++// -> TEST_HANDLER_UNAVAILABLE, query failure -> unknown. A lease expiry is never revocation proof.
+--- /dev/null
++++ b/docs/development/2026-09-13-b04-b06-design-01/b06.go.txt
+@@ -0,0 +1,286 @@
++// B06-DECL-r1 / DESIGN_RECOMMENDATION_NOT_ADOPTED. Declarations only.
++// HTTP is a projection of issue-page-create-api-contract.md §§2–6,11.
++// Package sections are separate proposed files, not product code or compile-ready bodies.
++package access
++import (
++    "context"
++    "time"
++    "github.com/jackc/pgx/v5"
++    "repomesh.local/repomesh/internal/secrets"
++)
++// Constructed only by access from current credentials and exact repository locators.
++// Read repositories are the full protected content union; write repositories are selected work.
++type IssueAccessRequest struct { ReadRepositories, WorkRepositories []RepositoryLocator }
++type IssueObservation struct {
++    actor, connectionRevision, credentialVersion string
++    accessEpoch int64
++    appKeyVersion secrets.VersionID
++    read, work []RepositoryObservation
++    app []issueAppObservation
++}
++type issueAppObservation struct { repositoryID, installationID, permissionRevision string; observedAt time.Time; allowed bool }
++func (s *Service) ObserveIssueAccess(ctx context.Context, principal ProjectPrincipal, request IssueAccessRequest) (IssueObservation, error)
++// Lock connection after principal/project; validates all observations including app timestamps.
++// No network, no independent transaction. Current unknown is 503, not a false denied value.
++func (s *Service) CheckIssueObservation(ctx context.Context, tx pgx.Tx, principal ProjectPrincipal, observation IssueObservation, request IssueAccessRequest) error
++func (s *Service) CheckIssueObservationTime(ctx context.Context, tx pgx.Tx, principal ProjectPrincipal, observation IssueObservation) error
++// CheckIssueObservationTime uses DB clock_timestamp immediately before commit and rechecks
++// local principal expiration; all necessary observations <= 60s old, none in the future.
++
++package issues
++import (
++    "context"
++    "time"
++    "github.com/jackc/pgx/v5"
++    "github.com/jackc/pgx/v5/pgxpool"
++    "repomesh.local/repomesh/internal/access"
++    "repomesh.local/repomesh/internal/projects"
++    "repomesh.local/repomesh/internal/modelbudget"
++)
++type IssueID string
++type ConversationID string
++type ChangeSetID string
++type OperationID string
++// Existing/new conversation cannot carry contradictory fields.
++type conversationChoice interface { conversationChoice() }
++type newConversation struct{}
++func (newConversation) conversationChoice()
++type existingConversation struct { id ConversationID }
++func (existingConversation) conversationChoice()
++type pageInput struct {
++    expectedContext string
++    title, description string
++    repositories []string
++    criteria []string
++    conversation conversationChoice
++    analysisID *string
++}
++// Envelope parse keeps valid JSON until the old operation schema is known; no client actor/entry.
++type PageCommand struct { projectID string; key OperationID; requestID string; body []byte }
++func ParsePageCommand(projectID, key, requestID string, body []byte) (PageCommand, error)
++func parseNewInput(body []byte) (pageInput, error)
++func canonicalize(body []byte, schemaVersion int) ([]byte, error)
++type operationIdentity struct { projectID, actor, entry string; key OperationID }
++func pageIdentity(principal access.ProjectPrincipal, command PageCommand) operationIdentity
++// No generic external Source type. Manager transport and runtime capability are not declared.
++type PageSource struct { operation operationIdentity }
++
++type ScopeSnapshot struct {
++    ProjectID string
++    IssueID IssueID
++    ConversationID ConversationID
++    IssueScopeRevision, ConversationScopeRevision string
++    ReadRepositories, WorkRepositories []access.RepositoryLocator
++}
++type operationRecord struct {
++    identity operationIdentity
++    schemaVersion int
++    canonical []byte
++    result committedCreation
++    removedAt *time.Time
++}
++type committedCreation struct {
++    issueID IssueID
++    issueNumber int64
++    mainChangeSetID ChangeSetID
++    conversationID ConversationID
++    configurationRevision projects.ConfigurationRevision
++    createdAt time.Time
++}
++// Public receipt maps the adopted response; internal pin never becomes a client-selected field.
++type CreationReceipt struct { OperationID OperationID; ProjectID string; Result committedCreation }
++type CreationResult struct { Receipt CreationReceipt; Replayed bool }
++func (r CreationReceipt) MarshalJSON() ([]byte, error)
++func (r CreationReceipt) IssueLocation() string
++// GET and POST use one immutable receipt; status is selected by caller.
++type ReadResult = CreationReceipt
++type Failure struct { Status int; Code string; Fields []projects.FieldError }
++func (f *Failure) Error() string
++
++type Service struct {
++    pool *pgxpool.Pool
++    authorization *access.Service
++    projects *projects.Service
++    budgets *modelbudget.Store
++    hook transactionHook
++}
++func New(pool *pgxpool.Pool, authorization *access.Service, projects *projects.Service, budgets *modelbudget.Store) *Service
++func (s *Service) CreatePage(ctx context.Context, principal access.ProjectPrincipal, command PageCommand) (CreationResult, error)
++func (s *Service) GetPageCreation(ctx context.Context, principal access.ProjectPrincipal, projectID string, key OperationID) (ReadResult, error)
++// Before fetching sensitive text: load identity/scope -> observe outside locks -> lock/recheck ->
++// read exact receipt or return removed410. Does not check new-creation eligibility on replay.
++func (s *Service) readAuthorizedOperation(ctx context.Context, principal access.ProjectPrincipal, identity operationIdentity) (operationRecord, bool, error)
++func loadOperationScope(ctx context.Context, tx pgx.Tx, identity operationIdentity) (ScopeSnapshot, bool, error)
++func readOperation(ctx context.Context, tx pgx.Tx, identity operationIdentity) (operationRecord, bool, error)
++func comparePrior(record operationRecord, body []byte) (CreationReceipt, error)
++func lockScope(ctx context.Context, tx pgx.Tx, scope ScopeSnapshot) (ScopeSnapshot, error)
++func requireSameScope(expected, locked ScopeSnapshot) error
++func (s *Service) replayAfterPreflight(ctx context.Context, principal access.ProjectPrincipal, command PageCommand, preflightError error) (CreationResult, error)
++
++type creationPreflight struct { input pageInput; scope ScopeSnapshot; observation access.IssueObservation }
++func (s *Service) preflightNew(ctx context.Context, principal access.ProjectPrincipal, command PageCommand) (creationPreflight, error)
++// One owner of tx. Fast path replay may release locks and reobserve the winner's larger scope.
++func (s *Service) commitNew(ctx context.Context, principal access.ProjectPrincipal, command PageCommand, preflight creationPreflight) (CreationResult, error)
++func (s *Service) beginCreate(ctx context.Context) (pgx.Tx, error)
++// Checked inputs are minted only inside locked transaction; no caller-provided revision pin.
++type checkedCreation struct {
++    project projects.LockedProject
++    fixed projects.FixedConfiguration
++    scope ScopeSnapshot
++    input pageInput
++    checkedAt time.Time
++}
++func (s *Service) checkNew(ctx context.Context, tx pgx.Tx, principal access.ProjectPrincipal, command PageCommand, preflight creationPreflight, project projects.LockedProject, fixed projects.FixedConfiguration) (checkedCreation, error)
++func (s *Service) checkBudget(ctx context.Context, tx pgx.Tx, projectID string, fixed projects.FixedConfiguration, now time.Time) error
++func rejectUnavailableAnalysis(input pageInput) error
++// Core supports recognized/canonical analysisID; new supplied ID cannot be ignored. Until an
++// authorized source repository exists it is hidden404, or 503 if authoritative state is unknown.
++func reserveCreationIdentity(ctx context.Context, tx pgx.Tx, identity operationIdentity, canonical []byte) (bool, error)
++func allocateIssueNumber(ctx context.Context, tx pgx.Tx, projectID string) (int64, error)
++func insertNecessaryConversation(ctx context.Context, tx pgx.Tx, checked checkedCreation, source PageSource) (ConversationID, error)
++func insertIssueAndMainChangeSet(ctx context.Context, tx pgx.Tx, identity operationIdentity, checked checkedCreation, conversationID ConversationID, number int64) (committedCreation, error)
++func insertWorkScope(ctx context.Context, tx pgx.Tx, result committedCreation, checked checkedCreation) error
++func appendProtectedScope(ctx context.Context, tx pgx.Tx, result committedCreation, checked checkedCreation) error
++func insertPageSourceAndCard(ctx context.Context, tx pgx.Tx, source PageSource, result committedCreation) error
++func completeCreationOperation(ctx context.Context, tx pgx.Tx, identity operationIdentity, input pageInput, result committedCreation) error
++func insertBlockedContinuation(ctx context.Context, tx pgx.Tx, identity operationIdentity, result committedCreation) error
++func appendCreationInvalidation(ctx context.Context, tx pgx.Tx, identity operationIdentity, result committedCreation) error
++func projectReceipt(record operationRecord) (CreationReceipt, error)
++// Deferred relational checks inspect final table state at COMMIT, not intermediate NEW copies.
++
++type PageQuery struct { Cursor string; Limit int }
++func ParsePageQuery(cursor, limit string) (PageQuery, error)
++type CreationRepository struct {
++    RepositoryID string `json:"repositoryId"`
++    DisplayName string `json:"displayName"`
++    Selectable bool `json:"selectable"`
++    Reasons []string `json:"reasons"`
++    ObservedAt *time.Time `json:"observedAt"`
++}
++type RepositoryAnalysisCapability struct {
++    Availability string `json:"availability"` // B06: unavailable
++    ReasonCodes []string `json:"reasonCodes"` // B06: [INTEGRATION_NOT_AVAILABLE]
++}
++type CreationOptions struct {
++    ProjectID string `json:"projectId"`
++    CreationContextRevision string `json:"creationContextRevision"`
++    DefaultConversationMode string `json:"defaultConversationMode"` // new
++    AllowedConversationModes []string `json:"allowedConversationModes"` // new,existing
++    CanSubmit bool `json:"canSubmit"`
++    BlockingReasons []string `json:"blockingReasons"`
++    Repositories []CreationRepository `json:"repositories"`
++    NextCursor *string `json:"nextCursor"`
++    RepositoryAnalysis RepositoryAnalysisCapability `json:"repositoryAnalysis"`
++}
++func projectCreationRepository(observation access.RepositoryObservation) (CreationRepository, bool, error)
++// Returns visible=false for confirmed unreadable user scope, unknown as503; only user-readable
++// repositories disclose names. selectable also requires observed App work capability.
++type ConversationCandidate struct { ID ConversationID `json:"id"`; Title string `json:"title"` }
++type ConversationPage struct { Items []ConversationCandidate `json:"items"`; NextCursor *string `json:"nextCursor"` }
++func (s *Service) Options(ctx context.Context, principal access.ProjectPrincipal, projectID string, query PageQuery) (CreationOptions, error)
++func (s *Service) Conversations(ctx context.Context, principal access.ProjectPrincipal, projectID string, query PageQuery) (ConversationPage, error)
++// Options builds the exact issues-owned projection above; writer encodes it without hidden
++// capability reshaping. All arrays are non-nil, nullable observedAt remains truthful.
++func (s *Service) readCandidateScope(ctx context.Context, principal access.ProjectPrincipal, projectID string, id ConversationID) (ScopeSnapshot, error)
++func (s *Service) readCandidateAfterAuthorization(ctx context.Context, principal access.ProjectPrincipal, scope ScopeSnapshot, observation access.IssueObservation) (ConversationCandidate, error)
++
++type Maintenance struct { service *Service }
++func NewMaintenance(service *Service) *Maintenance
++func (m *Maintenance) RemoveIssueBody(ctx context.Context, projectID string, issueID IssueID) error
++func tombstoneCreation(ctx context.Context, tx pgx.Tx, record operationRecord, at time.Time) error
++func removeDerivedBodies(ctx context.Context, tx pgx.Tx, identity operationIdentity, result committedCreation) error
++func redactDerivedConversationTitle(ctx context.Context, tx pgx.Tx, identity operationIdentity, conversationID ConversationID) error
++func cancelUnsentContinuation(ctx context.Context, tx pgx.Tx, identity operationIdentity) error
++// Only blocked/INTEGRATION_NOT_AVAILABLE -> cancelled/CONTENT_REMOVED plus cancelled_at.
++// Retains identity and Issue pin relation; never DELETE or resurrect. Any external fact aborts.
++// No received external actions in B06; presence of one aborts this maintenance use case.
++type transactionPhase string
++const (
++    principalLocked transactionPhase = "principal_locked"
++    projectLocked transactionPhase = "project_locked"
++    operationReserved transactionPhase = "operation_reserved"
++    conversationInserted transactionPhase = "conversation_inserted"
++    issueInserted transactionPhase = "issue_inserted"
++    scopeInserted transactionPhase = "scope_inserted"
++    mainChangeSetInserted transactionPhase = "main_changeset_inserted"
++    sourceAndCardInserted transactionPhase = "source_and_card_inserted"
++    operationCompleted transactionPhase = "operation_completed"
++    continuationInserted transactionPhase = "continuation_inserted"
++    eventInserted transactionPhase = "event_inserted"
++    beforeCommit transactionPhase = "before_commit"
++)
++type transactionHook func(context.Context, transactionPhase) error
++
++package web
++import (
++    "net/http"
++    "repomesh.local/repomesh/internal/access"
++    "repomesh.local/repomesh/internal/issues"
++)
++type Issues struct { Service *issues.Service }
++type issueHandler func(http.ResponseWriter, *http.Request, access.ProjectPrincipal) error
++func registerIssues(mux *http.ServeMux, auth Auth, api Issues)
++func registerIssueRoute(mux *http.ServeMux, pattern string, auth Auth, handler issueHandler)
++// Extend RunConfigured once with Issues at B06 integration and update its cmd caller.
++// Four B06 routes only; private response mappers serialize the adopted shape, no pin added.
++func writeCreationReceipt(w http.ResponseWriter, receipt issues.CreationReceipt, status int) error
++func writeCreationOptions(w http.ResponseWriter, options issues.CreationOptions) error
++func writeConversationPage(w http.ResponseWriter, page issues.ConversationPage) error
++
++package access
++import "context"
++type IssueCreationDestinationResolver func(context.Context, string, string, string) (*string, error)
++func (s *Service) SetIssueCreationDestinationResolver(resolver IssueCreationDestinationResolver)
++// Existing issue_create Destination carries projectId/operationId; uses current actor resolver.
++// Missing original result can yield only its fixed same-origin recovery route, never a mutation.
++
++package github
++import (
++    "context"
++    "time"
++)
++// Retain the validated installation identity/permissions currently discarded by AppCapability.
++// Opaque construction in this adapter; no bearer/App key bytes or caller-provided permission hash.
++type AppInstallationObservation struct {
++    installationID, appID int64
++    permissionRevision string
++    capability Capability
++    observedAt time.Time
++}
++func (o AppInstallationObservation) InstallationID() int64
++func (o AppInstallationObservation) PermissionRevision() string
++func (o AppInstallationObservation) Capability() Capability
++func (c *Client) ObserveAppInstallation(ctx context.Context, owner, name string) (AppInstallationObservation, error)
++func installationPermissionRevision(appID, installationID int64, suspended bool, permissions map[string]string) string
++// permissionRevision = versioned SHA256 of length-delimited appID/installationID/suspended and
++// sorted complete non-secret permission key/value set. This is a local observation fingerprint,
++// not a GitHub CAS revision and not proof of unchanged remote authorization until commit.
++// Existing AppCapability delegates to this validated read and projects Capability unchanged.
++
++package access
++import (
++    "context"
++    "github.com/jackc/pgx/v5"
++    "repomesh.local/repomesh/internal/github"
++    "repomesh.local/repomesh/internal/secrets"
++)
++// Add ObserveAppInstallation(ctx, owner, name) (github.AppInstallationObservation,error) to
++// existing Provider interface; update its real adapter and test doubles in U06.2, preserving
++// AppCapability's B02/B03 public meaning. No external calls during this design task.
++func (s *Service) observeIssueApp(ctx context.Context, repository RepositoryLocator) (github.AppInstallationObservation, error)
++// Extend Service with appID and issueAppKeyVersion, set in OpenRuntime from the privateRef
++// it already imports and whose exact version the provider PrivateKey closure uses.
++func (s *Service) setIssueAppCredential(appID string, version secrets.VersionID)
++// IssueObservation.appKeyVersion is set during ObserveIssueAccess; credentialVersion is the exact
++// access_ref used for user reads, distinct from connectionRevision/accessEpoch.
++func (s *Service) CheckIssueCredentialAvailability(ctx context.Context, tx pgx.Tx, observation IssueObservation) error
++// Called after fixed-model availability and before final time check. Locks exact user/App
++// versions in sorted versionID order, validates stored owner/purpose/enabled/root metadata.
++// No other path holding auth-credential locks may acquire model-key locks. Unknown returns503.
++
++package web
++import ("context"; "io/fs"; "net/http")
++// B06 replacement signatures for the same existing functions; migrate all current callers.
++func RunConfigured(ctx context.Context, addr, assets string, auth Auth, projectAPI Projects, modelAPI Models, issueAPI Issues, certFile, keyFile string) error
++func handlerConfigured(assets fs.FS, auth Auth, projectAPI Projects, modelAPI Models, issueAPI Issues) http.Handler
++// Existing wrapper signatures stay; they pass Models{}/Issues{} for unconfigured modes.
+--- /dev/null
++++ b/docs/development/2026-09-13-b04-b06-design-01/frontend.ts.txt
+@@ -0,0 +1,220 @@
++// B04–B06-TS-r1 / DESIGN_RECOMMENDATION_NOT_ADOPTED. Declaration-only projection.
++// Unique wire contracts: model-settings-browser-api-draft.md §§3–6,8;
++// first-batch-browser-api-contract.md §10; issue-page-create-api-contract.md §§2–6,11.
++// No network, runtime or storage implementation. All responses enter as unknown and are parsed.
++export type Brand<T, Name extends string> = T & { readonly __brand: Name };
++export type ActorID = Brand<string, "ActorID">;
++export type ProjectID = Brand<string, "ProjectID">;
++export type ProviderID = Brand<string, "ProviderID">;
++export type ProviderRevision = Brand<string, "ProviderRevision">;
++export type ProfileID = Brand<string, "ProfileID">;
++export type ProfileVersion = Brand<string, "ProfileVersion">;
++export type ModelRowID = Brand<string, "ModelRowID">;
++export type SecretVersionID = Brand<string, "SecretVersionID">;
++export type ConfigurationRevision = Brand<string, "ConfigurationRevision">;
++export type SaveID = Brand<string, "SaveID">;
++export type TestID = Brand<string, "TestID">;
++export type ApplicationID = Brand<string, "ApplicationID">;
++export type CreationID = Brand<string, "CreationID">;
++export type PreviewID = Brand<string, "PreviewID">;
++export type ISOTime = Brand<string, "ISOTime">;
++export type APIPath = Brand<string, "SameOriginAPIPath">;
++export type ProfileChoice = Readonly<{ mode: "inherit" } | { mode: "reference"; id: ProfileID }>;
++export type APIError = Readonly<{ code: string; message: string; fieldErrors: readonly { field: string; code: string }[]; requestId: string }>;
++import type { Result as TransportResult } from "../../../web/src/api";
++// Reuse the existing request() transport; do not add another fetch/client framework.
++export type APIReply<T> = TransportResult<T>;
++export type WriteContext = Readonly<{ actor: ActorID; csrfToken: string }>;
++// request(): status0 NETWORK_ERROR/ABORTED and INVALID_RESPONSE preserve operation uncertainty.
++// Endpoint helpers supply exact accepted successStatuses (save200/201,test200/202,others200).
++// Aborting a fetch never proves a write or external send stopped.
++
++// B04: Provider and immutable snapshots.
++export type ModelInput = Readonly<{
++  id: ModelRowID | null; modelId: string; displayName: string | null;
++  contextWindow: number; maxOutputTokens: number; reasoning: boolean; vision: boolean;
++}>;
++export type ModelView = Readonly<Omit<ModelInput, "id" | "displayName"> & {
++  id: ModelRowID; displayName: string; modelProfileId: ProfileID;
++}>;
++export type ProviderView = Readonly<{
++  id: ProviderID; name: string; revision: ProviderRevision; baseUrl: string;
++  apiFormat: "openai_chat_completions";
++  secret: { configured: boolean; versionId: SecretVersionID | null; availability: "available" | "unavailable" | "unknown" | "missing" };
++  models: readonly ModelView[]; updatedAt: ISOTime;
++}>;
++export type ProviderPage = Readonly<{
++  items: readonly { id: ProviderID; name: string; revision: ProviderRevision; modelCount: number }[];
++  nextCursor: string | null;
++}>;
++export type SaveFields = Readonly<{
++  providerId: ProviderID | null; expectedRevision: ProviderRevision | null;
++  name: string; baseUrl: string; apiFormat: ProviderView["apiFormat"]; models: readonly ModelInput[];
++}>;
++// This wire-only type must never be accepted by storage helpers or diagnostic/log functions.
++export type SaveBody = SaveFields & Readonly<{
++  secret: { mode: "keep" } | { mode: "replace"; value: string };
++}>;
++export type SaveResult = Readonly<
++  | { saveId: SaveID; outcome: "committed"; providerId: ProviderID; providerRevision: ProviderRevision;
++      secretVersionId: SecretVersionID; committedAt: ISOTime; links: { provider: APIPath; operation: APIPath } }
++  | { saveId: SaveID; outcome: "rejected"; error: APIError; decidedAt: ISOTime }
++  | { saveId: SaveID; outcome: "closed_without_save"; closedAt: ISOTime; links: { operation: APIPath } }
++>;
++export declare function listProviders(query: { q?: string; cursor?: string; limit?: number }, signal: AbortSignal): Promise<APIReply<ProviderPage>>;
++export declare function getProvider(id: ProviderID, signal: AbortSignal): Promise<APIReply<ProviderView>>;
++export declare function getProviderVersion(id: ProviderID, revision: ProviderRevision, signal: AbortSignal): Promise<APIReply<ProviderView>>;
++export declare function saveProvider(context: WriteContext, id: SaveID, body: SaveBody, signal: AbortSignal): Promise<APIReply<SaveResult>>;
++export declare function getSave(id: SaveID, signal: AbortSignal): Promise<APIReply<SaveResult>>;
++// Same path/header id, strict empty JSON {}, not another operation key.
++export declare function closeSave(context: WriteContext, id: SaveID, signal: AbortSignal): Promise<APIReply<SaveResult>>;
++export declare function parseProvider(raw: unknown): ProviderView;
++export declare function parseSaveResult(raw: unknown): SaveResult;
++
++// B05 single test: target is exactly one saved row at one immutable provider revision.
++export type SnapshotTarget = Readonly<{ providerId: ProviderID; providerRevision: ProviderRevision; modelRowId: ModelRowID }>;
++export type TestPreview = SnapshotTarget & Readonly<{
++  previewId: PreviewID; expiresAt: ISOTime; modelId: string; secretVersionId: SecretVersionID;
++  policyRevision: string; cost: { basis: "request_count"; units: 1; mayCharge: true; currency: null; maxEstimatedCharge: null };
++  requestLimit: { maxOutputTokens: number; timeoutSeconds: number }; canSubmit: boolean; reasonCodes: readonly string[];
++}>;
++export type TestBody = Readonly<{ previewId: PreviewID; confirmPotentialCharge: true }>;
++export type TestEvidence = Readonly<{
++  code: "OK" | "NOT_STARTED" | "PROVIDER_REQUEST_FAILED" | "PROVIDER_ACCESS_REJECTED" | "MODEL_UNAVAILABLE" |
++    "PROVIDER_RESPONSE_INVALID" | "REQUEST_TIMEOUT_UNCONFIRMED" | "POLICY_CHANGED" | "ACCESS_REVOKED";
++  summary: string; latencyMs: number | null; usage: { inputTokens: number; outputTokens: number } | null;
++}>;
++export type TestResult = SnapshotTarget & Readonly<{
++  testId: TestID; state: "queued" | "running" | "passed" | "failed" | "unknown" | "rejected";
++  resultRevision: string; acceptedAt: ISOTime; observedAt: ISOTime | null; result: TestEvidence | null;
++  budget: { unit: "request"; amount: 1; status: "reserved" | "consumed" | "released" };
++  charge: { status: "not_sent" | "possible" | "unknown"; currency: null; amount: null };
++  recovery: { state: "open" | "closed_without_result" | "not_needed"; canStartNewTest: boolean };
++  links: { operation: APIPath };
++}>;
++// parseTestResult validates cross-field states: running needs actual start evidence;
++// passed/failed/rejected -> not_needed; unknown may be open/closed, never coerced to failed.
++export declare function previewTest(context: WriteContext, target: SnapshotTarget, signal: AbortSignal): Promise<APIReply<TestPreview>>;
++export declare function submitTest(context: WriteContext, id: TestID, body: TestBody, signal: AbortSignal): Promise<APIReply<TestResult>>;
++export declare function getTest(id: TestID, signal: AbortSignal): Promise<APIReply<TestResult>>;
++export declare function parseTestResult(raw: unknown): TestResult;
++
++// C06: historical lookup is only on the fixed link; a restricted branch has no identifiers.
++export type OriginalModel = Readonly<
++  | { status: "unconfigured" }
++  | { status: "readable"; reference: ProfileChoice; modelProfileId: ProfileID; modelProfileVersion: ProfileVersion;
++      providerId: ProviderID; providerRevision: ProviderRevision; modelRowId: ModelRowID; links: { snapshot: APIPath } }
++  | { status: "restricted"; reasonCodes: readonly ["ORIGINAL_MODEL_UNAVAILABLE"] }
++>;
++export type ApplicationPreview = Readonly<{
++  previewId: PreviewID; expiresAt: ISOTime; projectId: ProjectID; expectedProjectRevision: string;
++  before: { configurationRevision: ConfigurationRevision; model: OriginalModel;
++    execution: { reference: ProfileChoice; effectiveVersionId: ProfileVersion | null } };
++  candidate: SnapshotTarget & { modelProfileId: ProfileID; modelId: string; secretVersionId: SecretVersionID };
++  canApply: boolean; reasonCodes: readonly string[];
++}>;
++export type ApplicationResult = Readonly<
++  | { applicationId: ApplicationID; outcome: "committed"; projectId: ProjectID; projectRevision: string;
++      configurationRevision: ConfigurationRevision; providerRevision: ProviderRevision; modelProfileId: ProfileID;
++      retainedExecutionVersionId: ProfileVersion; committedAt: ISOTime; links: { project: APIPath; operation: APIPath } }
++  | { applicationId: ApplicationID; outcome: "rejected"; error: APIError; decidedAt: ISOTime }
++>;
++export declare function previewApplication(context: WriteContext, project: ProjectID, target: SnapshotTarget, signal: AbortSignal): Promise<APIReply<ApplicationPreview>>;
++export declare function applyModel(context: WriteContext, project: ProjectID, id: ApplicationID, body: { readonly previewId: PreviewID }, signal: AbortSignal): Promise<APIReply<ApplicationResult>>;
++export declare function getApplication(project: ProjectID, id: ApplicationID, signal: AbortSignal): Promise<APIReply<ApplicationResult>>;
++export declare function readOriginalModel(model: Extract<OriginalModel, { status: "readable" }>, signal: AbortSignal): Promise<APIReply<ModelView>>;
++export declare function parseApplicationPreview(raw: unknown): ApplicationPreview;
++export declare function parseApplicationResult(raw: unknown): ApplicationResult;
++
++// C05 extends existing ProjectView.configuration; fixed material and quota observations differ.
++export type BudgetSummary = Readonly<
++  | { status: "available"; policyId: string; policyVersion: string; scope: "project_model_runtime";
++      unit: "request"; period: "utc_day"; limit: number; maxUnresolved: number }
++  | { status: "unresolved"; reasonCodes: readonly string[] }
++>;
++export type TimeLimitSummary = Readonly<
++  | { status: "available"; policyId: string; policyVersion: string; modelRequestTimeoutSeconds: number; workerAttemptLimitSeconds: number }
++  | { status: "unresolved"; reasonCodes: readonly string[] }
++>;
++export type FixedSummary = Readonly<{
++  configurationRevision: ConfigurationRevision; executionVersionId: ProfileVersion | null;
++  budget: BudgetSummary; timeLimits: TimeLimitSummary;
++}>;
++export type QuotaObservation = Readonly<
++  | { status: "known"; configurationRevision: ConfigurationRevision; policyId: string; policyVersion: string;
++      unit: "request"; windowStart: ISOTime; windowEnd: ISOTime; effectiveLimit: number; reserved: number;
++      consumed: number; remaining: number; observedAt: ISOTime }
++  | { status: "unknown"; configurationRevision: ConfigurationRevision; reasonCodes: readonly string[]; observedAt: ISOTime | null }
++  | { status: "not_configured"; configurationRevision: ConfigurationRevision; reasonCodes: readonly string[] }
++>;
++export type ProjectConfigurationSummaryExtension = Readonly<{ fixedSummary: FixedSummary; quotaObservation: QuotaObservation }>;
++export declare function parseConfigurationSummary(raw: unknown): ProjectConfigurationSummaryExtension;
++
++// B06 uses the adopted input; preserve exact text and criteria order, repository set canonicalized server-side.
++export type ConversationChoice = Readonly<{ mode: "new" } | { mode: "existing"; id: string }>;
++export type IssueCreateBody = Readonly<{
++  expectedCreationContextRevision: string; conversation?: ConversationChoice;
++  title: string; description: string; repositoryIds: readonly string[];
++  acceptanceCriteria?: readonly string[]; repositoryAnalysisId?: string;
++}>;
++export type CreationReceipt = Readonly<{
++  creationId: CreationID; status: "committed"; projectId: ProjectID; createdAt: ISOTime;
++  source: { kind: "issue_page" }; issue: { id: string; number: number }; mainChangeSet: { id: string };
++  conversation: { id: string }; links: { issue: APIPath; rooms: APIPath; operation: APIPath };
++}>;
++export type CreationOptions = Readonly<{
++  projectId: ProjectID; creationContextRevision: string; defaultConversationMode: "new";
++  allowedConversationModes: readonly ("new" | "existing")[]; canSubmit: boolean; blockingReasons: readonly string[];
++  repositories: readonly { repositoryId: string; displayName: string; selectable: boolean; reasons: readonly string[]; observedAt: ISOTime | null }[];
++  nextCursor: string | null; repositoryAnalysis: { availability: "available" | "disabled" | "unavailable"; reasonCodes: readonly string[] };
++}>;
++export type ConversationPage = Readonly<{ items: readonly { id: string; title: string }[]; nextCursor: string | null }>;
++export declare function getCreationOptions(project: ProjectID, query: { cursor?: string; limit?: number }, signal: AbortSignal): Promise<APIReply<CreationOptions>>;
++export declare function getCreationConversations(project: ProjectID, query: { cursor?: string; limit?: number }, signal: AbortSignal): Promise<APIReply<ConversationPage>>;
++export declare function createIssue(context: WriteContext, project: ProjectID, id: CreationID, body: IssueCreateBody, signal: AbortSignal): Promise<APIReply<CreationReceipt>>;
++export declare function getCreation(project: ProjectID, id: CreationID, signal: AbortSignal): Promise<APIReply<CreationReceipt>>;
++export declare function parseCreationReceipt(raw: unknown): CreationReceipt;
++
++// Cross-batch recovery: identity owns state. Never merge a new account or new operation into it.
++export type OperationLocator = Readonly<
++  | { kind: "provider_save"; actor: ActorID; id: SaveID }
++  | { kind: "model_test"; actor: ActorID; id: TestID }
++  | { kind: "model_apply"; actor: ActorID; projectId: ProjectID; id: ApplicationID }
++  | { kind: "issue_create"; actor: ActorID; projectId: ProjectID; id: CreationID }
++>;
++export type RecoveryIndex = OperationLocator & Readonly<{ createdAt: ISOTime }>;
++export type SecretFreeSaveSnapshot = SaveFields & Readonly<{ secretMode: "keep" | "replace" }>;
++// Only these non-secret snapshots may persist in sessionStorage; localStorage only RecoveryIndex.
++export type SessionRecovery = Readonly<
++  | { locator: Extract<OperationLocator, { kind: "provider_save" }>; snapshot: SecretFreeSaveSnapshot }
++  | { locator: Extract<OperationLocator, { kind: "model_test" }>; body: TestBody }
++  | { locator: Extract<OperationLocator, { kind: "model_apply" }>; body: { previewId: PreviewID } }
++  | { locator: Extract<OperationLocator, { kind: "issue_create" }>; body: IssueCreateBody }
++>;
++export type ReadTicket = Readonly<{ locator: OperationLocator; generation: number; requestSerial: number }>;
++export type OperationState<T> = Readonly<
++  | { state: "in_flight" | "unconfirmed" | "checking"; locator: OperationLocator; generation: number }
++  | { state: "confirmed"; locator: OperationLocator; generation: number; result: T }
++  | { state: "removed"; locator: OperationLocator; generation: number }
++  | { state: "reauthenticate" | "restricted"; locator: OperationLocator; generation: number }
++>;
++export declare function persistRecoveryIndex(index: RecoveryIndex): { readonly saved: boolean; readonly recoveryPath: string };
++export declare function persistSessionRecovery(snapshot: SessionRecovery): boolean;
++export declare function readRecoveryIndex(raw: unknown, actor: ActorID): RecoveryIndex | null;
++export declare function beginRead(locator: OperationLocator, generation: number): ReadTicket;
++export declare function acceptsRead(current: ReadTicket, incoming: ReadTicket, authenticatedActor: ActorID): boolean;
++export declare function reduceSave(current: OperationState<SaveResult>, ticket: ReadTicket, result: APIReply<SaveResult>): OperationState<SaveResult>;
++export declare function reduceTest(current: OperationState<TestResult>, ticket: ReadTicket, result: APIReply<TestResult>): OperationState<TestResult>;
++export declare function reduceApplication(current: OperationState<ApplicationResult>, ticket: ReadTicket, result: APIReply<ApplicationResult>): OperationState<ApplicationResult>;
++export declare function reduceCreation(current: OperationState<CreationReceipt>, ticket: ReadTicket, result: APIReply<CreationReceipt>): OperationState<CreationReceipt>;
++// Reducers ignore mismatched actor/locator/generation; at most one test read is in flight.
++// 404/503/abort retain locator and frozen input. 410 clears payload but does not restore key reuse.
++// Save body Key released after sending; save recovery can only GET/close, never rebuild original Key.
++// Durable rejected/closed permits an explicit new save; Issue has no durable rejected receipt.
++// Unknown Issue retains frozen body; user cannot silently replace expected context under old id.
++// Authentication recovery passes an allowlisted Destination; browser never auto-resubmits on login.
++// B06 renders stable creation receipt. Detail/rooms routes stay deferred, not fabricated as ready.
++
++// Existing api.ts Result<T> carries diagnostics/retryAt. WriteContext is obtained from the
++// authenticated session, cleared on identity change, and never persisted in RecoveryIndex.
++// Existing RequestOptions supplies CSRF and Idempotency-Key, Origin checks remain server-side.
+--- /dev/null
++++ b/docs/development/2026-09-13-b04-b06-design-01/verify-design.py
+@@ -0,0 +1,107 @@
++#!/usr/bin/env python3
++"""Check only this design increment; never invoke product services or experiments."""
++from pathlib import Path
++import datetime, difflib, hashlib, json, os, re, subprocess, tempfile, unicodedata, zipfile
++ROOT = Path(__file__).resolve().parents[3]
++OUT = Path(__file__).resolve().parent
++meta = json.loads((OUT/'source-evidence.json').read_text())
++base = json.loads((OUT/'baseline.json').read_text())
++archive = zipfile.ZipFile(OUT/meta['originalDocumentsArchive'])
++def original_text(name):
++    return archive.read(name).decode('utf-8').replace('\r\n','\n')
++allowed = {f'docs/current/{name}' for name in meta['plannedCurrentDocs']}
++checks = {'checkedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'scope': 'design artifacts only', 'runtimeCases': 'NOT_RUN'}
++sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
++changed, violated = [], []
++for row in base['files']:
++    path = ROOT/row['path']
++    if not path.exists() or sha(path) != row['sha256']:
++        changed.append(row['path'])
++        if row['path'] not in allowed: violated.append(row['path'])
++checks['originalArchive']={'documents':len(meta['plannedCurrentDocs']),'hashesMatch':all(hashlib.sha256(archive.read(name)).hexdigest()==next(row['sha256'] for row in base['files'] if row['path']=='docs/current/'+name) for name in meta['plannedCurrentDocs'])}
++checks['protectedBaseline'] = {'checked': len(base['files']), 'allowedChanged': changed, 'violations': violated}
++# Compare task-specific edits against captured workspace, not HEAD's older B02/B03 tree.
++diff = []
++added_lines = {}
++for name in meta['plannedCurrentDocs']:
++    p = ROOT/'docs/current'/name; rel = str(p.relative_to(ROOT))
++    old = original_text(name).splitlines(keepends=True); new = p.read_text().splitlines(keepends=True)
++    diff.extend(difflib.unified_diff(old,new,fromfile='a/'+rel,tofile='b/'+rel))
++    added_lines[p] = []
++    for tag,a,b,c,d in difflib.SequenceMatcher(a=old,b=new,autojunk=False).get_opcodes():
++        if tag != 'equal': added_lines[p].extend((i+1,new[i]) for i in range(c,d))
++for p in sorted(OUT.glob('*.md')):
++    rel = str(p.relative_to(ROOT)); new = p.read_text().splitlines(keepends=True)
++    diff.extend(difflib.unified_diff([],new,fromfile='/dev/null',tofile='b/'+rel))
++    added_lines[p] = list(enumerate(new,1))
++for ext in ('*.go.txt','*.ts.txt','verify-design.py'):
++    for p in sorted(OUT.glob(ext)):
++        rel = str(p.relative_to(ROOT))
++        diff.extend(difflib.unified_diff([],p.read_text().splitlines(keepends=True),fromfile='/dev/null',tofile='b/'+rel))
++(OUT/'changes.diff').write_text(''.join(diff))
++# Local link/anchor checks on new text only; previous unrelated broken links are not rewritten.
++def slug(s):
++    s=re.sub(r'`([^`]+)`',r'\1',s.strip()).lower()
++    s=re.sub(r'\[([^]]+)\]\([^)]*\)',r'\1',s)
++    s=''.join(c for c in s if c in '-_ ' or not unicodedata.category(c).startswith(('P','S')))
++    return s.replace(' ','-')
++def anchors(p):
++    result=set(); counts={}
++    for line in p.read_text().splitlines():
++        if re.match(r'^#{1,6} ',line):
++            value=slug(re.sub(r'^#{1,6} ','',line)); n=counts.get(value,0); counts[value]=n+1
++            result.add(value+(f'-{n}' if n else ''))
++    return result
++errors=[]; links=0
++for p,lines in added_lines.items():
++    for lineno,line in lines:
++        for target in re.findall(r'\[[^\]]*\]\(([^)]+)\)',line):
++            if re.match(r'^[a-zA-Z]+://',target): continue
++            target=target.strip('<>'); name,sep,anchor=target.partition('#')
++            dest=(p.parent/name).resolve() if name else p
++            links+=1
++            if not dest.exists(): errors.append({'file':str(p.relative_to(ROOT)),'line':lineno,'target':target,'error':'missing_path'})
++            elif sep and dest.suffix=='.md' and anchor not in anchors(dest): errors.append({'file':str(p.relative_to(ROOT)),'line':lineno,'target':target,'error':'missing_anchor'})
++checks['newLocalLinks']={'count':links,'errors':errors,'anchorMethod':'heading Unicode punctuation stripping; no browser renderer run'}
++# Actual Go parser accepts declaration-only functions. Type checking product packages is deferred.
++parser_source=r'''package main
++import ("encoding/json"; "go/parser"; "go/token"; "os"; "regexp"; "fmt")
++func main(){ n:=0; packages:=[]string{}; for _,p:=range os.Args[1:] {b,e:=os.ReadFile(p);if e!=nil{panic(e)};r:=regexp.MustCompile(`(?m)^package [a-zA-Z_][a-zA-Z_0-9]*`);m:=r.FindAllIndex(b,-1);for i,v:=range m{end:=len(b);if i+1<len(m){end=m[i+1][0]};f,e:=parser.ParseFile(token.NewFileSet(),p,b[v[0]:end],parser.AllErrors);if e!=nil{fmt.Fprintln(os.Stderr,e);os.Exit(1)};n+=len(f.Decls);packages=append(packages,f.Name.Name)}};json.NewEncoder(os.Stdout).Encode(map[string]any{"packageSections":len(packages),"declarations":n,"packages":packages})}
++'''
++with tempfile.TemporaryDirectory(prefix='repomesh-design-check-') as td:
++    td=Path(td); parser=td/'parse.go';parser.write_text(parser_source)
++    r=subprocess.run(['go','run',str(parser),*[str(x) for x in sorted(OUT.glob('*.go.txt'))]],cwd=td,capture_output=True,text=True,env={**os.environ,'GOPROXY':'off','GOTOOLCHAIN':'local','GO111MODULE':'off'})
++    checks['goDeclarationSyntax']={'exitCode':r.returncode,'output':r.stdout.strip(),'errors':r.stderr.strip(),'typeCheck':'NOT_RUN: multi-package declarations have no product bodies'}
++    ts=td/'design.ts';ts.write_text((OUT/'frontend.ts.txt').read_text().replace('../../../web/src/api',str(ROOT/'web/src/api')))
++    args=['node',str(ROOT/'web/node_modules/typescript/bin/tsc'),'--strict','--noEmit','--skipLibCheck','--target','ES2022','--module','ESNext','--moduleResolution','bundler','--lib','ES2022,DOM',str(ts)]
++    r=subprocess.run(args,cwd=td,capture_output=True,text=True)
++    checks['typescriptDeclarations']={'exitCode':r.returncode,'output':r.stdout.strip(),'errors':r.stderr.strip(),'command':'existing local tsc --strict --noEmit --skipLibCheck --target ES2022 --module ESNext --moduleResolution bundler --lib ES2022,DOM temporary-design.ts'}
++with tempfile.TemporaryDirectory(prefix='repomesh-design-whitespace-') as td:
++    td=Path(td); old=td/'old';new=td/'new';old.mkdir();new.mkdir(); (old/'current').mkdir(); (new/'current').mkdir(); (new/'attachments').mkdir()
++    for name in meta['plannedCurrentDocs']:
++        (old/'current'/name).write_text(original_text(name)); (new/'current'/name).write_text((ROOT/'docs/current'/name).read_text())
++    for p in OUT.iterdir():
++        if p.suffix=='.md' or p.name.endswith(('.go.txt','.ts.txt')) or p.name=='verify-design.py': (new/'attachments'/p.name).write_bytes(p.read_bytes())
++    r=subprocess.run(['git','-c','core.autocrlf=false','-c','core.safecrlf=false','diff','--no-index','--check',str(old),str(new)],capture_output=True,text=True)
++    checks['taskWhitespace']={'exitCode':r.returncode,'output':r.stdout.strip(),'errors':r.stderr.strip(),'passed':r.returncode in (0,1) and not r.stdout.strip() and not r.stderr.strip(),'note':'no-index can return 1 for changed paths; whitespace violations produce diagnostics'}
++status=subprocess.run(['git','status','--porcelain=v1','--untracked-files=all'],cwd=ROOT,capture_output=True,text=True,check=True).stdout
++checks['gitState']={'head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'branch':subprocess.check_output(['git','branch','--show-current'],cwd=ROOT,text=True).strip(),'initialStatusPreserved':None}
++initial=(OUT/'initial-status.txt').read_text().splitlines(); now=status.splitlines()
++newpaths=[]
++for row in now:
++    if row not in initial and not row[3:].startswith(str(OUT.relative_to(ROOT))+'/') and row[3:] not in allowed: newpaths.append(row)
++checks['gitState']['unexpectedNewStatus']=newpaths
++missing_status=[row for row in initial if row not in now and row[3:] not in allowed and not row[3:].startswith(str(OUT.relative_to(ROOT))+'/')]
++checks['gitState']['preexistingStatusChanges']=missing_status
++checks['gitState']['initialStatusPreserved']=not missing_status
++checks['gitState']['excludedConfigBytes']='NOT_READ: protected by no-write scope and status comparison, not content hashes'
++checks['passed']=checks['originalArchive']['hashesMatch'] and not violated and not errors and checks['goDeclarationSyntax']['exitCode']==0 and checks['typescriptDeclarations']['exitCode']==0 and checks['taskWhitespace']['passed'] and not newpaths and not missing_status
++(OUT/'checks.json').write_text(json.dumps(checks,ensure_ascii=False,indent=2)+'\n')
++manifest=[]
++for p in sorted(OUT.iterdir()):
++    if p.is_file() and p.name!='output-manifest.json': manifest.append({'path':str(p.relative_to(ROOT)),'sha256':sha(p)})
++for rel in sorted(allowed): manifest.append({'path':rel,'sha256':sha(ROOT/rel)})
++(OUT/'output-manifest.json').write_text(json.dumps({'files':manifest,'note':'Manifest excludes itself; source baseline remains separate.'},ensure_ascii=False,indent=2)+'\n')
++print(json.dumps({k:v for k,v in checks.items() if k!='protectedBaseline'},ensure_ascii=False,indent=2))
++print('protected source violations:',violated)
++raise SystemExit(0 if checks['passed'] else 1)

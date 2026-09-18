@@ -1,0 +1,18 @@
+ts	phase	decision	why	evidence	result
+2026-09-15T11:46:34Z	frame	以 docs/RepoMesh_Go版数据库重构方案.html 的 44 张目标表为 API 资源来源，删除 docs/api-database 并重写 API 文档	用户明确指定该 HTML 为正式数据库方案，旧目录按 B00-B11 与 63→34 合表组织，已不适用	docs/RepoMesh_Go版数据库重构方案.html	开始
+2026-09-15T11:46:34Z	frame	发现方案中的‘原表’名（local_human_accounts、agent_principals 等）与本仓库 8 个迁移文件的 40 张表名都对不上	rg 全仓只在 HTML 中出现这些名字；本仓库当前表名形如 repomesh_access.accounts	internal/database/migrations/0001-0008	记为待决：现有 Go 表到 44 张目标表的迁移映射未定义
+2026-09-15T11:46:35Z	frame	完成判据：api-database 目录不存在且现行文档无引用；索引指向 HTML 方案与新 API 文档；校验脚本确认 44 张表全部映射到资源、端点全部入索引、21 份 ADR 全部被引用、本地链接可解析	把‘文档写完’变成可脚本复核的事实	docs/development/2026-09-15-api-redesign-01/scripts/verify_api_doc.py	待实现
+2026-09-15T11:51:01Z	subtract	先删 docs/api-database（23 文件）并归档 b05-b11-storage-consolidation.md，再写新文档	旧目录与合表专题互相依赖（table-manifest.json、b10.md），留着会让索引指向两套矛盾的表口径	commit 2 on cursor/api-redesign-db-plan-2dfd	校验脚本只剩 api-design.md 与本轮 README 缺失两类失败
+2026-09-15T11:51:01Z	subtract	docs/development 下三份 2026-09-15 制作记录保留原样，链接指向已删文件	文档维护规则第 5 条要求历史记录保留当时路径，用归档 README 解释去向	docs/archive/2026-09-15-api-database-catalog/README.md	已写明
+2026-09-15T12:32:47Z	design	新 API 用 /api/v1 前缀，按方案 7 个方向组织，一表一资源小节；Issue 由顶层 task 承接，会话无实体	方案没有 issues、conversations 表；与现有 /api 路由分版本可并存并逐条给去向	docs/current/api-design.md §2.1、附录 C	已写入
+2026-09-15T12:32:47Z	design	角色枚举按方案（leader=总、manager=仓库），与 CONTEXT.md、ADR-0006 相反的事实写进附录 E 第 1 条而不是自行改名	用户指定方案为正式；术语归属是产品决定	docs/current/api-design.md 附录 E	待用户裁定
+2026-09-15T12:32:47Z	design	Skill 7 张表给出接口设计，但标明 ADR-0009 更新前不得实施	方案新增 Skill 表与 ADR-0009 的不冻结要求冲突，替代关系尚未写入 ADR	docs/current/api-design.md §8、附录 E 第 7 条	待用户裁定
+2026-09-15T12:32:47Z	design	architect skipped: 资源形状由已采用的 44 张表决定，剩余分叉在文内以约定表和附录 E 列出并交跨模型复核	对已定型的数据结构再跑设计竞赛属于多余工作	/tmp/api-spec.md	跳过
+2026-09-15T12:32:47Z	draft	由 claude-fable-5-1-thinking-max 按规格成稿 1971 行、152 个端点；根代理复核后改正 2.8 把两个中文枚举误记为方案英文值的归类，并去掉对写作规格的引用	写作与复核分离；成稿必须只引用仓库内存在的来源	commit 49d311f	校验脚本只剩本轮 README 缺失
+2026-09-15T13:06:20Z	review	grok-4.6 独立复核给出 A18/B13/C10/D8/E10 共 59 条；采纳 30 条修订，驳回 4 条并给出理由（Skill 节保留但标不得实施、handling 状态可达、semantic-search 读路径算向量不违反 ADR-0021、项目管理员与组织管理员两名并存）	另一模型家族复核比自审更能发现方案误读；每条按依据裁定而不是照单全收	commit e1c1ef6	修订已合入
+2026-09-15T13:07:27Z	verify	校验脚本 6 项全部通过（失败 0），git diff --check 无输出；附录 E 16 条冲突、23 条成稿发现	完成判据以脚本输出为准，不以自述为准	docs/development/2026-09-15-api-redesign-01/README.md	VERIFIED（静态文档核对）
+2026-09-15T13:14:18Z	subtract	删除 23 个文件时没有在 docs/archive 留副本，归档 README 只记录最后版本所在的 main 提交 f0b0e68	旧目录 14005 行且 HTML 由脚本生成，git 历史已是完整副本	docs/archive/2026-09-15-api-database-catalog/README.md	已写明来源提交
+2026-09-15T13:14:18Z	subtract	把校验脚本的‘现行文档不得出现 api-database/’放宽为只拦 Markdown 链接	HANDOFF、索引与新文档需要在正文里提到已删目录的名字来解释去向	commit 82faa5c 中 verify_api_doc.py 的 check_no_live_reference	完成判据第 1 条按此口径
+2026-09-15T13:14:18Z	audit	补正日志证据：第 2 行迁移文件为 0001_schema_migrations.sql 至 0008_decision_chain.sql；第 5 行对应提交 82faa5c；第 10 行的写作规格已复制为本目录 api-spec.md；复核 59 条的逐条裁定写入 review-triage.md	决策日志复核指出多处 evidence 不能从仓库打开	docs/development/2026-09-15-api-redesign-01/api-spec.md, review-triage.md	已补
+2026-09-15T13:34:02Z	sync	用户重申 HTML 为新数据库设计；核对该文件与 origin/main 字节一致，但 main 多出 ADR 0021、0022、决策链改号 0023 与 B11 重规划协议，于是变基并同步文档	文档引用的 ADR-0021 已指向另一份 ADR，不同步就是错引	git diff --stat f0b0e68 origin/main -- docs	校验脚本按 23 份 ADR 通过，失败 0
+2026-09-15T13:34:02Z	sync	新增唯一端点 POST /api/v1/plans/{planId}/apply，并让 tasks.status 增加 superseded；聊天批复按 ADR-0022 二选一选择‘不构成决议’	B11 协议要求完整快照 apply 与 SUPERSEDED 迁移；聊天适配协议被 ADR-0022 明确留给消息专题	docs/current/api-design.md §4.3、§4.5、§5.1	记入附录 E 待用户确认

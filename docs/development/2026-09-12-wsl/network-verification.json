@@ -1,0 +1,10 @@
+{
+  "localhostForwarding": true,
+  "web": {
+    "businessReady": false,
+    "process": "repomesh-web",
+    "status": "scaffold",
+    "version": "0.1.0-b01-wsl-20260912"
+  },
+  "viteStatus": 200
+}

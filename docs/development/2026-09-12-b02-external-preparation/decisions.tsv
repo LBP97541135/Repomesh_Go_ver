@@ -1,0 +1,6 @@
+ts	phase	decision	why	evidence	result
+2026-09-12T12:52:21Z	pickup	从 B02.6 真实外部验收接续	B02.1 至 B02.5 已有最终本地证据，用户要求保留且不重复运行历史验收	docs/current/HANDOFF.md	B02 IN_PROGRESS; B03 TODO
+2026-09-12T12:56:09Z	audit	原最终证据与当前源码和发布文件核对通过	直接解析原事件并复算哈希，不覆盖历史记录或重跑测试	docs/development/2026-09-12-b02-external-preparation/evidence-audit.json	44 checks; 42 PostgreSQL groups; 9 browser scenarios; 69 source hashes; 11 release hashes
+2026-09-12T12:56:09Z	readiness	保留 B02.6 BLOCKED 与 B03 TODO	当前工具环境未具备真实部署配置，替身及手册不能代替外部验收	docs/development/2026-09-12-b02-external-preparation/configuration-presence.json	real GitHub NOT_RUN
+2026-09-12T12:56:09Z	preparation	补齐 App 设置、固定 HTTPS 和自然到期刷新步骤	刷新需启用过期 token 并等待真实到期窗口，单靠页面重载不能证明	docs/current/b02-github-live-acceptance.md	guide and NOT_RUN template written; independent review pending
+2026-09-12T13:00:09Z	review	关闭计划勾选不一致并修正复核报告引用，独立复核通过	完成状态应与实际证据一致，报告引用须定位当前源码	docs/development/2026-09-12-b02-external-preparation/independent-review.md	PASS by gpt-5.6 terra; no open findings; live GitHub remains NOT_RUN

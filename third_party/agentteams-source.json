@@ -1,0 +1,14 @@
+{
+  "repository": "https://github.com/agentscope-ai/AgentTeams.git",
+  "branch": "main",
+  "commit": "517caff9280242a00a4d4c06365352b9e41659c6",
+  "checked_at_utc": "2026-09-10T05:08:08Z",
+  "checkout": "third_party/AgentTeams",
+  "purpose": "Independent upstream source checkout; not a product integration acceptance",
+  "old_checkout": "D:\\Project4work\\AgentTeams",
+  "old_checkout_removed": true,
+  "old_checkout_disposition": "Windows Recycle Bin",
+  "backup": "D:\\Project4work\\_repo_backups\\AgentTeams-20260910T050623Z.zip",
+  "backup_manifest": "D:\\Project4work\\_repo_backups\\AgentTeams-20260910T050623Z.manifest.json",
+  "backup_sha256": "bbe73da23c3a5054e5199032bb3802c823764dbce789bb6e683c05a7387abdab"
+}

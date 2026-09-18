@@ -1,0 +1,8 @@
+{
+  "date": "2026-09-12",
+  "fixture": {"githubRepositoryId": "1367467551", "repoMeshRepositoryId": "repo_00000000001367467551", "newDedicatedEmptyPrivateRepository": true, "githubPrivateBadgeObserved": true, "githubViewerLogin": "catbobyman", "createdUnderCurrentAccount": true},
+  "installationScopeRecheck": {"status": 200, "installationId": "161172403", "onlySelected": true, "repositoryIds": ["1367444901"], "outsideFixtureIncluded": false},
+  "operation": "Actual RepoMesh search button for the outside fixture, then retry button after 503 RESULT_UNCONFIRMED.",
+  "response": {"status": 200, "itemCount": 0, "fixturePresent": false, "coverage": {"status": "partial", "reasonCodes": ["APP_INSTALLATION_SCOPE"], "observedAt": "2026-09-12T16:17:31.387095Z"}, "hasNext": false},
+  "limitations": "Installation-scope absence only. This does not prove revoked user read access, ACCOUNT_MISMATCH, or complete discovery coverage."
+}

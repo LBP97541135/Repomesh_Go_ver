@@ -1,0 +1,7 @@
+{
+  "capturedAt": "2026-09-15T01:35:08Z",
+  "origin": "https://127.0.0.1:18443",
+  "httpStatus": 401,
+  "errorCode": "AUTHENTICATION_REQUIRED",
+  "note": "Anonymous GET after LIVE-10 logout. No cookie header sent. Cookie values omitted."
+}

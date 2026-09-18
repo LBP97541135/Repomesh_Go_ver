@@ -1,0 +1,10 @@
+{
+  "oldPid": 552,
+  "newPid": 4136,
+  "oldStartTicks": "1617",
+  "version": "0.153.4",
+  "sameExecutable": true,
+  "sameArguments": true,
+  "method": "SIGTERM exact unmanaged server, restart same executable and arguments",
+  "socket": "/home/xubohan/.codex/app-server-control/app-server-control.sock"
+}

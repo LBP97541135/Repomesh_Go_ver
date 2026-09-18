@@ -1,0 +1,4 @@
+time	decision	reason	evidence	result
+2026-09-12T16:45:24Z	停止使用新重连作为刷新基线	confirmed但浏览器无新Cookie且session401	../2026-09-12-b026-refresh-01/baseline-reconnect-cookie-failure-events.jsonl	保留真实失败
+2026-09-12	复用next_run_at为同步callback保留有限期限	后台身份恢复抢先提交会丢失Cookie	pre-fix.txt	采用15秒上限和条件释放
+2026-09-12	先独立复核和新包验证再回到真实浏览器	本地测试不能代替真实Cookie交付	post-fix.txt	真实回归待执行

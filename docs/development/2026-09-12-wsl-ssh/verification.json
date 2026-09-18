@@ -1,0 +1,16 @@
+{
+  "existingHostsUnchanged": 8,
+  "coldStartSeconds": 2.2,
+  "sshUser": "xubohan",
+  "sshOS": "Linux",
+  "codexPath": "/usr/local/bin/codex",
+  "codexVersion": "0.153.4",
+  "cliLoggedIn": true,
+  "remoteAccountType": "chatgpt",
+  "authenticatedApiRead": true,
+  "availableModelCount": 6,
+  "projectPstackSkills": 54,
+  "outsidePstackSkills": 0,
+  "skillErrorCount": 0,
+  "sshAppServerVerified": true
+}

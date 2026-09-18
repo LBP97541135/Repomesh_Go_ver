@@ -1,0 +1,2 @@
+bohanxu.me.		21370	IN	NS	ns2.vercel-dns.com.
+bohanxu.me.		21370	IN	NS	ns1.vercel-dns.com.

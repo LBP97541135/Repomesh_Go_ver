@@ -1,0 +1,45 @@
+{
+  "basis": "Working tree immediately before this task's documentation edits; not Git HEAD.",
+  "files": [
+    {
+      "path": "docs/current/backend-first-batch-persistence.md",
+      "sha256": "11992ab42f8e498a288703f31176360afa0bfd67eab8b629b5eca342b2f7fb6c"
+    },
+    {
+      "path": "docs/current/backend-first-development-access-draft.md",
+      "sha256": "596e84e9fa1c4cb71fb675ae4de0540bc9cd60e483f555118f2ffdba1605ab89"
+    },
+    {
+      "path": "docs/current/first-batch-browser-api-contract.md",
+      "sha256": "50c2806a7981d6ba31c7152a71478361afdbfd37d0df1b4d87e272846662050e"
+    },
+    {
+      "path": "docs/current/HANDOFF.md",
+      "sha256": "e92f337d157713368bbbaf9c2f06fee63ba53642afb148681d81f69d7952e77e"
+    },
+    {
+      "path": "docs/current/model-connection-settings-design.md",
+      "sha256": "3ccdf5f711d64d1eb88619c0643c971ffffbc146d87054f77e07df914a3b097c"
+    },
+    {
+      "path": "docs/current/model-project-apply-design.md",
+      "sha256": "6b5894fecf58971d05e0c7883b86e3aad5da40982d389b0fd21b1f6354624253"
+    },
+    {
+      "path": "docs/current/model-settings-browser-api-draft.md",
+      "sha256": "c4e207513f40b6772583212f1d1b7b798fe818a9af9bfbb09dc8059a4e826b94"
+    },
+    {
+      "path": "docs/current/project-configuration-design.md",
+      "sha256": "59895637eb9c903f110513f4afdc59f98325fb889c21861d66a6822a49f58aa7"
+    },
+    {
+      "path": "docs/current/README.md",
+      "sha256": "2cd4cfd6a2af1ff295bd61a3f468f4134c1e5db737cfcfaa32015e8d74e58717"
+    },
+    {
+      "path": "docs/current/repository-picker-design.md",
+      "sha256": "c36182211193fdf45147e3918681dd9acc0327a2f49fcbd6b2145ffa1d04c016"
+    }
+  ]
+}

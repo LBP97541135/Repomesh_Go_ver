@@ -1,0 +1,25 @@
+{
+  "source": "Chrome profile cookie store, values omitted and never written",
+  "origin": "https://127.0.0.1:18443",
+  "capturedAt": "2026-09-14T17:57:47Z",
+  "sessionCookies": [
+    {
+      "name": "__Host-repomesh-binding",
+      "host": "127.0.0.1",
+      "path": "/",
+      "secure": true,
+      "httpOnly": true,
+      "sameSite": "Lax",
+      "encryptedPrefix": "v10"
+    },
+    {
+      "name": "__Host-repomesh-session",
+      "host": "127.0.0.1",
+      "path": "/",
+      "secure": true,
+      "httpOnly": true,
+      "sameSite": "Lax",
+      "encryptedPrefix": "v10"
+    }
+  ]
+}

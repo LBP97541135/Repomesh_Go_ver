@@ -1,0 +1,89 @@
+{
+  "markdown_files": 11,
+  "local_links": {
+    "checked": 196,
+    "missing": []
+  },
+  "new_markdown_anchors": {
+    "checked": 20,
+    "invalid": []
+  },
+  "json_examples": {
+    "checked": 16,
+    "invalid": []
+  },
+  "new_trailing_whitespace": [],
+  "diff": [
+    {
+      "path": "docs/current/backend-first-batch-persistence.md",
+      "added": 1,
+      "removed": 1,
+      "sha256": "9f30d1ec4467a2f10030348186e1ccbf3736f38d57c1de5421763a23164dbd3f"
+    },
+    {
+      "path": "docs/current/backend-first-development-access-draft.md",
+      "added": 13,
+      "removed": 8,
+      "sha256": "2c292fc327e197c109b25b0ab11593a1e18267a1759ab5f79455b06230e6d2f5"
+    },
+    {
+      "path": "docs/current/first-batch-browser-api-contract.md",
+      "added": 21,
+      "removed": 5,
+      "sha256": "7f16ed301697c8e45b40532df9453d512c178ebc45acfb72df3b4d342fc5788b"
+    },
+    {
+      "path": "docs/current/HANDOFF.md",
+      "added": 3,
+      "removed": 1,
+      "sha256": "4375171cd95e12f3a0ed2adc5c45c27a56b70052e65ba23784c2b3b544d0aa3d"
+    },
+    {
+      "path": "docs/current/model-connection-settings-design.md",
+      "added": 7,
+      "removed": 7,
+      "sha256": "3d9b39b6c59eddb7e448ff6775765bace8de1b0b3f6b7de1f4e1ab73499748bd"
+    },
+    {
+      "path": "docs/current/model-project-apply-design.md",
+      "added": 1,
+      "removed": 1,
+      "sha256": "dc0f49f20ecd9396e82a73ce96868d826005370e9c3f3fb2d393cd48a3cf3895"
+    },
+    {
+      "path": "docs/current/model-settings-browser-api-draft.md",
+      "added": 2,
+      "removed": 0,
+      "sha256": "b23dd61d9e2fbd2a758dcd7c2b3bd35c19f3434a360dd0bd53cb6b2255ed31d3"
+    },
+    {
+      "path": "docs/current/project-configuration-design.md",
+      "added": 7,
+      "removed": 7,
+      "sha256": "16c96f47a1746749808757a5f988618fa9689155c8275315a59b75f8c038da7c"
+    },
+    {
+      "path": "docs/current/README.md",
+      "added": 1,
+      "removed": 0,
+      "sha256": "43fc4818ee4d5691f48f2e50a10d009b87b1fa57de5c3fc7023bb3f4441d30d7"
+    },
+    {
+      "path": "docs/current/repository-picker-design.md",
+      "added": 1,
+      "removed": 1,
+      "sha256": "12afbc0c810acf8c6e53585cc127df6c908ca127232c85fb3ad933c1ca94d3ee"
+    },
+    {
+      "path": "docs/reviews/2026-09-12-project-contracts/README.md",
+      "added": 102,
+      "removed": 0,
+      "sha256": "6269e5c635d93a5c703aa9bcccb88f9ce2841a7d04d7fdc2144d63d90bd78439"
+    }
+  ],
+  "limitations": [
+    "Checks local targets and newly added Markdown anchors using normalized heading slugs; remote URLs not fetched.",
+    "Checks JSON syntax only, not HTTP schemas, runtime behavior, OAuth, database transactions or model calls.",
+    "Diff is against the saved start-of-task working tree, not Git HEAD."
+  ]
+}

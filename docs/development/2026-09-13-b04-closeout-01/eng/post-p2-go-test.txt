@@ -1,0 +1,14 @@
+?   	repomesh.local/repomesh/cmd/repomesh-coordinator	[no test files]
+?   	repomesh.local/repomesh/cmd/repomesh-host-executor	[no test files]
+ok  	repomesh.local/repomesh/cmd/repomesh-web	0.161s
+ok  	repomesh.local/repomesh/internal/access	5.908s
+?   	repomesh.local/repomesh/internal/buildinfo	[no test files]
+ok  	repomesh.local/repomesh/internal/database	3.480s
+ok  	repomesh.local/repomesh/internal/github	0.099s
+ok  	repomesh.local/repomesh/internal/jsoninput	0.002s
+ok  	repomesh.local/repomesh/internal/models	1.686s
+ok  	repomesh.local/repomesh/internal/projects	0.558s
+ok  	repomesh.local/repomesh/internal/secrets	2.535s
+ok  	repomesh.local/repomesh/internal/sources	1.143s
+?   	repomesh.local/repomesh/internal/testdb	[no test files]
+ok  	repomesh.local/repomesh/internal/web	2.790s

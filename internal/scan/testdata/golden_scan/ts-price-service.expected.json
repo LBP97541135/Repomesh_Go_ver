@@ -1,0 +1,73 @@
+{
+  "dep_evidence": [
+    {
+      "confidence": "confirmed",
+      "mechanism": "BUILD",
+      "name": "org.services:ts-common"
+    },
+    {
+      "confidence": "confirmed",
+      "mechanism": "BUILD",
+      "name": "org.hibernate.javax.persistence:hibernate-jpa-2.1-api"
+    },
+    {
+      "confidence": "confirmed",
+      "mechanism": "BUILD",
+      "name": "org.hibernate:hibernate-core"
+    },
+    {
+      "confidence": "confirmed",
+      "mechanism": "BUILD",
+      "name": "mysql:mysql-connector-java"
+    },
+    {
+      "confidence": "confirmed",
+      "mechanism": "BUILD",
+      "name": "org.springframework.boot:spring-boot-starter-data-jpa"
+    },
+    {
+      "confidence": "confirmed",
+      "mechanism": "BUILD",
+      "name": "org.springframework.data:spring-data-commons"
+    },
+    {
+      "confidence": "confirmed",
+      "mechanism": "BUILD",
+      "name": "org.springframework.cloud:spring-cloud-commons"
+    },
+    {
+      "confidence": "confirmed",
+      "mechanism": "BUILD",
+      "name": "jakarta.validation:jakarta.validation-api"
+    }
+  ],
+  "deploy_identities": [],
+  "deps": [
+    "org.services:ts-common",
+    "org.hibernate.javax.persistence:hibernate-jpa-2.1-api",
+    "org.hibernate:hibernate-core",
+    "mysql:mysql-connector-java",
+    "org.springframework.boot:spring-boot-starter-data-jpa",
+    "org.springframework.data:spring-data-commons",
+    "org.springframework.cloud:spring-cloud-commons",
+    "jakarta.validation:jakarta.validation-api"
+  ],
+  "exposed_apis": [],
+  "identities": [
+    "fdse.microservice:ts-price-service",
+    "ts-price-service"
+  ],
+  "low_signal": false,
+  "recent_commits": [
+    "Reconstruction (#227)",
+    "Release 0.2.0 (#162)",
+    "remove jaeger client",
+    "modify response data",
+    "add unit test"
+  ],
+  "top_dirs": [
+    "src",
+    "src/main",
+    "src/test"
+  ]
+}

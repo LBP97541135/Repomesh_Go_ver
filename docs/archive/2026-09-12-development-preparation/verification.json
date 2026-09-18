@@ -1,0 +1,304 @@
+{
+  "moved_files": 23,
+  "snapshots": 6,
+  "raw_original_files": 66,
+  "preservation_errors": [],
+  "current_markdown_files": 48,
+  "local_links_checked": 2460,
+  "existing_missing_links": [
+    {
+      "source": "docs/archive/2026-09-08-before-manager-skill/docs/HANDOFF-2026-09-07-v3.md",
+      "target": "Cursor_Dashboard_Report_2026-09-07/report.md"
+    },
+    {
+      "source": "docs/archive/2026-09-08-design-consolidation/docs/current/HANDOFF.md",
+      "target": "Cursor_Dashboard_Report_2026-09-07/report.md"
+    },
+    {
+      "source": "docs/archive/2026-09-08-design-consolidation/docs/current/README.md",
+      "target": "Cursor_Dashboard_Report_2026-09-07/report.md"
+    },
+    {
+      "source": "docs/archive/2026-09-08-handoff-before-consolidation/HANDOFF.md",
+      "target": "Cursor_Dashboard_Report_2026-09-07/report.md"
+    },
+    {
+      "source": "docs/archive/2026-09-08-handoff-before-consolidation/README.md",
+      "target": "Cursor_Dashboard_Report_2026-09-07/report.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/design-delegation.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/issue-page-create-api-contract.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/manager-create-issue-tool-design.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/design-communication.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/design-delegation.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/draft-issue-and-room-entry-design.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/page-interface-prototype.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/technology-selection.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/architecture-design-v1.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/README.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/archive/2026-09-08-design-consolidation/README.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/archive/legacy-product-design/ARCHIVE-NOTICE.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/CONTEXT.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0001-agentteams-issue-concurrency-and-isolation.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0002-github-app-authorization-and-draft-pr-delivery.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0003-plan-change-authorization-and-activation.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0004-acceptance-rule-clarification.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0005-optional-project-verification-group.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0006-manager-entry-modes-and-skill-driven-execution.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0007-graph-loop-plugin.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0008-changeset-attribution-and-history.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0009-skill-engineering-deferred.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/team-execution-policy.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/verification-node-design.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/integration-environment-design.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/draft-pr-review-design.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/changeset-design.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/changeset-structure.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/skill-engineering-design.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/project-configuration-design.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/agentteams-survey-2026-09-07/agentteams-survey.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/agentteams-survey-2026-09-07/agentteams-api-cli-survey-2026-09-07.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/technology-selection.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0010-technology-stack-and-modular-monolith.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/architecture-design-v1.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0011-agentteams-controlled-integration.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0012-issue-scoped-upstream-projects.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0013-web-coordinator-host-executor-processes.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0014-in-process-graph-plugin.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0015-round-scoped-upstream-dags.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0016-transactional-background-work.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0017-atomic-attempt-resource-reservation.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0018-provision-instance-after-first-draft.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/page-interface-prototype.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/draft-issue-and-room-entry-design.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/draft-conversation-backend-design.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/project-first-entry-design.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0019-conversation-issue-separation.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/conversation-issue-separation-design.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/Cursor_Dashboard_Report_2026-09-07/report.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0010-technology-stack-and-modular-monolith.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/technology-selection.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0011-agentteams-controlled-integration.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0012-issue-scoped-upstream-projects.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0013-web-coordinator-host-executor-processes.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0014-in-process-graph-plugin.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0015-round-scoped-upstream-dags.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0016-transactional-background-work.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/HANDOFF.md",
+      "target": "docs/archive/2026-09-09-before-document-review/adr/0017-atomic-attempt-resource-reservation.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/NEXT-BACKEND-SESSION-PROMPT.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/design-communication.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/NEXT-SESSION-PROMPT.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/design-delegation.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/NEXT-SESSION-PROMPT.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/design-communication.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/NEXT-SESSION-PROMPT.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/issue-page-create-api-contract.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/NEXT-SESSION-PROMPT.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/manager-create-issue-tool-design.md"
+    },
+    {
+      "source": "docs/archive/2026-09-09-before-document-review/current/NEXT-SESSION-PROMPT.md",
+      "target": "docs/archive/2026-09-09-before-document-review/current/issue-page-create-api-contract.md"
+    }
+  ],
+  "introduced_missing_links": [],
+  "prototype_families": 5,
+  "current_original_html": 11,
+  "changed_kept_html": [],
+  "catalog_entries": 15,
+  "catalog_missing": [],
+  "generated_index_matches": true,
+  "javascript_syntax": {
+    "units": 27,
+    "errors": []
+  },
+  "current_json_examples": 30,
+  "invalid_json_examples": [],
+  "limitations": "Local file links only, not anchors or remote URLs; generation and JSON syntax do not validate business behavior."
+}

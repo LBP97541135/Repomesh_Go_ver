@@ -1,0 +1,11 @@
+{
+  "attemptedAt": "2026-09-13T04:12:00Z",
+  "status": "FAIL",
+  "errorCode": "FIXTURE_CREATION_FAILED",
+  "causeConfirmedAt": "2026-09-13T04:14:52Z",
+  "cause": "B_CDP_PORT_UNAVAILABLE_BEFORE_CONNECTION",
+  "bCdpPortReadyAfterFailure": false,
+  "aCdpPortReadyAfterFailure": true,
+  "repositoryCreated": false,
+  "basis": "The tool connects to B before opening or mutating GitHub. Port 9230 was unavailable; after relaunch the exact /new page still loaded for account B. No success evidence existed."
+}

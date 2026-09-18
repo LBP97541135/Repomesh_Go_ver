@@ -1,0 +1,11 @@
+{
+  "date": "2026-09-12",
+  "app": "repomesh-bohan-b026",
+  "installationId": "161172403",
+  "before": {"contents": "write", "metadata": "read", "pull_requests": "write"},
+  "change": {"pull_requests": {"from": "write", "to": "read"}},
+  "saveConfirmedByGitHub": true,
+  "installationPageAfterChange": ["Read access to metadata and pull requests", "Read and write access to code"],
+  "scope": "Dedicated App and its single dedicated private fixture only; no session login/reconnect or database expiry changes.",
+  "restoration": "Required after the negative sample; not claimed by this intermediate evidence."
+}

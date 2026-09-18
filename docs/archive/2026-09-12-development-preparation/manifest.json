@@ -1,0 +1,426 @@
+{
+  "entries": [
+    {
+      "action": "move",
+      "source": "docs/current/design-communication.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/design-communication.md",
+      "original_sha256": "7f26cbed8e264dc6dca072624bfdb9f6fb7b8b558335303551a8e9df2ca6ce12",
+      "archive_sha256": "aea18dfcec5fbb49eeb18c4f4055b4060002d8a50cb8a457f0452d56eccceb35"
+    },
+    {
+      "action": "move",
+      "source": "docs/current/design-communication-page-log.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/design-communication-page-log.md",
+      "original_sha256": "f4f9564d4bbdc4af1524d1db2dd9e93572716081e7a7cd0ed57520e2ea86aa1b",
+      "archive_sha256": "f4f9564d4bbdc4af1524d1db2dd9e93572716081e7a7cd0ed57520e2ea86aa1b"
+    },
+    {
+      "action": "move",
+      "source": "docs/current/design-communication-backend-log.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/design-communication-backend-log.md",
+      "original_sha256": "2e6c4e94024783744c09c6227bc01598616184ca88341b5c76166665b7b71fd7",
+      "archive_sha256": "2e6c4e94024783744c09c6227bc01598616184ca88341b5c76166665b7b71fd7"
+    },
+    {
+      "action": "move",
+      "source": "docs/current/design-communication-page-2026-09-10.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/design-communication-page-2026-09-10.md",
+      "original_sha256": "c9b8cd4c9dbdd6797a4327a9ebb3952702252a345f6f76527695aa273debbd65",
+      "archive_sha256": "c9b8cd4c9dbdd6797a4327a9ebb3952702252a345f6f76527695aa273debbd65"
+    },
+    {
+      "action": "move",
+      "source": "docs/current/design-communication-backend-2026-09-10.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/design-communication-backend-2026-09-10.md",
+      "original_sha256": "65e65847ca0f565b1c775bd77399f09bd23391c0f5f584d12e419ea50165ae41",
+      "archive_sha256": "65e65847ca0f565b1c775bd77399f09bd23391c0f5f584d12e419ea50165ae41"
+    },
+    {
+      "action": "move",
+      "source": "docs/current/design-communication-page-2026-09-11.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/design-communication-page-2026-09-11.md",
+      "original_sha256": "35be6699f96a9103777e98fa269cba128a8e3d3450e9ff488d98e991b424655d",
+      "archive_sha256": "35be6699f96a9103777e98fa269cba128a8e3d3450e9ff488d98e991b424655d"
+    },
+    {
+      "action": "move",
+      "source": "docs/current/design-communication-backend-2026-09-11.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/design-communication-backend-2026-09-11.md",
+      "original_sha256": "4a928a1a58823c23478548d01eab2d24262790c381fb21ee725a332de145da75",
+      "archive_sha256": "ea01ec579507e2d3ee4eb6445dfa9fb9bc1a9c008dfec2b89da57694dd09fc77"
+    },
+    {
+      "action": "move",
+      "source": "docs/current/NEXT-SESSION-PROMPT.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/NEXT-SESSION-PROMPT.md",
+      "original_sha256": "6ab3ea27c0373dbbad1b9023e4ce4a9ef3e244a5f8fd5cc0cbf2ddc0e1e73e96",
+      "archive_sha256": "619b8b9fea90fdd835796d4d1dc34a4229173981b89b95b73e41faa913b7dccc"
+    },
+    {
+      "action": "move",
+      "source": "docs/current/NEXT-BACKEND-SESSION-PROMPT.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/NEXT-BACKEND-SESSION-PROMPT.md",
+      "original_sha256": "539538bcd3ac63a6fc2d419fbc8adaadc5692067b991ab00e60fe543182645cb",
+      "archive_sha256": "f35e87307cb289fba4f6dc646a0e85377d3793900806b9bc7209eb091c36dbc2"
+    },
+    {
+      "action": "move",
+      "source": "docs/current/page-interface-prototype.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/page-interface-prototype.md",
+      "original_sha256": "c14cde6893c2129acba75b0d8b71894c3e4b16edc1b29517c72f4b64137bf47b",
+      "archive_sha256": "2db97f741cb497b5e8b56bb738cb542ea698e97766a53a77e73c72c39876ea84"
+    },
+    {
+      "action": "move",
+      "source": "docs/current/draft-issue-and-room-entry-design.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/draft-issue-and-room-entry-design.md",
+      "original_sha256": "79b3c63d7708410c29016b69d318c89e525f3d39d98d984a3dd110f9df3e5a45",
+      "archive_sha256": "d551f33120edd444624841364ee54d614b8e49b322e02757cd85ed27813eda16"
+    },
+    {
+      "action": "move",
+      "source": "docs/current/project-first-entry-design.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/project-first-entry-design.md",
+      "original_sha256": "5e2bbc9d06271b969f1d6b463cf2b2f078e7fc05de149ca3a7cb058344242a4f",
+      "archive_sha256": "f517773335fbcdc7c9c599e81455f201f71826e7dcedf1690e3d755f2467607e"
+    },
+    {
+      "action": "move",
+      "source": "docs/current/changeset-design-discussion.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/changeset-design-discussion.md",
+      "original_sha256": "d3136e31e711e289ec40a7d60555068cac215797629cc953a2af6d78f44d2c42",
+      "archive_sha256": "b867325904cba519b7bc103e74e601f162bf921dd6e60ce7795ff9e8ecbe9a53"
+    },
+    {
+      "action": "move",
+      "source": "docs/current/document-review-2026-09-09.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/document-review-2026-09-09.md",
+      "original_sha256": "9712165212efa4ff6f780d9b260aee4904cf12f5dd2c28de220278d2b0bf0657",
+      "archive_sha256": "8c4cc1487f8330de1f5d5792110c40ff9c0137d89bf54ea851caea030c1d1ec3"
+    },
+    {
+      "action": "move",
+      "source": "docs/current/scaffold-source-inventory.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/scaffold-source-inventory.md",
+      "original_sha256": "d93b93fe5210d47813200539ed5c99b15ea0df3187963ccf180cd39c046174df",
+      "archive_sha256": "d93b93fe5210d47813200539ed5c99b15ea0df3187963ccf180cd39c046174df"
+    },
+    {
+      "action": "move",
+      "source": "docs/current/scaffold-adr-review.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/scaffold-adr-review.md",
+      "original_sha256": "169caf27f9e8aa06a560ba36e1cc832b644f32135ed093302b08771e64257ebe",
+      "archive_sha256": "df9638f65c68c12699bf92f35a69ba250810a110da6c75bdd828483f9909b62a"
+    },
+    {
+      "action": "move",
+      "source": "docs/current/scaffold-page-backend-review.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/scaffold-page-backend-review.md",
+      "original_sha256": "89a5a23f5ba5747c7890e2fa6a8f10789086c5339d1a466d7ae7f9c725e3c74a",
+      "archive_sha256": "23e7abc3b9b5656ff80f6730b4437381c93251a15b79de9a977a1d8f98936fa2"
+    },
+    {
+      "action": "move",
+      "source": "docs/current/HANDOFF-BACKEND-DESIGN-2026-09-11.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/HANDOFF-BACKEND-DESIGN-2026-09-11.md",
+      "original_sha256": "2e8ffe393b35c83daa08d9d2ec09ed299f40865cfb91c6347f0092c780685adf",
+      "archive_sha256": "3dece229a8e7f387de460aad202034b402aed04f066110772f42bc5ee96d09ea"
+    },
+    {
+      "action": "move",
+      "source": "docs/current/first-development-todo.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/first-development-todo.md",
+      "original_sha256": "5fdbdbeec0f221779a1f3684bb1fab51b1e81b518542ef48b1ecadc60da0a0b6",
+      "archive_sha256": "641bf15e80e293e29d0bf2eaee1688e298e85e9deccb3de107a03bde84fc4f2e"
+    },
+    {
+      "action": "move",
+      "source": "docs/prototypes/repomesh-conversation-navigation-prototype.html",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/prototypes/repomesh-conversation-navigation-prototype.html",
+      "original_sha256": "a70b9c53a95a41f07a3b074534d5b511cdf63f293df701753ef1f1ccd24782ff",
+      "archive_sha256": "a70b9c53a95a41f07a3b074534d5b511cdf63f293df701753ef1f1ccd24782ff"
+    },
+    {
+      "action": "move",
+      "source": "docs/prototypes/repomesh-model-settings-prototype.html",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/prototypes/repomesh-model-settings-prototype.html",
+      "original_sha256": "1550f58057f21d7e7add6b1ff60e1392008914cc02d1509a3030aa466efe077c",
+      "archive_sha256": "c78f64f08cbba21fad09ec696664b9a3e49e176e797d5d3de4fda32077957e8a"
+    },
+    {
+      "action": "move",
+      "source": "docs/prototypes/repomesh-project-first.html",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/prototypes/repomesh-project-first.html",
+      "original_sha256": "fd78dd1380a2e9268b146e3eda75f1cb53a20b8933165167f22851dddceb29fb",
+      "archive_sha256": "fd78dd1380a2e9268b146e3eda75f1cb53a20b8933165167f22851dddceb29fb"
+    },
+    {
+      "action": "move",
+      "source": "docs/prototypes/repomesh-rooms-prototype.html",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/prototypes/repomesh-rooms-prototype.html",
+      "original_sha256": "04762b4b6040044b1553f414db673a7c7d09a83d14c23d0ca3ea8ec8b30f8103",
+      "archive_sha256": "04762b4b6040044b1553f414db673a7c7d09a83d14c23d0ca3ea8ec8b30f8103"
+    },
+    {
+      "action": "snapshot",
+      "source": "docs/current/HANDOFF.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/HANDOFF.md",
+      "original_sha256": "5ea33d96641495e0ff030776eca6949876365caa5c52142f8517350033492689",
+      "archive_sha256": "3d521a1ffe61cf523ba8960a04ff355ce3c915359b00672631109de70dccc98d"
+    },
+    {
+      "action": "snapshot",
+      "source": "docs/current/README.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/README.md",
+      "original_sha256": "607884c7ba3310f67427ad43a62736e43e0370870bde6a7f70ec04756c680c30",
+      "archive_sha256": "8b891be76d9ff6b068276ceb5af0acc5746cd9549479c9b3c2b352ef50d8c5f1"
+    },
+    {
+      "action": "snapshot",
+      "source": "docs/current/HANDOFF-PAGE-API-DESIGN.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/HANDOFF-PAGE-API-DESIGN.md",
+      "original_sha256": "12b4bf077a16e432e66a1a8eb6aee5a1be9a039c046c766a6942c864ff5bcf12",
+      "archive_sha256": "e848b0c6ff88c8fc94abee11e4c46ae59d7dc7d7da5aa545b271b27faae96614"
+    },
+    {
+      "action": "snapshot",
+      "source": "docs/current/HANDOFF-BACKEND-DESIGN.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/current/HANDOFF-BACKEND-DESIGN.md",
+      "original_sha256": "035b6f25f90b1b7bbfd4e4ee89d19de2944499495e71a77204a8883c193edff5",
+      "archive_sha256": "dc74ed93f793654055294182ca5897e7dece144831a548298fe3a2b6104f3da1"
+    },
+    {
+      "action": "snapshot",
+      "source": "docs/prototypes/README.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/prototypes/README.md",
+      "original_sha256": "9ff118d09409bffc98de679a31d8921c340b9ef31475d1e5126c081c0f673bad",
+      "archive_sha256": "5220ebb6e04b562935eacaf4bb4acf82b51e356f49c0959c9ea7a53f45d7fa78"
+    },
+    {
+      "action": "snapshot",
+      "source": "docs/README.md",
+      "destination": "docs/archive/2026-09-12-development-preparation/docs/README.md",
+      "original_sha256": "4b79fd14eefa9bd3d8518d9ab8d278e7baf1ecf6ab31e5c14403ed527237ab91",
+      "archive_sha256": "912a16e7aef636b8565f37a0eb1082223baecd12f34ad6d963b965f7ca384013"
+    }
+  ],
+  "navigation_rewrites": [
+    {
+      "path": "docs/README.md",
+      "before_sha256": "4b79fd14eefa9bd3d8518d9ab8d278e7baf1ecf6ab31e5c14403ed527237ab91",
+      "after_sha256": "e80e4f789967e0955615f557728bd4eeb323a488d8808df410a0724c1e48fabc"
+    },
+    {
+      "path": "docs/adr/0016-transactional-background-work.md",
+      "before_sha256": "85786b770f8e7491b9a4b57f89385047934d80eefc9d80046355e273dbd967c3",
+      "after_sha256": "ee551ad9517abe93d73b9b6b1d395fe5a8563f6bd3abe860453bb9e7fd5e4373"
+    },
+    {
+      "path": "docs/adr/0018-provision-instance-after-first-draft.md",
+      "before_sha256": "ba3790868523715ee4a41e631f09f3c0fbfe9bc66276b5f84a1e9df502086a16",
+      "after_sha256": "e2cd063a3611324031eda4397fa465613afd49f0eaba4fe37b6cc656d2618d9e"
+    },
+    {
+      "path": "docs/adr/0019-conversation-issue-separation.md",
+      "before_sha256": "b530a614d393f35e67cb304025ffa7bb4c31a3d0fc66b860467120e4f9b884f4",
+      "after_sha256": "25c812a8ecb9777d98c36735d8ec26299639a3185c9fd4c3aaccb8ced76f5ce4"
+    },
+    {
+      "path": "docs/adr/README.md",
+      "before_sha256": "521fc2cafb202a26547e0ba2800c2246401779a32922cacc09f1867d39dd7b37",
+      "after_sha256": "4ab35b60788b89a4aac5ef2cba81228a097c7241d457053f30a570445e383319"
+    },
+    {
+      "path": "docs/archive/2026-09-08-changeset-initial-proposal.md",
+      "before_sha256": "2fd7d67f830d93541a07354d3b7ad494a20d3dc05e3978cbf7505426f135d084",
+      "after_sha256": "d8a2e809d07c7a0ac74cb8969a7927edd5117fa94b8a70d027dff17553f0ef15"
+    },
+    {
+      "path": "docs/archive/README.md",
+      "before_sha256": "deb50345e58997ff3e064d6c58ab370b6322bb5b170432fd7fe75e17556778b9",
+      "after_sha256": "01dfb7f267c775c301a384851439070cc8e5504c39d8900267f48bd7a8efecf9"
+    },
+    {
+      "path": "docs/archive/2026-09-08-handoff-before-consolidation/HANDOFF.md",
+      "before_sha256": "270e39c2f3cf94ff394fd8aff7eea29af5b269c38c090c136def88bcd7901d56",
+      "after_sha256": "1cf12b8c139eb1a20785c88a6095cae656a8acd198be8aa63dd40942cf3337b0"
+    },
+    {
+      "path": "docs/archive/2026-09-08-handoff-before-consolidation/NEXT-SESSION-PROMPT.md",
+      "before_sha256": "deef83a8a426b9bf7a3d897b3ce9b51beec60c3f99e9314f1b923efa2fc50c9f",
+      "after_sha256": "16929314236b2a7d511dbb3b2e4a9df1c99d59d7f01cae214ed248f894250017"
+    },
+    {
+      "path": "docs/archive/2026-09-08-handoff-before-consolidation/README.md",
+      "before_sha256": "e15e320fe777bb5177bf73fda4b69cb51e7fa46f0aecd58e8defa1029d28df23",
+      "after_sha256": "8f1b590f8e6e78c46c8de287add486769616b3a28ddf0a4e7574ad1114536b84"
+    },
+    {
+      "path": "docs/archive/2026-09-09-before-document-review/README.md",
+      "before_sha256": "4b220fb648a9f881b3faba2ffbc8105024db8d5c886bbcf629152d5e924b8cac",
+      "after_sha256": "272a5cd022e2bcc69c52c2efb02c0dd36277e290fafddaa78556c0b08550df2a"
+    },
+    {
+      "path": "docs/archive/2026-09-11-backend-design-handoff/HANDOFF-BACKEND-DESIGN.md",
+      "before_sha256": "1e4a7611a382ac1552eecdb7ed2acf8ffbb1888482e843a45b6b84ff5928cba6",
+      "after_sha256": "b6a0ac5447681593ce5fa78b3f6c6a2be3659974c54b9286b9ebd60ebe3f872b"
+    },
+    {
+      "path": "docs/archive/2026-09-11-backend-design-handoff/README.md",
+      "before_sha256": "d03714b8980af64bdd980d16126ddbc1ae33c65bbaef9d05e988e8a90d595aab",
+      "after_sha256": "1cb2c6c8a4976220d1c3ca786166f79633e64836844b560af4376377855f8c34"
+    },
+    {
+      "path": "docs/archive/2026-09-11-page-api-handoff/HANDOFF-PAGE-API-DESIGN.md",
+      "before_sha256": "094dc318c347d507924ad8538c29098daee5716de45ef7687d3f4902969b98fe",
+      "after_sha256": "52f3988f7b65f881e02cf6d71575e6944664d1098578dbbf3337bfcf28491117"
+    },
+    {
+      "path": "docs/current/architecture-design-v1.md",
+      "before_sha256": "903e23a69272bbb197c42ff285f5e38ac3fd45f1d1abf36944db7e2d60dbfb0f",
+      "after_sha256": "ba53e413485fd269df0529974b2cdc3d7b87a3e46c9e35ccad6f130f0c290c28"
+    },
+    {
+      "path": "docs/current/backend-first-batch-persistence.md",
+      "before_sha256": "39720c0d8d44ad94883fc56a464373b9453db0967ec255f8613f9feca4abcfce",
+      "after_sha256": "11992ab42f8e498a288703f31176360afa0bfd67eab8b629b5eca342b2f7fb6c"
+    },
+    {
+      "path": "docs/current/backend-first-development-access-draft.md",
+      "before_sha256": "30d969506846cb6c19723335f4dde83708004a6850b3a5e6876f9cda746bb602",
+      "after_sha256": "596e84e9fa1c4cb71fb675ae4de0540bc9cd60e483f555118f2ffdba1605ab89"
+    },
+    {
+      "path": "docs/current/backend-message-clarification-design.md",
+      "before_sha256": "80b83c823a1dbd4b1d9b81d81410fd1e26c0fb381a22e076ce85dd9cd5d342a4",
+      "after_sha256": "b7f7c7d8d5eae7ff1782948ea9ebfde78aaff3282c48f77e303aff41aeccf75d"
+    },
+    {
+      "path": "docs/current/conversation-issue-separation-design.md",
+      "before_sha256": "c7595412ed64b88da11651104320f6d49c8f3e8366f0892ff3f910c78b1b6ddb",
+      "after_sha256": "1cd805d7fb279a9109e7a6211bdfd5b59b3909ae41beeedef0db98dd0007b614"
+    },
+    {
+      "path": "docs/current/conversation-message-target-design.md",
+      "before_sha256": "658055f521d3c03e6c357a8309d9fd7cbdc744457b15351dd6d1e407d72dcb62",
+      "after_sha256": "c06982520dadd15aee8dc7ecae11c62807804ca8fd0ce30203fa7cc79cef8d1a"
+    },
+    {
+      "path": "docs/current/design-delegation.md",
+      "before_sha256": "d664372f853daae565d516e97deeabf87b04afa927c25b58e6ca83c9c3739abf",
+      "after_sha256": "ee693e15151fb496a3db3cd15283028517d18fbfb0af391a7c3f63813e5d6da7"
+    },
+    {
+      "path": "docs/current/development-scaffold.md",
+      "before_sha256": "389378f80053c8db2c376223b64c3809733cbb70679c1ff8cd21c1df63e0ae3d",
+      "after_sha256": "3218e105772275a58b9017bf327938f142b40f6d320bb0a9f47cc24512f7312d"
+    },
+    {
+      "path": "docs/current/draft-conversation-backend-design.md",
+      "before_sha256": "1802e0ba64b1d960b4d6517db47016907f69d006a7f0b6cf20a23add2b7bfb25",
+      "after_sha256": "3c20d52262d81b79898b7ab78d9b917b06c259d5cd7dcdb8a90e2c4d4e5c54e1"
+    },
+    {
+      "path": "docs/current/first-batch-complete-review.md",
+      "before_sha256": "f2eafcb7c77a7abd5b061ae9fd7036cf0c922e90f890be1de48d04600b16b285",
+      "after_sha256": "b5e63de1331e953f2d1fb7c2a3fe5589129cb5ee8354d7b0f48bcbcc59c670c8"
+    },
+    {
+      "path": "docs/current/HANDOFF-BACKEND-DESIGN.md",
+      "before_sha256": "035b6f25f90b1b7bbfd4e4ee89d19de2944499495e71a77204a8883c193edff5",
+      "after_sha256": "fc4322b515b0ab6778f6ca52562bc926f67a0041c3a47cb9a80b63b3e1e78286"
+    },
+    {
+      "path": "docs/current/HANDOFF-PAGE-API-DESIGN.md",
+      "before_sha256": "12b4bf077a16e432e66a1a8eb6aee5a1be9a039c046c766a6942c864ff5bcf12",
+      "after_sha256": "b4a74e026231417c6b553f0669192d4074f23b5e4832f137e379f91d7036bbae"
+    },
+    {
+      "path": "docs/current/HANDOFF.md",
+      "before_sha256": "5ea33d96641495e0ff030776eca6949876365caa5c52142f8517350033492689",
+      "after_sha256": "54e0911411519825789f4274bc443e8328e8a89f4fd402611e26251a37d35c1f"
+    },
+    {
+      "path": "docs/current/issue-overview-minimal-design.md",
+      "before_sha256": "0ab552f6febc7f55bd4cdbcd38e7dcedcbb9dfaec5197e53cd5b0704fc4f7bd9",
+      "after_sha256": "1b9842b2131f1ed31dfae4c994d32442b2923cdecabfd3e7c4f04afaafbb164d"
+    },
+    {
+      "path": "docs/current/login-recovery-page-design.md",
+      "before_sha256": "d871a506cfe14751abdcdef7fc55803ad19e8345540f0259538575fc00f4ab9c",
+      "after_sha256": "85f816ad8830711d981a3e9b90054793a1a91f9d3c1293da88542a591f513d04"
+    },
+    {
+      "path": "docs/current/manager-create-issue-tool-design.md",
+      "before_sha256": "26428b3964b03391792130cc21d19c81fe9cbbebc35ac2ca9ddae038291c41f3",
+      "after_sha256": "598113955b68e2fb46517cb3146973331e523266155946956c471e319d64ca72"
+    },
+    {
+      "path": "docs/current/model-connection-settings-design.md",
+      "before_sha256": "434924007d530eece63a3fc62f2675498a95d4811199cdbb9789ba3e849286ab",
+      "after_sha256": "3ccdf5f711d64d1eb88619c0643c971ffffbc146d87054f77e07df914a3b097c"
+    },
+    {
+      "path": "docs/current/model-key-save-design.md",
+      "before_sha256": "d0b0b1396d8372d118180043d4acf90107c3c0f4e156f766e283fb0f32411c43",
+      "after_sha256": "0c650c86d85be2c226ce81f3914c4036dbcdda0ddad183f5ad6bb632b1850bbb"
+    },
+    {
+      "path": "docs/current/project-configuration-design.md",
+      "before_sha256": "95caca85dfb78bc3ab5af794baaa9cf43d2e8bc9d378a2d334fcfb33684512db",
+      "after_sha256": "59895637eb9c903f110513f4afdc59f98325fb889c21861d66a6822a49f58aa7"
+    },
+    {
+      "path": "docs/current/prototype-walkthrough-design.md",
+      "before_sha256": "184dd894bd770ee30756d116cd80a47caa2477784e65e3e9cc5878efba134d14",
+      "after_sha256": "c6bc96a43f02d70224bec37533d38e83f38086ded45bceef56217f64c2466631"
+    },
+    {
+      "path": "docs/current/README.md",
+      "before_sha256": "607884c7ba3310f67427ad43a62736e43e0370870bde6a7f70ec04756c680c30",
+      "after_sha256": "e46110b7e1e195b2d577b61bf03154f3beb075fa5a4dc6b87bca11136f04c158"
+    },
+    {
+      "path": "docs/current/scaffold-verification.md",
+      "before_sha256": "086e7cd2cdc99ee26a373c086dfcc0399431bb61858b5b7efe291661c6f10add",
+      "after_sha256": "68c1c2f1086bc68c79f37dfe8c635cf598b21ac86379f88843374b7828273fe9"
+    },
+    {
+      "path": "docs/current/technology-selection.md",
+      "before_sha256": "70b9c992c2d8654b7ee50d277144e190594baad40da91b2003dc9a02e7061beb",
+      "after_sha256": "5e431a16e53450aae52805ed900b1fb717f874ee3d571290df5e26fd0cc17eb9"
+    },
+    {
+      "path": "docs/prototypes/README.md",
+      "before_sha256": "9ff118d09409bffc98de679a31d8921c340b9ef31475d1e5126c081c0f673bad",
+      "after_sha256": "938b3a2cf01a35e6cc0220e7b7212aa9c57902c20be75604a0baed6cb7b6c893"
+    },
+    {
+      "path": "docs/reviews/2026-09-12-design-readiness/coverage.md",
+      "before_sha256": "1f35fa53f40fc632e4f6fca1941cefff347d73020d3e85f1d50543566966db5b",
+      "after_sha256": "0fde0e3fa4da84a5b5be69494f3020a81944bd682116bc1bb0883b3fd65725dd"
+    },
+    {
+      "path": "docs/reviews/2026-09-12-design-readiness/page-review.md",
+      "before_sha256": "6a66ee0fb521dfe14fafaea6e65f87edc4d24b3d3472b5f865c39a9a733d98e9",
+      "after_sha256": "f990306c97f673f820f831dea0206981b9e250f54bbe632e242bb753bcfb22a1"
+    }
+  ],
+  "originals": "originals.zip",
+  "raw_files_preserved": 66,
+  "notes": "Only navigation links were rebased; original source bytes are retained in the zip. Evidence JSON and validation files were not rewritten.",
+  "additional_originals_before_navigation_edits": [
+    {
+      "source": "README.md",
+      "sha256": "ededf3fa244487e08d0c526ab2e9deb225b63519f7d37b6bc30f2a9f3c2480a3"
+    },
+    {
+      "source": "docs/prototypes/joined-preview-shell.html.template",
+      "sha256": "c433d325e3cf3f19dd7fa3f14a09cb2f8132e1cecb644ff8b3859d5f493cfa44"
+    },
+    {
+      "source": "docs/prototypes/index.html",
+      "sha256": "3433826e5b1c54cfea62b3ec4c154d0545b479f94ad6f8716276ec212324dcd9"
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+
+auth.json
+auth.pending.json
+bin/
+bin/
+# Browser dumps that can carry cookies, tokens, or callback query strings
+/.codex/config.toml
+connection-url.txt
+*cookie*dump*
+Cookies
+Cookies-journal
+*cookies*.json
+coverage/
+/Cursor_Dashboard_Report_2026-09-07/
+/.cursor/skills/verify-repomesh/evidence/*
+!/.cursor/skills/verify-repomesh/evidence/.gitignore
+database-url
+# Dependencies and build output
+dist/
+/docs/archive/*
+!/docs/archive/2026-09-12-development-preparation/
+!/docs/archive/2026-09-13-plan-organization/
+!/docs/archive/2026-09-15-api-database-catalog/
+!/docs/archive/README.md
+/docs/archive/reference/Cloud-Agent平台产品PRD.md
+/docs/Cloud-Agent平台产品PRD.md
+/docs/development/2026-09-12-wsl/stop-runtime
+.DS_Store
+.env
+.env.*
+!.env.example
+!.env.sample
+*.exe
+github-client-secret
+*.har
+# Historical machine-local runtime control marker
+.idea/
+id_ecdsa
+id_ed25519
+id_rsa
+# Independent upstream checkout; version recorded in third_party/agentteams-source.json
+*.key
+# Local dashboard report
+# Local product requirements
+# Local secrets and credential bodies. Keep live copies outside the repo.
+# Local skeleton tooling
+# Local validation records and historical archives
+*.log
+# Machine-specific Codex configuration; use the tracked example as a template
+node_modules/
+# OS and editor files
+*.out
+/output/playwright/
+*.p12
+*.p8
+*.pem
+*.pfx
+/.playwright-cli/
+/.playwright-mcp/
+# Product / GitHub App / wrap-root files if copied into the tree
+*.pyc
+__pycache__/
+*.test
+/third_party/AgentTeams/
+Thumbs.db
+*.tsbuildinfo
+/validation/
+# Verification-skill proof artifacts. Helpers write here and cleanup must keep them.
+.vscode/
+web/dist/
+web/node_modules/
+wrap-root
+wrap_root

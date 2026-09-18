@@ -1,0 +1,3 @@
+{"ts":"2026-09-12T13:58:16.236Z","event":"framenavigated","origin":"https://repomesh.bohanxu.me:8443","pathname":"/auth/result/6413121b-1b3c-42a7-8cee-34b8d32cc9d5"}
+{"ts":"2026-09-12T13:58:16.290Z","event":"start_response_shape","origin":"https://repomesh.bohanxu.me:8443","pathname":"/api/auth/github/login","status":201,"keys":["attemptId","authorizationUrl","expiresAt","resultPage"],"frontendValid":true}
+{"ts":"2026-09-12T13:58:46.255Z","event":"control_error","code":"NAVIGATION_TIMEOUT_OR_FAILURE"}

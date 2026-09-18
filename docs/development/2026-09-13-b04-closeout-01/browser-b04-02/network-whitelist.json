@@ -1,0 +1,24 @@
+{
+  "passed": false,
+  "allowed": [
+    "200:None",
+    "201:None",
+    "401:AUTHENTICATION_REQUIRED",
+    "403:ORIGIN_REJECTED",
+    "403:PROJECT_UPDATE_NOT_ALLOWED",
+    "404:MODEL_SAVE_NOT_FOUND",
+    "404:PROJECT_CREATION_NOT_FOUND",
+    "404:PROJECT_UPDATE_NOT_FOUND",
+    "404:RESOURCE_NOT_FOUND",
+    "409:IDEMPOTENCY_CONFLICT",
+    "409:MODEL_SAVE_CLOSED",
+    "410:MODEL_SAVE_RESULT_REMOVED",
+    "422:VALIDATION_FAILED",
+    "503:None",
+    "503:RESULT_UNCONFIRMED"
+  ],
+  "counts": {
+    "200:None": 4
+  },
+  "unexpected": []
+}

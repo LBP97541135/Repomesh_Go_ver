@@ -1,0 +1,19 @@
+{
+  "version": "0.4.0-b04-integrated-20260913-r2",
+  "stage": "model-sources-local",
+  "businessReady": false,
+  "target": "linux/amd64",
+  "artifacts": {
+    "README.txt": "3d62083068f2f66b09fcd61be7197f7217f85deb15be6b370a618fd97652c6b9",
+    "SOURCE-README.md": "60e7602a334265dca3c2bb065caac7326ba84f0ad6793004c3d314f1fa6e995b",
+    "bin/repomesh-coordinator": "508a0a958de39fb83f9516279bedeaa6a72ca221923e993bdce5b9c77cae56b9",
+    "bin/repomesh-host-executor": "739234c8bbd649cf0c4fb3773485ffa5db286e0b5c32dab504d138ae003f130e",
+    "bin/repomesh-web": "5a50fd8a2a30a2a9fcfea87c828f5ed9364b421145ec734a3a8bbff47cd4b18d",
+    "configs/auth.example.json": "ef6a9db98df41982242d628404af6d8dc48c1024a10abd41e5cb03f0f0d9d451",
+    "configs/repomesh.env.example": "0b4c54a341508d8e991cfe496378b9fc5149da9dd965dbc4281f2dc6cd57028a",
+    "web/dist/assets/index-B5v7bA8J.css": "2cea341bf4481a882dc8c1e5cf82d78f9060968bc294acb43003ef659652a905",
+    "web/dist/assets/index-D7rptNt9.js": "8d6507225181c9da75b15ba8e3e35c03cade3028a11e857c929327bebdc281c4",
+    "web/dist/index.html": "9620d4fb4d76acd260a7265bc7befc40da993dc957303b81f6f9fee65e0c73a3",
+    "web/package-lock.json": "0de7f257445b9dbd21716ee05f886489181b9d56c073f55fb288c037f43ecb6b"
+  }
+}

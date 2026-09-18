@@ -1,0 +1,3 @@
+pass=260
+fail=0
+skip=2

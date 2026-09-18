@@ -1,0 +1,1 @@
+2026/09/12 23:29:14 INFO web listening address=127.0.0.1:51161 version=0.3.0-b03-integrated-20260912-r1 authentication_configured=false business_ready=false

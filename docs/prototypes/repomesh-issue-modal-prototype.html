@@ -1,0 +1,271 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RepoMesh · 创建 Issue 弹窗原型</title>
+<!-- Prototype only; derived from repomesh-conversations-issues.html. No business APIs. -->
+<div id="repomesh-rooms-prototype">
+<style>
+#repomesh-rooms-prototype{--rm-bg:#131313;--rm-side:#191919;--rm-surface:#222222;--rm-hover:#292929;--rm-line:#303030;--rm-text:#dedede;--rm-muted:#a0a0a0;--rm-green:#90b899;--rm-amber:#d7b788;color-scheme:dark;color:var(--rm-text);font:14px/1.65 "Segoe UI","Microsoft YaHei",sans-serif;width:100%}
+#repomesh-rooms-prototype *{box-sizing:border-box}
+#repomesh-rooms-prototype button,#repomesh-rooms-prototype input,#repomesh-rooms-prototype select,#repomesh-rooms-prototype textarea{font:inherit;color:inherit}
+#repomesh-rooms-prototype button{cursor:pointer;border:0;background:transparent;border-radius:8px;padding:7px 10px;text-align:left;display:inline-flex;align-items:center;gap:9px;max-width:100%}
+#repomesh-rooms-prototype button:hover{background:var(--rm-hover)}
+#repomesh-rooms-prototype button:disabled{opacity:.45;cursor:not-allowed}
+#repomesh-rooms-prototype button:focus-visible,#repomesh-rooms-prototype textarea:focus-visible,#repomesh-rooms-prototype input:focus-visible,#repomesh-rooms-prototype select:focus-visible{outline:2px solid #9ba8b1;outline-offset:3px}
+#repomesh-rooms-prototype svg{width:17px;height:17px;flex-shrink:0}
+#repomesh-rooms-prototype .rm-shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:760px;background:var(--rm-bg);border:1px solid var(--rm-line);border-radius:10px;overflow:clip}
+#repomesh-rooms-prototype .rm-sidebar{background:var(--rm-side);border-right:1px solid var(--rm-line);padding:12px 10px;display:flex;flex-direction:column;min-width:0}
+#repomesh-rooms-prototype .rm-brand{display:flex;align-items:center;gap:9px;padding:2px 8px 17px;letter-spacing:.1px}
+#repomesh-rooms-prototype .rm-brand span{font-weight:500;flex:1}
+#repomesh-rooms-prototype .rm-quiet{color:var(--rm-muted)}
+#repomesh-rooms-prototype .rm-nav{display:flex;flex-direction:column;gap:3px}
+#repomesh-rooms-prototype .rm-nav button{width:100%;padding:9px 11px;color:#bababa}
+#repomesh-rooms-prototype .rm-nav button.rm-active{background:#252525;color:#eeeeee}
+#repomesh-rooms-prototype .rm-label{font-size:12px;color:var(--rm-muted);margin:27px 10px 10px;display:flex;justify-content:space-between;align-items:center}
+#repomesh-rooms-prototype .rm-project{margin-bottom:12px}
+#repomesh-rooms-prototype .rm-project-head{width:100%;color:#c7c7c7}
+#repomesh-rooms-prototype .rm-project-head .rm-project-title{flex:1;text-align:left;min-width:0;overflow-wrap:anywhere}
+#repomesh-rooms-prototype .rm-project-head small{font-size:12px;color:var(--rm-muted);white-space:nowrap}
+#repomesh-rooms-prototype .rm-issue{width:calc(100% - 17px);margin:2px 0 2px 17px;padding:8px 9px;gap:8px;color:#bebebe;font-size:13px}
+#repomesh-rooms-prototype .rm-issue.rm-active{background:var(--rm-hover);color:#f0f0f0}
+#repomesh-rooms-prototype .rm-issue .rm-ellipsis{white-space:nowrap;text-overflow:ellipsis;overflow:hidden;flex:1;min-width:0}
+#repomesh-rooms-prototype .rm-issue small{font-size:11px;color:var(--rm-muted);flex-shrink:0}
+#repomesh-rooms-prototype .rm-dot{width:6px;height:6px;background:#94af9d;border-radius:50%;flex-shrink:0}
+#repomesh-rooms-prototype .rm-dot.draft{background:transparent;border:1px solid #b6a187;width:7px;height:7px}
+#repomesh-rooms-prototype .rm-dot.done{background:#747474}
+#repomesh-rooms-prototype .rm-sidebar-bottom{margin-top:auto;padding:32px 5px 0}
+#repomesh-rooms-prototype .rm-project-health{padding:12px;border:1px solid var(--rm-line);border-radius:11px;font-size:12px;color:var(--rm-muted);margin-bottom:16px}
+#repomesh-rooms-prototype .rm-profile{display:flex;gap:9px;align-items:center;font-size:13px;padding:3px 5px}
+#repomesh-rooms-prototype .rm-avatar{width:27px;height:27px;display:inline-grid;place-items:center;border:1px solid #404040;border-radius:50%;background:#303030;color:#dedede;flex-shrink:0;font-size:12px}
+#repomesh-rooms-prototype .rm-profile .rm-quiet{margin-left:auto;font-size:11px}
+#repomesh-rooms-prototype .rm-main{display:flex;flex-direction:column;min-width:0}
+#repomesh-rooms-prototype .rm-top{min-height:57px;padding:12px 22px;display:flex;gap:12px;align-items:center;justify-content:space-between;font-size:12px;color:var(--rm-muted)}
+#repomesh-rooms-prototype .rm-top-left{display:flex;align-items:center;gap:9px;min-width:0;flex-wrap:wrap}
+#repomesh-rooms-prototype .rm-top-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+#repomesh-rooms-prototype .rm-mobile-button{display:none}
+#repomesh-rooms-prototype .rm-start{width:min(100%,730px);margin:auto;padding:145px 38px 192px}
+#repomesh-rooms-prototype .rm-context{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 5px 12px;color:#b9b9b9;font-size:13px}
+#repomesh-rooms-prototype select{background:var(--rm-bg);border:0;padding:4px 20px 4px 2px;max-width:100%;border-radius:4px}
+#repomesh-rooms-prototype .rm-composer{background:var(--rm-surface);border:1px solid #343434;border-radius:19px;padding:14px 14px 10px}
+#repomesh-rooms-prototype textarea{display:block;width:100%;min-height:77px;resize:vertical;background:transparent;border:0;padding:1px 3px;color:#e8e8e8;font-size:16px;line-height:1.6}
+#repomesh-rooms-prototype textarea::placeholder{color:#939393}
+#repomesh-rooms-prototype .rm-compose-bottom{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--rm-muted);font-size:12px;margin-top:8px}
+#repomesh-rooms-prototype .rm-compose-bottom .rm-mode{display:flex;align-items:center;gap:7px;padding:3px}
+#repomesh-rooms-prototype .rm-send{background:#e5e5e5;color:#202020;border-radius:50%;width:31px;height:31px;padding:0;justify-content:center;font-size:19px}
+#repomesh-rooms-prototype .rm-send:hover{background:#ffffff}
+#repomesh-rooms-prototype .rm-start-hint{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--rm-muted);padding:13px 5px}
+#repomesh-rooms-prototype .rm-example{margin:25px 2px 0;color:#ababab;font-size:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#repomesh-rooms-prototype .rm-example button{border:1px solid var(--rm-line);border-radius:20px;font-size:12px}
+#repomesh-rooms-prototype .rm-start-foot{text-align:center;margin:0 20px 24px;font-size:12px;color:#8e8e8e}
+#repomesh-rooms-prototype .rm-room-heading{padding:8px 26px 16px;border-bottom:1px solid #252525;display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap}
+#repomesh-rooms-prototype h1{font-size:17px;font-weight:500;margin:0 0 5px;line-height:1.5;overflow-wrap:anywhere}
+#repomesh-rooms-prototype .rm-room-meta{font-size:12px;color:var(--rm-muted);display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+#repomesh-rooms-prototype .rm-badge{font-size:11px;border:1px solid #3c3c3c;border-radius:5px;padding:1px 6px;color:#b9b9b9;white-space:nowrap;display:inline-block}
+#repomesh-rooms-prototype .rm-badge.green{color:var(--rm-green);border-color:#35463a;background:#1c2820}
+#repomesh-rooms-prototype .rm-badge.amber{color:var(--rm-amber);border-color:#504330;background:#2b251c}
+#repomesh-rooms-prototype .rm-local-nav{display:flex;gap:3px;flex-wrap:wrap;padding:8px 20px;font-size:12px;border-bottom:1px solid #242424}
+#repomesh-rooms-prototype .rm-local-nav .rm-active{background:#262626;color:#eeeeee}
+#repomesh-rooms-prototype .rm-room-body{display:grid;grid-template-columns:minmax(0,1fr);flex:1;min-width:0}
+#repomesh-rooms-prototype .rm-conversation{padding:21px 27px 0;min-width:0}
+#repomesh-rooms-prototype .rm-message{margin:0 0 24px;min-width:0;font-size:13px;overflow-wrap:anywhere}
+#repomesh-rooms-prototype .rm-message-status{margin:-17px 0 22px 32px;color:var(--rm-muted);font-size:11px;overflow-wrap:anywhere}
+#repomesh-rooms-prototype .rm-message-head{display:flex;align-items:center;gap:8px;margin-bottom:9px;font-size:12px}
+#repomesh-rooms-prototype .rm-message-head time{margin-left:auto;color:var(--rm-muted);font-size:11px}
+#repomesh-rooms-prototype .rm-manager-mark{width:24px;height:24px;border:1px solid #444;border-radius:7px;display:grid;place-items:center;color:#d9d9d9;font-size:11px}
+#repomesh-rooms-prototype .rm-message p{margin:8px 0;white-space:pre-wrap}
+#repomesh-rooms-prototype .rm-human{background:#242424;border-radius:13px;padding:12px 15px;margin-left:32px;color:#d0d0d0}
+#repomesh-rooms-prototype .rm-note{color:var(--rm-muted);font-size:12px}
+#repomesh-rooms-prototype .rm-confirm{border:1px solid #393939;border-radius:12px;padding:15px;margin-top:16px;background:#1a1a1a}
+#repomesh-rooms-prototype .rm-confirm-title{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px}
+#repomesh-rooms-prototype .rm-primary{background:#ddd;color:#202020;margin-top:11px;font-size:12px;padding:7px 12px}
+#repomesh-rooms-prototype .rm-primary:hover{background:#f4f4f4}
+#repomesh-rooms-prototype .rm-guidance{border:1px solid #354439;background:#19201b;border-radius:11px;margin:16px 0;padding:13px 14px}
+#repomesh-rooms-prototype .rm-guidance-head{display:flex;gap:8px;align-items:center;font-size:13px;color:#b6cfbb;margin-bottom:9px}
+#repomesh-rooms-prototype .rm-room-link{width:100%;border-top:1px solid #344037;border-radius:0;justify-content:space-between;padding:11px 0;gap:12px}
+#repomesh-rooms-prototype .rm-room-link span{min-width:0;overflow-wrap:anywhere}
+#repomesh-rooms-prototype .rm-room-link small{display:block;font-size:11px;color:#a4b3a7;margin-top:3px}
+#repomesh-rooms-prototype .rm-room-link:hover{background:#232e26}
+#repomesh-rooms-prototype .rm-room-composer{margin-top:auto;padding:16px 27px 22px}
+#repomesh-rooms-prototype .rm-room-composer textarea{min-height:49px;font-size:14px}
+#repomesh-rooms-prototype .rm-room-composer .rm-composer{border-radius:15px}
+#repomesh-rooms-prototype .rm-under-input{font-size:11px;color:#909090;text-align:center;margin-top:8px}
+#repomesh-rooms-prototype .rm-details{padding:23px 27px;min-width:0}
+#repomesh-rooms-prototype .rm-details h2{font-size:15px;font-weight:500;margin:0 0 12px}
+#repomesh-rooms-prototype .rm-details h3{font-size:13px;font-weight:500;margin:0 0 8px}
+#repomesh-rooms-prototype .rm-detail-row{padding:10px 0;border-bottom:1px solid #2b2b2b;display:flex;align-items:flex-start;gap:15px;justify-content:space-between;font-size:12px;overflow-wrap:anywhere}
+#repomesh-rooms-prototype .rm-detail-row>span:first-child{color:var(--rm-muted)}
+#repomesh-rooms-prototype .rm-detail-row>span:last-child{text-align:right;max-width:65%}
+#repomesh-rooms-prototype .rm-detail-section{margin-bottom:26px}
+#repomesh-rooms-prototype .rm-task-lanes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px;margin-top:20px}
+#repomesh-rooms-prototype .rm-task{border:1px solid #3b3b3b;border-radius:9px;padding:13px;background:#202020;font-size:12px;width:100%;display:block}
+#repomesh-rooms-prototype .rm-task small{display:block;color:var(--rm-muted);margin:6px 0}
+#repomesh-rooms-prototype .rm-lane-caption{font-size:12px;color:#a4a4a4;margin-bottom:10px;overflow-wrap:anywhere}
+#repomesh-rooms-prototype .rm-dependency{padding:6px;color:#9f9f9f;font-size:12px}
+#repomesh-rooms-prototype .rm-log-entry{padding:9px 0 13px 17px;border-left:1px solid #414141;margin-left:4px;font-size:12px}
+#repomesh-rooms-prototype .rm-log-entry time{display:block;color:#999;font-size:11px}
+#repomesh-rooms-prototype .rm-readonly{background:#1d1d1d;border:1px solid #333;border-radius:12px;padding:11px 13px;display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:12px;color:var(--rm-muted);flex-wrap:wrap}
+#repomesh-rooms-prototype .rm-alert{margin:10px 0;color:#d4b28b;font-size:12px}
+#repomesh-rooms-prototype .rm-search-input{width:100%;border:1px solid #3b3b3b;border-radius:8px;background:#232323;padding:8px 10px;font-size:13px;margin:10px 0}
+#repomesh-rooms-prototype .rm-design-notes{background:#171717;border-top:1px solid #303030;color:#b7b7b7;padding:10px 17px;font-size:12px;overflow-wrap:anywhere}
+#repomesh-rooms-prototype .rm-design-notes summary{cursor:pointer;color:#9d9d9d}
+#repomesh-rooms-prototype .rm-design-notes ol{padding-left:22px;margin:10px 0}
+#repomesh-rooms-prototype .rm-design-notes code{font-size:11px;color:#c7c7c7}
+#repomesh-rooms-prototype .rm-design-notes p{margin:7px 0}
+#repomesh-rooms-prototype .rm-trace{padding:8px 0;border-top:1px solid #333;color:#9fb6a6;white-space:pre-wrap;line-height:1.9}
+#repomesh-rooms-prototype .rm-search-empty{padding:18px 10px;color:var(--rm-muted);font-size:12px}
+#repomesh-rooms-prototype .rm-create-stage{background:#111;border:1px solid #303030;border-radius:10px;padding:19px 28px 32px;min-height:790px}
+#repomesh-rooms-prototype .rm-create-brand{font-size:13px;color:#a4a4a4;display:flex;align-items:center;gap:10px;margin-bottom:21px}
+#repomesh-rooms-prototype .rm-create-box{width:min(100%,620px);margin:0 auto;background:#191919;border:1px solid #343434;border-radius:14px;padding:27px 29px;box-shadow:0 12px 65px #0005}
+#repomesh-rooms-prototype .rm-create-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+#repomesh-rooms-prototype .rm-create-head h1{font-size:24px;color:#ececec;margin:0 0 6px;line-height:1.4}
+#repomesh-rooms-prototype .rm-create-head p{font-size:15px;color:#aaa;margin:0}
+#repomesh-rooms-prototype .rm-close{font-size:24px;line-height:1;padding:0 5px;color:#aaa}
+#repomesh-rooms-prototype .rm-repo-box{margin:25px 0 0;border:1px solid #303030;border-radius:11px;overflow:clip}
+#repomesh-rooms-prototype .rm-repo-search{display:flex;gap:9px;align-items:center;padding:14px 16px;border-bottom:1px solid #2c2c2c;color:#a3a3a3}
+#repomesh-rooms-prototype .rm-repo-search input{width:100%;min-width:0;background:transparent;border:0;font-size:15px;padding:0}
+#repomesh-rooms-prototype .rm-repo-label{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#9e9e9e;padding:13px 16px 9px}
+#repomesh-rooms-prototype .rm-repo-choice{display:flex;align-items:center;gap:11px;padding:11px 15px;margin:2px 0;cursor:pointer;border-radius:8px;color:#d9d9d9;font-size:15px}
+#repomesh-rooms-prototype .rm-repo-choice:hover,#repomesh-rooms-prototype .rm-repo-choice:has(input:checked){background:#252525}
+#repomesh-rooms-prototype .rm-repo-choice input{accent-color:#aaa;width:19px;height:19px;margin:0;flex-shrink:0}
+#repomesh-rooms-prototype .rm-repo-choice span{min-width:0;overflow-wrap:anywhere;flex:1}
+#repomesh-rooms-prototype .rm-repo-choice small{display:block;color:#a99a84;font-size:11px;margin-top:2px}
+#repomesh-rooms-prototype .rm-create-account{font-size:11px;color:#909090;display:flex;align-items:center;gap:6px;margin:13px 0 0}
+#repomesh-rooms-prototype .rm-create-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:28px}
+#repomesh-rooms-prototype .rm-create-actions button{font-size:14px;border-radius:8px;padding:8px 13px;background:#272727}
+#repomesh-rooms-prototype .rm-create-actions .rm-primary{background:#e5e5e5;margin:0;color:#202020}
+#repomesh-rooms-prototype .rm-create-box label.rm-field{display:block;color:#bdbdbd;font-size:12px;margin:20px 0}
+#repomesh-rooms-prototype .rm-field input,#repomesh-rooms-prototype .rm-field textarea{display:block;width:100%;border:1px solid #3c3c3c;background:#202020;border-radius:8px;padding:10px 12px;margin-top:7px;font-size:14px}
+#repomesh-rooms-prototype .rm-field textarea{min-height:85px}
+#repomesh-rooms-prototype .rm-selected-repos{display:flex;gap:6px;flex-wrap:wrap;margin:9px 0 16px}
+#repomesh-rooms-prototype .rm-selected-repos span{font-size:11px;color:#bababa;border:1px solid #3a3a3a;border-radius:5px;padding:3px 7px;overflow-wrap:anywhere;max-width:100%}
+#repomesh-rooms-prototype .rm-create-empty{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;flex:1;padding:45px;min-height:550px;gap:13px}
+#repomesh-rooms-prototype .rm-create-empty h1{font-size:22px}
+#repomesh-rooms-prototype .rm-top-project,#repomesh-rooms-prototype .rm-context>span{overflow-wrap:anywhere;min-width:0}
+#repomesh-rooms-prototype .rm-waiting{margin-top:23px;border:1px solid #3d3a34;border-radius:11px;padding:16px;color:#c9bda8;font-size:13px}
+#repomesh-rooms-prototype .rm-demo-ready{background:#191919;padding:11px 17px;border-top:1px solid #333;font-size:12px;color:#aaa;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#repomesh-rooms-prototype .rm-demo-ready button{border:1px solid #424242;padding:5px 9px}
+@media(max-width:560px){#repomesh-rooms-prototype .rm-create-stage{padding:15px 12px 22px;min-height:740px}#repomesh-rooms-prototype .rm-create-box{padding:20px 16px}#repomesh-rooms-prototype .rm-create-head h1{font-size:21px}#repomesh-rooms-prototype .rm-create-head p{font-size:13px}#repomesh-rooms-prototype .rm-repo-choice{padding:12px 10px;font-size:13px;gap:8px}#repomesh-rooms-prototype .rm-repo-choice svg{display:none}#repomesh-rooms-prototype .rm-field input,#repomesh-rooms-prototype .rm-field textarea,#repomesh-rooms-prototype .rm-repo-search input{font-size:16px}#repomesh-rooms-prototype .rm-create-empty{padding:26px}}
+@media(min-width:561px){#repomesh-rooms-prototype.rm-collapsed .rm-shell{grid-template-columns:minmax(0,1fr)}#repomesh-rooms-prototype.rm-collapsed .rm-sidebar{display:none}#repomesh-rooms-prototype.rm-collapsed .rm-mobile-button{display:inline-flex}}
+@media(min-width:1150px){#repomesh-rooms-prototype .rm-shell{grid-template-columns:254px minmax(0,1fr)}#repomesh-rooms-prototype .rm-conversation,#repomesh-rooms-prototype .rm-room-composer,#repomesh-rooms-prototype .rm-details{width:min(100%,850px);margin-left:auto;margin-right:auto}}
+@media(max-width:800px){#repomesh-rooms-prototype .rm-shell{grid-template-columns:195px minmax(0,1fr)}#repomesh-rooms-prototype .rm-sidebar{padding:12px 7px}#repomesh-rooms-prototype .rm-start{padding:136px 24px 160px}#repomesh-rooms-prototype .rm-top{padding:12px 16px}#repomesh-rooms-prototype .rm-room-heading{padding:7px 18px 14px}#repomesh-rooms-prototype .rm-conversation,#repomesh-rooms-prototype .rm-details{padding:20px 18px 0}#repomesh-rooms-prototype .rm-room-composer{padding:16px 18px 20px}#repomesh-rooms-prototype .rm-task-lanes{grid-template-columns:1fr}}
+@media(max-width:560px){#repomesh-rooms-prototype .rm-shell{display:flex;flex-direction:column;min-height:650px}#repomesh-rooms-prototype .rm-sidebar{display:none;border-right:0;border-bottom:1px solid #333}#repomesh-rooms-prototype .rm-shell.rm-show-sidebar .rm-sidebar{display:flex}#repomesh-rooms-prototype .rm-sidebar-bottom{padding-top:12px}#repomesh-rooms-prototype .rm-project-health{display:none}#repomesh-rooms-prototype .rm-mobile-button{display:inline-flex}#repomesh-rooms-prototype .rm-main{flex:1}#repomesh-rooms-prototype .rm-top{gap:5px;padding:10px 12px}#repomesh-rooms-prototype .rm-top-right{font-size:11px}#repomesh-rooms-prototype .rm-start{padding:91px 17px 122px}#repomesh-rooms-prototype .rm-start-foot{font-size:11px}#repomesh-rooms-prototype .rm-top-project{display:none}#repomesh-rooms-prototype .rm-conversation,#repomesh-rooms-prototype .rm-details{padding:19px 16px 0}#repomesh-rooms-prototype .rm-room-composer{padding:15px 14px 20px}#repomesh-rooms-prototype .rm-human{margin-left:15px}#repomesh-rooms-prototype .rm-local-nav{padding:8px 10px}#repomesh-rooms-prototype .rm-local-nav button{padding:7px}#repomesh-rooms-prototype .rm-context{gap:6px}#repomesh-rooms-prototype .rm-context select{max-width:190px}#repomesh-rooms-prototype textarea{font-size:16px}#repomesh-rooms-prototype .rm-room-composer textarea{font-size:16px}}
+@media(pointer:coarse){#repomesh-rooms-prototype button{min-height:44px}#repomesh-rooms-prototype .rm-send{min-width:44px}#repomesh-rooms-prototype .rm-room-link{min-height:60px}}
+
+#repomesh-rooms-prototype .rm-issue-dialog{inset:0;margin:auto;width:min(620px,calc(100vw - 24px));max-height:calc(100dvh - 32px);padding:0;border:1px solid #3b3b3b;border-radius:14px;background:#1b1b1b;color:var(--rm-text);box-shadow:0 24px 90px #0009;overflow:auto}
+#repomesh-rooms-prototype .rm-issue-dialog::backdrop{background:#0009}
+#repomesh-rooms-prototype .rm-issue-dialog .rm-details{padding:22px 26px 0;width:100%;margin:0}
+#repomesh-rooms-prototype .rm-issue-dialog h1{font-size:18px}
+#repomesh-rooms-prototype .rm-issue-dialog .rm-issue-form{padding:18px 0 0;margin:0;border:0;background:none}
+#repomesh-rooms-prototype .rm-issue-dialog .rm-field{font-size:13px;margin-bottom:18px}
+#repomesh-rooms-prototype .rm-issue-dialog .rm-field input{margin-top:7px}
+#repomesh-rooms-prototype .rm-issue-dialog .rm-field textarea{margin-top:7px;min-height:110px}
+#repomesh-rooms-prototype .rm-issue-dialog .rm-create-actions{position:sticky;bottom:0;padding:18px 0;margin-top:20px;border-top:1px solid #343434;background:#1b1b1b;justify-content:flex-end;gap:10px}
+#repomesh-rooms-prototype .rm-issue-dialog .rm-room-destination{font-size:13px;margin:0;padding:16px 0 0;border:0;border-top:1px solid #343434;background:none}
+#repomesh-rooms-prototype .rm-issue-dialog .rm-room-destination p{margin:4px 0}
+#repomesh-rooms-prototype .rm-issue-dialog .rm-modal-close{float:right;font-size:23px;line-height:1;padding:4px 7px;color:#aaa}
+#repomesh-rooms-prototype .rm-issue-dialog [data-action=close-issue-modal]:not(.rm-modal-close){border:1px solid #3a3a3a}
+@media(max-width:560px){#repomesh-rooms-prototype .rm-issue-dialog .rm-details{padding:18px 18px 0}#repomesh-rooms-prototype .rm-issue-dialog .rm-field input,#repomesh-rooms-prototype .rm-issue-dialog .rm-field textarea{font-size:16px}}
+
+</style>
+<style>
+#repomesh-rooms-prototype .rm-issue-grid{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;border-bottom:1px solid var(--rm-line);padding:17px 0;align-items:center}
+#repomesh-rooms-prototype .rm-issue-grid p{margin:4px 0;color:var(--rm-muted);font-size:12px}
+#repomesh-rooms-prototype .rm-issue-grid button{width:100%;justify-content:space-between}
+#repomesh-rooms-prototype .rm-source{padding:10px 24px;background:var(--rm-side);border-bottom:1px solid var(--rm-line);display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px}
+#repomesh-rooms-prototype .rm-linked-issue{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--rm-line);border-radius:9px;margin:12px 0;padding:12px;flex-wrap:wrap}
+#repomesh-rooms-prototype .rm-issue-form{padding:18px;border:1px solid var(--rm-line);border-radius:10px;margin:18px 0}
+#repomesh-rooms-prototype .rm-issue-form h3{margin-top:0}
+#repomesh-rooms-prototype .rm-room-destination{padding:13px 0;border-top:1px solid var(--rm-line)}
+#repomesh-rooms-prototype .rm-room-destination p{font-size:12px;color:var(--rm-muted);margin:4px 0}
+@media(max-width:560px){#repomesh-rooms-prototype .rm-issue-grid{grid-template-columns:1fr}#repomesh-rooms-prototype .rm-source{padding:10px 16px}}
+</style>
+<div class="rm-mount"></div>
+<div class="rm-demo-ready rm-demo-load"><span>本地原型 · 创建 Issue 弹窗讨论稿</span><button type="button" data-demo-load>载入双事项示例</button></div>
+<details class="rm-design-notes"><summary>页面交互与接口对应 · 设计草案</summary><p>会话与 Issue 分开；一个会话可关联多条独立 Issue。Issue 页面可进入已关联、可读且就绪的主房间与 Leader 房间；Leader 房间只读。每条 Issue 独立计划、验收和主 ChangeSet。</p><p>这是可丢弃的内存原型，刷新重置，不连接真实模型、仓库或接口。Issue 栏创建默认新建会话。提交前取消或表单校验失败不创建记录；本地模拟没有网络请求，不能说明请求发出后取消会回滚。首次消息后的准备是页面演示，新对象下的实际启动触发仍待细化。建立 Issue 的表单、消息来源及返回提示不冻结内容快照、消息目标路由或房间共享拓扑。导航来源不是执行授权。</p><p>窗口外分别模拟房间就绪、消息投递、核查、Manager 回复及指定 Issue 的计划／Leader 房间就绪。创建 Issue 本身不代表派工。消息归属、权限、幂等、恢复和 SSE 尚未运行验收。</p><div class="rm-trace" aria-live="polite">尚未创建项目。</div></details>
+<script>
+(()=>{
+const root=document.getElementById('repomesh-rooms-prototype');
+const mount=root.querySelector('.rm-mount');
+const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const icon=n=>`<i data-lucide="${n}" aria-hidden="true"></i>`;
+const btn=(label,action,value='',cls='')=>`<button type="button" class="${cls}" data-action="${action}" data-value="${esc(value)}"${action==='mobile'?' aria-label="展开或收起项目侧栏"':''}>${label}</button>`;
+const projects=[],items=[],issues=[];
+const repositories=[['repomesh/order-service',true],['repomesh/admin-console',true],['repomesh/storefront',true],['repomesh/test-assets',true],['internal/api-service',true],['internal/web-console',true],['partner/billing-api',false]].map(([name,app])=>({name,app}));
+const state={project:null,key:null,issueKey:null,sourceIssue:null,view:'overview',repo:null,open:new Set(),sidebar:false,search:false,query:'',input:'',counter:1,nextIssue:1,trace:[],panel:null,error:'',detailTask:null,wizard:true,step:1,selected:new Set(),repoQuery:'',projectName:'',purpose:'',createError:'',issueForm:false,issueTitle:'',issueGoal:'',issueRepos:new Set()};
+const current=()=>items.find(c=>c.key===state.key);
+const activeIssue=()=>issues.find(i=>i.key===state.issueKey&&i.project===state.project);
+const project=()=>projects.find(p=>p.id===state.project)||{id:null,name:'RepoMesh',description:'先建立多仓库项目',repos:[],ready:false};
+const usableRepos=()=>project().repos.filter(r=>repositories.find(x=>x.name===r)?.app);
+const scope=i=>i.scope||[];
+const conversationReady=c=>Boolean(c&&projects.find(p=>p.id===c.project)?.ready&&c.roomReady);
+const badge=(t,c='')=>`<span class="rm-badge ${c}">${esc(t)}</span>`;
+const row=(a,b)=>`<div class="rm-detail-row"><span>${esc(a)}</span><span>${b}</span></div>`;
+const trace=t=>{state.trace.unshift(t);root.querySelector('.rm-trace').textContent=state.trace.slice(0,9).join('\n')};
+const runtimeLabel=c=>!project().id?'开始使用':conversationReady(c)?'主房间就绪':project().ready?'Manager 就绪':project().preparing?'实例准备中':'项目已建立';
+const linked=c=>issues.filter(i=>i.conversationKey===c.key&&i.project===c.project);
+const nextDelivery=c=>c.messages.find(m=>m.delivery==='pending'||m.delivery==='unknown');
+const outstanding=c=>c.messages.some(m=>m.delivery&&m.delivery!=='received');
+function wizard(){const matches=repositories.filter(r=>r.name.toLowerCase().includes(state.repoQuery.toLowerCase()));return `<div class="rm-create-stage"><div class="rm-create-brand">${icon('panels-top-left')}RepoMesh<span style="color:#5d5d5d">／</span>新建项目</div><section class="rm-create-box" aria-label="创建多仓库项目"><div class="rm-create-head"><div><h1>${state.step===1?'创建多仓库项目':'给项目起个名字'}</h1><p>${state.step===1?'选择一个或多个相关仓库。':'说明共同目标，让 Manager 理解各仓关系。'}</p></div>${btn('<span aria-hidden="true">×</span><span style="font-size:0">关闭</span>','cancel-project','','rm-close')}</div>${state.step===1?`<div class="rm-repo-box"><div class="rm-repo-search">${icon('search')}<input aria-label="搜索仓库" placeholder="搜索仓库" value="${esc(state.repoQuery)}"></div><div class="rm-repo-label"><span>仓库</span><span aria-live="polite">已选择 ${state.selected.size} 个</span></div><div>${matches.map(r=>`<label class="rm-repo-choice"><input type="checkbox" data-repository="${esc(r.name)}" aria-label="选择 ${esc(r.name)}" ${state.selected.has(r.name)?'checked':''}>${icon('folder')}<span>${esc(r.name)}${r.app?'':'<small>可参与 · RepoMesh App 授权待补齐</small>'}</span></label>`).join('')||'<div class="rm-search-empty">没有匹配的仓库，请调整搜索。</div>'}</div></div><div class="rm-create-account">${icon('user-round')}林悦 · 示例账号<span>／ 仅列出可参与的仓库</span></div>`:`<label class="rm-field">项目名称<input data-field="projectName" aria-label="项目名称" placeholder="例如：订单系统" maxlength="60" value="${esc(state.projectName)}"></label><label class="rm-field">项目用途<textarea data-field="purpose" aria-label="项目用途" placeholder="例如：订单服务与运营后台，共同支持订单管理">${esc(state.purpose)}</textarea></label><div class="rm-note">项目仓库 · ${state.selected.size} 个</div><div class="rm-selected-repos">${[...state.selected].map(r=>`<span>${esc(r)}</span>`).join('')}</div>${[...state.selected].some(r=>!repositories.find(x=>x.name===r).app)?'<p class="rm-alert">包含 App 授权未完整的仓库，创建后会标明受限范围。</p>':''}<details class="rm-confirm"><summary style="cursor:pointer;font-size:12px">沿用项目默认配置</summary>${row('模型与执行环境','平台默认配置引用 · 示例')}${row('Worker 并发','1')}${row('预算与时限','继承平台默认；本原型未接入实际额度')}${row('验证小组','关闭')}${row('目标分支','由 Manager 在具体 Issue 中确定')}</details>`}${state.createError?`<div class="rm-alert" role="alert">${esc(state.createError)}</div>`:''}<div class="rm-create-actions">${btn(state.step===1?'取消':'上一步',state.step===1?'cancel-project':'previous-project')}${btn(state.step===1?'继续':'创建项目',state.step===1?'continue-project':'save-project','','rm-primary')}</div></section></div>`}
+function repoChat(i){const r=state.repo,n=scope(i).indexOf(r);const done=i.status==='已完成';return `<div class="rm-note" style="margin-bottom:20px">${esc(r)} · ${i.status==='已完成'?'历史房间':'本轮协作记录'}</div>`+msg('Leader',`已收到 Manager 的仓库委派：${i.title}。本仓负责${n===0?'业务能力与接口约定':'界面交互与兼容检查'}，按当前有效计划执行。`)+msg('Worker',done?'本轮候选与自测证据已归档。':n===0?'正在完善字段校验与接口用例。历史数据兼容检查已列入本轮自测。':'正在对照接口约定处理表单交互，提交候选时会附上界面检查记录。')+msg('Leader',done?'本仓交付已完成，最终证据见验证与交付。':'收到。提交候选后进行本仓初审，再交由独立验证。成员自测不等于整项需求通过。')+`<details style="font-size:12px;border-top:1px solid #333;padding-top:12px"><summary style="cursor:pointer;color:#aaa">本仓工作环境</summary>${row('仓库',esc(r))}${row('当前任务',esc(n===0?'业务能力与接口约定':'界面交互与兼容检查'))}${row('执行尝试',done?'Attempt 1 · 已结束':'Attempt 1 · 执行中')}${row('工作目录','Worker 独立 clone')}${row('所属变更集',`CS-${i.number}`)}</details>`}
+function plan(i){const names=scope(i);return `<div class="rm-details"><h2>任务图 · 计划 v1</h2><div class="rm-room-meta">${badge(i.status==='已完成'?'历史有效计划':'当前有效计划','green')}<span>Manager 组织 · 只读视图</span></div><div class="rm-task-lanes">${names.map((r,n)=>`<div><div class="rm-lane-caption">${esc(r)}</div>${btn(`<span>${n===0?'业务能力与接口约定':'界面交互与兼容检查'}<small>${esc(r)} · Worker ${n+1}</small>${badge(i.status==='已完成'?'已完成':n===0?'执行中':'等待接口约定',i.status==='已完成'?'green':'')}</span>`,'task',String(n),'rm-task')}</div>`).join('')}</div><div class="rm-dependency">${names.length>1?esc(names[0])+" 接口约定 → "+esc(names[1])+" 联调 → ":esc(names[0])+" 候选 → "}固定组合独立验证</div>${state.detailTask!==null?`<section class="rm-confirm"><h3>任务详情</h3>${row('仓库',esc(names[Number(state.detailTask)]))}${row('负责人',`Leader · Worker ${Number(state.detailTask)+1}`)}${row('当前依据','计划 v1 · 规格 v1')}${row('执行状态',i.status==='已完成'?'已完成':Number(state.detailTask)===0?'正在执行':'前置接口约定待就绪')}</section>`:''}<section class="rm-detail-section" style="margin-top:25px"><h2>需求与规格</h2><p style="font-size:13px">${esc(i.body)}</p>${row('范围边界',esc(project().name+' 已接入且获准的仓库'))}${row('验证要求','候选初审后进行独立验证；跨仓按固定组合判断')}${row('版本记录','规格 v1 · 计划 v1')}</section></div>`}
+function delivery(i){const done=i.status==='已完成';return `<div class="rm-details"><h2>验证与交付</h2><div class="rm-detail-section">${row('当前组合',done?'C-final · 最终实际合入组合':'尚未形成可验证的固定组合')}${row('独立验证',badge(done?'通过':'待验证',done?'green':''))}${row('交付',badge(done?'已完成':'未交付',done?'green':''))}</div><h2>逐仓证据</h2>${scope(i).map((r,n)=>`<details class="rm-confirm"><summary style="cursor:pointer">${esc(r)}　${badge(done?'已合入':'待候选')}</summary>${row('候选版本',done?'candidate-'+(n+1):'尚未接受')}${row('Leader 初审',done?'通过':'待提交')}${row('独立验证',done?'通过 · 绑定最终组合':'未产生结论')}${row('PR',done?'人工合入已确认':'尚未建立')}<p class="rm-note">${done?'示例证据：必检项目通过，版本与最终组合一致。':'候选与证据到达后在这里展示；不会把 Worker 发言当成验证通过。'}</p></details>`).join('')}<p class="rm-note" style="margin-top:20px">正式审查与人工合并分别记录；部署状态另行表达。</p></div>`}
+function projectPanel(){return `<div class="rm-details"><h1>${esc(project().name)}</h1><p class="rm-note">${esc(project().description)}</p>${row('项目范围',`${project().repos.length} 个仓库`)}${row('实例与成员',project().ready?'Manager 对话就绪 · 模拟':'就绪状态尚未确认')}${project().repos.map(r=>`<section class="rm-confirm"><h3>${esc(r)}</h3>${row('账号访问',badge('可参与','green'))}${row('App 授权',repositories.find(x=>x.name===r)?.app?badge('示例授权可用','green'):badge('待补齐','amber'))}${row('项目归属',esc(project().name))}</section>`).join('')}<p class="rm-note">项目范围不等于每条 Issue 都要修改全部仓库。创建项目不代表实例或团队已启动。</p></div>`}
+function side(){return `<aside class="rm-sidebar"><div class="rm-brand">${icon('panels-top-left')}<span>RepoMesh</span>${btn(icon('panel-left-close'),'mobile','','rm-quiet')}</div><nav class="rm-nav" aria-label="主导航">${btn(icon('square-pen')+'新建会话','new','',!state.key&&!state.panel?'rm-active':'')}${btn(icon('circle-dot')+'Issue','issues','',state.panel==='issues'||state.panel==='issue'||state.panel==='create-issue'?'rm-active':'')}${btn(icon('search')+'搜索会话','search','',state.search?'rm-active':'')}${btn(icon('folder-git-2')+'仓库与团队','project-panel','',state.panel==='project'?'rm-active':'')}</nav>${state.search?`<input class="rm-search-input" aria-label="搜索会话" placeholder="搜索会话标题" value="${esc(state.query)}">`:''}<div class="rm-label"><span>项目与会话</span>${btn('+ 新建','create-project')}</div><nav aria-label="按项目排列的会话">${projects.map(p=>{const found=items.filter(c=>c.project===p.id&&c.title.toLowerCase().includes(state.query.toLowerCase()));return `<div class="rm-project">${btn(icon(state.open.has(p.id)?'folder-open':'folder')+`<span class="rm-project-title">${esc(p.name)}</span><small>${p.repos.length} 仓</small>`,'toggle-project',p.id,'rm-project-head')}${state.open.has(p.id)?found.map(c=>btn(`<span class="rm-ellipsis">${esc(c.title)}</span>`,'conversation',c.key,`rm-issue ${state.key===c.key&&!state.panel?'rm-active':''}`)).join('')+(found.length?'':'<div class="rm-search-empty">暂无会话</div>'):''}</div>`}).join('')||'<div class="rm-search-empty">还没有项目</div>'}</nav><div class="rm-sidebar-bottom"><div class="rm-project-health">${esc(project().name)}<br>${esc(project().description)}</div><div class="rm-profile"><span class="rm-avatar">林</span><span>林悦</span><span class="rm-quiet">本地原型</span></div></div></aside>`}
+function composer(start=false){const waiting=!start&&!conversationReady(current());return `<div class="rm-composer"><textarea aria-label="${start?'输入消息':waiting?'补充消息（先保存）':'给 Manager 的消息'}" placeholder="${start?'开始一段讨论，或描述你想完成的目标…':waiting?'可继续记录补充，房间就绪后才能投递…':'继续讨论；聊天不会自动修改某条 Issue…'}">${esc(state.input)}</textarea><div class="rm-compose-bottom"><span class="rm-mode">${icon('sparkles')}Manager</span>${btn(waiting?'保存补充':'↑','send','',waiting?'rm-primary':'rm-send')}</div></div>${state.error?`<div class="rm-alert" role="alert">${esc(state.error)}</div>`:''}`}
+function start(){if(!projects.length)return `<div class="rm-create-empty"><h1>先建立你的多仓库项目</h1>${btn('＋ 创建项目','create-project','','rm-primary')}</div>`;return `<div class="rm-start"><div class="rm-context">${icon('folder-git-2')}<span>${esc(project().name)}</span><span>／ ${project().repos.length} 个仓库</span></div>${composer(true)}<div class="rm-start-hint"><span>发送后进入 Manager 主房间</span><span>会话可以只用于讨论</span></div></div>`}
+function msg(author,text,human=false){return `<article class="rm-message ${human?'rm-human':''}">${human?'':`<div class="rm-message-head"><span class="rm-manager-mark">${author==='Manager'?'M':author==='Leader'?'L':'W'}</span><span>${esc(author)}</span></div>`}<p>${esc(text)}</p></article>`}
+function deliveryLabel(c,m){if(m.delivery==='pending')return c.messages.some(x=>x.seq<m.seq&&x.delivery==='unknown')?'已保存，等待前序核查':'已保存，待投递';return {unknown:'投递结果待核查',delivered:'已投递，Manager 接收待确认',received:'Manager 已接收'}[m.delivery]||''}
+function issueCard(i){return `<div class="rm-linked-issue"><span><strong>#${i.number} ${esc(i.title)}</strong><br><span class="rm-note">${esc(i.status)} · ${scope(i).length} 个仓库事项 · CS-${i.number}</span></span>${btn('查看 Issue →','issue',i.key)}</div>`}
+function issueForm(c){return `<section class="rm-issue-form"><h3>在当前会话中建立 Issue</h3><label class="rm-field">Issue 标题<input data-issue-field="issueTitle" aria-label="Issue 标题" value="${esc(state.issueTitle)}"></label><label class="rm-field">本次工作目标<textarea data-issue-field="issueGoal" aria-label="本次工作目标">${esc(state.issueGoal)}</textarea></label><p class="rm-note">本次示例范围：${esc(usableRepos().slice(0,2).join('、')||'暂无可执行仓库')}<br>建立独立 Issue 和主 ChangeSet，当前聊天继续保留。</p>${state.error?`<p role="alert" class="rm-alert">${esc(state.error)}</p>`:''}<div class="rm-create-actions">${btn('取消','cancel-issue')}${btn('明确创建 Issue','save-issue','','rm-primary')}</div></section>`}
+function conversation(c){const origin=issues.find(i=>i.key===state.sourceIssue&&i.conversationKey===c.key);let messages=c.messages.map(m=>m.issueKey?issueCard(issues.find(i=>i.key===m.issueKey)):m.businessRecord?`<div class="rm-note" style="margin:16px 0">业务记录 · ${esc(m.text)}</div>`:msg(m.role,m.text,m.role==='你')+(m.delivery?`<div class="rm-message-status">消息 ${m.seq} · ${deliveryLabel(c,m)}</div>`:'')).join('');if(!conversationReady(c))messages+=`<section class="rm-waiting"><div>会话已保存 · 可继续补充</div><p>${c.fromIssue?'业务会话已建立，尚未取得主房间就绪依据。':project().ready?'正在准备本会话的主房间。':'正在准备项目实例与本次对话。'}</p></section>`;else if(outstanding(c))messages+=`<section class="rm-waiting"><div>${c.messages.some(m=>m.delivery==='unknown')?'前序消息核查中':'主房间已就绪'}</div><p class="rm-note">消息投递、Manager 接收和回复分别更新。</p></section>`;return `${origin?`<div class="rm-source"><span>从 Issue #${origin.number} 进入 · 导航来源</span>${btn('返回 Issue →','issue',origin.key)}</div>`:''}<header class="rm-room-heading"><div><h1>${esc(c.title)}</h1><div class="rm-room-meta"><span>${conversationReady(c)?'会话 · Manager 主房间':'会话 · 主房间待就绪'}</span>${badge(`关联 ${linked(c).length} 条 Issue`)}</div></div></header><div class="rm-room-body"><div class="rm-conversation">${messages}${state.issueForm?issueForm(c):conversationReady(c)&&c.managerReplied&&!outstanding(c)?`<div class="rm-linked-issue"><span class="rm-note">讨论已形成独立工作目标？</span>${btn('＋ 建立新的 Issue','create-issue')}</div>`:''}</div></div><div class="rm-room-composer">${composer()}<div class="rm-under-input">会话持续保留，每条 Issue 独立管理</div></div>`}
+function issueList(){const list=issues.filter(i=>i.project===state.project);return `<div class="rm-details"><div class="rm-issue-grid"><div><h1>Issue</h1><p>${esc(project().name)} · ${list.length} 条独立工作事项</p></div>${project().id?btn('＋ 创建 Issue','new-page-issue','','rm-primary'):btn('先创建项目','create-project','','rm-primary')}</div>${list.length?list.map(i=>`<div class="rm-issue-grid"><div>${btn(`<span>#${i.number} ${esc(i.title)}</span>${icon('arrow-up-right')}`,'issue',i.key)}<p>${scope(i).length} 个仓库事项 · 主 ChangeSet CS-${i.number}</p></div>${badge(i.status)}</div>`).join(''):'<section class="rm-confirm"><h3>还没有 Issue</h3><p class="rm-note">在这里创建，或在会话中与 Manager 讨论。</p></section>'}</div>`}
+function pageIssueForm(){return `<dialog class="rm-issue-dialog" aria-labelledby="rm-modal-title"><div class="rm-details"><button type="button" class="rm-modal-close" data-action="close-issue-modal" aria-label="关闭创建 Issue">×</button><h1 id="rm-modal-title">创建 Issue</h1><p class="rm-note">${esc(project().name)}</p><section class="rm-issue-form"><label class="rm-field">Issue 标题<input autofocus data-issue-field="issueTitle" aria-label="Issue 标题" value="${esc(state.issueTitle)}" placeholder="例如：增加订单归档"></label><label class="rm-field">目标、约束与预期结果<textarea data-issue-field="issueGoal" aria-label="目标、约束与预期结果">${esc(state.issueGoal)}</textarea></label><fieldset style="border:0;padding:0;margin:18px 0"><legend>涉及仓库</legend>${project().repos.map(r=>`<label style="display:flex;gap:8px;align-items:center;margin:12px 0;overflow-wrap:anywhere"><input type="checkbox" data-issue-repo="${esc(r)}" ${state.issueRepos.has(r)?'checked':''} ${usableRepos().includes(r)?'':'disabled'}><span>${esc(r)}${usableRepos().includes(r)?'':' · 示例执行权限受限'}</span></label>`).join('')}</fieldset><div class="rm-room-destination"><strong>关联会话：新建会话</strong><p>创建后会在当前项目下出现一条新会话。</p></div>${state.error?`<p class="rm-alert" role="alert">${esc(state.error)}</p>`:''}<div class="rm-create-actions">${btn('取消','close-issue-modal')}${btn('创建 Issue','save-page-issue','','rm-primary')}</div></section></div></dialog>`}
+function mainRoomLink(i){const c=items.find(x=>x.key===i.conversationKey);return c&&conversationReady(c)?btn('进入主房间 →','issue-main',i.key):'<span class="rm-note">尚无主房间就绪依据，暂不可进入</span>'}
+function overview(i){return `<div class="rm-details"><h2>工作目标</h2><p>${esc(i.body)}</p><section class="rm-detail-section">${row('执行',badge(i.status))}${row('验证',badge('待验证'))}${row('交付',badge('未交付'))}${row('主 ChangeSet',btn(`CS-${i.number} · 查看交付记录 →`,'view','delivery'))}</section><h2>关联主房间</h2><div class="rm-room-destination"><strong>${esc(items.find(c=>c.key===i.conversationKey)?.title||'')}</strong><p>Manager · 同一会话可关联多条独立 Issue</p>${mainRoomLink(i)}</div><h2 style="margin-top:24px">仓库事项</h2>${i.repositoryIssues.map((r,n)=>`<section class="rm-confirm"><div class="rm-room-meta">${badge(r.key)}<span>${esc(r.repo)}</span></div><h3>${esc(r.title)}</h3>${row('本仓进展',i.rooms?'工作已安排 · 示例':'待安排')}${row('GitHub Issue','未关联（可选）')}<div class="rm-room-destination"><p>Leader 房间 · 只读</p>${i.rooms?btn('进入 Leader 房间 →','repo',r.repo):'<span class="rm-note">尚未取得房间就绪依据</span>'}</div></section>`).join('')}<p class="rm-note">各仓进展不能代替整体固定组合的验收结论。</p></div>`}
+function issueHistory(i){return `<div class="rm-details"><h2>决定与活动</h2>${i.history.map((x,n)=>`<div class="rm-log-entry"><time>记录 ${n+1}</time>${esc(x)}</div>`).join('')}</div>`}
+function issuePage(i){if(!i)return issueList();const tabs=[['overview','概览与房间'],['plan','任务图与规格'],['delivery','验证与交付'],['history','历史']];let body=state.repo?`<div class="rm-details">${repoChat(i)}</div>`:state.view==='plan'?(i.rooms?plan(i):'<div class="rm-details"><p>计划尚未形成有效依据。</p></div>'):state.view==='delivery'?delivery(i):state.view==='history'?issueHistory(i):overview(i);return `<div class="rm-source">${btn('← Issue 列表','issues')}<span>${state.repo?'Leader 房间 · 来源 ':''}Issue #${i.number}</span>${state.repo?btn('返回 Issue 详情','issue',i.key):''}</div><header class="rm-room-heading"><div><h1>#${i.number} ${esc(i.title)}</h1><div class="rm-room-meta">${badge(i.status)}<span>CS-${i.number}</span><span>${state.repo?esc(state.repo):'独立工作事项'}</span></div></div>${mainRoomLink(i)}</header>${state.repo?'':`<nav class="rm-local-nav" aria-label="Issue 视图">${tabs.map(([v,t])=>btn(t,'view',v,state.view===v?'rm-active':'')).join('')}</nav>`}<div class="rm-room-body">${body}</div>${state.repo?`<div class="rm-room-composer"><div class="rm-readonly"><span>Leader 房间只读 · 通过 Manager 沟通</span>${mainRoomLink(i)}</div></div>`:''}`}
+function demoControls(c){const i=activeIssue();if(state.panel==='issue'&&i&&!i.rooms)return `<div class="rm-demo-ready"><span>指定 Issue #${i.number} 的模拟事件</span>${btn('模拟计划与 Leader 房间就绪 →','preview-issue-ready',i.key)}</div>`;if(state.panel||!c)return '';const next=nextDelivery(c);const actions=!conversationReady(c)?btn('模拟 Manager 与主房间就绪 →','preview-ready'):next?.delivery==='unknown'?btn('模拟核查：前条已投递 →','preview-resolve'):next?btn(`模拟投递消息 ${next.seq} →`,'preview-deliver')+btn('模拟本条投递结果未知','preview-unknown'):c.messages.some(m=>m.delivery==='delivered')?btn('模拟 Manager 接收与回复 →','preview-reply'):'';return actions?`<div class="rm-demo-ready"><span>会话消息模拟事件</span>${actions}</div>`:''}
+function render(){const c=current();const content=state.panel==='create-issue'?issueList():state.panel==='project'?projectPanel():state.panel==='issues'?issueList():state.panel==='issue'?issuePage(activeIssue()):c?conversation(c):start();mount.innerHTML=state.wizard?wizard():`<div class="rm-shell ${state.sidebar?'rm-show-sidebar':''}">${side()}<main class="rm-main"><div class="rm-top"><div class="rm-top-left">${btn(icon('panel-left'),'mobile','','rm-mobile-button')}<span class="rm-top-project">${esc(project().name)}</span><span>／ ${state.panel==='issue'||state.panel==='issues'||state.panel==='create-issue'?'Issue':state.panel==='project'?'仓库与团队':'会话'}</span></div><div class="rm-top-right"><span>${runtimeLabel(c)} · 模拟</span></div></div>${content}</main></div>${demoControls(c)}${state.panel==='create-issue'?pageIssueForm():''}`;const dialog=root.querySelector('.rm-issue-dialog');if(dialog){dialog.showModal();dialog.addEventListener('cancel',e=>{e.preventDefault();closeIssueModal()})}const send=root.querySelector('[data-action="send"]');if(send)send.setAttribute('aria-label',c?(conversationReady(c)?'发送消息':'保存补充'):'发送首条消息');const next=root.querySelector('[data-action="continue-project"]');if(next)next.disabled=!state.selected.size;try{globalThis.lucide?.createIcons({attrs:{width:17,height:17}})}catch{}}
+function closeIssueModal(){state.panel='issues';state.error='';render();root.querySelector('[data-action="new-page-issue"]')?.focus()}
+function openConversation(key,source=null){const c=items.find(c=>c.key===key);if(!c)return;Object.assign(state,{project:c.project,key,issueKey:null,sourceIssue:source,panel:null,repo:null,input:'',error:'',sidebar:false,issueForm:false});state.open.add(c.project);render()}
+function openIssue(key){const i=issues.find(i=>i.key===key);if(!i)return;Object.assign(state,{project:i.project,key:i.conversationKey,issueKey:key,panel:'issue',view:'overview',repo:null,sidebar:false,issueForm:false,error:''});state.open.add(i.project);render()}
+function makeIssue(c,title,goal,repoScope=usableRepos().slice(0,2)){const number=state.nextIssue++;const i={key:'I-'+number,number,project:c.project,conversationKey:c.key,title,body:goal,status:'已建立',rooms:false,scope:[...repoScope],history:['正式 Issue、主 ChangeSet 及后续待办已登记（模拟）']};i.repositoryIssues=i.scope.map((repo,n)=>({key:`RI-${number}-${n+1}`,repo,title:(n===0?'服务端工作：':'界面工作：')+title}));issues.push(i);c.messages.push({issueKey:i.key});return i}
+function send(){if(!project().id)return;const text=state.input.trim();if(!text){state.error='请先输入消息。';render();return}let c=current();if(!c){c={key:'C-'+state.counter++,project:state.project,title:text.split(/[。\n]/)[0].slice(0,45),body:text,roomReady:false,managerReplied:false,messages:[{role:'你',text,seq:1,delivery:'pending'}]};items.push(c);if(!project().ready)project().preparing=true;trace(`会话 ${c.key} 与首条消息已保存（模拟）；未创建 Issue 或 ChangeSet。`);openConversation(c.key);return}const seq=c.messages.filter(m=>m.seq).length+1;c.messages.push({role:'你',text,seq,delivery:'pending'});c.managerReplied=false;state.input='';state.error='';trace(`会话 ${c.key} 消息 ${seq} 已保存待投递，不自动修改关联 Issue。`);render()}
+mount.addEventListener('input',e=>{if(e.target.dataset.issueField){state[e.target.dataset.issueField]=e.target.value;return}if(e.target.dataset.field){state[e.target.dataset.field]=e.target.value;return}if(e.target.matches('.rm-room-composer textarea,.rm-start textarea'))state.input=e.target.value;if(e.target.matches('.rm-repo-search input,.rm-search-input')){const repo=e.target.matches('.rm-repo-search input'),pos=e.target.selectionStart;state[repo?'repoQuery':'query']=e.target.value;render();const el=root.querySelector(repo?'.rm-repo-search input':'.rm-search-input');el.focus();el.setSelectionRange(pos,pos)}});
+mount.addEventListener('change',e=>{if(e.target.dataset.issueRepo){const r=e.target.dataset.issueRepo;e.target.checked?state.issueRepos.add(r):state.issueRepos.delete(r);return}if(e.target.dataset.repository){const r=e.target.dataset.repository;e.target.checked?state.selected.add(r):state.selected.delete(r);state.createError='';render()}});
+mount.addEventListener('keydown',e=>{if(e.target.matches('.rm-room-composer textarea,.rm-start textarea')&&e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();send()}});
+mount.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action,v=b.dataset.value,c=current(),i=activeIssue();
+if(a==='close-issue-modal'){closeIssueModal();return}
+if(a==='create-project'){state.wizard=true;state.step=1;state.selected=new Set();state.repoQuery='';state.projectName='';state.purpose='';state.createError=''}
+if(a==='cancel-project'){state.wizard=false;state.createError=''}
+if(a==='previous-project'){state.step=1;state.createError=''}
+if(a==='continue-project'&&state.selected.size){state.step=2;state.createError=''}
+if(a==='save-project'){if(!state.projectName.trim()||!state.purpose.trim()){state.createError='请填写项目名称与用途。';render();return}const p={id:'project-'+(projects.length+1),name:state.projectName.trim(),description:state.purpose.trim(),repos:[...state.selected],ready:false};projects.push(p);Object.assign(state,{project:p.id,key:null,issueKey:null,sourceIssue:null,repo:null,panel:null,input:'',error:'',wizard:false,sidebar:false,issueForm:false});state.open.add(p.id);trace(`项目 ${p.name} 已建立，没有会话、Issue 或 ChangeSet。`)}
+if(a==='send'){send();return}if(a==='conversation'){openConversation(v);return}if(a==='issue'){openIssue(v);return}
+if(a==='new'){Object.assign(state,{key:null,issueKey:null,sourceIssue:null,repo:null,panel:null,input:'',error:'',sidebar:false,issueForm:false});if(!projects.length)state.wizard=true}
+if(a==='issues'){state.panel='issues';state.repo=null;state.sidebar=false;state.issueForm=false;state.error=''}
+if(a==='new-page-issue'&&project().id){Object.assign(state,{panel:'create-issue',key:null,issueKey:null,sourceIssue:null,error:'',issueForm:false,repo:null,sidebar:false})}
+if(a==='save-page-issue'&&state.panel==='create-issue'&&project().id){const title=state.issueTitle.trim(),goal=state.issueGoal.trim(),repos=[...state.issueRepos];if(!title||!goal||!repos.length||repos.some(r=>!usableRepos().includes(r))){state.error='请填写标题、目标，并选择本次涉及的可用仓库。';render();return}const fresh={key:'C-'+state.counter++,project:state.project,title,body:'',fromIssue:true,roomReady:false,managerReplied:false,messages:[{businessRecord:true,text:'从 Issue 页面创建会话，工作内容见关联事项。'}]};items.push(fresh);const created=makeIssue(fresh,title,goal,repos);created.repositoryIssues=[];project().preparing=true;created.history.push('从弹窗创建并新建会话；异步准备已登记，尚无运行就绪依据（模拟）');state.issueTitle='';state.issueGoal='';state.issueRepos=new Set();trace(`Issue #${created.number}、CS-${created.number} 与新会话 ${fresh.key} 已登记（模拟）；异步准备已登记，尚无房间就绪依据，也未生成回复或仓库委派。`);openIssue(created.key);return}
+if(a==='search'){state.search=!state.search;state.query=''}
+if(a==='mobile')state.sidebar=!state.sidebar;
+if(a==='toggle-project'){if(state.project!==v){Object.assign(state,{project:v,key:null,issueKey:null,sourceIssue:null,repo:null,panel:null,input:'',error:''});state.open.add(v)}else state.open.has(v)?state.open.delete(v):state.open.add(v)}
+if(a==='project-panel'){state.panel='project';state.sidebar=false}
+if(a==='create-issue'&&c&&conversationReady(c)){state.issueForm=true;state.issueTitle='';state.issueGoal='';state.error=''}
+if(a==='cancel-issue'){state.issueForm=false;state.error=''}
+if(a==='save-issue'&&c&&conversationReady(c)){if(!state.issueTitle.trim()||!state.issueGoal.trim()||!usableRepos().length){state.error='请填写 Issue 标题与本次目标，并确保示例中有可用仓库。';render();return}const created=makeIssue(c,state.issueTitle.trim(),state.issueGoal.trim());state.issueForm=false;state.error='';trace(`独立 Issue #${created.number} 与 CS-${created.number} 已建立并关联 ${c.key}（模拟）；会话继续，不自动派工。`)}
+if(a==='issue-main'){const target=issues.find(x=>x.key===v);if(target&&conversationReady(items.find(x=>x.key===target.conversationKey))){openConversation(target.conversationKey,target.key);return}}
+if(a==='repo'&&i&&i.rooms&&i.scope.includes(v)){state.repo=v;state.view='overview'}
+if(a==='view'){state.view=v;state.repo=null;state.detailTask=null}
+if(a==='task')state.detailTask=v;
+if(a==='preview-issue-ready'){const target=issues.find(x=>x.key===v);if(target){target.rooms=true;target.status='执行中';target.history.push('计划 v1 与本 Issue 的 Leader 房间已就绪（独立模拟事件）');trace(`模拟 Issue #${target.number} 的计划及房间就绪，其他 Issue 状态不变。`)}}
+if(a==='preview-ready'&&c){project().ready=true;project().preparing=false;c.roomReady=true;trace(`模拟 ${c.key} 主房间就绪；消息仍待投递。`)}
+if(['preview-deliver','preview-unknown','preview-resolve'].includes(a)&&c&&conversationReady(c)){const m=nextDelivery(c);if(m&&((a==='preview-resolve'&&m.delivery==='unknown')||(a!=='preview-resolve'&&m.delivery==='pending'))){m.delivery=a==='preview-unknown'?'unknown':'delivered';trace(`模拟 ${c.key} 消息 ${m.seq} ${m.delivery==='unknown'?'结果未知，后续等待':'已投递，Manager 接收待确认'}。`)}}
+if(a==='preview-reply'&&c&&conversationReady(c)&&!nextDelivery(c)){const sent=c.messages.filter(m=>m.delivery==='delivered');if(sent.length){sent.forEach(m=>m.delivery='received');c.managerReplied=true;c.messages.push({role:'Manager',text:'已收到。我们可以继续讨论；形成明确工作目标后，再在本会话中建立独立 Issue。已有事项的调整需要明确目标及依据。'});trace(`模拟 ${c.key} 收到 Manager 回复；没有自动创建或修改 Issue。`)}}
+render();});
+root.querySelector('[data-demo-load]').addEventListener('click',()=>{const sample=items.find(c=>c.demo);if(sample){state.project=sample.project;state.key=sample.key;state.panel='issues';state.wizard=false;render();return}const p={id:'project-'+(projects.length+1),name:'订单系统',description:'订单服务与运营后台',repos:['repomesh/order-service','repomesh/admin-console'],ready:true};projects.push(p);state.project=p.id;state.open.add(p.id);const c={key:'C-'+state.counter++,project:p.id,title:'讨论订单查询体验',body:'讨论订单查询体验',roomReady:true,managerReplied:true,demo:true,messages:[{role:'你',text:'一起讨论支付筛选和订单导出。',seq:1,delivery:'received'},{role:'Manager',text:'这两个目标可以分别建立 Issue，保留各自的计划、验收和交付记录。'}]};items.push(c);const first=makeIssue(c,'支付状态筛选','增加支付状态筛选，保持历史订单读取兼容。');first.rooms=true;first.status='执行中';first.history.push('示例计划及 Leader 房间已就绪');makeIssue(c,'订单导出','支持导出订单查询结果，沿用当前读取权限。');Object.assign(state,{key:c.key,panel:'issues',wizard:false});trace('已载入本地示例：同一会话关联两条独立 Issue，分别保留自己的主 ChangeSet。');render()});
+render();
+root.querySelector('[data-demo-load]').click();
+state.panel='create-issue';render();
+})();
+</script>
+</div>

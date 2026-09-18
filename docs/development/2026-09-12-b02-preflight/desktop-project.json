@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 2,
+  "projects": [
+    {
+      "projectId": "e8b06b7e-8fbf-474a-9b8e-daa7f5330205",
+      "projectKind": "remote",
+      "label": "Repomesh_Go_ver",
+      "path": "/home/xubohan/projects/Repomesh_Go_ver",
+      "hostId": "remote-ssh-discovered:repomesh-wsl",
+      "hostDisplayName": "repomesh-wsl",
+      "isGitRepository": true
+    }
+  ]
+}

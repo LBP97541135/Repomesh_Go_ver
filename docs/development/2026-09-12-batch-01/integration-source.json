@@ -1,0 +1,63 @@
+{
+  "recordedAt": "2026-09-12T09:59:11.771701+00:00",
+  "sourceWorktree": "C:\\Users\\18092\\AppData\\Local\\Temp\\repomesh-b01-postgres-20260912",
+  "sourceBranch": "codex/b01-postgres-foundation",
+  "sourceBaseCommit": "4516805a276d65eb79490a12783654f3d7b1c677",
+  "note": "Source contains uncommitted B01 implementation. The nine SHA-256 pairs, not its base commit alone, pin the reviewed code. Worker stopped before integration. Existing root changes were not reset or staged.",
+  "comparisons": [
+    {
+      "path": "go.mod",
+      "sourceSHA256": "c0e67f919b353a4f29bec6b91b43b735f6ea6b09377b98f76e36b4b2d05a810a",
+      "integratedSHA256": "c0e67f919b353a4f29bec6b91b43b735f6ea6b09377b98f76e36b4b2d05a810a",
+      "match": true
+    },
+    {
+      "path": "go.sum",
+      "sourceSHA256": "a5e7a8db07eba28dbde48bf9a54c4e9084a5a95ded581c0ff44c08b74e3dfe69",
+      "integratedSHA256": "a5e7a8db07eba28dbde48bf9a54c4e9084a5a95ded581c0ff44c08b74e3dfe69",
+      "match": true
+    },
+    {
+      "path": "cmd/repomesh-web/main.go",
+      "sourceSHA256": "408702e41b1121abf3bbe471b9852965ad3b3c0e5434df0ce25b76eaac903fdd",
+      "integratedSHA256": "408702e41b1121abf3bbe471b9852965ad3b3c0e5434df0ce25b76eaac903fdd",
+      "match": true
+    },
+    {
+      "path": "cmd/repomesh-web/main_test.go",
+      "sourceSHA256": "67bd62cca72e09513e976983531bd50b71a951c8fb3663ddb93cfdf01f30a374",
+      "integratedSHA256": "67bd62cca72e09513e976983531bd50b71a951c8fb3663ddb93cfdf01f30a374",
+      "match": true
+    },
+    {
+      "path": "internal/database/database.go",
+      "sourceSHA256": "4d1988416ea6262f28a010bb17b09ef433e5226754ee775a757abcd67ed5301a",
+      "integratedSHA256": "4d1988416ea6262f28a010bb17b09ef433e5226754ee775a757abcd67ed5301a",
+      "match": true
+    },
+    {
+      "path": "internal/database/migrations.go",
+      "sourceSHA256": "86a14822e5a4c761d1bedeafe5a24f521ff4826d2a8aa1e9f4e6273b1f37137f",
+      "integratedSHA256": "86a14822e5a4c761d1bedeafe5a24f521ff4826d2a8aa1e9f4e6273b1f37137f",
+      "match": true
+    },
+    {
+      "path": "internal/database/database_test.go",
+      "sourceSHA256": "9b87c39168945453f138544e37d1773f3fd32b9e395452e9539f5c05a30e3405",
+      "integratedSHA256": "9b87c39168945453f138544e37d1773f3fd32b9e395452e9539f5c05a30e3405",
+      "match": true
+    },
+    {
+      "path": "internal/database/postgres_test.go",
+      "sourceSHA256": "a7a2e67231048fbba219921fa0b893e455d5b2de6a38ffdaaddd5c3549e51a21",
+      "integratedSHA256": "a7a2e67231048fbba219921fa0b893e455d5b2de6a38ffdaaddd5c3549e51a21",
+      "match": true
+    },
+    {
+      "path": "internal/database/migrations/0001_schema_migrations.sql",
+      "sourceSHA256": "6d180f1b2be3c4904b699c11a13ee827e5405fd2f2ce05041da48e273a210c3a",
+      "integratedSHA256": "6d180f1b2be3c4904b699c11a13ee827e5405fd2f2ce05041da48e273a210c3a",
+      "match": true
+    }
+  ]
+}

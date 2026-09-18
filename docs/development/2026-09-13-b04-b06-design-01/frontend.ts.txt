@@ -1,0 +1,285 @@
+// B04–B06-TS-r1 / DESIGN_RECOMMENDATION_NOT_ADOPTED. Declaration-only projection.
+// Unique wire contracts: model-settings-browser-api-draft.md §§3–6,8;
+// first-batch-browser-api-contract.md §10; issue-page-create-api-contract.md §§2–6,11.
+// No network, runtime or storage implementation. All responses enter as unknown and are parsed.
+export type Brand<T, Name extends string> = T & { readonly __brand: Name };
+export type ActorID = Brand<string, "ActorID">;
+export type ProjectID = Brand<string, "ProjectID">;
+export type ProviderID = Brand<string, "ProviderID">;
+export type ProviderRevision = Brand<string, "ProviderRevision">;
+export type ProfileID = Brand<string, "ProfileID">;
+export type ProfileVersion = Brand<string, "ProfileVersion">;
+export type ModelRowID = Brand<string, "ModelRowID">;
+export type SecretVersionID = Brand<string, "SecretVersionID">;
+export type ConfigurationRevision = Brand<string, "ConfigurationRevision">;
+export type SaveID = Brand<string, "SaveID">;
+export type TestID = Brand<string, "TestID">;
+export type ApplicationID = Brand<string, "ApplicationID">;
+export type CreationID = Brand<string, "CreationID">;
+export type PreviewID = Brand<string, "PreviewID">;
+export type ISOTime = Brand<string, "ISOTime">;
+export type APIPath = Brand<string, "SameOriginAPIPath">;
+export type ProfileChoice = Readonly<{ mode: "inherit" } | { mode: "reference"; id: ProfileID }>;
+export type APIError = Readonly<{ code: string; message: string; fieldErrors: readonly { field: string; code: string }[]; requestId: string }>;
+import type { Result as TransportResult } from "../../../web/src/api";
+// Reuse the existing request() transport; do not add another fetch/client framework.
+export type APIReply<T> = TransportResult<T>;
+export type WriteContext = Readonly<{ actor: ActorID; csrfToken: string }>;
+// request(): status0 NETWORK_ERROR/ABORTED and INVALID_RESPONSE preserve operation uncertainty.
+// Endpoint helpers supply exact accepted successStatuses (save200/201,test200/202,others200).
+// Aborting a fetch never proves a write or external send stopped.
+
+// B04: Provider and immutable snapshots.
+export type ModelInput = Readonly<{
+  id: ModelRowID | null; modelId: string; displayName: string | null;
+  contextWindow: number; maxOutputTokens: number; reasoning: boolean; vision: boolean;
+}>;
+export type ModelView = Readonly<Omit<ModelInput, "id" | "displayName"> & {
+  id: ModelRowID; displayName: string; modelProfileId: ProfileID;
+}>;
+export type ProviderView = Readonly<{
+  id: ProviderID; name: string; revision: ProviderRevision; baseUrl: string;
+  apiFormat: "openai_chat_completions";
+  secret: { configured: boolean; versionId: SecretVersionID | null; availability: "available" | "unavailable" | "unknown" | "missing" };
+  models: readonly ModelView[]; updatedAt: ISOTime;
+}>;
+export type ProviderPage = Readonly<{
+  items: readonly { id: ProviderID; name: string; revision: ProviderRevision; modelCount: number }[];
+  nextCursor: string | null;
+}>;
+export type SaveFields = Readonly<{
+  providerId: ProviderID | null; expectedRevision: ProviderRevision | null;
+  name: string; baseUrl: string; apiFormat: ProviderView["apiFormat"]; models: readonly ModelInput[];
+}>;
+// This wire-only type must never be accepted by storage helpers or diagnostic/log functions.
+export type SaveBody = SaveFields & Readonly<{
+  secret: { mode: "keep" } | { mode: "replace"; value: string };
+}>;
+export type SaveResult = Readonly<
+  | { saveId: SaveID; outcome: "committed"; providerId: ProviderID; providerRevision: ProviderRevision;
+      secretVersionId: SecretVersionID; committedAt: ISOTime; links: { provider: APIPath; operation: APIPath } }
+  | { saveId: SaveID; outcome: "rejected"; error: APIError; decidedAt: ISOTime }
+  | { saveId: SaveID; outcome: "closed_without_save"; closedAt: ISOTime; links: { operation: APIPath } }
+>;
+export declare function listProviders(query: { q?: string; cursor?: string; limit?: number }, signal: AbortSignal): Promise<APIReply<ProviderPage>>;
+export declare function getProvider(id: ProviderID, signal: AbortSignal): Promise<APIReply<ProviderView>>;
+export declare function getProviderVersion(id: ProviderID, revision: ProviderRevision, signal: AbortSignal): Promise<APIReply<ProviderView>>;
+export declare function saveProvider(context: WriteContext, id: SaveID, body: SaveBody, signal: AbortSignal): Promise<APIReply<SaveResult>>;
+export declare function getSave(id: SaveID, signal: AbortSignal): Promise<APIReply<SaveResult>>;
+// Same path/header id, strict empty JSON {}, not another operation key.
+export declare function closeSave(context: WriteContext, id: SaveID, signal: AbortSignal): Promise<APIReply<SaveResult>>;
+export declare function parseProvider(raw: unknown): ProviderView;
+export declare function parseSaveResult(raw: unknown): SaveResult;
+
+// B05 single test: target is exactly one saved row at one immutable provider revision.
+export type SnapshotTarget = Readonly<{ providerId: ProviderID; providerRevision: ProviderRevision; modelRowId: ModelRowID }>;
+export type TestPreviewReason =
+  | "QUOTA_UNAVAILABLE"
+  | "EGRESS_NOT_ALLOWED"
+  | "SECRET_UNAVAILABLE"
+  | "PROFILE_UNAVAILABLE"
+  | "TEST_HANDLER_UNAVAILABLE"
+  | "LIMIT_UNSUPPORTED"
+  | "TEST_ALREADY_OUTSTANDING";
+type TestPreviewFields = SnapshotTarget & Readonly<{
+  previewId: PreviewID; expiresAt: ISOTime; modelId: string; secretVersionId: SecretVersionID;
+  policyRevision: string; cost: { basis: "request_count"; units: 1; mayCharge: true; currency: null; maxEstimatedCharge: null };
+  requestLimit: { maxOutputTokens: number; timeoutSeconds: number }; canSubmit: boolean; reasonCodes: readonly TestPreviewReason[];
+}>;
+export type TestPreview = TestPreviewFields & (
+  | Readonly<{ existingTestId: TestID; links: { operation: APIPath } }>
+  | Readonly<{ existingTestId?: never; links?: never }>
+);
+// parseTestPreview accepts existingTestId and links together only when canSubmit is false and
+// reasonCodes contains TEST_ALREADY_OUTSTANDING. The test must remain readable by this actor.
+// Other preview branches reject both fields. A missing current handler is a 200 preview with
+// TEST_HANDLER_UNAVAILABLE. Failure to observe handler registration is a 503
+// TEST_HANDLER_UNCONFIRMED error. RESULT_UNCONFIRMED is reserved for uncertain writes.
+export type TestBody = Readonly<{ previewId: PreviewID; confirmPotentialCharge: true }>;
+export type OutstandingTestDetails = Readonly<{ existingTestId: TestID; links: { operation: APIPath } }>;
+type TransportError = Extract<TransportResult<never>, { kind: "error" }>;
+export type TestSubmitError =
+  | (TransportError & Readonly<{ status: 409; code: "TEST_ALREADY_OUTSTANDING"; details?: OutstandingTestDetails }>)
+  | (TransportError & Readonly<{ details?: never }>);
+export type TestEvidence = Readonly<{
+  code: "OK" | "NOT_STARTED" | "PROVIDER_REQUEST_FAILED" | "PROVIDER_ACCESS_REJECTED" | "MODEL_UNAVAILABLE" |
+    "PROVIDER_RESPONSE_INVALID" | "REQUEST_TIMEOUT_UNCONFIRMED" | "POLICY_CHANGED" | "ACCESS_REVOKED";
+  summary: string; latencyMs: number | null; usage: { inputTokens: number; outputTokens: number } | null;
+}>;
+export type TestResult = SnapshotTarget & Readonly<{
+  testId: TestID; state: "queued" | "running" | "passed" | "failed" | "unknown" | "rejected";
+  resultRevision: string; acceptedAt: ISOTime; observedAt: ISOTime | null; result: TestEvidence | null;
+  budget: { unit: "request"; amount: 1; status: "reserved" | "consumed" | "released" };
+  charge: { status: "not_sent" | "possible" | "unknown"; currency: null; amount: null };
+  recovery: { state: "open" | "closed_without_result" | "not_needed"; canStartNewTest: boolean };
+  links: { operation: APIPath };
+}>;
+// parseTestResult validates cross-field states: running needs actual start evidence;
+// passed/failed/rejected -> not_needed; unknown may be open/closed, never coerced to failed.
+export declare function previewTest(context: WriteContext, target: SnapshotTarget, signal: AbortSignal): Promise<APIReply<TestPreview>>;
+export declare function submitTest(context: WriteContext, id: TestID, body: TestBody, signal: AbortSignal): Promise<Extract<APIReply<TestResult>, { kind: "ok" }> | TestSubmitError>;
+export declare function getTest(id: TestID, signal: AbortSignal): Promise<APIReply<TestResult>>;
+export declare function parseTestPreview(raw: unknown): TestPreview;
+export declare function parseOutstandingTestDetails(raw: unknown): OutstandingTestDetails;
+export declare function parseTestResult(raw: unknown): TestResult;
+// Submit rechecks the current effective outstanding-test block. A race returns 409
+// TEST_ALREADY_OUTSTANDING and does not register or send another test. Its wire error.details
+// contains the same locator only while this actor can still read the blocking test. An unreadable
+// test omits details. No other error code accepts this details shape. The endpoint helper reuses
+// request() with this narrow decoder; it does not add another error or transport framework.
+
+// C06: historical lookup is only on the fixed link; a restricted branch has no identifiers.
+export type OriginalModel = Readonly<
+  | { status: "unconfigured" }
+  | { status: "readable"; reference: ProfileChoice; modelProfileId: ProfileID; modelProfileVersion: ProfileVersion;
+      providerId: ProviderID; providerRevision: ProviderRevision; modelRowId: ModelRowID; links: { snapshot: APIPath } }
+  | { status: "restricted"; reasonCodes: readonly ["ORIGINAL_MODEL_UNAVAILABLE"] }
+>;
+export type ApplicationPreview = Readonly<{
+  previewId: PreviewID; expiresAt: ISOTime; projectId: ProjectID; expectedProjectRevision: string;
+  before: { configurationRevision: ConfigurationRevision; model: OriginalModel;
+    execution: { reference: ProfileChoice; effectiveVersionId: ProfileVersion | null } };
+  candidate: SnapshotTarget & { modelProfileId: ProfileID; modelId: string; secretVersionId: SecretVersionID };
+  canApply: boolean; reasonCodes: readonly string[];
+}>;
+export type ApplicationResult = Readonly<
+  | { applicationId: ApplicationID; outcome: "committed"; projectId: ProjectID; projectRevision: string;
+      configurationRevision: ConfigurationRevision; providerRevision: ProviderRevision; modelProfileId: ProfileID;
+      retainedExecutionVersionId: ProfileVersion; committedAt: ISOTime; links: { project: APIPath; operation: APIPath } }
+  | { applicationId: ApplicationID; outcome: "rejected"; error: APIError; decidedAt: ISOTime }
+>;
+export declare function previewApplication(context: WriteContext, project: ProjectID, target: SnapshotTarget, signal: AbortSignal): Promise<APIReply<ApplicationPreview>>;
+export declare function applyModel(context: WriteContext, project: ProjectID, id: ApplicationID, body: { readonly previewId: PreviewID }, signal: AbortSignal): Promise<APIReply<ApplicationResult>>;
+export declare function getApplication(project: ProjectID, id: ApplicationID, signal: AbortSignal): Promise<APIReply<ApplicationResult>>;
+export declare function readOriginalModel(model: Extract<OriginalModel, { status: "readable" }>, signal: AbortSignal): Promise<APIReply<ModelView>>;
+export declare function parseApplicationPreview(raw: unknown): ApplicationPreview;
+export declare function parseApplicationResult(raw: unknown): ApplicationResult;
+
+// C05 extends existing ProjectView.configuration; fixed material and quota observations differ.
+export type BudgetSummary = Readonly<
+  | { status: "available"; policyId: string; policyVersion: string; scope: "project_model_runtime";
+      unit: "request"; period: "utc_day"; limit: number; maxUnresolved: number }
+  | { status: "unresolved"; reasonCodes: readonly string[] }
+>;
+export type TimeLimitSummary = Readonly<
+  | { status: "available"; policyId: string; policyVersion: string; modelRequestTimeoutSeconds: number; workerAttemptLimitSeconds: number }
+  | { status: "unresolved"; reasonCodes: readonly string[] }
+>;
+export type FixedSummary = Readonly<{
+  configurationRevision: ConfigurationRevision; executionVersionId: ProfileVersion | null;
+  budget: BudgetSummary; timeLimits: TimeLimitSummary;
+}>;
+export type QuotaObservation = Readonly<
+  | { status: "known"; configurationRevision: ConfigurationRevision; policyId: string; policyVersion: string;
+      unit: "request"; windowStart: ISOTime; windowEnd: ISOTime; effectiveLimit: number; reserved: number;
+      consumed: number; remaining: number; observedAt: ISOTime }
+  | { status: "unknown"; configurationRevision: ConfigurationRevision; reasonCodes: readonly string[]; observedAt: ISOTime | null }
+  | { status: "not_configured"; configurationRevision: ConfigurationRevision; reasonCodes: readonly string[] }
+>;
+export type ProjectConfigurationSummaryExtension = Readonly<{ fixedSummary: FixedSummary; quotaObservation: QuotaObservation }>;
+export declare function parseConfigurationSummary(raw: unknown): ProjectConfigurationSummaryExtension;
+
+// B06 uses the adopted input; preserve exact text and criteria order, repository set canonicalized server-side.
+export type ConversationChoice = Readonly<{ mode: "new" } | { mode: "existing"; id: string }>;
+export type IssueCreateBody = Readonly<{
+  expectedCreationContextRevision: string; conversation?: ConversationChoice;
+  title: string; description: string; repositoryIds: readonly string[];
+  acceptanceCriteria?: readonly string[]; repositoryAnalysisId?: string;
+}>;
+export type CreationReceipt = Readonly<{
+  creationId: CreationID; status: "committed"; projectId: ProjectID; createdAt: ISOTime;
+  source: { kind: "issue_page" }; issue: { id: string; number: number }; mainChangeSet: { id: string };
+  conversation: { id: string }; links: { issue: APIPath; rooms: APIPath; operation: APIPath };
+}>;
+export type CreationOptions = Readonly<{
+  projectId: ProjectID; creationContextRevision: string; defaultConversationMode: "new";
+  allowedConversationModes: readonly ("new" | "existing")[]; canSubmit: boolean; blockingReasons: readonly string[];
+  repositories: readonly { repositoryId: string; displayName: string; selectable: boolean; reasons: readonly string[]; observedAt: ISOTime | null }[];
+  nextCursor: string | null; repositoryAnalysis: { availability: "available" | "disabled" | "unavailable"; reasonCodes: readonly string[] };
+}>;
+export type ConversationPage = Readonly<{ items: readonly { id: string; title: string }[]; nextCursor: string | null }>;
+export declare function getCreationOptions(project: ProjectID, query: { cursor?: string; limit?: number }, signal: AbortSignal): Promise<APIReply<CreationOptions>>;
+export declare function getCreationConversations(project: ProjectID, query: { cursor?: string; limit?: number }, signal: AbortSignal): Promise<APIReply<ConversationPage>>;
+export declare function createIssue(context: WriteContext, project: ProjectID, id: CreationID, body: IssueCreateBody, signal: AbortSignal): Promise<APIReply<CreationReceipt>>;
+export declare function getCreation(project: ProjectID, id: CreationID, signal: AbortSignal): Promise<APIReply<CreationReceipt>>;
+export declare function parseCreationReceipt(raw: unknown): CreationReceipt;
+
+// Cross-batch recovery extends the existing web/src/modelRecovery.ts module. It shares only
+// locator, browser storage, and read-generation mechanics. Each operation keeps its reducer,
+// result parser, retry policy, and page state. Do not add a third recovery framework.
+export type OperationLocator = Readonly<
+  | { kind: "provider_save"; actor: ActorID; id: SaveID }
+  | { kind: "model_test"; actor: ActorID; id: TestID }
+  | { kind: "model_apply"; actor: ActorID; projectId: ProjectID; id: ApplicationID }
+  | { kind: "issue_create"; actor: ActorID; projectId: ProjectID; id: CreationID }
+>;
+export type ProviderSaveLocator = Extract<OperationLocator, { kind: "provider_save" }>;
+export type ModelTestLocator = Extract<OperationLocator, { kind: "model_test" }>;
+export type ModelApplyLocator = Extract<OperationLocator, { kind: "model_apply" }>;
+export type IssueCreateLocator = Extract<OperationLocator, { kind: "issue_create" }>;
+export type RecoveryIndex = OperationLocator & Readonly<{ createdAt: ISOTime }>;
+export type SecretFreeSaveSnapshot = SaveFields & Readonly<{ secretMode: "keep" | "replace" }>;
+// Only these non-secret snapshots may persist in sessionStorage. localStorage holds only a
+// RecoveryIndex. Storage keys include actor and operation identity before lookup.
+export type SessionRecovery = Readonly<
+  | { locator: ProviderSaveLocator; snapshot: SecretFreeSaveSnapshot }
+  | { locator: ModelTestLocator; body: TestBody }
+  | { locator: ModelApplyLocator; body: { previewId: PreviewID } }
+  | { locator: IssueCreateLocator; body: IssueCreateBody }
+>;
+export type SessionRecoveryFor<L extends OperationLocator> = Extract<SessionRecovery, { locator: L }>;
+export type ReadTicket<L extends OperationLocator = OperationLocator> = Readonly<{ locator: L; generation: number; requestSerial: number }>;
+export type OperationState<L extends OperationLocator, T> = Readonly<
+  | { state: "in_flight" | "unconfirmed" | "checking"; locator: L; generation: number }
+  | { state: "confirmed"; locator: L; generation: number; result: T }
+  | { state: "removed"; locator: L; generation: number }
+  | { state: "reauthenticate" | "restricted"; locator: L; generation: number }
+>;
+export type SaveRecoveryState = OperationState<ProviderSaveLocator, SaveResult>;
+export type TestRecoveryState = OperationState<ModelTestLocator, TestResult>;
+export type ApplicationRecoveryState = OperationState<ModelApplyLocator, ApplicationResult>;
+export type CreationRecoveryState = OperationState<IssueCreateLocator, CreationReceipt>;
+export declare function persistRecoveryIndex(index: RecoveryIndex): { readonly saved: boolean; readonly recoveryPath: string };
+export declare function persistSessionRecovery(snapshot: SessionRecovery): boolean;
+export declare function readSessionRecovery<L extends OperationLocator>(locator: L): SessionRecoveryFor<L> | null;
+export declare function readRecoveryIndex(raw: unknown, actor: ActorID): RecoveryIndex | null;
+export declare function beginRead<L extends OperationLocator>(locator: L, generation: number): ReadTicket<L>;
+export declare function acceptsRead<L extends OperationLocator>(current: ReadTicket<L>, incoming: ReadTicket<L>, authenticatedActor: ActorID): boolean;
+export declare function reduceSave(current: SaveRecoveryState, ticket: ReadTicket<ProviderSaveLocator>, result: APIReply<SaveResult>): SaveRecoveryState;
+export declare function reduceTest(current: TestRecoveryState, ticket: ReadTicket<ModelTestLocator>, result: APIReply<TestResult>): TestRecoveryState;
+export declare function reduceApplication(current: ApplicationRecoveryState, ticket: ReadTicket<ModelApplyLocator>, result: APIReply<ApplicationResult>): ApplicationRecoveryState;
+export declare function reduceCreation(current: CreationRecoveryState, ticket: ReadTicket<IssueCreateLocator>, result: APIReply<CreationReceipt>): CreationRecoveryState;
+export declare function clearRecoveryPayload(locator: OperationLocator): void;
+export declare function clearRecoveryPayloads(): void;
+// Reducers ignore mismatched actor/locator/generation; at most one test read is in flight.
+// 404/503/abort retain locator and frozen input. 410 clears payload but does not restore key reuse.
+// Save body Key released after sending; save recovery can only GET/close, never rebuild original Key.
+// Durable rejected/closed permits an explicit new save; Issue has no durable rejected receipt.
+// Unknown Issue retains frozen body; user cannot silently replace expected context under old id.
+// An exact retry, where its business contract permits one, reuses the stored body and original id.
+// Shared storage never manufactures input and never decides whether an operation may retry.
+// Authentication recovery passes an allowlisted Destination; browser never auto-resubmits on login.
+// B06 renders stable creation receipt. Detail/rooms routes stay deferred, not fabricated as ready.
+
+// Provider-save storage remains byte-compatible with the implemented B04 keys:
+// localStorage repomesh.model.save-index.v1 and sessionStorage
+// repomesh.model.save.v1:{actor}:{id}. Added kinds use distinct kind-specific prefixes through
+// the same storage helper. Identity loss clears session payloads but retains the minimal indexes.
+// Indexes never grant read access and are filtered by the authenticated actor before display.
+// The current SaveLocator export migrates to ProviderSaveLocator. ModelSavePage migrates its
+// locator, ticket, state, and readSessionRecovery call. ModelSettingsPage keeps the existing
+// provider-save persistence path. session.ts replaces clearModelRecovery with
+// clearRecoveryPayloads and keeps clearAllOperationInputs for B03. model.test.mjs keeps the B04
+// key, actor-isolation, secret-removal, and stale-generation assertions, then adds each new
+// locator and reducer. The old SaveLocator type is deleted after these callers compile together.
+
+// web/src/projectRecovery.ts remains the B03 project_create/project_update owner. It keeps
+// OperationIdentity, key normalization, input parsing and freezing, prepare/load, project routes,
+// its reducer, and repomesh.project.operation*. It may use shared read tickets later, but this
+// B05/B06 design does not move project input storage or retry rules into modelRecovery.ts.
+
+// Existing api.ts Result<T> carries diagnostics/retryAt. WriteContext is obtained from the
+// authenticated session, cleared on identity change, and never persisted in RecoveryIndex.
+// Existing RequestOptions supplies CSRF and Idempotency-Key, Origin checks remain server-side.
+// B05 and B06 remain declaration-only. These corrections do not adopt D05, D06, their candidate
+// numeric values, or the rest of the B04-B06 recommendation package.

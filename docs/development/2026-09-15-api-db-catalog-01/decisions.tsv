@@ -1,0 +1,19 @@
+ts	phase	decision	why	evidence	result
+2026-09-15T07:45:43Z	frame	建立长期 API 与数据库阅读目录，保留原专题采用权威	用户明确要求在 docs 中建立新目录；设计提案不能自动变成已采用事实	docs/api-database/foundations.md	目录与共同规则已写入
+2026-09-15T07:45:43Z	structure	Markdown 为内容源，生成同内容 HTML	避免人类版和 AI 版分别修改后出现不同契约	docs/development/2026-09-15-api-db-catalog-01/PLAN.md	生成器已分配独立输出目录
+2026-09-15T07:47:06Z	drafting	整合 B04-B06 接口与表字段草稿	以实际实现和逐项采用状态为依据，保留上轮收口约束	docs/api-database/b04.md,docs/api-database/b05.md,docs/api-database/b06.md	草稿已整合，独立复核尚未完成
+2026-09-15T07:48:27Z	boundaries	轮次和计划版本基础身份归 B10，B11 复用	B10 单轮执行已经需要这些身份，不能外键引用未来批次才建立的表；延迟约束不能解决表不存在	docs/api-database/foundations.md	作者正在修正草稿并减少冗余映射表
+2026-09-15T07:48:27Z	boundaries	B08 复用前序接口和表，B07 仅保留最新房间观察	验收证据不需要产品业务表；只读房间页面不要求另一套观察历史	docs/api-database/foundations.md	作者按此边界编写
+2026-09-15T07:53:10Z	execution	保存所有已产出的草稿，暂停需要模型阅读的剩余复核	指定 DeepSeek 模型返回 HTTP 402 余额不足，不能擅自更换执行模型	docs/api-database/,docs/development/2026-09-15-api-db-catalog-01/PLAN.md	已询问是否换模型；继续机械生成检查
+2026-09-15T08:01:29Z	scope	用户追加 B00-B04 已有接口和数据库设计，目标扩展为 B00-B11	已有能力需要与后续设计放在同一入口，并逐项标明已有实现	docs/development/2026-09-15-api-db-catalog-01/PLAN.md	B04 已有，B00-B03 阅读仍受指定模型余额限制
+2026-09-15T08:06:35Z	execution	指定 DeepSeek 已恢复，继续原模型阅读与独立复核	新增 B00-B03 作者已返回真实源码阅读摘要，没有更换用户指定模型	docs/development/2026-09-15-api-db-catalog-01/PLAN.md	B00-B03编写与整合复核已恢复
+2026-09-15T08:08:54Z	verification	修复目录长标识在手机上的横向溢出	真实浏览器测得390px视口被链接撑到577px；仅对目录链接允许断行	docs/api-database/templates/style.css,docs/development/2026-09-15-api-db-catalog-01/browser-checks.json	1440px与390px视口均无页面横溢出，0坏锚点和外部请求
+2026-09-15T08:19:03Z	boundaries	撤回所有房间必须经过 Issue 房间关联的统一假设	普通Conversation可先于Issue；manager_sessions强制引用非空issue关系会阻止普通讨论	docs/api-database/b07.md,docs/api-database/b09.md	B07只拥有Issue投影，B09普通会话保留自己的运行绑定；修复中
+2026-09-15T08:23:46Z	review	按独立复核修正B04-B08契约计数、状态与重复字段	认证有7个真实端点，P9行为仍需采用，changed可从事件读取时推导	docs/development/2026-09-15-api-db-catalog-01/review-initial.md,docs/api-database/b08.md	B04-B08修复完成，执行章节继续处理
+2026-09-15T08:32:16+00:00	identity	沿用已采用 RepositoryIssue 业务身份，B10 补物理提案、B07 读取、B11 复用	选仓范围与实际仓库工作有不同生命周期，重试与下一轮不能重建事项身份	docs/current/backend-first-batch-persistence.md,docs/api-database/b10.md	B07 与共同规则已同步，执行关联正在独立复核
+2026-09-15T08:32:16+00:00	review	分别记录认证与项目接口的错误体，不建立虚构的统一外壳	现有 handler 返回不同契约，文档应反映真实接口；effective 是字段可空的对象而非可空对象	docs/development/2026-09-15-api-db-catalog-01/review-existing.md	B00-B03 独立复核完成，已分配事实修正
+2026-09-15T08:33:37+00:00	review	轮次只持有轮次身份，每轮每仓的当前计划指针独立存储	一轮多仓时单指针会遗失其他仓库计划；先写不可变修订再写指针，也消除双向插入环	docs/api-database/b10.md,docs/api-database/b11.md	已裁决采用每轮每仓指针关系，作者正在同步所有读取与事务
+2026-09-15T08:33:37+00:00	constraints	执行关联同时验证Issue与仓库；最终裁决表只保存最终结果	同仓ID不足以防止跨Issue串线；needs_recheck不是终局裁决，不能占用唯一终局槽位	docs/api-database/b09.md,docs/api-database/b10.md,docs/api-database/b11.md	已分配复合外键、房间上下文、最终采纳唯一性修正
+2026-09-15T08:53:09+00:00	verification	按真实导航高度计算锚点位置，并去掉重复批次标题	390px导航换成三行后固定60px偏移遮住标题，桌面检查不能代替手机跳转	docs/development/2026-09-15-api-db-catalog-01/browser-regression.json	修复后23/23浏览器检查通过
+2026-09-15T08:53:09+00:00	verification	完成执行身份与替补许可最终独立复核	可空房间不应绕过项目归属，替补检查需锁住始终存在的任务行	docs/development/2026-09-15-api-db-catalog-01/review-final.md	P1-P5、S1-S10与R1/R2全部闭合
+2026-09-15T08:53:09+00:00	delivery	完成B00-B11双格式文档交付	保留已有实现与验收边界，以Markdown生成HTML避免漂移	docs/api-database/README.md	13份正文，16/16生成器用例与23/23浏览器检查通过；未改产品代码和迁移

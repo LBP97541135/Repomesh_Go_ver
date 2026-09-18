@@ -1,0 +1,7 @@
+=== RUN   TestProjectBrowserServer
+2026/09/13 12:42:48 http: TLS handshake error from 127.0.0.1:47632: remote error: tls: unknown certificate
+2026/09/13 12:42:48 http: TLS handshake error from 127.0.0.1:47644: remote error: tls: unknown certificate
+2026/09/13 12:42:52 http: TLS handshake error from 127.0.0.1:52062: remote error: tls: unknown certificate
+--- PASS: TestProjectBrowserServer (6.71s)
+PASS
+ok  	repomesh.local/repomesh/internal/web	6.715s

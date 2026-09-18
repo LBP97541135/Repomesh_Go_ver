@@ -1,0 +1,138 @@
+{
+  "commits": [
+    "Reconstruction (#227)",
+    "Release 0.2.0 (#162)",
+    "remove jaeger client",
+    "modify response data",
+    "add unit test"
+  ],
+  "contents": {
+    "pom.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<project xmlns=\"http://maven.apache.org/POM/4.0.0\"\n         xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n         xsi:schemaLocation=\"http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd\">\n    <modelVersion>4.0.0</modelVersion>\n\n    <groupId>fdse.microservice</groupId>\n    <artifactId>ts-price-service</artifactId>\n    <version>1.0</version>\n    <packaging>jar</packaging>\n\n    <name>ts-price-service</name>\n\n    <parent>\n        <groupId>org.services</groupId>\n        <artifactId>ts-service</artifactId>\n        <version>0.1.0</version>\n        <relativePath>../pom.xml</relativePath>\n    </parent>\n\n    <properties>\n        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>\n        <java.version>1.8</java.version>\n    </properties>\n\n    <dependencies>\n        <dependency>\n            <groupId>org.services</groupId>\n            <artifactId>ts-common</artifactId>\n            <version>0.1.0</version>\n        </dependency>\n        <dependency>\n            <groupId>org.hibernate.javax.persistence</groupId>\n            <artifactId>hibernate-jpa-2.1-api</artifactId>\n            <version>1.0.0.Final</version>\n            <scope>compile</scope>\n        </dependency>\n        <dependency>\n            <groupId>org.hibernate</groupId>\n            <artifactId>hibernate-core</artifactId>\n        </dependency>\n        <dependency>\n            <groupId>mysql</groupId>\n            <artifactId>mysql-connector-java</artifactId>\n            <scope>runtime</scope>\n        </dependency>\n        <dependency>\n            <groupId>mysql</groupId>\n            <artifactId>mysql-connector-java</artifactId>\n        </dependency>\n        <dependency>\n            <groupId>org.springframework.boot</groupId>\n            <artifactId>spring-boot-starter-data-jpa</artifactId>\n        </dependency>\n        <dependency>\n            <groupId>org.springframework.data</groupId>\n            <artifactId>spring-data-commons</artifactId>\n        </dependency>\n        <dependency>\n            <groupId>org.springframework.cloud</groupId>\n            <artifactId>spring-cloud-commons</artifactId>\n        </dependency>\n        <dependency>\n            <groupId>jakarta.validation</groupId>\n            <artifactId>jakarta.validation-api</artifactId>\n        </dependency>\n    </dependencies>\n\n    <build>\n        <plugins>\n            <plugin>\n                <groupId>org.springframework.boot</groupId>\n                <artifactId>spring-boot-maven-plugin</artifactId>\n            </plugin>\n        </plugins>\n    </build>\n\n</project>",
+    "src/main/java/price/config/SecurityConfig.java": "package price.config;\n\nimport edu.fudan.common.security.jwt.JWTFilter;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\nimport org.springframework.http.HttpMethod;\nimport org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;\nimport org.springframework.security.config.annotation.web.builders.HttpSecurity;\nimport org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;\nimport org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;\nimport org.springframework.security.config.http.SessionCreationPolicy;\nimport org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;\nimport org.springframework.security.crypto.password.PasswordEncoder;\nimport org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;\nimport org.springframework.web.servlet.config.annotation.CorsRegistry;\nimport org.springframework.web.servlet.config.annotation.WebMvcConfigurer;\nimport org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;\n\nimport static org.springframework.web.cors.CorsConfiguration.ALL;\n\n/**\n * @author fdse\n */\n@Configuration\n@EnableWebSecurity\n@EnableGlobalMethodSecurity(prePostEnabled = true)\npublic class SecurityConfig extends WebSecurityConfigurerAdapter {\n\n    String admin = \"ADMIN\";\n    String prices = \"/api/v1/priceservice/prices\";\n\n    /**\n     * load password encoder\n     *\n     * @return PasswordEncoder\n     */\n    @Bean\n    public PasswordEncoder passwordEncoder() {\n        return new BCryptPasswordEncoder();\n    }\n\n    /**\n     * allow cors domain\n     * header  By default, only six fields can be taken from the header, and the other fields can only be specified in the header.\n     * credentials   Cookies are not sent by default and can only be true if a Cookie is needed\n     * Validity of this request\n     *\n     * @return WebMvcConfigurer\n     */\n    @Bean\n    public WebMvcConfigurer corsConfigurer() {\n        return new WebMvcConfigurerAdapter() {\n            @Override\n            public void addCorsMappings(CorsRegistry registry) {\n                registry.addMapping(\"/**\")\n                        .allowedOrigins(ALL)\n                        .allowedMethods(ALL)\n                        .allowedHeaders(ALL)\n                        .allowCredentials(false)\n                        .maxAge(3600);\n            }\n        };\n    }\n\n\n    @Override\n    protected void configure(HttpSecurity httpSecurity) throws Exception {\n        httpSecurity.httpBasic().disable()\n                // close default csrf\n                .csrf().disable()\n                // close session\n                .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)\n                .and()\n                .authorizeRequests()\n                .antMatchers(\"/api/v1/priceservice/**\").permitAll()\n                .antMatchers(HttpMethod.POST, prices).hasAnyRole(admin)\n                .antMatchers(HttpMethod.DELETE, prices).hasAnyRole(admin)\n                .antMatchers(HttpMethod.PUT, prices).hasAnyRole(admin)\n                .antMatchers(\"/swagger-ui.html\", \"/webjars/**\", \"/images/**\",\n                        \"/configuration/**\", \"/swagger-resources/**\", \"/v2/**\").permitAll()\n                .anyRequest().authenticated()\n                .and()\n                .addFilterBefore(new JWTFilter(), UsernamePasswordAuthenticationFilter.class);\n\n        // close cache\n        httpSecurity.headers().cacheControl();\n    }\n}\n",
+    "src/main/java/price/controller/PriceController.java": "package price.controller;\n\nimport org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.http.HttpEntity;\nimport org.springframework.http.HttpHeaders;\nimport org.springframework.http.HttpStatus;\nimport org.springframework.http.ResponseEntity;\nimport org.springframework.web.bind.annotation.*;\nimport price.entity.PriceConfig;\nimport price.service.PriceService;\n\nimport java.util.List;\nimport java.util.Map;\n\nimport static org.springframework.http.ResponseEntity.ok;\n\n/**\n * @author fdse\n */\n@RestController\n@RequestMapping(\"/api/v1/priceservice\")\npublic class PriceController {\n\n    @Autowired\n    PriceService service;\n\n    private static final Logger LOGGER = LoggerFactory.getLogger(PriceController.class);\n\n    @GetMapping(path = \"/prices/welcome\")\n    public String home() {\n        return \"Welcome to [ Price Service ] !\";\n    }\n\n    @GetMapping(value = \"/prices/{routeId}/{trainType}\")\n    public HttpEntity query(@PathVariable String routeId, @PathVariable String trainType,\n                            @RequestHeader HttpHeaders headers) {\n        PriceController.LOGGER.info(\"[findByRouteIdAndTrainType][Query price][RouteId: {}, TrainType: {}]\",routeId,trainType);\n        return ok(service.findByRouteIdAndTrainType(routeId, trainType, headers));\n    }\n\n    @PostMapping(value = \"/prices/byRouteIdsAndTrainTypes\")\n    public HttpEntity query(@RequestBody List<String> ridsAndTts,\n                            @RequestHeader HttpHeaders headers) {\n        PriceController.LOGGER.info(\"[findByRouteIdAndTrainType][Query price][routeId and Train Type: {}]\", ridsAndTts);\n        return ok(service.findByRouteIdsAndTrainTypes(ridsAndTts, headers));\n    }\n\n    @GetMapping(value = \"/prices\")\n    public HttpEntity queryAll(@RequestHeader HttpHeaders headers) {\n        PriceController.LOGGER.info(\"[findAllPriceConfig][Query all prices]\");\n        return ok(service.findAllPriceConfig(headers));\n    }\n\n    @PostMapping(value = \"/prices\")\n    public HttpEntity<?> create(@RequestBody PriceConfig info,\n                                @RequestHeader HttpHeaders headers) {\n        PriceController.LOGGER.info(\"[createNewPriceConfig][Create price][RouteId: {}, TrainType: {}]\",info.getRouteId(),info.getTrainType());\n        return new ResponseEntity<>(service.createNewPriceConfig(info, headers), HttpStatus.CREATED);\n    }\n\n    @DeleteMapping(value = \"/prices/{pricesId}\")\n    public HttpEntity delete(@PathVariable String pricesId, @RequestHeader HttpHeaders headers) {\n        PriceController.LOGGER.info(\"[deletePriceConfig][Delete price][PriceConfigId: {}]\",pricesId);\n        return ok(service.deletePriceConfig(pricesId, headers));\n    }\n\n    @PutMapping(value = \"/prices\")\n    public HttpEntity update(@RequestBody PriceConfig info, @RequestHeader HttpHeaders headers) {\n        PriceController.LOGGER.info(\"[updatePriceConfig][Update price][PriceConfigId: {}]\",info.getId());\n        return ok(service.updatePriceConfig(info, headers));\n    }\n}\n",
+    "src/main/java/price/entity/PriceConfig.java": "package price.entity;\n\nimport com.fasterxml.jackson.annotation.JsonIgnoreProperties;\nimport lombok.AllArgsConstructor;\nimport lombok.Data;\n\nimport javax.persistence.*;\n\nimport java.util.UUID;\n\n/**\n * @author fdse\n */\n@Data\n@AllArgsConstructor\n@Entity\n@JsonIgnoreProperties(ignoreUnknown = true)\n@Table(indexes = {@Index(name = \"route_type_idx\", columnList = \"train_type, route_id\", unique = true)})\npublic class PriceConfig {\n\n    @Id\n    @Column(length = 36)\n    private String id;\n\n    @Column(name=\"train_type\")\n    private String trainType;\n\n    @Column(name=\"route_id\", length = 36)\n    private String routeId;\n\n    private double basicPriceRate;\n\n    private double firstClassPriceRate;\n\n    public PriceConfig() {\n        //Empty Constructor\n        this.id = UUID.randomUUID().toString();\n    }\n\n}\n",
+    "src/main/java/price/service/PriceService.java": "package price.service;\n\nimport edu.fudan.common.util.Response;\nimport org.springframework.http.HttpHeaders;\n\nimport price.entity.PriceConfig;\n\nimport java.util.List;\nimport java.util.Map;\n\n\n/**\n * @author fdse\n */\npublic interface PriceService {\n\n    Response createNewPriceConfig(PriceConfig priceConfig, HttpHeaders headers);\n\n    PriceConfig findById(String id, HttpHeaders headers);\n\n    Response findByRouteIdsAndTrainTypes(List<String> ridsAndTts, HttpHeaders headers);\n\n    Response findByRouteIdAndTrainType(String routeId, String trainType, HttpHeaders headers);\n\n    Response findAllPriceConfig(HttpHeaders headers);\n\n    Response deletePriceConfig(String pcId, HttpHeaders headers);\n\n    Response updatePriceConfig(PriceConfig c, HttpHeaders headers);\n\n}\n",
+    "src/main/java/price/service/PriceServiceImpl.java": "package price.service;\n\nimport edu.fudan.common.util.Response;\nimport org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.http.HttpHeaders;\nimport org.springframework.stereotype.Service;\nimport price.entity.PriceConfig;\nimport price.repository.PriceConfigRepository;\n\nimport java.util.*;\n\n\n/**\n * @author fdse\n */\n@Service\npublic class PriceServiceImpl implements PriceService {\n\n    @Autowired(required=true)\n    private PriceConfigRepository priceConfigRepository;\n\n    private static final Logger LOGGER = LoggerFactory.getLogger(PriceServiceImpl.class);\n\n    String noThatConfig = \"No that config\";\n\n    @Override\n    public Response createNewPriceConfig(PriceConfig createAndModifyPriceConfig, HttpHeaders headers) {\n        PriceServiceImpl.LOGGER.info(\"[createNewPriceConfig]\");\n        PriceConfig priceConfig = null;\n        // create\n        if (createAndModifyPriceConfig.getId() == null || createAndModifyPriceConfig.getId().toString().length() < 10) {\n            priceConfig = new PriceConfig();\n            priceConfig.setId(UUID.randomUUID().toString());\n            priceConfig.setBasicPriceRate(createAndModifyPriceConfig.getBasicPriceRate());\n            priceConfig.setFirstClassPriceRate(createAndModifyPriceConfig.getFirstClassPriceRate());\n            priceConfig.setRouteId(createAndModifyPriceConfig.getRouteId());\n            priceConfig.setTrainType(createAndModifyPriceConfig.getTrainType());\n            priceConfigRepository.save(priceConfig);\n        } else {\n            // modify\n            Optional<PriceConfig> op = priceConfigRepository.findById(createAndModifyPriceConfig.getId());\n            if (!op.isPresent()) {\n                priceConfig = new PriceConfig();\n                priceConfig.setId(createAndModifyPriceConfig.getId());\n            }else{\n                priceConfig = op.get();\n            }\n            priceConfig.setBasicPriceRate(createAndModifyPriceConfig.getBasicPriceRate());\n            priceConfig.setFirstClassPriceRate(createAndModifyPriceConfig.getFirstClassPriceRate());\n            priceConfig.setRouteId(createAndModifyPriceConfig.getRouteId());\n            priceConfig.setTrainType(createAndModifyPriceConfig.getTrainType());\n            priceConfigRepository.save(priceConfig);\n        }\n        return new Response<>(1, \"Create success\", priceConfig);\n    }\n\n    @Override\n    public PriceConfig findById(String id, HttpHeaders headers) {\n        PriceServiceImpl.LOGGER.info(\"[findById][ID: {}]\", id);\n        Optional<PriceConfig> op = priceConfigRepository.findById(UUID.fromString(id).toString());\n        if(op.isPresent()){\n            return op.get();\n        }\n        return null;\n    }\n\n    @Override\n    public Response findByRouteIdAndTrainType(String routeId, String trainType, HttpHeaders headers) {\n        PriceServiceImpl.LOGGER.info(\"[findByRouteIdAndTrainType][Route: {} , Train Type: {}]\", routeId, trainType);\n        PriceConfig priceConfig = priceConfigRepository.findByRouteIdAndTrainType(routeId, trainType);\n        //PriceServiceImpl.LOGGER.info(\"[findByRouteIdAndTrainType]\");\n\n        if (priceConfig == null) {\n            PriceServiceImpl.LOGGER.warn(\"[findByRouteIdAndTrainType][Find by route and train type warn][PricrConfig not found][RouteId: {}, TrainType: {}]\",routeId,trainType);\n            return new Response<>(0, noThatConfig, null);\n        } else {\n            return new Response<>(1, \"Success\", priceConfig);\n        }\n    }\n\n    @Override\n    public Response findByRouteIdsAndTrainTypes(List<String> ridsAndTts, HttpHeaders headers){\n        List<String> routeIds = new ArrayList<>();\n        List<String> trainTypes = new ArrayList<>();\n        for(String rts: ridsAndTts){\n            List<String> r_t  = Arrays.asList(rts.split(\":\"));\n            routeIds.add(r_t.get(0));\n            trainTypes.add(r_t.get(1));\n        }\n        List<PriceConfig> pcs = priceConfigRepository.findByRouteIdsAndTrainTypes(routeIds, trainTypes);\n        Map<String, PriceConfig> pcMap = new HashMap<>();\n        for(PriceConfig pc: pcs){\n            String key = pc.getRouteId() + \":\" + pc.getTrainType();\n            if(ridsAndTts.contains(key)){\n                pcMap.put(key, pc);\n            }\n        }\n        if (pcMap == null) {\n            PriceServiceImpl.LOGGER.warn(\"[findByRouteIdsAndTrainTypes][Find by routes and train types warn][PricrConfig not found][RouteIds: {}, TrainTypes: {}]\",routeIds,trainTypes);\n            return new Response<>(0, noThatConfig, null);\n        } else {\n            return new Response<>(1, \"Success\", pcMap);\n        }\n    }\n\n\n    @Override\n    public Response findAllPriceConfig(HttpHeaders headers) {\n        List<PriceConfig> list = priceConfigRepository.findAll();\n        if (list == null) {\n            list = new ArrayList<>();\n        }\n\n        if (!list.isEmpty()) {\n            PriceServiceImpl.LOGGER.warn(\"[findAllPriceConfig][Find all price config warn][{}]\",\"No Content\");\n            return new Response<>(1, \"Success\", list);\n        } else {\n            return new Response<>(0, \"No price config\", null);\n        }\n\n    }\n\n    @Override\n    public Response deletePriceConfig(String pcId, HttpHeaders headers) {\n        Optional<PriceConfig> op = priceConfigRepository.findById(pcId);\n        if (!op.isPresent()) {\n            PriceServiceImpl.LOGGER.error(\"[deletePriceConfig][Delete price config error][Price config not found][PriceConfigId: {}]\",pcId);\n            return new Response<>(0, noThatConfig, null);\n        } else {\n            PriceConfig pc = op.get();\n            priceConfigRepository.delete(pc);\n            return new Response<>(1, \"Delete success\", pc);\n        }\n    }\n\n    @Override\n    public Response updatePriceConfig(PriceConfig c, HttpHeaders headers) {\n        Optional<PriceConfig> op = priceConfigRepository.findById(c.getId());\n        if (!op.isPresent()) {\n            PriceServiceImpl.LOGGER.error(\"[updatePriceConfig][Update price config error][Price config not found][PriceConfigId: {}]\",c.getId());\n            return new Response<>(0, noThatConfig, null);\n        } else {\n            PriceConfig priceConfig = op.get();\n            priceConfig.setId(c.getId());\n            priceConfig.setBasicPriceRate(c.getBasicPriceRate());\n            priceConfig.setFirstClassPriceRate(c.getFirstClassPriceRate());\n            priceConfig.setRouteId(c.getRouteId());\n            priceConfig.setTrainType(c.getTrainType());\n            priceConfigRepository.save(priceConfig);\n            return new Response<>(1, \"Update success\", priceConfig);\n        }\n    }\n}\n",
+    "src/main/resources/application.yml": "spring:\n  cloud:\n    nacos:\n      discovery:\n        server-addr: ${NACOS_ADDRS:127.0.0.1:8848}\n  application:\n    name: ts-price-service\n  datasource:\n    url: jdbc:mysql://${PRICE_MYSQL_HOST:10.176.122.1}:${PRICE_MYSQL_PORT:3306}/${PRICE_MYSQL_DATABASE:ts}?useSSL=false\n    username: ${PRICE_MYSQL_USER:root}\n    password: ${PRICE_MYSQL_PASSWORD:Abcd1234#}\n    driver-class-name: com.mysql.cj.jdbc.Driver\n  jpa:\n    hibernate:\n      ddl-auto: update\n    properties:\n      hibernate:\n        dialect: org.hibernate.dialect.MySQL5Dialect\n\n\n# HTTP Server\nserver:\n  port: 16579  # HTTP (Tomcat) port\n\nswagger:\n  controllerPackage: price.controller"
+  },
+  "name": "ts-price-service",
+  "tree": [
+    {
+      "is_dir": false,
+      "path": "Dockerfile"
+    },
+    {
+      "is_dir": false,
+      "path": "pom.xml"
+    },
+    {
+      "is_dir": true,
+      "path": "src"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java/price"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/price/PriceApplication.java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java/price/config"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/price/config/SecurityConfig.java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java/price/controller"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/price/controller/PriceController.java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java/price/entity"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/price/entity/PriceConfig.java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java/price/init"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/price/init/InitData.java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java/price/repository"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/price/repository/PriceConfigRepository.java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java/price/service"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/price/service/PriceService.java"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/price/service/PriceServiceImpl.java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/resources"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/resources/application.yml"
+    },
+    {
+      "is_dir": true,
+      "path": "src/test"
+    },
+    {
+      "is_dir": true,
+      "path": "src/test/java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/test/java/price"
+    },
+    {
+      "is_dir": true,
+      "path": "src/test/java/price/controller"
+    },
+    {
+      "is_dir": false,
+      "path": "src/test/java/price/controller/PriceControllerTest.java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/test/java/price/service"
+    },
+    {
+      "is_dir": false,
+      "path": "src/test/java/price/service/PriceServiceImplTest.java"
+    }
+  ],
+  "url": "https://github.com/repomesh-train-ticket/ts-price-service"
+}

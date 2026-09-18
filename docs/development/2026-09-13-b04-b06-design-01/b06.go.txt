@@ -1,0 +1,286 @@
+// B06-DECL-r1 / DESIGN_RECOMMENDATION_NOT_ADOPTED. Declarations only.
+// HTTP is a projection of issue-page-create-api-contract.md §§2–6,11.
+// Package sections are separate proposed files, not product code or compile-ready bodies.
+package access
+import (
+    "context"
+    "time"
+    "github.com/jackc/pgx/v5"
+    "repomesh.local/repomesh/internal/secrets"
+)
+// Constructed only by access from current credentials and exact repository locators.
+// Read repositories are the full protected content union; write repositories are selected work.
+type IssueAccessRequest struct { ReadRepositories, WorkRepositories []RepositoryLocator }
+type IssueObservation struct {
+    actor, connectionRevision, credentialVersion string
+    accessEpoch int64
+    appKeyVersion secrets.VersionID
+    read, work []RepositoryObservation
+    app []issueAppObservation
+}
+type issueAppObservation struct { repositoryID, installationID, permissionRevision string; observedAt time.Time; allowed bool }
+func (s *Service) ObserveIssueAccess(ctx context.Context, principal ProjectPrincipal, request IssueAccessRequest) (IssueObservation, error)
+// Lock connection after principal/project; validates all observations including app timestamps.
+// No network, no independent transaction. Current unknown is 503, not a false denied value.
+func (s *Service) CheckIssueObservation(ctx context.Context, tx pgx.Tx, principal ProjectPrincipal, observation IssueObservation, request IssueAccessRequest) error
+func (s *Service) CheckIssueObservationTime(ctx context.Context, tx pgx.Tx, principal ProjectPrincipal, observation IssueObservation) error
+// CheckIssueObservationTime uses DB clock_timestamp immediately before commit and rechecks
+// local principal expiration; all necessary observations <= 60s old, none in the future.
+
+package issues
+import (
+    "context"
+    "time"
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "repomesh.local/repomesh/internal/access"
+    "repomesh.local/repomesh/internal/projects"
+    "repomesh.local/repomesh/internal/modelbudget"
+)
+type IssueID string
+type ConversationID string
+type ChangeSetID string
+type OperationID string
+// Existing/new conversation cannot carry contradictory fields.
+type conversationChoice interface { conversationChoice() }
+type newConversation struct{}
+func (newConversation) conversationChoice()
+type existingConversation struct { id ConversationID }
+func (existingConversation) conversationChoice()
+type pageInput struct {
+    expectedContext string
+    title, description string
+    repositories []string
+    criteria []string
+    conversation conversationChoice
+    analysisID *string
+}
+// Envelope parse keeps valid JSON until the old operation schema is known; no client actor/entry.
+type PageCommand struct { projectID string; key OperationID; requestID string; body []byte }
+func ParsePageCommand(projectID, key, requestID string, body []byte) (PageCommand, error)
+func parseNewInput(body []byte) (pageInput, error)
+func canonicalize(body []byte, schemaVersion int) ([]byte, error)
+type operationIdentity struct { projectID, actor, entry string; key OperationID }
+func pageIdentity(principal access.ProjectPrincipal, command PageCommand) operationIdentity
+// No generic external Source type. Manager transport and runtime capability are not declared.
+type PageSource struct { operation operationIdentity }
+
+type ScopeSnapshot struct {
+    ProjectID string
+    IssueID IssueID
+    ConversationID ConversationID
+    IssueScopeRevision, ConversationScopeRevision string
+    ReadRepositories, WorkRepositories []access.RepositoryLocator
+}
+type operationRecord struct {
+    identity operationIdentity
+    schemaVersion int
+    canonical []byte
+    result committedCreation
+    removedAt *time.Time
+}
+type committedCreation struct {
+    issueID IssueID
+    issueNumber int64
+    mainChangeSetID ChangeSetID
+    conversationID ConversationID
+    configurationRevision projects.ConfigurationRevision
+    createdAt time.Time
+}
+// Public receipt maps the adopted response; internal pin never becomes a client-selected field.
+type CreationReceipt struct { OperationID OperationID; ProjectID string; Result committedCreation }
+type CreationResult struct { Receipt CreationReceipt; Replayed bool }
+func (r CreationReceipt) MarshalJSON() ([]byte, error)
+func (r CreationReceipt) IssueLocation() string
+// GET and POST use one immutable receipt; status is selected by caller.
+type ReadResult = CreationReceipt
+type Failure struct { Status int; Code string; Fields []projects.FieldError }
+func (f *Failure) Error() string
+
+type Service struct {
+    pool *pgxpool.Pool
+    authorization *access.Service
+    projects *projects.Service
+    budgets *modelbudget.Store
+    hook transactionHook
+}
+func New(pool *pgxpool.Pool, authorization *access.Service, projects *projects.Service, budgets *modelbudget.Store) *Service
+func (s *Service) CreatePage(ctx context.Context, principal access.ProjectPrincipal, command PageCommand) (CreationResult, error)
+func (s *Service) GetPageCreation(ctx context.Context, principal access.ProjectPrincipal, projectID string, key OperationID) (ReadResult, error)
+// Before fetching sensitive text: load identity/scope -> observe outside locks -> lock/recheck ->
+// read exact receipt or return removed410. Does not check new-creation eligibility on replay.
+func (s *Service) readAuthorizedOperation(ctx context.Context, principal access.ProjectPrincipal, identity operationIdentity) (operationRecord, bool, error)
+func loadOperationScope(ctx context.Context, tx pgx.Tx, identity operationIdentity) (ScopeSnapshot, bool, error)
+func readOperation(ctx context.Context, tx pgx.Tx, identity operationIdentity) (operationRecord, bool, error)
+func comparePrior(record operationRecord, body []byte) (CreationReceipt, error)
+func lockScope(ctx context.Context, tx pgx.Tx, scope ScopeSnapshot) (ScopeSnapshot, error)
+func requireSameScope(expected, locked ScopeSnapshot) error
+func (s *Service) replayAfterPreflight(ctx context.Context, principal access.ProjectPrincipal, command PageCommand, preflightError error) (CreationResult, error)
+
+type creationPreflight struct { input pageInput; scope ScopeSnapshot; observation access.IssueObservation }
+func (s *Service) preflightNew(ctx context.Context, principal access.ProjectPrincipal, command PageCommand) (creationPreflight, error)
+// One owner of tx. Fast path replay may release locks and reobserve the winner's larger scope.
+func (s *Service) commitNew(ctx context.Context, principal access.ProjectPrincipal, command PageCommand, preflight creationPreflight) (CreationResult, error)
+func (s *Service) beginCreate(ctx context.Context) (pgx.Tx, error)
+// Checked inputs are minted only inside locked transaction; no caller-provided revision pin.
+type checkedCreation struct {
+    project projects.LockedProject
+    fixed projects.FixedConfiguration
+    scope ScopeSnapshot
+    input pageInput
+    checkedAt time.Time
+}
+func (s *Service) checkNew(ctx context.Context, tx pgx.Tx, principal access.ProjectPrincipal, command PageCommand, preflight creationPreflight, project projects.LockedProject, fixed projects.FixedConfiguration) (checkedCreation, error)
+func (s *Service) checkBudget(ctx context.Context, tx pgx.Tx, projectID string, fixed projects.FixedConfiguration, now time.Time) error
+func rejectUnavailableAnalysis(input pageInput) error
+// Core supports recognized/canonical analysisID; new supplied ID cannot be ignored. Until an
+// authorized source repository exists it is hidden404, or 503 if authoritative state is unknown.
+func reserveCreationIdentity(ctx context.Context, tx pgx.Tx, identity operationIdentity, canonical []byte) (bool, error)
+func allocateIssueNumber(ctx context.Context, tx pgx.Tx, projectID string) (int64, error)
+func insertNecessaryConversation(ctx context.Context, tx pgx.Tx, checked checkedCreation, source PageSource) (ConversationID, error)
+func insertIssueAndMainChangeSet(ctx context.Context, tx pgx.Tx, identity operationIdentity, checked checkedCreation, conversationID ConversationID, number int64) (committedCreation, error)
+func insertWorkScope(ctx context.Context, tx pgx.Tx, result committedCreation, checked checkedCreation) error
+func appendProtectedScope(ctx context.Context, tx pgx.Tx, result committedCreation, checked checkedCreation) error
+func insertPageSourceAndCard(ctx context.Context, tx pgx.Tx, source PageSource, result committedCreation) error
+func completeCreationOperation(ctx context.Context, tx pgx.Tx, identity operationIdentity, input pageInput, result committedCreation) error
+func insertBlockedContinuation(ctx context.Context, tx pgx.Tx, identity operationIdentity, result committedCreation) error
+func appendCreationInvalidation(ctx context.Context, tx pgx.Tx, identity operationIdentity, result committedCreation) error
+func projectReceipt(record operationRecord) (CreationReceipt, error)
+// Deferred relational checks inspect final table state at COMMIT, not intermediate NEW copies.
+
+type PageQuery struct { Cursor string; Limit int }
+func ParsePageQuery(cursor, limit string) (PageQuery, error)
+type CreationRepository struct {
+    RepositoryID string `json:"repositoryId"`
+    DisplayName string `json:"displayName"`
+    Selectable bool `json:"selectable"`
+    Reasons []string `json:"reasons"`
+    ObservedAt *time.Time `json:"observedAt"`
+}
+type RepositoryAnalysisCapability struct {
+    Availability string `json:"availability"` // B06: unavailable
+    ReasonCodes []string `json:"reasonCodes"` // B06: [INTEGRATION_NOT_AVAILABLE]
+}
+type CreationOptions struct {
+    ProjectID string `json:"projectId"`
+    CreationContextRevision string `json:"creationContextRevision"`
+    DefaultConversationMode string `json:"defaultConversationMode"` // new
+    AllowedConversationModes []string `json:"allowedConversationModes"` // new,existing
+    CanSubmit bool `json:"canSubmit"`
+    BlockingReasons []string `json:"blockingReasons"`
+    Repositories []CreationRepository `json:"repositories"`
+    NextCursor *string `json:"nextCursor"`
+    RepositoryAnalysis RepositoryAnalysisCapability `json:"repositoryAnalysis"`
+}
+func projectCreationRepository(observation access.RepositoryObservation) (CreationRepository, bool, error)
+// Returns visible=false for confirmed unreadable user scope, unknown as503; only user-readable
+// repositories disclose names. selectable also requires observed App work capability.
+type ConversationCandidate struct { ID ConversationID `json:"id"`; Title string `json:"title"` }
+type ConversationPage struct { Items []ConversationCandidate `json:"items"`; NextCursor *string `json:"nextCursor"` }
+func (s *Service) Options(ctx context.Context, principal access.ProjectPrincipal, projectID string, query PageQuery) (CreationOptions, error)
+func (s *Service) Conversations(ctx context.Context, principal access.ProjectPrincipal, projectID string, query PageQuery) (ConversationPage, error)
+// Options builds the exact issues-owned projection above; writer encodes it without hidden
+// capability reshaping. All arrays are non-nil, nullable observedAt remains truthful.
+func (s *Service) readCandidateScope(ctx context.Context, principal access.ProjectPrincipal, projectID string, id ConversationID) (ScopeSnapshot, error)
+func (s *Service) readCandidateAfterAuthorization(ctx context.Context, principal access.ProjectPrincipal, scope ScopeSnapshot, observation access.IssueObservation) (ConversationCandidate, error)
+
+type Maintenance struct { service *Service }
+func NewMaintenance(service *Service) *Maintenance
+func (m *Maintenance) RemoveIssueBody(ctx context.Context, projectID string, issueID IssueID) error
+func tombstoneCreation(ctx context.Context, tx pgx.Tx, record operationRecord, at time.Time) error
+func removeDerivedBodies(ctx context.Context, tx pgx.Tx, identity operationIdentity, result committedCreation) error
+func redactDerivedConversationTitle(ctx context.Context, tx pgx.Tx, identity operationIdentity, conversationID ConversationID) error
+func cancelUnsentContinuation(ctx context.Context, tx pgx.Tx, identity operationIdentity) error
+// Only blocked/INTEGRATION_NOT_AVAILABLE -> cancelled/CONTENT_REMOVED plus cancelled_at.
+// Retains identity and Issue pin relation; never DELETE or resurrect. Any external fact aborts.
+// No received external actions in B06; presence of one aborts this maintenance use case.
+type transactionPhase string
+const (
+    principalLocked transactionPhase = "principal_locked"
+    projectLocked transactionPhase = "project_locked"
+    operationReserved transactionPhase = "operation_reserved"
+    conversationInserted transactionPhase = "conversation_inserted"
+    issueInserted transactionPhase = "issue_inserted"
+    scopeInserted transactionPhase = "scope_inserted"
+    mainChangeSetInserted transactionPhase = "main_changeset_inserted"
+    sourceAndCardInserted transactionPhase = "source_and_card_inserted"
+    operationCompleted transactionPhase = "operation_completed"
+    continuationInserted transactionPhase = "continuation_inserted"
+    eventInserted transactionPhase = "event_inserted"
+    beforeCommit transactionPhase = "before_commit"
+)
+type transactionHook func(context.Context, transactionPhase) error
+
+package web
+import (
+    "net/http"
+    "repomesh.local/repomesh/internal/access"
+    "repomesh.local/repomesh/internal/issues"
+)
+type Issues struct { Service *issues.Service }
+type issueHandler func(http.ResponseWriter, *http.Request, access.ProjectPrincipal) error
+func registerIssues(mux *http.ServeMux, auth Auth, api Issues)
+func registerIssueRoute(mux *http.ServeMux, pattern string, auth Auth, handler issueHandler)
+// Extend RunConfigured once with Issues at B06 integration and update its cmd caller.
+// Four B06 routes only; private response mappers serialize the adopted shape, no pin added.
+func writeCreationReceipt(w http.ResponseWriter, receipt issues.CreationReceipt, status int) error
+func writeCreationOptions(w http.ResponseWriter, options issues.CreationOptions) error
+func writeConversationPage(w http.ResponseWriter, page issues.ConversationPage) error
+
+package access
+import "context"
+type IssueCreationDestinationResolver func(context.Context, string, string, string) (*string, error)
+func (s *Service) SetIssueCreationDestinationResolver(resolver IssueCreationDestinationResolver)
+// Existing issue_create Destination carries projectId/operationId; uses current actor resolver.
+// Missing original result can yield only its fixed same-origin recovery route, never a mutation.
+
+package github
+import (
+    "context"
+    "time"
+)
+// Retain the validated installation identity/permissions currently discarded by AppCapability.
+// Opaque construction in this adapter; no bearer/App key bytes or caller-provided permission hash.
+type AppInstallationObservation struct {
+    installationID, appID int64
+    permissionRevision string
+    capability Capability
+    observedAt time.Time
+}
+func (o AppInstallationObservation) InstallationID() int64
+func (o AppInstallationObservation) PermissionRevision() string
+func (o AppInstallationObservation) Capability() Capability
+func (c *Client) ObserveAppInstallation(ctx context.Context, owner, name string) (AppInstallationObservation, error)
+func installationPermissionRevision(appID, installationID int64, suspended bool, permissions map[string]string) string
+// permissionRevision = versioned SHA256 of length-delimited appID/installationID/suspended and
+// sorted complete non-secret permission key/value set. This is a local observation fingerprint,
+// not a GitHub CAS revision and not proof of unchanged remote authorization until commit.
+// Existing AppCapability delegates to this validated read and projects Capability unchanged.
+
+package access
+import (
+    "context"
+    "github.com/jackc/pgx/v5"
+    "repomesh.local/repomesh/internal/github"
+    "repomesh.local/repomesh/internal/secrets"
+)
+// Add ObserveAppInstallation(ctx, owner, name) (github.AppInstallationObservation,error) to
+// existing Provider interface; update its real adapter and test doubles in U06.2, preserving
+// AppCapability's B02/B03 public meaning. No external calls during this design task.
+func (s *Service) observeIssueApp(ctx context.Context, repository RepositoryLocator) (github.AppInstallationObservation, error)
+// Extend Service with appID and issueAppKeyVersion, set in OpenRuntime from the privateRef
+// it already imports and whose exact version the provider PrivateKey closure uses.
+func (s *Service) setIssueAppCredential(appID string, version secrets.VersionID)
+// IssueObservation.appKeyVersion is set during ObserveIssueAccess; credentialVersion is the exact
+// access_ref used for user reads, distinct from connectionRevision/accessEpoch.
+func (s *Service) CheckIssueCredentialAvailability(ctx context.Context, tx pgx.Tx, observation IssueObservation) error
+// Called after fixed-model availability and before final time check. Locks exact user/App
+// versions in sorted versionID order, validates stored owner/purpose/enabled/root metadata.
+// No other path holding auth-credential locks may acquire model-key locks. Unknown returns503.
+
+package web
+import ("context"; "io/fs"; "net/http")
+// B06 replacement signatures for the same existing functions; migrate all current callers.
+func RunConfigured(ctx context.Context, addr, assets string, auth Auth, projectAPI Projects, modelAPI Models, issueAPI Issues, certFile, keyFile string) error
+func handlerConfigured(assets fs.FS, auth Auth, projectAPI Projects, modelAPI Models, issueAPI Issues) http.Handler
+// Existing wrapper signatures stay; they pass Models{}/Issues{} for unconfigured modes.

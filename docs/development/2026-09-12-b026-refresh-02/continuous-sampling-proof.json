@@ -1,0 +1,16 @@
+{
+  "sampleCount": 3,
+  "sampleTimes": [
+    "2026-09-12T17:07:42.64901+00:00",
+    "2026-09-12T17:08:41.338716+00:00",
+    "2026-09-12T17:09:38.51176+00:00"
+  ],
+  "epochValues": [
+    5
+  ],
+  "connectionUnchanged": true,
+  "noNewAttemptIds": true,
+  "outcomeExists": false,
+  "refreshConfirmed": false,
+  "observerAlive": true
+}

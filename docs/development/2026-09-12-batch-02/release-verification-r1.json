@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0-b02-local-20260912-r1",
+  "stage": "authentication-local",
+  "target": "linux/amd64",
+  "result": "PASS",
+  "checks": [
+    {
+      "name": "artifact-hashes",
+      "count": 11,
+      "pass": true
+    },
+    {
+      "name": "repomesh-web-version",
+      "exitCode": 0,
+      "stdout": "repomesh-web 0.2.0-b02-local-20260912-r1",
+      "pass": true
+    },
+    {
+      "name": "repomesh-coordinator-version",
+      "exitCode": 0,
+      "stdout": "repomesh-coordinator 0.2.0-b02-local-20260912-r1",
+      "pass": true
+    },
+    {
+      "name": "repomesh-host-executor-version",
+      "exitCode": 0,
+      "stdout": "repomesh-host-executor 0.2.0-b02-local-20260912-r1",
+      "pass": true
+    },
+    {
+      "name": "authentication-config-in-bundle",
+      "pass": true
+    }
+  ]
+}

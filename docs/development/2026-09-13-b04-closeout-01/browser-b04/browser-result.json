@@ -1,0 +1,45 @@
+{
+  "suite": "B04 fixture browser Key and save recovery",
+  "passed": false,
+  "failedStep": "U04.4 dropped save response recovers the original key",
+  "error": "The expression evaluated to a falsy value:\n\n  assert.ok(dropped.status === null || dropped.status === 201)\n",
+  "events": [
+    {
+      "id": "U04.4",
+      "event": "fixture login opens model settings with a held then empty provider list",
+      "passed": true,
+      "assertions": {
+        "loadingObserved": true,
+        "emptyObserved": true
+      }
+    }
+  ],
+  "network": [
+    {
+      "method": "GET",
+      "path": "/api/model-providers",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/model-provider-saves",
+      "status": 200,
+      "code": null,
+      "key": "e2c5812e-1463-4564-bd06-e9a13cb0a7ca"
+    },
+    {
+      "method": "GET",
+      "path": "/api/model-provider-saves/e2c5812e-1463-4564-bd06-e9a13cb0a7ca",
+      "status": 200,
+      "code": null,
+      "key": null
+    }
+  ],
+  "shots": [
+    "/workspace/docs/development/2026-09-13-b04-closeout-01/browser-b04/screenshots/b04_model_settings_loading.png",
+    "/workspace/docs/development/2026-09-13-b04-closeout-01/browser-b04/screenshots/b04_model_settings_empty.png",
+    "/workspace/docs/development/2026-09-13-b04-closeout-01/browser-b04/screenshots/b04_model_settings_filled.png"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "date": "2026-09-12",
+  "installation": {"id": "161172403", "approvalPending": false, "permissionText": ["Read access to metadata", "Read and write access to code and pull requests"], "onlySelected": true, "repositoryIds": ["1367444901"]},
+  "operation": "Actual RepoMesh search and retry after account holder accepted restored permissions.",
+  "response": {"status": 200, "items": [{"id": "repo_00000000001367444901", "userParticipation": {"status": "allowed", "reasonCodes": [], "observedAt": "2026-09-12T16:44:00.065761858Z"}, "appCapability": {"status": "allowed", "reasonCodes": [], "observedAt": "2026-09-12T16:44:00.674697697Z"}}], "coverage": {"status": "partial", "reasonCodes": ["APP_INSTALLATION_SCOPE"], "observedAt": "2026-09-12T16:42:00.801921Z"}, "hasNext": false},
+  "negativeEvidence": "private-permission-denied.json",
+  "sameFixtureRecovered": true,
+  "naturalRefreshClaimed": false
+}

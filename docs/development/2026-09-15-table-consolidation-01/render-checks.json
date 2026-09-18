@@ -1,0 +1,81 @@
+{
+  "artifact": "docs/api-database/index.html",
+  "sha256": "475948a66d800a4db3d35e522130cfd219d3c97ada15b064ec51c343632ab180",
+  "digest": "3fcaa0b1538417331fcdc62037f55d69c69b7f1f7ef3b793a023f0d54e647c09",
+  "manifest_status": "design_only",
+  "counts": {
+    "manual_baseline": 36,
+    "scan": 1,
+    "design_targets": 34,
+    "manual_scope": 70,
+    "repo_scope": 71
+  },
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "docs/api-database/render.py"
+      ],
+      "exit": 0,
+      "stdout": "已写入 index.html：已有数据库表（手册基线） 36，扫描表（手册外） 1，B05-B11 设计表 34，手册范围合计 70，全仓含扫描合计 71，Markdown 章节 13，设计专题（说明） 129，文档卡片（说明） 247，说明表格 265，本地来源链接（去重） 126（digest 3fcaa0b15384）\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python3",
+        "docs/api-database/render.py",
+        "--check"
+      ],
+      "exit": 0,
+      "stdout": "OK: index.html 与 13 个内容源一致（digest 3fcaa0b15384）\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python3",
+        "docs/api-database/verify_renderer.py"
+      ],
+      "exit": 0,
+      "stdout": "PASS render-and-check\nPASS check-is-read-only\nPASS render-is-deterministic\nPASS missing-source-is-fatal\nPASS stale-source\nPASS stale-template\nPASS stale-manifest\nPASS missing-manifest-is-fatal\nPASS design-counts-follow-manifest\nPASS visible-table-declaration\nPASS stale-generator-code\nPASS stale-html-tamper\nPASS extra-markdown\nPASS broken-file-link\nPASS bad-chapter-anchor\nPASS good-chapter-anchor\nPASS counts-follow-content\nPASS text-anchors-and-escaping\nPASS self-contained-and-responsive\nPASS crlf-checkout\n\n20/20 用例通过\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python3",
+        "docs/api-database/verify_design.py",
+        "--strict",
+        "--baseline",
+        "docs/development/2026-09-15-table-consolidation-01/baseline.json"
+      ],
+      "exit": 0,
+      "stdout": "清单: 旧表 63 张 → 目标 34 张；已有手册基线 36 张（业务 35 + 系统 1）+ 扫描表 1 = 全仓 37\n统计口径: 手册范围 70 = 36 + 34；全仓含扫描 71\n文档统计: 说明表格 265 张（与数据库表数分列）\n正文声明: 已声明 34 / 待声明 0\n提示: 数据库表数来自迁移与清单；说明表格是文档统计，两者分列\nOK: 清单结构、迁移事实、快照来源、正文声明与统计口径通过（待办 0）\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "warning: LF will be replaced by CRLF in docs/api-database/b05.md.\nThe file will have its original line endings in your working directory\nwarning: LF will be replaced by CRLF in docs/api-database/b06.md.\nThe file will have its original line endings in your working directory\nwarning: LF will be replaced by CRLF in docs/api-database/b07.md.\nThe file will have its original line endings in your working directory\nwarning: LF will be replaced by CRLF in docs/api-database/b09.md.\nThe file will have its original line endings in your working directory\nwarning: LF will be replaced by CRLF in docs/api-database/b10.md.\nThe file will have its original line endings in your working directory\nwarning: LF will be replaced by CRLF in docs/api-database/b11.md.\nThe file will have its original line endings in your working directory\nwarning: LF will be replaced by CRLF in docs/api-database/index.html.\nThe file will have its original line endings in your working directory\nwarning: LF will be replaced by CRLF in docs/current/backend-message-clarification-design.md.\nThe file will have its original line endings in your working directory\nwarning: LF will be replaced by CRLF in docs/current/changeset-structure.md.\nThe file will have its original line endings in your working directory\nwarning: LF will be replaced by CRLF in docs/current/draft-conversation-backend-design.md.\nThe file will have its original line endings in your working directory\nwarning: LF will be replaced by CRLF in docs/current/execution-integration-gates.md.\nThe file will have its original line endings in your working directory\nwarning: LF will be replaced by CRLF in docs/current/graph-loop-design.md.\nThe file will have its original line endings in your working directory\n"
+    }
+  ],
+  "cited_prior_results": {
+    "verify_design_tests.py": {
+      "result": "12/12 通过",
+      "note": "工具自该轮运行后未再修改，按父要求不重复运行"
+    },
+    "verification-boundaries.json": {
+      "owner": "父代理",
+      "scope": "417 个受保护文件不变；12 batch HTTP 路由词法集合无增删"
+    }
+  },
+  "notes": [
+    "正式冻结：manifest.status=design_only，正文声明 34/34。",
+    "设计复核（review-b05-b08、review-b09、review-b10-b11、review-business-plan）已纳入 analysis 并落实。",
+    "未运行实际 SQL、数据库、服务或外部恢复；静态检查不证明数据库行为。",
+    "HTML 生成后不再修改被渲染正文与 manifest，以保证浏览器证据不陈旧。"
+  ]
+}

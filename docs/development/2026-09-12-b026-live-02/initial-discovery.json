@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-12",
+  "operation": "Clicked the rendered 重试读取仓库 button after the workspace initially returned 503.",
+  "responseStatus": 200,
+  "itemCount": 13,
+  "allUserParticipationAllowed": true,
+  "allAppCapabilityDenied": true,
+  "appReasonCodes": ["APP_INSTALLATION_MISSING"],
+  "representativeItem": {
+    "id": "repo_00000000000897116924",
+    "userParticipation": {"status": "allowed", "reasonCodes": [], "observedAt": "2026-09-12T15:45:19.607354Z"},
+    "appCapability": {"status": "denied", "reasonCodes": ["APP_INSTALLATION_MISSING"], "observedAt": "2026-09-12T15:46:00.159047586Z"}
+  },
+  "hasNextCursor": false,
+  "coverage": {"status": "partial", "reasonCodes": ["APP_INSTALLATION_SCOPE"], "observedAt": "2026-09-12T15:45:19.607354Z"},
+  "limitations": "No claim that a selected private fixture was discovered, pagination traversed, or denied sample restored. Names and cursor values omitted."
+}

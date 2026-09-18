@@ -1,0 +1,45 @@
+{
+  "preparedAt": "2026-09-13T01:04:17.115465+00:00",
+  "status": "READY_TO_RUN",
+  "gate": "PASS",
+  "basis": "Read-only verification of final refresh artifacts and independent review; no new runtime process inspection or external operation in this preparation",
+  "sourceDirectory": "../2026-09-12-b026-refresh-02",
+  "sha256": {
+    "baseline.json": "3163816971d13ac908cf44c148dc0e303951b95fc1304b89a2a5cdaa38c989ea",
+    "observations.jsonl": "ca982e8a3e7b46c0d588bbf203c2a73216a634b48729aabcba8e08a2f67d9055",
+    "confirmed-refresh.json": "edacb0202e34561c1c88703f16e19f73416ef06eb68c6bfedf1fb34810f0cb2c",
+    "outcome.json": "08968da37a8be70c594c0e445d67441f8f27719f8e4d92eff318597d0e8f69a7",
+    "browser-result.json": "7cf9c8c2dd947cc5de33fb2d1af128754e3af20c181376821cb68b9a0270a9b5",
+    "browser-events.jsonl": "0112b3a76483cb648f248af34e49b1da8b402180476b547b6605db6b0b4b6368",
+    "independent-final-review-01.md": "de567eb705e26dd35125d17ba9b3c25d1a5e6c5df49be1da68c40b5e3287b21c"
+  },
+  "hashesMatchIndependentReview": true,
+  "live09": "PASS",
+  "live10": "PASS",
+  "refresh": {
+    "actor": "16198e14-7249-4cc2-a15e-57cd8b568874",
+    "beforeEpoch": 5,
+    "afterEpoch": 6,
+    "sessionGeneration": 5,
+    "observations": 520,
+    "credentialCommittedAt": "2026-09-13T00:58:47.880334Z"
+  },
+  "closureFromIndependentReview": {
+    "observerPid": 293161,
+    "observerExited": true,
+    "keeperPid": 52940,
+    "keeperExited": true,
+    "keeperLastSessionStatus": 401,
+    "keeperLastObservedAt": "2026-09-13T01:00:44.552Z",
+    "logoutStatus": 204,
+    "sessionAfterLogout": 401
+  },
+  "live05": "NOT_RUN",
+  "live08UserRead": "NOT_RUN",
+  "restore": "NOT_RUN",
+  "review": "NOT_RUN",
+  "b02": "IN_PROGRESS",
+  "b03Worktree": "LOCAL_VERIFIED",
+  "b03Integration": "NOT_RUN",
+  "externalActionsPerformed": false
+}

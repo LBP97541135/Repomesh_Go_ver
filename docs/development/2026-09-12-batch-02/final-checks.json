@@ -1,0 +1,279 @@
+{
+  "recordedAt": "2026-09-12T12:38:09.451414+00:00",
+  "scope": "Local structural checks; does not repeat product or external integration tests. Markdown target existence only, not anchor validation.",
+  "documentsChecked": 36,
+  "localLinkCount": 434,
+  "linkFailures": [],
+  "preservedFiles": [
+    {
+      "path": "README.md",
+      "unchanged": false,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": true
+    },
+    {
+      "path": "docs/current/HANDOFF.md",
+      "unchanged": false,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": true
+    },
+    {
+      "path": "docs/current/IMPLEMENTATION-PLAN.md",
+      "unchanged": false,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": true
+    },
+    {
+      "path": "docs/current/wsl-development-recommendation.md",
+      "unchanged": false,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": true
+    },
+    {
+      "path": "scripts/verify-batch.ps1",
+      "unchanged": false,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": true
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/AUTH-RECOVERY.md",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/DESKTOP-AUTH-VERIFIED.md",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/PLAN.md",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/README.md",
+      "unchanged": false,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": true
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/auth-recovery-status.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/decisions.tsv",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/desktop-auth-verification.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/desktop-daemon-restart.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/final-check.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/setup.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl-ssh/verification.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/PLAN.md",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/README.md",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/codex-app-server-stderr.txt",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/codex-verification.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/copy-manifest.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/copy-workspace.py",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/decisions.tsv",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/final-verification.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/install-native-tools.py",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/linux-b01/checks.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/linux-b01/postgres-output.txt",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/linux-cleanup-negative/checks.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/main.tsx.before-hmr",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/native-tool-sources.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/network-verification.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/platform-verification.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/review.md",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/runtime.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/stop-runtime",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/windows-b01/checks.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/windows-b01/postgres-output.txt",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/windows-browser-hmr.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/windows-browser-package.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": "docs/development/2026-09-12-wsl/windows-browser-restored.json",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    },
+    {
+      "path": ".codex/config.toml",
+      "unchanged": true,
+      "originalBackupMatches": true,
+      "authorizedTaskUpdate": false
+    }
+  ],
+  "preservationPassed": true,
+  "gitDiffCheck": {
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "evidence": {
+    "standardChecks": 44,
+    "standardResult": "LOCAL_VERIFIED",
+    "cleanupPassed": true,
+    "topLevelGoPasses": 81,
+    "topLevelPostgresPasses": 42,
+    "postgresPassEvents": 63,
+    "postgresSkips": 0,
+    "skippedNamedTests": [
+      "TestRootFileOwner"
+    ],
+    "browserChecks": 9,
+    "browserResult": "PASS",
+    "releaseVersion": "0.2.0-b02-local-20260912-r1",
+    "releaseResult": "PASS",
+    "externalGitHub": "NOT_RUN"
+  },
+  "result": "PASS"
+}

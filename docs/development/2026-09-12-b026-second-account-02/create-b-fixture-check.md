@@ -1,0 +1,11 @@
+# Account B fixture creation helper check
+
+- Scope: one authorized private repository creation in account B, followed by an account A 404 check. The helper keeps both new pages open and never closes either browser.
+- Live read-only locator preflight: the current GitHub form exposes `Repository name *` as the name textbox, `Public` as the initial visibility menu button, `Description` as the optional textbox, and fixed `Add README`, `No .gitignore`, `No license`, and `Create repository` buttons. The helper selects the exact visible `Private` choice and requires the visibility button to become exact `Private` before its single submit.
+- Safe preflight result: exact visible counts were one each for `Repository name *`, `Public`, `Description`, `Add README`, `No .gitignore`, `No license`, `Create repository`, and owner B text. The old exact `Repository name` textbox and Private radio counts were zero. No control was clicked or filled.
+- Failed-attempt diagnosis: the one filled page was Private, valid, and had an enabled Create button with no visible error. Its asynchronous name-availability state became confirmed after the earlier immediate submit attempt. The live availability text is a visible leaf `span`, not an ARIA status node. The helper now waits up to 20 seconds for that fixed semantic state to contain the in-memory generated name before its single Create click. Neither the name nor the status text is output.
+- Guards: fixed CDP ports, exact `/new` page, account B meta login and visible owner, the observed fixed controls above, unchanged empty/none defaults, and one exact Create repository click.
+- Sensitive data: the random repository name and resulting URL remain in memory. Output contains only UTC time, safe owner login and optional stable ID, repository numeric ID, private/created booleans, B target ID, and the account A access result.
+- Failure behavior: an existing evidence path prevents browser connection and creation; all failures return fixed codes without raw errors, DOM, URLs, form values, cookies, query strings, fragments, or names.
+- Static validation: `node --check docs/development/2026-09-12-b026-second-account-02/create-b-fixture.mjs` passed on 2026-09-12.
+- Runtime validation: not run; no CDP connection, repository creation, or GitHub request occurred during implementation.

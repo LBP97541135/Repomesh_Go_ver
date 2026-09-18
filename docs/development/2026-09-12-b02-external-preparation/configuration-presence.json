@@ -1,0 +1,20 @@
+{
+  "recordedDate": "2026-09-12",
+  "scope": "Presence-only inspection in the current tool environment; no secret values read or printed, no search of other deployment locations.",
+  "platform": "Linux",
+  "cwd": "/home/xubohan/projects/Repomesh_Go_ver",
+  "environmentPresence": {
+    "REPOMESH_AUTH_CONFIG": false,
+    "REPOMESH_DATABASE_URL": false,
+    "REPOMESH_WEB_ADDR": false,
+    "REPOMESH_WEB_ASSETS": false
+  },
+  "configCandidates": {
+    "/etc/repomesh/auth.json": false,
+    "/home/xubohan/.config/repomesh/auth.json": false
+  },
+  "processNameMatches": [],
+  "processNamePattern": "repomesh|postgres|nginx|caddy|cloudflared",
+  "externalGitHub": "NOT_RUN",
+  "B02_6": "BLOCKED"
+}

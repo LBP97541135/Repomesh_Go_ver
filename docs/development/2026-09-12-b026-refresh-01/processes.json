@@ -1,0 +1,11 @@
+{
+  "observerLinuxPid": 292515,
+  "keeperWindowsPid": 52940,
+  "script": "/home/xubohan/projects/Repomesh_Go_ver/docs/development/2026-09-12-b026-refresh-01/observer.py",
+  "postRefreshScript": "/home/xubohan/projects/Repomesh_Go_ver/docs/development/2026-09-12-b026-refresh-01/post-refresh.mjs",
+  "observerLog": "/home/xubohan/projects/Repomesh_Go_ver/docs/development/2026-09-12-b026-refresh-01/observer-process.log",
+  "keeperLog": "/tmp/repomesh-b02-live/session-keepalive-02.jsonl",
+  "readOnlyDatabase": true,
+  "automaticPostRefreshBrowser": true,
+  "status": "STARTED_NOT_COMPLETED"
+}

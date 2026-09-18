@@ -1,0 +1,8 @@
+ts	phase	decision	why	evidence	result
+2026-09-12T13:06:23Z	pickup	从 B02.6 接续，完整读取指定18份文件	B02.1至B02.5已有最终本地结果，本轮不重跑历史验收	docs/current/HANDOFF.md	Linux; cwd正确; main; B02 IN_PROGRESS; B03 TODO
+2026-09-12T13:06:23Z	readiness	真实验收仍等待部署入口和服务端配置	当前环境无认证或数据库配置，约定配置路径不存在，不能推断其他部署位置	../../current/b02-github-live-acceptance.md	已请求仅提供origin和auth.json绝对路径; 未启动服务; LIVE均NOT_RUN
+2026-09-12T13:07:49Z	audit	核对69源码、11包文件和70旧证据均匹配	直接读取实际文件计算哈希，避免把历史自述当作新核对	/tmp/repomesh-b026-pickup-NT9ZfcMC/run-01/audit.json	无清单差异; 旧测试未重跑; 四份文档缺准备终态hash
+2026-09-12T13:07:49Z	correction	要求修正新核对脚本的长进程名匹配并强化配置路径排除	Linux comm会截断长名称；配置路径不得因落入源码遍历范围而被读取正文	/tmp/repomesh-b026-pickup-NT9ZfcMC/audit.py	原run-01保留; run-02待生成; 不影响69/11/70哈希结论
+2026-09-12T13:08:04Z	correction	新核对方法已修正并集成run-02，保留初次记录	补齐进程名观测范围与配置路径排除，不覆盖旧观察	docs/development/2026-09-12-b026-resume-01/audit.json	69/11/70仍匹配; 真实GitHub NOT_RUN; 独立复核进行中
+2026-09-12T13:08:28Z	user_update	按用户最新回复保持真实登录验收未完成，仅收尾接手记录	用户明确尚未配置，现需手册路径及操作分工	docs/development/2026-09-12-b026-resume-01/README.md	B02.6 BLOCKED; B02 IN_PROGRESS; B03 TODO; 不启动服务
+2026-09-12T13:09:39Z	review	gpt-5.6 terra独立复核接手记录通过	按Prove It Works独立核对实际文件；不以核对通过替代真实验收	docs/development/2026-09-12-b026-resume-01/independent-review.md	PASS仅限接手记录; 旧文档终态hash缺口保留; B02.6仍BLOCKED

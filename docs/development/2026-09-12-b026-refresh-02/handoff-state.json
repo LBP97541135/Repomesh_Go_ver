@@ -1,0 +1,23 @@
+{
+  "recordedAt": "2026-09-12T17:12:24.285470+00:00",
+  "documentsChecked": 20,
+  "missingLinks": [],
+  "gitDiffCheckExit": 0,
+  "observerLinuxPid": 293161,
+  "observerAlive": true,
+  "keeperWindowsPid": 52940,
+  "sampleCount": 5,
+  "latestSampleAt": "2026-09-12T17:11:32.599161+00:00",
+  "latestEpoch": 5,
+  "outcomeExists": false,
+  "naturalRefreshConfirmed": false,
+  "postRefreshBrowserResultExists": false,
+  "B02": "IN_PROGRESS",
+  "B03": "TODO",
+  "blockedScenes": [
+    "LIVE-05",
+    "LIVE-08 user read-access revocation"
+  ],
+  "committed": false,
+  "pushed": false
+}

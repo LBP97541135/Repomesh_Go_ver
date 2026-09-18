@@ -1,0 +1,4 @@
+remaining matching test databases before PostgreSQL stop: 0
+waiting for server to shut down.... done
+server stopped
+runtime directory removal: completed

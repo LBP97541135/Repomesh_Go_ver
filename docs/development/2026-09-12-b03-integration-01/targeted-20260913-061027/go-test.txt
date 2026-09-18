@@ -1,0 +1,6 @@
+=== RUN   TestPostgresConfigurationProfileSecretAvailability
+    project_browser_test.go:793: ERROR: immutable RepoMesh project version (SQLSTATE P0001)
+--- FAIL: TestPostgresConfigurationProfileSecretAvailability (0.18s)
+FAIL
+FAIL	repomesh.local/repomesh/internal/web	0.184s
+FAIL

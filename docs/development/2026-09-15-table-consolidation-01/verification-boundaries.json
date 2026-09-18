@@ -1,0 +1,9 @@
+{
+  "checked_at": "2026-09-15T10:13:36.108636+00:00",
+  "protected_file_count": 417,
+  "protected_file_changes": [],
+  "b00_b04_byte_identical": true,
+  "catalog_http_method_path_changes": [],
+  "http_check_scope": "Lexical normalized method/path preservation in 12 batch chapters; includes cited upstream paths and examples, not an API inventory or behavioral test.",
+  "product_runtime_tests_run": false
+}

@@ -1,0 +1,16 @@
+=== go test -race ===
+?   	repomesh.local/repomesh/cmd/repomesh-coordinator	[no test files]
+?   	repomesh.local/repomesh/cmd/repomesh-host-executor	[no test files]
+ok  	repomesh.local/repomesh/cmd/repomesh-web	1.519s
+ok  	repomesh.local/repomesh/internal/access	10.487s
+?   	repomesh.local/repomesh/internal/buildinfo	[no test files]
+ok  	repomesh.local/repomesh/internal/database	7.293s
+ok  	repomesh.local/repomesh/internal/github	1.196s
+ok  	repomesh.local/repomesh/internal/jsoninput	1.013s
+ok  	repomesh.local/repomesh/internal/models	3.953s
+ok  	repomesh.local/repomesh/internal/projects	1.834s
+ok  	repomesh.local/repomesh/internal/secrets	4.294s
+ok  	repomesh.local/repomesh/internal/sources	2.491s
+?   	repomesh.local/repomesh/internal/testdb	[no test files]
+ok  	repomesh.local/repomesh/internal/web	4.326s
+race_exit=0

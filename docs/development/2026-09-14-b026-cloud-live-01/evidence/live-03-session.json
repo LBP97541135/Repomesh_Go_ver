@@ -1,0 +1,14 @@
+{
+  "capturedAt": "2026-09-14T17:57:47Z",
+  "origin": "https://127.0.0.1:18443",
+  "httpStatus": 200,
+  "user": {
+    "id": "122f497c-ee8a-44f7-ae43-3b1994192481",
+    "displayName": "catmem"
+  },
+  "githubConnection": {
+    "status": "unknown",
+    "observedAt": "2026-09-14T17:26:41.811125Z"
+  },
+  "hasCsrfToken": true
+}

@@ -1,0 +1,53 @@
+ M .codex/config.toml
+ M AGENTS.md
+ M README.md
+ M cmd/repomesh-coordinator/main.go
+ M cmd/repomesh-web/main.go
+ M configs/repomesh.env.example
+ M docs/current/DEVELOPMENT-START.md
+ M docs/current/HANDOFF.md
+ M docs/current/IMPLEMENTATION-PLAN.md
+ M docs/current/README.md
+ M docs/current/authentication-browser-api-draft.md
+ M docs/current/backend-first-batch-sources-draft.md
+ M docs/current/backend-first-development-access-draft.md
+ M docs/current/database-development.md
+ M docs/current/development-scaffold.md
+ M docs/current/first-batch-browser-api-contract.md
+ M docs/current/first-batch-complete-review.md
+ M docs/current/wsl-development-recommendation.md
+ M internal/database/database.go
+ M internal/database/postgres_test.go
+ M internal/web/server.go
+ M scripts/build.ps1
+ M scripts/verify-batch.ps1
+ M web/src/main.tsx
+ M web/src/style.css
+?? configs/auth.example.json
+?? docs/current/authentication-development.md
+?? docs/current/b02-authentication-adoption.md
+?? docs/current/b02-github-live-acceptance.md
+?? docs/development/2026-09-12-b02-external-preparation/
+?? docs/development/2026-09-12-b02-preflight/
+?? docs/development/2026-09-12-b026-configuration-01/
+?? docs/development/2026-09-12-b026-resume-01/
+?? docs/development/2026-09-12-batch-02/
+?? docs/development/2026-09-12-wsl-ssh/
+?? docs/development/2026-09-12-wsl/
+?? internal/access/
+?? internal/database/migrations/0002_auth_secrets.sql
+?? internal/database/migrations/0003_authentication.sql
+?? internal/github/
+?? internal/jsoninput/
+?? internal/secrets/
+?? internal/testdb/
+?? internal/web/auth.go
+?? internal/web/auth_test.go
+?? web/src/AuthEntry.tsx
+?? web/src/AuthResult.tsx
+?? web/src/RepositoryHome.tsx
+?? web/src/api.test.mjs
+?? web/src/api.ts
+?? web/src/recovery.ts
+?? web/src/session.ts
+?? web/src/shared.tsx

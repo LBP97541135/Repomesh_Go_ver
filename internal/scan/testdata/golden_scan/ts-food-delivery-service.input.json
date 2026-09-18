@@ -1,0 +1,153 @@
+{
+  "commits": [
+    "Reconstruction (#227)"
+  ],
+  "contents": {
+    "pom.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<project xmlns=\"http://maven.apache.org/POM/4.0.0\"\n         xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n         xsi:schemaLocation=\"http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd\">\n    <modelVersion>4.0.0</modelVersion>\n\n    <groupId>fdse.microservice</groupId>\n    <artifactId>ts-food-delivery-service</artifactId>\n    <version>1.0</version>\n    <packaging>jar</packaging>\n\n    <name>ts-food-delivery-service</name>\n\n    <parent>\n        <groupId>org.services</groupId>\n        <artifactId>ts-service</artifactId>\n        <version>0.1.0</version>\n        <relativePath>../pom.xml</relativePath>\n    </parent>\n\n    <properties>\n        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>\n        <java.version>1.8</java.version>\n    </properties>\n\n    <dependencies>\n        <dependency>\n            <groupId>org.springframework.boot</groupId>\n            <artifactId>spring-boot-starter-data-jpa</artifactId>\n        </dependency>\n        <dependency>\n            <groupId>mysql</groupId>\n            <artifactId>mysql-connector-java</artifactId>\n        </dependency>\n        <dependency>\n            <groupId>org.services</groupId>\n            <artifactId>ts-common</artifactId>\n            <version>0.1.0</version>\n        </dependency>\n        <dependency>\n            <groupId>jakarta.validation</groupId>\n            <artifactId>jakarta.validation-api</artifactId>\n            <version>2.0.2</version>\n        </dependency>\n    </dependencies>\n    <build>\n        <plugins>\n            <plugin>\n                <groupId>org.springframework.boot</groupId>\n                <artifactId>spring-boot-maven-plugin</artifactId>\n            </plugin>\n        </plugins>\n    </build>\n\n\n</project>",
+    "src/main/java/food_delivery/config/SecurityConfig.java": "package food_delivery.config;\n\nimport edu.fudan.common.security.jwt.JWTFilter;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\nimport org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;\nimport org.springframework.security.config.annotation.web.builders.HttpSecurity;\nimport org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;\nimport org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;\nimport org.springframework.security.config.http.SessionCreationPolicy;\nimport org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;\nimport org.springframework.security.crypto.password.PasswordEncoder;\nimport org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;\nimport org.springframework.web.servlet.config.annotation.CorsRegistry;\nimport org.springframework.web.servlet.config.annotation.WebMvcConfigurer;\nimport org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;\n\nimport static org.springframework.web.cors.CorsConfiguration.ALL;\n\n@Configuration\n@EnableWebSecurity\n@EnableGlobalMethodSecurity(prePostEnabled = true)\npublic class SecurityConfig extends WebSecurityConfigurerAdapter {\n\n    // load password encoder\n    @Bean\n    public PasswordEncoder passwordEncoder() {\n        return new BCryptPasswordEncoder();\n    }\n\n    /**\n     *  allow cors domain\n     * header 在默认的情况下只能从头部取出6个字段，想要其他字段只能自己在头里指定\n     * credentials 默认不发送Cookie, 如果需要Cookie,这个值只能为true\n     * 本次请求检查的有效期\n     *\n     * @return\n     */\n    @Bean\n    public WebMvcConfigurer corsConfigurer() {\n        return new WebMvcConfigurerAdapter() {\n            @Override\n            public void addCorsMappings(CorsRegistry registry) {\n                registry.addMapping(\"/**\")\n                        .allowedOrigins(ALL)\n                        .allowedMethods(ALL)\n                        .allowedHeaders(ALL)\n                        .allowCredentials(false)\n                        .maxAge(3600);\n            }\n        };\n    }\n\n\n    @Override\n    protected void configure(HttpSecurity httpSecurity) throws Exception {\n        httpSecurity.httpBasic().disable()\n                // close default csrf\n                .csrf().disable()\n                // close session\n                .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)\n                .and()\n                .authorizeRequests()\n                .antMatchers(\"/api/v1/fooddeliveryservice/**\").permitAll()\n                .antMatchers(\"/swagger-ui.html\", \"/webjars/**\", \"/images/**\",\n                        \"/configuration/**\", \"/swagger-resources/**\", \"/v2/**\").permitAll()\n                .anyRequest().authenticated()\n                .and()\n                .addFilterBefore(new JWTFilter(), UsernamePasswordAuthenticationFilter.class);\n\n        // close cache\n        httpSecurity.headers().cacheControl();\n    }\n}\n",
+    "src/main/java/food_delivery/controller/FoodDeliveryController.java": "package food_delivery.controller;\n\n\nimport edu.fudan.common.util.Response;\nimport food_delivery.entity.DeliveryInfo;\nimport food_delivery.entity.FoodDeliveryOrder;\nimport food_delivery.entity.SeatInfo;\nimport food_delivery.entity.TripOrderInfo;\nimport food_delivery.service.FoodDeliveryService;\nimport org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.http.HttpEntity;\nimport org.springframework.http.HttpHeaders;\nimport org.springframework.web.bind.annotation.*;\n\nimport static org.springframework.http.ResponseEntity.ok;\n\n@RestController\n@RequestMapping(\"/api/v1/fooddeliveryservice\")\npublic class FoodDeliveryController {\n\n    @Autowired\n    private FoodDeliveryService foodDeliveryService;\n\n    private static final Logger LOGGER = LoggerFactory.getLogger(FoodDeliveryController.class);\n\n    @GetMapping(path = \"/welcome\")\n    public String home() {\n        return \"Welcome to [ food delivery service ] !\";\n    }\n\n\n    @PostMapping(\"/orders\")\n    public HttpEntity createFoodDeliveryOrder(@RequestBody FoodDeliveryOrder fd, @RequestHeader HttpHeaders headers) {\n        LOGGER.info(\"[Food Delivery Service][Create Food Delivery Order]\");\n        return ok(foodDeliveryService.createFoodDeliveryOrder(fd, headers));\n    }\n\n    @DeleteMapping(\"/orders/d/{orderId}\")\n    public HttpEntity deleteFoodDeliveryOrder(@PathVariable String orderId, @RequestHeader HttpHeaders headers) {\n        LOGGER.info(\"[Food Delivery Service][Delete Food Delivery Order]\");\n        return ok(foodDeliveryService.deleteFoodDeliveryOrder(orderId, headers));\n    }\n\n    @GetMapping(\"/orders/{orderId}\")\n    public HttpEntity getFoodDeliveryOrderById(@PathVariable String orderId, @RequestHeader HttpHeaders headers) {\n        LOGGER.info(\"[Food Delivery Service][Get Food Delivery Order By Id]\");\n        return ok(foodDeliveryService.getFoodDeliveryOrderById(orderId, headers));\n    }\n\n    @GetMapping(\"/orders/all\")\n    public HttpEntity getAllFoodDeliveryOrders(@RequestHeader HttpHeaders headers) {\n        LOGGER.info(\"[Food Delivery Service][Get All Food Delivery Orders]\");\n        return ok(foodDeliveryService.getAllFoodDeliveryOrders(headers));\n    }\n\n    @GetMapping(\"/orders/store/{storeId}\")\n    public HttpEntity getFoodDeliveryOrderByStoreId(@PathVariable String storeId, @RequestHeader HttpHeaders headers) {\n        LOGGER.info(\"[Food Delivery Service][Get Food Delivery Order By StoreId]\");\n        return ok(foodDeliveryService.getFoodDeliveryOrderByStoreId(storeId, headers));\n    }\n\n    @PutMapping(\"/orders/tripid\")\n    public HttpEntity updateTripId(@RequestBody TripOrderInfo tripOrderInfo, @RequestHeader HttpHeaders headers) {\n        LOGGER.info(\"[Food Delivery Service][Update Trip Id]\");\n        return ok(foodDeliveryService.updateTripId(tripOrderInfo, headers));\n    }\n\n    @PutMapping(\"/orders/seatno\")\n    public HttpEntity updateSeatNo(@RequestBody SeatInfo seatInfo, @RequestHeader HttpHeaders headers) {\n        LOGGER.info(\"[Food Delivery Service][Update Seat No]\");\n        return ok(foodDeliveryService.updateSeatNo(seatInfo, headers));\n    }\n\n    @PutMapping(\"/orders/dtime\")\n    public HttpEntity updateDeliveryTime(@RequestBody DeliveryInfo deliveryInfo, @RequestHeader HttpHeaders headers) {\n        LOGGER.info(\"[Food Delivery Service][Update Delivery Time]\");\n        return ok(foodDeliveryService.updateDeliveryTime(deliveryInfo, headers));\n    }\n}\n",
+    "src/main/java/food_delivery/service/FoodDeliveryService.java": "package food_delivery.service;\n\nimport edu.fudan.common.util.Response;\nimport food_delivery.entity.DeliveryInfo;\nimport food_delivery.entity.FoodDeliveryOrder;\nimport food_delivery.entity.SeatInfo;\nimport food_delivery.entity.TripOrderInfo;\nimport org.springframework.http.HttpHeaders;\n\npublic interface FoodDeliveryService {\n\n    Response createFoodDeliveryOrder(FoodDeliveryOrder fd, HttpHeaders headers);\n\n    Response deleteFoodDeliveryOrder(String id, HttpHeaders headers);\n\n    Response getFoodDeliveryOrderById(String id, HttpHeaders headers);\n\n    Response getAllFoodDeliveryOrders(HttpHeaders headers);\n\n    Response getFoodDeliveryOrderByStoreId(String storeId, HttpHeaders headers);\n\n    Response updateTripId(TripOrderInfo tripOrderInfo, HttpHeaders headers);\n\n    Response updateSeatNo(SeatInfo seatInfo, HttpHeaders headers);\n\n    Response updateDeliveryTime(DeliveryInfo deliveryInfo, HttpHeaders headers);\n}\n",
+    "src/main/java/food_delivery/service/FoodDeliveryServiceImpl.java": "package food_delivery.service;\n\n\nimport edu.fudan.common.util.Response;\nimport food_delivery.entity.*;\nimport edu.fudan.common.entity.*;\nimport food_delivery.repository.FoodDeliveryOrderRepository;\nimport org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.cloud.client.ServiceInstance;\nimport org.springframework.cloud.client.discovery.DiscoveryClient;\nimport org.springframework.core.ParameterizedTypeReference;\nimport org.springframework.http.HttpEntity;\nimport org.springframework.http.HttpHeaders;\nimport org.springframework.http.HttpMethod;\nimport org.springframework.http.ResponseEntity;\nimport org.springframework.stereotype.Service;\nimport org.springframework.web.client.RestTemplate;\n\nimport java.util.List;\nimport java.util.Map;\nimport java.util.stream.Collectors;\n\n@Service\npublic class FoodDeliveryServiceImpl implements FoodDeliveryService {\n\n    @Autowired\n    FoodDeliveryOrderRepository foodDeliveryOrderRepository;\n\n    private static final Logger LOGGER = LoggerFactory.getLogger(FoodDeliveryServiceImpl.class);\n\n    @Autowired\n    private RestTemplate restTemplate;\n\n    @Autowired\n    private DiscoveryClient discoveryClient;\n\n    private String getServiceUrl(String serviceName) {\n        return \"http://\" + serviceName;\n    }\n\n    @Override\n    public Response createFoodDeliveryOrder(FoodDeliveryOrder fd, HttpHeaders headers) {\n        String stationFoodStoreId = fd.getStationFoodStoreId();\n\n        String staion_food_service_url = getServiceUrl(\"ts-station-food-service\");\n//        staion_food_service_url = \"http://ts-station-food-service\"; // 测试\n        ResponseEntity<Response<StationFoodStoreInfo>> getStationFoodStore = restTemplate.exchange(\n                staion_food_service_url + \"/api/v1/stationfoodservice/stationfoodstores/bystoreid/\" + stationFoodStoreId,\n                HttpMethod.GET,\n                new HttpEntity(headers),\n                new ParameterizedTypeReference<Response<StationFoodStoreInfo>>() {\n                });\n        Response<StationFoodStoreInfo> result = getStationFoodStore.getBody();\n        StationFoodStoreInfo stationFoodStoreInfo = result.getData();\n        List<Food> storeFoodList = stationFoodStoreInfo.getFoodList();\n        Map<String, Double> foodPrice = storeFoodList.stream()\n                                                     .collect(Collectors.toMap(Food::getFoodName, Food::getPrice));\n        List<Food> orderFoodList = fd.getFoodList();\n        double deliveryFee = 0;\n        for (Food food : orderFoodList) {\n            Double fee = foodPrice.get(food.getFoodName());\n            if (fee == null) {\n                LOGGER.error(\"{}:{} have no such food: {}\", stationFoodStoreId, stationFoodStoreInfo.getStoreName(), food.getFoodName());\n                return new Response<>(0, \"Food not in store\", null);\n            }\n            deliveryFee += fee;\n        }\n        deliveryFee += stationFoodStoreInfo.getDeliveryFee();\n        fd.setDeliveryFee(deliveryFee);\n        FoodDeliveryOrder res = foodDeliveryOrderRepository.save(fd);\n        return new Response<>(1, \"Save success\", res);\n    }\n\n    @Override\n    public Response deleteFoodDeliveryOrder(String id, HttpHeaders headers) {\n        FoodDeliveryOrder t = foodDeliveryOrderRepository.findById(id).orElse(null);\n        if (t == null) {\n            LOGGER.error(\"[deleteFoodDeliveryOrder] No such food delivery order id: {}\", id);\n            return new Response<>(0, \"No such food delivery order id\", id);\n        } else {\n            foodDeliveryOrderRepository.deleteById(id);\n            LOGGER.info(\"[deleteFoodDeliveryOrder] Delete success, food delivery order id: {}\", id);\n            return new Response<>(1, \"Delete success\", null);\n        }\n    }\n\n    @Override\n    public Response getFoodDeliveryOrderById(String id, HttpHeaders headers) {\n        FoodDeliveryOrder t = foodDeliveryOrderRepository.findById(id).orElse(null);\n        if (t == null) {\n            LOGGER.error(\"[deleteFoodDeliveryOrder] No such food delivery order id: {}\", id);\n            return new Response<>(0, \"No such food delivery order id\", id);\n        } else {\n            LOGGER.info(\"[getFoodDeliveryOrderById] Get success, food delivery order id: {}\", id);\n            return new Response<>(1, \"Get success\", t);\n        }\n    }\n\n    @Override\n    public Response getAllFoodDeliveryOrders(HttpHeaders headers) {\n        List<FoodDeliveryOrder> foodDeliveryOrders = foodDeliveryOrderRepository.findAll();\n        if (foodDeliveryOrders == null) {\n            LOGGER.error(\"[getAllFoodDeliveryOrders] Food delivery orders query error\");\n            return new Response<>(0, \"food delivery orders query error\", null);\n        } else {\n            LOGGER.info(\"[getAllFoodDeliveryOrders] Get all food delivery orders success\");\n            return new Response<>(1, \"Get success\", foodDeliveryOrders);\n        }\n    }\n\n    @Override\n    public Response getFoodDeliveryOrderByStoreId(String storeId, HttpHeaders headers) {\n        List<FoodDeliveryOrder> foodDeliveryOrders = foodDeliveryOrderRepository.findByStationFoodStoreId(storeId);\n        if (foodDeliveryOrders == null) {\n            LOGGER.error(\"[getAllFoodDeliveryOrders] Food delivery orders query error\");\n            return new Response<>(0, \"food delivery orders query error\", storeId);\n        } else {\n            LOGGER.info(\"[getAllFoodDeliveryOrders] Get food delivery orders by storeId {} success\", storeId);\n            return new Response<>(1, \"Get success\", foodDeliveryOrders);\n        }\n    }\n\n    @Override\n    public Response updateTripId(TripOrderInfo tripInfo, HttpHeaders headers) {\n        String id = tripInfo.getOrderId();\n        String tripId = tripInfo.getTripId();\n        FoodDeliveryOrder t = foodDeliveryOrderRepository.findById(id).orElse(null);\n        if (t == null) {\n            LOGGER.error(\"[updateTripId] No such delivery order id: {}\", id);\n            return new Response<>(0, \"No such delivery order id\", id);\n        } else {\n            t.setTripId(tripId);\n            foodDeliveryOrderRepository.save(t);\n            LOGGER.info(\"[updateTripId] update tripId success. id:{}, tripId:{}\", id, tripId);\n            return new Response<>(1, \"update tripId success\", t);\n        }\n    }\n\n    @Override\n    public Response updateSeatNo(SeatInfo seatInfo, HttpHeaders headers) {\n        String id = seatInfo.getOrderId();\n        int seatNo = seatInfo.getSeatNo();\n        FoodDeliveryOrder t = foodDeliveryOrderRepository.findById(id).orElse(null);\n        if (t == null) {\n            LOGGER.error(\"[updateSeatNo] No such delivery order id: {}\", id);\n            return new Response<>(0, \"No such delivery order id\", id);\n        } else {\n            t.setSeatNo(seatNo);\n            foodDeliveryOrderRepository.save(t);\n            LOGGER.info(\"[updateSeatNo] update seatNo success. id:{}, seatNo:{}\", id, seatNo);\n            return new Response<>(1, \"update seatNo success\", t);\n        }\n    }\n\n    @Override\n    public Response updateDeliveryTime(DeliveryInfo deliveryInfo, HttpHeaders headers) {\n        String id = deliveryInfo.getOrderId();\n        String deliveryTime = deliveryInfo.getDeliveryTime();\n        FoodDeliveryOrder t = foodDeliveryOrderRepository.findById(id).orElse(null);\n        if (t == null) {\n            LOGGER.error(\"[updateDeliveryTime] No such delivery order id: {}\", id);\n            return new Response<>(0, \"No such delivery order id\", id);\n        } else {\n            t.setDeliveryTime(deliveryTime);\n            foodDeliveryOrderRepository.save(t);\n            LOGGER.info(\"[updateDeliveryTime] update deliveryTime success. id:{}, deliveryTime:{}\", id, deliveryTime);\n            return new Response<>(1, \"update deliveryTime success\", t);\n        }\n    }\n}\n",
+    "src/main/resources/application.yml": "server:\n  port: 18957\n\nspring:\n  cloud:\n    nacos:\n      discovery:\n          server-addr: ${NACOS_ADDRS:nacos-0.nacos-headless.default.svc.cluster.local,nacos-1.nacos-headless.default.svc.cluster.local,nacos-2.nacos-headless.default.svc.cluster.local}\n#          server-addr: 10.176.122.80:8848\n  application:\n    name: ts-food-delivery-service\n  datasource:\n#    url: jdbc:mysql://localhost:30001/ts-food-delivery-mysql?useSSL=false\n    url: jdbc:mysql://${FOOD_DELIVERY_MYSQL_HOST:ts-food-delivery-mysql}:${FOOD_DELIVERY_MYSQL_PORT:3306}/${FOOD_DELIVERY_MYSQL_DATABASE:ts-food-delivery-mysql}?useSSL=false\n    username: ${FOOD_DELIVERY_MYSQL_USER:root}\n    password: ${FOOD_DELIVERY_MYSQL_PASSWORD:root}\n    driver-class-name: com.mysql.jdbc.Driver\n  jpa:\n    hibernate:\n      ddl-auto: update\n    properties:\n      hibernate:\n        dialect: org.hibernate.dialect.MySQL5Dialect\n\nswagger:\n  controllerPackage: fooddelivery.controller"
+  },
+  "name": "ts-food-delivery-service",
+  "tree": [
+    {
+      "is_dir": false,
+      "path": "Dockerfile"
+    },
+    {
+      "is_dir": false,
+      "path": "pom.xml"
+    },
+    {
+      "is_dir": true,
+      "path": "src"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java/food_delivery"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/food_delivery/FoodDeliveryApplication.java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java/food_delivery/config"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/food_delivery/config/SecurityConfig.java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java/food_delivery/controller"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/food_delivery/controller/FoodDeliveryController.java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java/food_delivery/entity"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/food_delivery/entity/DeliveryInfo.java"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/food_delivery/entity/FoodDeliveryOrder.java"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/food_delivery/entity/SeatInfo.java"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/food_delivery/entity/StationFoodStoreInfo.java"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/food_delivery/entity/TripOrderInfo.java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java/food_delivery/init"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/food_delivery/init/InitData.java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java/food_delivery/repository"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/food_delivery/repository/FoodDeliveryOrderRepository.java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/java/food_delivery/service"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/food_delivery/service/FoodDeliveryService.java"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/java/food_delivery/service/FoodDeliveryServiceImpl.java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/main/resources"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/resources/application.yml"
+    },
+    {
+      "is_dir": false,
+      "path": "src/main/resources/food_delivery_orders.txt"
+    },
+    {
+      "is_dir": true,
+      "path": "src/test"
+    },
+    {
+      "is_dir": true,
+      "path": "src/test/java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/test/java/food_delivery"
+    },
+    {
+      "is_dir": true,
+      "path": "src/test/java/food_delivery/controller"
+    },
+    {
+      "is_dir": false,
+      "path": "src/test/java/food_delivery/controller/FoodDeliveryControllerTest.java"
+    },
+    {
+      "is_dir": true,
+      "path": "src/test/java/food_delivery/service"
+    },
+    {
+      "is_dir": false,
+      "path": "src/test/java/food_delivery/service/FoodDeliveryServiceImplTest.java"
+    }
+  ],
+  "url": "https://github.com/repomesh-train-ticket/ts-food-delivery-service"
+}

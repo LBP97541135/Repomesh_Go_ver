@@ -1,0 +1,31 @@
+{
+  "/home/xubohan/projects/Repomesh_Go_ver": {
+    "filesModeChecked": 399,
+    "executables": 0,
+    "status": " M .codex/config.toml\n M scripts/verify-batch.ps1\n?? docs/development/2026-09-12-wsl/PLAN.md\n?? docs/development/2026-09-12-wsl/codex-app-server-stderr.txt\n?? docs/development/2026-09-12-wsl/codex-verification.json\n?? docs/development/2026-09-12-wsl/copy-manifest.json\n?? docs/development/2026-09-12-wsl/copy-workspace.py\n?? docs/development/2026-09-12-wsl/install-native-tools.py\n?? docs/development/2026-09-12-wsl/native-tool-sources.json\n?? docs/development/2026-09-12-wsl/platform-verification.json\n?? docs/development/2026-09-12-wsl/windows-b01/checks.json\n?? docs/development/2026-09-12-wsl/windows-b01/postgres-output.txt\n",
+    "head": "ad9a49b2fe3b5fe743a65c838ded6cb022e79363"
+  },
+  "/home/xubohan/projects/Repomesh_Go_ver/third_party/AgentTeams": {
+    "filesModeChecked": 837,
+    "executables": 114,
+    "status": "",
+    "head": "517caff9280242a00a4d4c06365352b9e41659c6"
+  },
+  "gitRemoteRead": {
+    "exitCode": 0,
+    "stdout": "4516805a276d65eb79490a12783654f3d7b1c677\tHEAD\n",
+    "stderr": ""
+  },
+  "sandbox": "codex-linux-sandbox-ok",
+  "tools": {
+    "go": "go version go1.26.4 linux/amd64",
+    "node": "v22.22.1",
+    "npm": "10.9.4",
+    "pwsh": "PowerShell 7.6.6",
+    "/usr/lib/postgresql/17/bin/postgres": "postgres (PostgreSQL) 17.11 (Ubuntu 17.11-1.pgdg22.04+2)",
+    "bwrap": "bubblewrap 0.6.1",
+    "codex": "codex-cli 0.153.4",
+    "git": "git version 2.34.1",
+    "python3": "Python 3.10.12"
+  }
+}

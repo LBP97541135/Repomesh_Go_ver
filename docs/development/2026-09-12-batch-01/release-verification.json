@@ -1,0 +1,42 @@
+{
+  "result": "VERIFIED",
+  "releasePath": "D:\\Project4work\\Repomesh_Go_ver\\dist\\repomesh-0.1.0-b01-20260912",
+  "version": "0.1.0-b01-20260912",
+  "target": "windows/amd64",
+  "businessReady": false,
+  "verifiedArtifactCount": 10,
+  "verifiedArtifacts": [
+    "bin/repomesh-coordinator.exe",
+    "web/package-lock.json",
+    "web/dist/assets/index-C3EmKHkh.js",
+    "bin/repomesh-host-executor.exe",
+    "configs/repomesh.env.example",
+    "README.txt",
+    "SOURCE-README.md",
+    "web/dist/index.html",
+    "bin/repomesh-web.exe",
+    "web/dist/assets/index-rI43kEuq.css"
+  ],
+  "commands": [
+    {
+      "command": "web --version",
+      "exitCode": 0,
+      "stdout": "repomesh-web 0.1.0-b01-20260912\n"
+    },
+    {
+      "command": "coordinator --version",
+      "exitCode": 0,
+      "stdout": "repomesh-coordinator 0.1.0-b01-20260912\n"
+    },
+    {
+      "command": "host-executor --version",
+      "exitCode": 0,
+      "stdout": "repomesh-host-executor 0.1.0-b01-20260912\n"
+    },
+    {
+      "command": "repomesh-web db --help",
+      "exitCode": 0,
+      "stdout": "Usage: repomesh-web db <check|migrate> [--database-url CONNECTION] [--timeout 30s]\nThe connection defaults to REPOMESH_DATABASE_URL. Only migrate changes the schema.\n"
+    }
+  ]
+}

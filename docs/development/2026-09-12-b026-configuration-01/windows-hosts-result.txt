@@ -1,0 +1,7 @@
+Windows hosts execution and observation
+Command: powershell.exe Start-Process powershell.exe -Verb RunAs -File <reviewed enable-local-host.ps1> -Wait
+Process exit code: 0
+Observed using Select-String against the exact target hostname and System.Net.Dns.GetHostAddresses.
+Matching active hosts entry: 127.0.0.1 repomesh.bohanxu.me
+System.Net.Dns result: 127.0.0.1
+No other hosts entries were printed. This is name-resolution evidence only, not HTTPS or GitHub acceptance.

@@ -1,0 +1,14 @@
+{
+  "status": "FAIL",
+  "errorCode": "REPOSITORY_NAME_CONTROL_MISMATCH",
+  "cause": "GITHUB_NEW_REPOSITORY_ACCESSIBLE_NAMES_CHANGED",
+  "repositoryCreated": false,
+  "diagnostic": {
+    "newPagePresent": true,
+    "legacyRepositoryNameTextboxCount": 0,
+    "legacyPrivateRadioCount": 0,
+    "legacyCreateRepositoryButtonCount": 0,
+    "legacyOwnerExactTextCount": 0
+  },
+  "resolution": "Read-only live diagnosis found the current fixed controls before the next attempt; no form field had been filled and no submit had occurred."
+}

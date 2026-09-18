@@ -1,0 +1,11 @@
+{
+  "version": "0.3.0-b03-integrated-20260912-r1",
+  "stage": "project-management-local",
+  "businessReady": false,
+  "target": "linux/amd64",
+  "manifestArtifactCount": 11,
+  "actualArtifactCount": 11,
+  "setMatches": true,
+  "hashesMatch": true,
+  "releaseJsonSha256": "1982d4fc0c8553bc8bbf356c9edd0b30bf89471eed33bc3bc6a05bcdbc9e1457"
+}

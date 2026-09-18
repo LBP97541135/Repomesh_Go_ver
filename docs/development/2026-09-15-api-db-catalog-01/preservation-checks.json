@@ -1,0 +1,65 @@
+{
+  "preexisting_files": [
+    {
+      "path": "docs/current/HANDOFF.md",
+      "result": "navigation-appended"
+    },
+    {
+      "path": "docs/current/README.md",
+      "result": "navigation-appended"
+    },
+    {
+      "path": "docs/current/backend-first-batch-persistence.md",
+      "result": "unchanged"
+    },
+    {
+      "path": "docs/current/backend-first-batch-sources-draft.md",
+      "result": "unchanged"
+    },
+    {
+      "path": "docs/current/backend-model-operations-draft.md",
+      "result": "unchanged"
+    },
+    {
+      "path": "docs/current/first-batch-browser-api-contract.md",
+      "result": "unchanged"
+    },
+    {
+      "path": "docs/current/first-batch-recovery-design.md",
+      "result": "unchanged"
+    },
+    {
+      "path": "docs/current/model-settings-browser-api-draft.md",
+      "result": "unchanged"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/ACCEPTANCE.md",
+      "result": "unchanged"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/B05.md",
+      "result": "unchanged"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/b05.go.txt",
+      "result": "unchanged"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/frontend.ts.txt",
+      "result": "unchanged"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/migration-design.md",
+      "result": "unchanged"
+    },
+    {
+      "path": "docs/development/2026-09-14-b05-b06-design-closeout-01/README.md",
+      "result": "unchanged"
+    },
+    {
+      "path": "docs/development/2026-09-14-b05-b06-design-closeout-01/decisions.tsv",
+      "result": "unchanged"
+    }
+  ],
+  "result": "PASS"
+}

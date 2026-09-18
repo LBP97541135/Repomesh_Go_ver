@@ -1,0 +1,75 @@
+{
+  "suite": "B04 fixture browser Key and save recovery",
+  "passed": false,
+  "failedStep": "U04.4 empty slot close blocks a later save",
+  "error": "Expected values to be strictly equal:\n\nfalse !== true\n",
+  "events": [
+    {
+      "id": "U04.4",
+      "event": "fixture login opens model settings with a held then empty provider list",
+      "passed": true,
+      "assertions": {
+        "loadingObserved": true,
+        "emptyObserved": true
+      }
+    },
+    {
+      "id": "U04.4",
+      "event": "a dropped 2xx save still recovers the original saveId without storing the key",
+      "passed": true,
+      "assertions": {
+        "saveWrites": 1,
+        "saveId": "e900dbdf-3f82-4711-9917-3d8328565ea9",
+        "droppedStatus": 200,
+        "keyAbsentFromStorage": true,
+        "secretFreeSnapshot": true
+      }
+    },
+    {
+      "id": "U04.4",
+      "event": "close after a committed save returns the original receipt and the list shows the provider",
+      "passed": true,
+      "assertions": {
+        "closeKeptCommitted": true,
+        "providerListed": true
+      }
+    }
+  ],
+  "network": [
+    {
+      "method": "GET",
+      "path": "/api/model-providers",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/model-provider-saves",
+      "status": 200,
+      "code": null,
+      "key": "e900dbdf-3f82-4711-9917-3d8328565ea9"
+    },
+    {
+      "method": "GET",
+      "path": "/api/model-provider-saves/e900dbdf-3f82-4711-9917-3d8328565ea9",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/model-providers",
+      "status": 200,
+      "code": null,
+      "key": null
+    }
+  ],
+  "shots": [
+    "/workspace/docs/development/2026-09-13-b04-closeout-01/browser-b04-02/screenshots/b04_closeout_settings_loading.png",
+    "/workspace/docs/development/2026-09-13-b04-closeout-01/browser-b04-02/screenshots/b04_closeout_settings_empty.png",
+    "/workspace/docs/development/2026-09-13-b04-closeout-01/browser-b04-02/screenshots/b04_closeout_settings_filled.png",
+    "/workspace/docs/development/2026-09-13-b04-closeout-01/browser-b04-02/screenshots/b04_closeout_save_recovered.png",
+    "/workspace/docs/development/2026-09-13-b04-closeout-01/browser-b04-02/screenshots/b04_closeout_settings_after_save.png"
+  ]
+}

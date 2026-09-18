@@ -1,0 +1,13 @@
+Command: go test -count=1 -json ./...
+Database environment: isolated PostgreSQL 17 cluster on 127.0.0.1:55433 with random SCRAM-SHA-256 password authentication.
+Result: PASS, exit 0.
+
+Test action counts:
+- run: 230
+- pass: 229
+- fail: 0
+- skip: 1
+
+The only skipped test was internal/secrets TestRootFileOwner. No PostgreSQL integration test skipped. TestPostgresInvalidCredentialsAreRedacted and TestPostgresTimestamptzScansInUTCOnEveryConnection passed.
+
+Cleanup: the validation process stopped its own PostgreSQL process. It moved the generated pgdata and password file to the desktop trash. Port 55433 no longer listens. The JSON test log and PostgreSQL server log remain in this directory.

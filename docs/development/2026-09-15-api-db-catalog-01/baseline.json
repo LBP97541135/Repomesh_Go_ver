@@ -1,0 +1,65 @@
+{
+  "head": "43d8c2afab1022f991530747ccac0cc99bf0c294",
+  "preexisting_files": [
+    {
+      "path": "docs/current/HANDOFF.md",
+      "sha256": "32a37f8c2b1764328475cce22d1ed5cde290bab3c92ce9e68c0b8d512a420b60"
+    },
+    {
+      "path": "docs/current/README.md",
+      "sha256": "8d6a21eee7bbe7f90b75930978321ea5c5cce552deaa4230da1b481061342138"
+    },
+    {
+      "path": "docs/current/backend-first-batch-persistence.md",
+      "sha256": "dafa12fe75decfced375e7f7eef935e66f0bd1963d44fa88aa39d258051ba4d4"
+    },
+    {
+      "path": "docs/current/backend-first-batch-sources-draft.md",
+      "sha256": "87e4306427237a7ddcd53e63c87f1d055bb294a8825931af71237015b87577f4"
+    },
+    {
+      "path": "docs/current/backend-model-operations-draft.md",
+      "sha256": "c0afd6e7b731563631a13a5cbb396ff7c87502883c45d431c929aa0405585622"
+    },
+    {
+      "path": "docs/current/first-batch-browser-api-contract.md",
+      "sha256": "e5878127545fa38ecf0b9860443937b3965937f14342750856dc4f76286dd524"
+    },
+    {
+      "path": "docs/current/first-batch-recovery-design.md",
+      "sha256": "0dc72a47246607d5864b9e6f7dbd07e5b39f647cb9d59e2e79edb8f422d60612"
+    },
+    {
+      "path": "docs/current/model-settings-browser-api-draft.md",
+      "sha256": "dda8895ee6ad84ea1348e9d833dbafd6c3ac537c7b6834ba6acae0a496661c1c"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/ACCEPTANCE.md",
+      "sha256": "7651680c36f46dbaec715c4416a09888ababed5dff872cdc5cd35e220316d9a6"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/B05.md",
+      "sha256": "1e582b842f25a4078a70bfc8a4e38c147ff7f4dc731af7d2881c7fa13b053300"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/b05.go.txt",
+      "sha256": "c9eba9a1d79b28942f0251af8d32c23faade836dc32b3d2bd4644ff1e984db3a"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/frontend.ts.txt",
+      "sha256": "ff74cdba62be0e513093a74f36efb94c2455e6a5ce99a3ee1ed31e163b817556"
+    },
+    {
+      "path": "docs/development/2026-09-13-b04-b06-design-01/migration-design.md",
+      "sha256": "5e88618af68ee621f760b2d4df3c0c12b3498e61c5c2c4f6f938be6a5d1ad00a"
+    },
+    {
+      "path": "docs/development/2026-09-14-b05-b06-design-closeout-01/README.md",
+      "sha256": "abead86f3460a6158b126b203a127696c5644980282ec7cd1acaef4d54e3a723"
+    },
+    {
+      "path": "docs/development/2026-09-14-b05-b06-design-closeout-01/decisions.tsv",
+      "sha256": "a6647cb5f7962501ba1ca6ecc77749954a57e38a3f992469f95e7771eaed3627"
+    }
+  ]
+}

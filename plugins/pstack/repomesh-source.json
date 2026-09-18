@@ -1,0 +1,16 @@
+{
+  "repository": "https://github.com/michael-denyer/pstack-claude",
+  "commit": "5d8752c3dd620f344ed8f87ec47fbf3b1fb90b7e",
+  "version": "0.9.28",
+  "sourcePath": "plugins/pstack",
+  "scope": "RepoMesh repository only",
+  "installationDate": "2026-09-11",
+  "upstreamFilesModified": false,
+  "additionalFiles": [
+    ".gitattributes",
+    "repomesh-source.json",
+    "LICENSE",
+    "LICENSE-cursor-team-kit",
+    "NOTICE.md"
+  ]
+}

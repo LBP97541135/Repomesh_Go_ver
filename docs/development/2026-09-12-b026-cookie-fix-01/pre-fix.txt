@@ -1,0 +1,18 @@
+Command:
+REPOMESH_TEST_DATABASE_URL='host=/home/xubohan/.local/state/repomesh-b026 port=55432 user=xubohan dbname=postgres sslmode=disable' go test ./internal/access -run '^TestPostgresCallbackOwnsIdentityConfirmationWhileLive$' -count=1 -v
+
+Result before callback.go changed: exit 1
+
+=== RUN   TestPostgresCallbackOwnsIdentityConfirmationWhileLive
+=== RUN   TestPostgresCallbackOwnsIdentityConfirmationWhileLive/login
+    callback_concurrency_test.go:82: worker=true workerErr=<nil> identityCalls=2 stateDuring=confirmed sessions=1/0 revoked=0/0 callbackCookie=false callbackErr=<nil>
+=== RUN   TestPostgresCallbackOwnsIdentityConfirmationWhileLive/reconnect
+    callback_concurrency_test.go:82: worker=true workerErr=<nil> identityCalls=2 stateDuring=confirmed sessions=2/1 revoked=1/0 callbackCookie=false callbackErr=<nil>
+--- FAIL: TestPostgresCallbackOwnsIdentityConfirmationWhileLive (0.77s)
+    --- FAIL: TestPostgresCallbackOwnsIdentityConfirmationWhileLive/login (0.50s)
+    --- FAIL: TestPostgresCallbackOwnsIdentityConfirmationWhileLive/reconnect (0.27s)
+FAIL
+FAIL repomesh.local/repomesh/internal/access 0.781s
+FAIL
+
+The fake provider results in this isolated database regression are test fixtures. They are not external GitHub acceptance evidence.

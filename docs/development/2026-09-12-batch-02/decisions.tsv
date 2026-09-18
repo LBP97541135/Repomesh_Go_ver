@@ -1,0 +1,13 @@
+ts	phase	decision	why	evidence	result
+2026-09-12T11:49:04Z	adoption	记录用户确认 B02 最小实施包，解除采用阻塞	用户回复确认继续；真实 GitHub App 未配置只影响外部验收	../../current/b02-authentication-adoption.md	IN_PROGRESS
+2026-09-12T12:21:12Z	design	采用状态/秘密/GitHub分包和同事务聚合	两个独立候选比较后，避免HTTP拼跨表事务	design.md	A基础并吸收B事务边界
+2026-09-12T12:21:12Z	implementation	身份代次与尝试代次分开，外部POST先持久领取	迟到注销与重复OAuth交换需要不同隔离条件	../../../internal/access/postgres_test.go	首次真实PostgreSQL集成通过
+2026-09-12T12:21:12Z	discovery	保持稳定ID升序，首次503重读保留未交付完成批	遵守已采用排序且避免永远新建空批	../../../internal/access/discovery.go	分页空页和续扫测试通过
+2026-09-12T12:21:12Z	review	修复根切换预检屏障与令牌孤儿清理	独立复核发现并发切根和无引用秘密存活路径	secrets-review.md	回归已补，独立复验中
+2026-09-12T12:21:12Z	review	重连保存连接revision，匿名迟到登录核凭据提交时刻	不同浏览器的旧结果不能覆盖新连接	../../../internal/access/postgres_test.go	两条跨浏览器回归通过标准脚本
+2026-09-12T12:21:12Z	verification	B02脚本只输出LOCAL_VERIFIED	本地替身无法证明真实GitHub App验收	verification-01/checks.json	完整构建/测试/race/迁移/重启/HTTP通过
+2026-09-12T12:36:39Z	review	关闭认证、秘密和部署复核问题	独立复核要求修复跨浏览器迟到写入、无引用秘密和根引用竞态	review-resolution.md	最终认证复核 PASS，无开放 P0/P1/P2
+2026-09-12T12:36:39Z	browser	会话代次变化后停止旧组件查询	新增429浏览器场景复现旧组件消费冷却响应	browser-04/polling-debug.json	修复后最终包 browser-06 九场景通过
+2026-09-12T12:36:39Z	delivery	使用 r1 新标签打包并独立核哈希及配套浏览器	包含最终 UI 修复且保留中间产物和失败记录	release-verification-r1.json	Linux/amd64 包通过；未部署、未提交
+2026-09-12T12:36:39Z	handoff	停止专属数据库并保留 B02 外部验收门槛	本地全部通过；用户已确认真实 App 尚未配置	verification-02/checks.json	B02.1—B02.5 LOCAL_VERIFIED；B02.6 BLOCKED；B03 未开始
+2026-09-12T12:38:09Z	review	完成非主要实现者的最终文档与发布哈希复核	防止实施状态、历史失败和最终通过证据混写	documentation-final-review.md	PASS；五项文档问题关闭；11文件哈希匹配

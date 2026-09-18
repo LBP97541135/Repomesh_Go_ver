@@ -1,0 +1,31 @@
+Commands:
+REPOMESH_TEST_DATABASE_URL='host=/home/xubohan/.local/state/repomesh-b026 port=55432 user=xubohan dbname=postgres sslmode=disable' go test ./internal/access -run '^(TestPostgresCallbackOwnsIdentityConfirmationWhileLive|TestPostgresCallbackDeadlineReleasesIdentityRecovery|TestPostgresReadOnlyIdentityRecoveryAndCookieLoss)$' -count=1 -v
+REPOMESH_TEST_DATABASE_URL='host=/home/xubohan/.local/state/repomesh-b026 port=55432 user=xubohan dbname=postgres sslmode=disable' go test -race ./internal/access -run '^(TestPostgresCallbackOwnsIdentityConfirmationWhileLive|TestPostgresCallbackDeadlineReleasesIdentityRecovery|TestPostgresReadOnlyIdentityRecoveryAndCookieLoss)$' -count=1 -v
+
+Results after callback.go changed: both exit 0
+
+Normal:
+--- PASS: TestPostgresCallbackOwnsIdentityConfirmationWhileLive (0.51s)
+    --- PASS: TestPostgresCallbackOwnsIdentityConfirmationWhileLive/login (0.23s)
+    --- PASS: TestPostgresCallbackOwnsIdentityConfirmationWhileLive/reconnect (0.28s)
+--- PASS: TestPostgresCallbackDeadlineReleasesIdentityRecovery (0.90s)
+--- PASS: TestPostgresReadOnlyIdentityRecoveryAndCookieLoss (0.40s)
+PASS
+ok repomesh.local/repomesh/internal/access 1.821s
+
+Race detector:
+--- PASS: TestPostgresCallbackOwnsIdentityConfirmationWhileLive (0.80s)
+    --- PASS: TestPostgresCallbackOwnsIdentityConfirmationWhileLive/login (0.51s)
+    --- PASS: TestPostgresCallbackOwnsIdentityConfirmationWhileLive/reconnect (0.29s)
+--- PASS: TestPostgresCallbackDeadlineReleasesIdentityRecovery (0.74s)
+--- PASS: TestPostgresReadOnlyIdentityRecoveryAndCookieLoss (0.23s)
+PASS
+ok repomesh.local/repomesh/internal/access 2.797s
+
+Existing replay, logout, reconnect, and cross-browser guards:
+REPOMESH_TEST_DATABASE_URL='host=/home/xubohan/.local/state/repomesh-b026 port=55432 user=xubohan dbname=postgres sslmode=disable' go test ./internal/access -run '^(TestPostgresConcurrentStartAndCallback|TestPostgresReadOnlyIdentityRecoveryAndCookieLoss|TestPostgresReconnectMismatchAndLateLogout|TestPostgresCallbackCannotWinAfterLogout|TestPostgresDelayedAnonymousLoginCannotReplaceReconnectedActor)$' -count=1
+ok repomesh.local/repomesh/internal/access 1.364s
+
+Each command used testdb.Open to create and clean up isolated random databases through the postgres maintenance database. Neither command queried or modified the live repomesh_b026 acceptance database.
+
+The fake provider results in these tests are regression fixtures. They are not external GitHub acceptance evidence.

@@ -1,0 +1,65 @@
+{
+  "checkedAt": "2026-09-13T08:45:33.683598+00:00",
+  "scope": "design artifacts only",
+  "runtimeCases": "NOT_RUN",
+  "originalArchive": {
+    "documents": 17,
+    "hashesMatch": true
+  },
+  "protectedBaseline": {
+    "checked": 461,
+    "allowedChanged": [
+      "docs/current/ASTRA-DESIGN-PREPARATION.md",
+      "docs/current/DEVELOPMENT-START.md",
+      "docs/current/HANDOFF-BACKEND-DESIGN.md",
+      "docs/current/HANDOFF-PAGE-API-DESIGN.md",
+      "docs/current/HANDOFF.md",
+      "docs/current/IMPLEMENTATION-PLAN.md",
+      "docs/current/NEXT-TASK-B04-PROMPT.md",
+      "docs/current/README.md",
+      "docs/current/backend-first-batch-persistence.md",
+      "docs/current/backend-first-batch-sources-draft.md",
+      "docs/current/backend-model-operations-draft.md",
+      "docs/current/first-batch-browser-api-contract.md",
+      "docs/current/issue-configuration-binding-design.md",
+      "docs/current/issue-page-create-api-contract.md",
+      "docs/current/model-project-apply-design.md",
+      "docs/current/model-settings-browser-api-draft.md",
+      "docs/current/project-development.md"
+    ],
+    "violations": []
+  },
+  "newLocalLinks": {
+    "count": 134,
+    "errors": [],
+    "anchorMethod": "heading Unicode punctuation stripping; no browser renderer run"
+  },
+  "goDeclarationSyntax": {
+    "exitCode": 0,
+    "output": "{\"declarations\":433,\"packageSections\":31,\"packages\":[\"secrets\",\"models\",\"projects\",\"sources\",\"web\",\"main\",\"access\",\"access\",\"main\",\"web\",\"web\",\"projects\",\"modelbudget\",\"models\",\"sources\",\"projects\",\"models\",\"sources\",\"web\",\"access\",\"projects\",\"models\",\"main\",\"models\",\"access\",\"issues\",\"web\",\"access\",\"github\",\"access\",\"web\"]}",
+    "errors": "",
+    "typeCheck": "NOT_RUN: multi-package declarations have no product bodies"
+  },
+  "typescriptDeclarations": {
+    "exitCode": 0,
+    "output": "",
+    "errors": "",
+    "command": "existing local tsc --strict --noEmit --skipLibCheck --target ES2022 --module ESNext --moduleResolution bundler --lib ES2022,DOM temporary-design.ts"
+  },
+  "taskWhitespace": {
+    "exitCode": 1,
+    "output": "",
+    "errors": "",
+    "passed": true,
+    "note": "no-index can return 1 for changed paths; whitespace violations produce diagnostics"
+  },
+  "gitState": {
+    "head": "ad9a49b2fe3b5fe743a65c838ded6cb022e79363",
+    "branch": "main",
+    "initialStatusPreserved": true,
+    "unexpectedNewStatus": [],
+    "preexistingStatusChanges": [],
+    "excludedConfigBytes": "NOT_READ: protected by no-write scope and status comparison, not content hashes"
+  },
+  "passed": true
+}

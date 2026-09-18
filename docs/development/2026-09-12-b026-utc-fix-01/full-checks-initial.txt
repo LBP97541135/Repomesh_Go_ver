@@ -1,0 +1,15 @@
+Passed:
+- go build ./...
+- go test ./...
+- go vet ./...
+- npm --prefix web run typecheck
+- npm --prefix web run build
+- git diff --check
+
+Release build:
+pwsh -NoProfile -File scripts/build.ps1 -Version 0.2.0-b026-utc-20260912-r2
+Result: PASS
+Bundle: /home/xubohan/projects/Repomesh_Go_ver/dist/repomesh-0.2.0-b026-utc-20260912-r2
+release.json SHA-256: 5af0545707a9feb020436b56dfab407255a6b8d51046eeb4ed7f51bc41c76152
+
+All three packaged binaries reported version 0.2.0-b026-utc-20260912-r2. The r1 bundle remained present and its release.json SHA-256 remained eb421e6d7c901aad20dbfce071b685433b1aa9541c3b661be700dd320df4cdb4.

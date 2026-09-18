@@ -1,0 +1,753 @@
+{
+  "suite": "B03 frontend browser acceptance",
+  "passed": false,
+  "failedStep": "UI03 dropped update response and same-key recovery",
+  "error": "locator.isDisabled: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: '添加仓库' })\u001b[22m\n",
+  "events": [
+    {
+      "id": "UI01",
+      "event": "two-step create, receipt, list, and detail",
+      "passed": true,
+      "assertions": {
+        "firstStatus201": true,
+        "noIssueOrRunSuccess": true
+      }
+    },
+    {
+      "id": "UI02",
+      "event": "profile pinning, explicit add, pagination selection, metadata-only update, and no-change save",
+      "passed": true,
+      "assertions": {
+        "originalConfigurationRevisionPresent": true,
+        "selectionSurvivedSearchAndEmptyCursorPage": true,
+        "metadataPreservedPinnedConfiguration": true,
+        "explicitConfigurationRebound": true,
+        "noChangeRevisionStable": true
+      }
+    },
+    {
+      "id": "UI02",
+      "event": "inherit remains pinned until an explicit inherit update",
+      "passed": true,
+      "assertions": {
+        "inheritSelectionStored": true,
+        "metadataKeptConfigurationRevision": true,
+        "explicitInheritRebound": true
+      }
+    },
+    {
+      "id": "UI02",
+      "event": "restricted saved scope survives metadata edit and old update receipts stay stable",
+      "passed": true,
+      "assertions": {
+        "fullRepositoryReplacementAbsent": true,
+        "configurationAbsent": true,
+        "restrictedIdentityHidden": true,
+        "completeScopeRestored": true,
+        "oldUpdateReceiptStable": true,
+        "oldUpdateReadCount": 2
+      }
+    },
+    {
+      "id": "UI03",
+      "event": "404 before release and same-key recovery after a dropped create response",
+      "passed": true,
+      "assertions": {
+        "precommitStatus": 404,
+        "precommitCode": "PROJECT_CREATION_NOT_FOUND",
+        "crossTabInputAbsent": true,
+        "originalTabInputPresent": true,
+        "requestHeldBefore404": true,
+        "dropResponseInjected": true,
+        "browserFinalWriteStatus": 200,
+        "originalKeyKept": true,
+        "createWriteCount": 1,
+        "recoveredWithInput": true,
+        "recoveredWithoutInput": true
+      }
+    },
+    {
+      "id": "UI03",
+      "event": "old receipt remains immutable after later updates",
+      "passed": true,
+      "assertions": {
+        "originalRevisionStable": true,
+        "originalTimeStable": true
+      }
+    }
+  ],
+  "network": [
+    {
+      "method": "GET",
+      "path": "/api/repositories",
+      "status": 503,
+      "code": "RESULT_UNCONFIRMED",
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects",
+      "status": 201,
+      "code": null,
+      "key": "01b11538-a9cb-49e0-8691-d712672cbab8"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/repositories",
+      "status": 503,
+      "code": "RESULT_UNCONFIRMED",
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": "fa25d118-3628-4118-8ec4-8150322df6aa"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": "132e2fc9-7f95-4940-a889-b77a3883946b"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": "148d920f-7988-41b5-844c-91a9ba7f7aaf"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": "b90d885c-30d7-43f3-bdb4-3ad010c85f77"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/repositories",
+      "status": 503,
+      "code": "RESULT_UNCONFIRMED",
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects",
+      "status": 201,
+      "code": null,
+      "key": "f5bbe2be-2ecb-4a51-b730-cda71f5310e8"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/65e18a9b-9e77-4b0c-be0a-d855520d1937",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/65e18a9b-9e77-4b0c-be0a-d855520d1937",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/65e18a9b-9e77-4b0c-be0a-d855520d1937/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/65e18a9b-9e77-4b0c-be0a-d855520d1937",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/65e18a9b-9e77-4b0c-be0a-d855520d1937/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/projects/65e18a9b-9e77-4b0c-be0a-d855520d1937",
+      "status": 200,
+      "code": null,
+      "key": "f132e4e4-a380-491b-853f-dd42645fd2c3"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/65e18a9b-9e77-4b0c-be0a-d855520d1937",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/65e18a9b-9e77-4b0c-be0a-d855520d1937",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/65e18a9b-9e77-4b0c-be0a-d855520d1937/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/65e18a9b-9e77-4b0c-be0a-d855520d1937",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/65e18a9b-9e77-4b0c-be0a-d855520d1937/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/projects/65e18a9b-9e77-4b0c-be0a-d855520d1937",
+      "status": 200,
+      "code": null,
+      "key": "3484bb7a-80a5-4a5a-a856-8412c9ae6d62"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/65e18a9b-9e77-4b0c-be0a-d855520d1937",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/65e18a9b-9e77-4b0c-be0a-d855520d1937",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": "09e0fd9a-88da-44c4-9243-6e0761901ad5"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb/updates/b90d885c-30d7-43f3-bdb4-3ad010c85f77",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb/updates/b90d885c-30d7-43f3-bdb4-3ad010c85f77",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/repositories",
+      "status": 503,
+      "code": "RESULT_UNCONFIRMED",
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/project-creations/002d25a5-0a9b-4021-b2e4-0fd415c6fb1b",
+      "status": 404,
+      "code": "PROJECT_CREATION_NOT_FOUND",
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/project-creations/002d25a5-0a9b-4021-b2e4-0fd415c6fb1b",
+      "status": 404,
+      "code": "PROJECT_CREATION_NOT_FOUND",
+      "key": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects",
+      "status": 200,
+      "code": null,
+      "key": "002d25a5-0a9b-4021-b2e4-0fd415c6fb1b"
+    },
+    {
+      "method": "GET",
+      "path": "/api/project-creations/002d25a5-0a9b-4021-b2e4-0fd415c6fb1b",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/1fae070f-2bc7-428c-9b96-14225dcb009a",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/project-creations/002d25a5-0a9b-4021-b2e4-0fd415c6fb1b",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/1fae070f-2bc7-428c-9b96-14225dcb009a",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/project-creations/01b11538-a9cb-49e0-8691-d712672cbab8",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/f4479474-0897-43a4-aa29-09a2287b8cdb/repositories",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/repositories",
+      "status": 503,
+      "code": "RESULT_UNCONFIRMED",
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/configuration-profiles",
+      "status": 200,
+      "code": null,
+      "key": null
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "observedOn": "2026-09-12",
+  "expectedAccountBasis": "Account holder logged into the dedicated Windows Chrome profile used for both GitHub authorization and this settings page check.",
+  "githubSettingsPage": "/settings/apps/repomesh-bohan-b026/installations",
+  "githubPageMeta": {"user-login": "catbobyman", "octolytics-actor-id": "137759882"},
+  "databaseReadOnlyAccount": {"id": "16198e14-7249-4cc2-a15e-57cd8b568874", "github_id": 137759882, "display_name": "catmem"},
+  "browserSession": {"status": 200, "user": {"id": "16198e14-7249-4cc2-a15e-57cd8b568874", "displayName": "catmem"}},
+  "sameGitHubNumericID": true,
+  "sameLocalUserID": true,
+  "resultURL": {"origin": "https://repomesh.bohanxu.me:8443", "path": "/auth/result/0a385caf-1869-411f-a01c-d14556f086d0", "hasQuery": false, "hasFragment": false},
+  "controlInspectionLimitation": "The first inspection command encountered navigation while reading the page. A separate successful inspection confirmed the final origin, path and absence of query/fragment. Neither failure nor redirects were treated as proof of login without API and database checks."
+}

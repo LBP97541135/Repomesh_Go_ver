@@ -1,0 +1,88 @@
+# 业务计划版本补模：新增一表，总数34
+
+2026-09-15，Astra设计。根代理已采纳新增独立business_plan_versions，B10/B11共12表，B05—B11总34。此项修复原目录对已采用执行前置的漏模，不是把审批产品提前开发。未修改仓库、未运行数据库或执行系统。
+
+依据是ADR0003首部与§1.1—1.6、ADR0006当前YOLO补充、ADR0015已采用条目、Graph§5—6。当前没有等待人的批准，但仍分别记录计划版本、自动许可、逐目标应用与正式生效。既定范围内下一轮沿原业务版本，不能把上游DAG修订当业务Plan Version。
+
+## 1. 表、拥有者和计数
+
+新增`repomesh_execution.business_plan_versions`，归B10基础表，写入者为Issue计划用例/可信协调器。B11跨轮及业务计划变更复用。已有execution_records增加两个范围明确的子型：`business_plan_decision`持许可/生效操作及结果，`business_plan_target`持某次激活的逐目标固定关联。它们不是新物理表；所有身份与关系有型保存，不把目标或决定列表塞JSON。原execution_records其他子型的round_id非空及其原分支约束保持。
+
+计数manifest必须将此表标为`new_required_dependency`，来源“原B10/B11引用而未建模的已采用业务Plan Version，ADR0003/0015、Graph§5”。不能从原20表映射中虚构一个旧表名，净新增1。因此B10从9增到10，B11仍2，执行域12，总34。原B06物理六表不增加。
+
+## 2. business_plan_versions列及不变量
+
+| 字段组 | 列与约束 |
+| --- | --- |
+| 身份 | id text PK；project_id、issue_id非空；version_index bigint>0；base_plan_version_id text可空；created_by/created_at非空。UNIQUE(project_id,issue_id,id)、UNIQUE(issue_id,version_index)。project/Issue FK到B06 issues(project_id,id)，base用(project,Issue,base_id)复合自FK。 |
+| 提案原操作 | proposal_operation_id text非空全期唯一；proposal_schema_version integer；proposal_canonical_input bytea；proposal_exact_input bytea；proposal_committed_at；proposal_removed_at可空。所有操作结果身份就是本版本id/归属/index/time，固定重放，不按当前许可状态重建原提案结果。 |
+| 业务内容 | plan_schema_version、canonical_plan bytea或封闭版本化业务内容、plan_digest、scope_repository_ids text[]、验收依据与其稳定版本、适用预算/时限政策确切引用、repair_round_limit/diagnostic_round_limit/environment_recovery_limit非负整数。只描述业务目标/范围/依赖/验收与上限，不复制仓内执行DAG。范围非空、无重复，全部同Issue工作范围；DB触发器核B06 repository_scopes(work_issue_id,repository_id)。字段长度/数组上限按现有Issue与业务契约，不新增任意产品上限。 |
+| 当前摘要 | current_permission_record_id、current_activation_record_id、effective_activation_record_id可空，全部复合FK指向同project/Issue/plan的business_plan_decision子型。permission_revision/activation_revision bigint>=0。摘要只是已提交记录的索引，不能直接写“authorized/effective”而没有来源。 |
+| 激活责任 | activation_work_id text可空全期唯一；active_activation_operation_id text可空；activation_work_state、claim_generation bigint、lease_owner/lease_until、next_run_at、blocked_reason。作用域恒为本版本；cause为稳定激活操作ID。必须全空或完整责任组，代次/租约按数据库时间围栏。当前激活完结/取消后，新激活可有新操作与工作ID，旧责任和结果留decision记录。 |
+| 清理 | removed_at/redacted_at可空；敏感正文/原输入可清空，身份、提案键、base、政策/范围/版本关联、许可/生效决定和外部核查责任保留。移除后不能再次激活。 |
+
+base关系不可修改，禁止自环/祖先环；在同Issue锁下分配version_index，回滚允许间隙，不靠MAX+1无锁分配。可用Issue新字段next_business_plan_version_index或本表在Issue锁下的明确计数方案；推荐在B06新增Issue行保存计数，旧36表不动。各业务版本正文、范围、验收、约束和base提交后不可更新，改内容生成新版本。内部变更说明/原输入属于可清理正文，不因“不可变”永久保留。
+
+预算政策引用必须使用B05最终有型键/版本；不假设B05旧草案表名。若尚未采用可执行运行预算/时限权威，新计划可保存为未获准，自动许可返回blocked/未确认责任，不伪造authorized。上限来自有效计划和政策，技术换图、换名称或新轮都不清零Issue/计划适用的累计计数和消费。循环计数由真实round历史按purpose及已采用规则计算，不新增第二份消费账本。
+
+## 3. business_plan_decision：同版本多次许可与操作恢复
+
+此execution_records子型要求`project_id/issue_id/business_plan_version_id`非空且真实复合FK到新表。round_id允许空，仅表示尚未有某轮；若填则必须同Issue。attempt/repository/上游operation_id及其他无关字段全空。子型额外普通UNIQUE(id,project_id,issue_id,business_plan_version_id,record_kind)供版本摘要和目标关系引用。
+
+额外列：`plan_operation_id text`、`plan_action text`、`operation_schema_version`、`operation_canonical_input bytea`、`operation_exact_input bytea`、`operation_committed_at`、`operation_removed_at`、`expected_permission_revision`、`expected_activation_revision`、`plan_decision`、`trusted_actor/service`、`authorization_context_revision text`、`policy_basis_versions`的有型引用、`cause_permission_record_id`、`activation_operation_id`、`activation_work_id`、`previous_effective_version_id`以及`reason_code`。不同action使用完整分支CHECK；不把上述列都要求对每种action非空。
+
+当前action仅覆盖YOLO必需动作：evaluate_permission、begin_activation、confirm_effective、invalidate_activation、supersede_effective。人审批、审批人资格、模式切换等仍延期。evaluate_permission的结果authorized/rejected记录确定事实；权限未知只保留现有责任待核，不提交一个假rejected。明确拒绝必须保留原因和所核版本。授权decision不等于实际Git/执行凭据，动作前仍核当前权限。
+
+`UNIQUE(plan_operation_id) WHERE record_kind='business_plan_decision'`覆盖removed。同操作同schema规范输入返回原不可变决定，异输入冲突；操作身份不由claim_generation组成。已提交结果先按当前内容范围/可信主体核读权，再重放；旧权限不能写新结果，但当前可信入口可查原结果。未提交时没有独立“已受理可能成功”行；主库COMMIT未知查原operation ID，404仍可能迟到。
+
+许可评估可以对同一不可变版本多次发生，每次是独立逻辑operation和新append-only决定，版本current_permission_record_id/permission_revision在同Issue/版本锁下更新；不覆盖旧许可/拒绝记录。重试同次判断不造新ID。同版本因策略变化重新评估，是明确新逻辑操作，不是因HTTP超时或租约过期重造授权。
+
+begin_activation的activation_operation_id等于本行plan_operation_id，其他后续动作以activation_operation_id引用该稳定begin身份，其自身plan_operation_id独立。begin_activation同事务记录唯一激活操作和固定cause_permission_record_id、完整目标行、activation_work稳定责任，并提高activation_revision。版本当前可只有一项未终结激活责任；通过版本行锁+当前激活操作匹配实现，不因不同operation ID允许并行改写同上游目标。confirm_effective只保存已核全部目标的最终本地事实，不发任何外部写。application unknown/失败由逐目标原事实与work状态保存，重查原激活operation，不产生另一个“激活重试”身份。
+
+## 4. business_plan_target：完整目标集合与实际绑定
+
+用execution_records明确子型逐行保存激活所需目标，不加一张映射表。列为project_id、issue_id、business_plan_version_id、activation_operation_id、activation_decision_record_id、round_id、repository_id、plan_revision_id、expected_plan_set_revision、expected_pointer_revision、binding_mode（apply或verify_unchanged）。本子型round/repository/plan均非空、attempt为空；与只在business_plan_decision可空round的边界一致。
+
+`UNIQUE(activation_operation_id,round_id,repository_id)`，同版本/激活决定复合FK，plan_revision的(id,round_id,issue_id,repository_id)实际FK，round/Issue FK及B06 work scope FK。绑定的plan revision是已有不可变上游安排，不因为同一技术安排被新业务许可接受就重写其历史。verify_unchanged仅允许在本次业务版本范围/约束下证明旧安排仍满足且真实读回一致；不是免检no-op，也不新增或伪造上游应用成功。
+
+begin_activation提交完整目标集合，数量和集合摘要写decision有型字段，并由延迟触发器重新按这些目标行计算。目标行在begin事务后禁止增删改，不能后续悄悄缩小“全部目标”的定义。集合必须从新业务计划范围、受影响Project和当前计划映射在事务内推导并逐项验证，不让调用者只提交成功的一仓。第一版覆盖全部必要目标；变更版保留未变目标的本次verify_unchanged依据并区分真正需要apply的目标。尚不能确认必要集合时不得begin或宣称effective。
+
+应用目标的外部操作身份、规范化输入、可能发送标记、读回与recovery继续归plan_revisions应用组。verify_unchanged产生真实plan_observation。给plan_observation补`business_plan_activation_operation_id`与`business_plan_target_record_id`，以明确复合FK绑定本次激活和固定目标；在目标行固定后取得证据时不修改目标根，只追加该观察。confirm_effective决定保存`confirmed_readback_record_ids text[]`及证据集合摘要，由DB触发器展开核对每个固定目标恰有一份本次采用的真实读回，所有ID必须指向同激活/目标的plan_observation；记录根禁止删除/改绑，因此该封闭引用数组可保留准确采用依据。它不是任意payload或新的配置权威。应用先后顺序、上游resume/replan或窄补丁等未采用传输方案保持未定，本表只声明必须有证据。
+
+confirm_effective在锁下复核完整目标集合和所有当前计划集合CAS。每项apply目标要求readback_ok且recovery none/recovered，verify_unchanged要求本次真实读回匹配且仍适用；任一unknown/缺失/错目标均不得换有效指针。受影响范围持续停新派工，不能把已成功目标回滚为未成功，也不能盲目恢复已被改写的旧安排。
+
+## 5. 当前有效计划、跨轮与下游关系
+
+选择唯一权威：B06新issues加`current_business_plan_version_id text NULL`、`business_plan_pointer_revision bigint NOT NULL DEFAULT 0`。前者通过(project_id,id,current_business_plan_version_id)可延迟FK到新表(project_id,issue_id,id)；新业务计划表已反向FK到Issue，首次建Issue时指针空，不影响P1。只在confirm_effective同事务写该指针和决定、effective摘要。旧版本生效事实保留，新版本成功后追加supersede决定，不把旧已生效时间擦掉。第一版还未effective时指针为空，任何真实业务Delegate都被阻止。
+
+rounds增加`business_plan_version_id`和`business_plan_binding_revision`，已有有效版本时默认从Issue当前有效版本固定，跨轮在原范围/上限内复用。首次计划或新业务版本可先创建state=planned且明确引用该候选版本的轮次/技术安排以完成准备和激活目标登记；这不要求候选已经effective，只有真正Delegate必须核effective，从而避免首版激活需要round而round又要求已激活的循环。业务变更可以在明确激活事务将当前round的执行依据换到新版本并提升binding_revision，同时记录决定；这是显式业务版本变更，不是普通OpenNextRound自动更换。历史plan/task/Attempt均保留实际依据，不能以改round当前指针改写过去。
+
+因此，plan_revisions/Attempts增加各自不可变的`business_plan_version_id`，用(project_id,issue_id,version)或等效Issue版本复合FK；不能让历史plan通过带round当前version的复合FK绑定到可变指针，否则版本切换会被历史行阻断。新安排/Attempt写入时通过受控事务检查实际effective版本或本次待激活目标绑定。旧技术安排用于新业务版本时由本次business_plan_target的verify_unchanged关系证明，不原地重写plan最初来源。
+
+Delegate读取Issue当前effective版本、round绑定与完整current计划集合，并核当前版本目标关系包含该技术安排、工作范围/验收/预算/循环限制仍满足；Attempt记录实际本次使用的版本和activation决定。可执行证明不只依赖“旧plan曾有效”。OpenNextRound默认沿当前获准版本，不因修复/诊断/环境恢复增加版本，也不重置累计限额。验证记录/combination_selection补business_plan_version_id和验收依据修订，保留当次真实依据。
+
+## 6. 锁序、当前权限和恢复
+
+沿B06/B09前缀principal(binding/session/account)→project/必要connection→conversation（需要时）→Issue；其后business_plan_versions按id→rounds按id→plans按repo/id→tasks→Attempt→Candidate→capacity scope locks→resource key locks→reservation/operation/records。操作原结果预查只读最小定位，不能先锁decision/record再反拿Issue。生效事务需旧新业务版本时先收齐ID再排序。权限外部观察在事务外，锁后核主体代次/准确仓库集合和范围修订，超时回滚重核。
+
+所有权限/策略判断都不扩大内容读权。计划正文读取按Issue完整内容范围，并包含其引入的材料；scope扩大与发布同事务，不能只核当前工作仓。旧authorized记录是当时的许可事实，实际Apply/Start仍核当前actor、权限、政策、预算、固定配置及目标。明确失权立刻阻止新的本地控制/外发，不把旧许可删掉；权限unknown进入blocked/retry待核，不写rejected、effective或取消成功。
+
+权限恢复后先核原激活操作和已有逐目标外部事实；同输入/同版本且原许可依据仍适用时恢复同责任。政策/上下文改变需要新的明确evaluate_permission决定，不能复用旧凭据或替换原operation输入。已有外发未知必须先核原外部操作，新的许可也不能授权盲目重发、换operation ID或清除旧资源占用。部分成功保留，只有全部必要目标一致才变effective。
+
+activation work领取保存owner/generation/leaseUntil，下次核查时间可扫描，结果CAS须匹配未失效租约。租约变化只换本地处理者，不换activation operation及目标集合。工作完成/明确失效后保留原work/operation的decision归属；新激活是明确新业务操作，不能把旧行改成另一目标。
+
+## 7. 正文清理与永久回执占位
+
+计划移除/业务源清理取得相同Issue/版本/round锁，撤销未来本地接续资格、提升permission/activation/pointer修订并追加invalidate决定；若当前有效版本失去可用业务源，不允许指针继续授权新派工。已有Attempt、可能外发应用/启动及资源的停止/撤销/回收仍沿原协议，不能用计划removed证明外部停止。
+
+白名单允许清理plan正文、proposal exact/canonical/digest、decision operation exact/canonical、含公开文本的结果/解释及派生副本；各原操作设置removed占位。保留ID、作用域、源/基准版本、版本index、仓库/政策/上限关联、许可/生效枚举与时间、目标关系、外部身份及最小待核证据。需要保留的字段必须不含可恢复已清正文的副本。正式Git SHA/产物版本与创建正文低熵digest分别处理。
+
+项目期间所有proposal_operation_id/plan_operation_id不复用。removed当前有权410先于比较输入，无权隐藏404；查询结果不能改成“尚未提案”导致旧请求复活。正文列白名单清理不改变已提交决定与目标身份；证据正文若外置，清理附件并追加retention；若内联，则受限清空正文列并保留redacted标志。不能把append-only解释为永远保存敏感原文。
+
+## 8. 作者需同步和验收
+
+在B10表清单新增business_plan_versions；execution_records两个明确子型/键/分支/字段；B11声明复用并更新Evaluate/OpenNextRound/激活门禁。B06新Issue行增加有效指针/revision/编号counter并与主CS/P1无冲突；B09目标核验只引用有效业务版本事实，不因resolution已确定直接派工。Go内部提案的PlanRound/Delegate/OpenNextRound明确业务版本/预期修订或可信加载方式，不变更已采用浏览器API。
+
+同步manifest将新增表来源单列new_required_dependency，旧20映射仍20→原11承载，另加本必需表变12。同步current Graph、首批持久化及采用说明，ADR0003只补当前物理映射，不改YOLO/后续审批边界；原b11把PlanVersion指向B06的错误归属改为本表。
+
+静态/未来SQL验证至少覆盖：同提案操作并发唯一；同版本多次许可评估保留历史；旧许可不因权限恢复自动可写；第一版未生效不能Delegate；双目标一成功一unknown不能effective；目标集合减少/替换被拒；同组合新验收绑定真实业务版本；旧技术安排在新版本下无verify_unchanged证明不能复用；跨轮在同版本下不重置限额；旧业务版本/旧Attempt历史不被改指针覆盖；清理旧键不复活且未知外发责任保留。全部仍是设计断言，未运行。

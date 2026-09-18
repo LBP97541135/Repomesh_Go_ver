@@ -1,0 +1,11 @@
+{
+  "threadId": "01a0955a-370c-7a03-9f99-2dbf0117d1c1",
+  "hostId": "remote-ssh-discovered:repomesh-wsl",
+  "turnId": "01a0955e-310b-73a3-87b5-6b99ce4c5004",
+  "status": "completed",
+  "expectedReply": "WSL_AUTH_OK",
+  "actualAssistantReplyVerified": true,
+  "verifiedFrom": "remote task rollout",
+  "timestamp": "2026-09-12T11:26:18.835Z",
+  "productCodeChanged": false
+}

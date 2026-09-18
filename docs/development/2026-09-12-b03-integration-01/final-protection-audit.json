@@ -1,0 +1,918 @@
+{
+  "status": "PASS_PROTECTION_AUDIT",
+  "root": "/home/xubohan/projects/Repomesh_Go_ver",
+  "head": "ad9a49b2fe3b5fe743a65c838ded6cb022e79363",
+  "expectedHead": "ad9a49b2fe3b5fe743a65c838ded6cb022e79363",
+  "indexHasNoStagedDiff": true,
+  "i0Baseline": {
+    "archivedPathCount": 427,
+    "scopePathCount": 423,
+    "unchangedPathCount": 363,
+    "changedPathCount": 60,
+    "allowedCandidateCount": 60,
+    "outsideAllowedCount": 0,
+    "outsideAllowedPaths": [],
+    "sourceBaselineJsonSha256": "027af830da5f8b948687e0dd78b527872a2668b9c81bfede41f9491e0997361d",
+    "i0CandidatesSha256": "046a699d9488c6d08cdc905fef32bf14e73ae57b18bea6d81a8315bdca069c4b",
+    "i1OutputSha256": "d70961ea517665103fde817c18cc19192ac3d4baf6c944d209d2fb8c1bd60ea2",
+    "i0ChecksSha256": "c4c6299f5dfbed02edca5b61136c5b45ca64311f82edb11c3dbe0da6f7bed18a"
+  },
+  "candidates": {
+    "total": 60,
+    "sourceExact": 53,
+    "adjudicated": 7,
+    "progressionCounts": {
+      "ASTRA_ADJUDICATED_FINAL_REVIEW_STATUS": 6,
+      "ASTRA_ADJUDICATED_I1_UNCHANGED": 1,
+      "ASTRA_APPROVED_I2_CREATE_OPERATION_LOCK": 1,
+      "ASTRA_APPROVED_I2_PG_HTTP_FIXTURE": 1,
+      "ASTRA_APPROVED_I2_PROFILE_ROWS_CLOSE": 1,
+      "ASTRA_APPROVED_I2_RESOURCE_NOT_FOUND_CLEAR": 1,
+      "ASTRA_APPROVED_I2_SETTINGS_LOCK_AND_CLEAR": 1,
+      "SOURCE_EXACT_UNCHANGED_AFTER_I1": 48
+    },
+    "unauthorizedMismatchCount": 0,
+    "perPathEvidence": "final-protection-audit.tsv"
+  },
+  "protected": {
+    "codexConfig": {
+      "path": ".codex/config.toml",
+      "sha256": "58c3d47686d46de2074c7acc7bb897d41807b4ed89fad8d20482448048e5cbad",
+      "expectedI0Sha256": "58c3d47686d46de2074c7acc7bb897d41807b4ed89fad8d20482448048e5cbad",
+      "contentRead": false
+    },
+    "secondAccountPause": {
+      "path": "docs/development/2026-09-12-b026-second-account-02/PAUSE.md",
+      "sha256": "3da54c323316e1ae8a2f5ea131c85495cc409958315917886b8e87341b9d7cbc",
+      "expectedI0Sha256": "3da54c323316e1ae8a2f5ea131c85495cc409958315917886b8e87341b9d7cbc",
+      "contentRead": false
+    }
+  },
+  "releases": {
+    "oldDirectories": [
+      {
+        "path": "/home/xubohan/projects/Repomesh_Go_ver/dist/repomesh-0.1.0-b01-wsl-20260912",
+        "fileCount": 11,
+        "inventorySha256": "9eeb4aa0eba6cba430615effc92a45c7ad757c71d37590172001bee54267d663"
+      },
+      {
+        "path": "/home/xubohan/projects/Repomesh_Go_ver/dist/repomesh-0.2.0-b02-local-20260912",
+        "fileCount": 12,
+        "inventorySha256": "9369e8a9004fde09322fba930bcfb358929388872c1fa5b7767da9cfdbae4a5f"
+      },
+      {
+        "path": "/home/xubohan/projects/Repomesh_Go_ver/dist/repomesh-0.2.0-b02-local-20260912-r1",
+        "fileCount": 12,
+        "inventorySha256": "9b960e062009250a837fb2a8ee14daaaab3652ad4daf0f7775f68f9e131b5f4b"
+      },
+      {
+        "path": "/home/xubohan/projects/Repomesh_Go_ver/dist/repomesh-0.2.0-b026-cookie-20260912-r3",
+        "fileCount": 12,
+        "inventorySha256": "d13b6b891373ef0d2446d0da162d1f443a19f76984a174c66f53fe9052e82ea3"
+      },
+      {
+        "path": "/home/xubohan/projects/Repomesh_Go_ver/dist/repomesh-0.2.0-b026-utc-20260912-r2",
+        "fileCount": 12,
+        "inventorySha256": "91e06cf746bda098a0cd837dbe5feb2e95ca9d87ce9e1183779c8d53bc741544"
+      }
+    ],
+    "oldDirectoryCount": 5,
+    "oldFileCount": 59,
+    "newIndependentDirectory": {
+      "path": "/home/xubohan/projects/Repomesh_Go_ver/dist/repomesh-0.3.0-b03-integrated-20260912-r1",
+      "fileCount": 12,
+      "inventorySha256": "148fe182f2cda973240baf213820bd52d1aaf346625d9f54bb86f74137e02b76"
+    },
+    "totalDirectoryCount": 6
+  },
+  "b02R3Processes": [
+    {
+      "pid": 287037,
+      "command": "/home/xubohan/projects/Repomesh_Go_ver/dist/repomesh-0.2.0-b026-cookie-20260912-r3/bin/repomesh-web --addr 127.0.0.1:8443 --assets /home/xubohan/projects/Repomesh_Go_ver/dist/repomesh-0.2.0-b026-cookie-20260912-r3/web/dist --auth-config /home/xubohan/.config/repomesh/auth.json"
+    },
+    {
+      "pid": 287038,
+      "command": "/home/xubohan/projects/Repomesh_Go_ver/dist/repomesh-0.2.0-b026-cookie-20260912-r3/bin/repomesh-coordinator --auth-config /home/xubohan/.config/repomesh/auth.json"
+    }
+  ],
+  "integrationEvidence": [
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/FINAL-INDEPENDENT-REVIEW.md",
+      "sha256": "604669b6d8e06b20b3244aa6f8bbe21a88bd7a762319913ee8f0e8d18e600a7c",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/README.md",
+      "sha256": "d907a879857a31955ec268109d2db6d5110b2c92d7774b3ce361917488b4dd34",
+      "category": "integration_record"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/backend-verification-20260913-061132/checks.json",
+      "sha256": "9f62b109eafced39f52e378971fe903c4c8d3875d4c59a9262301811f70e9504",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/backend-verification-20260913-061132/postgres-output.txt",
+      "sha256": "930ba09946c9988512cb68fe3ec537fda32723488faeafeba35894eebad3ce1d",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/backend-verification-20260913-062605/checks.json",
+      "sha256": "a5473d4131c983ea2fbb0148eba65c75ded3e6f29e1f3325b09d562f21cac066",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/backend-verification-20260913-062605/postgres-output.txt",
+      "sha256": "c73fef23e4007a3d4dffc96e1c82b7d9fcc5b90023961b2ca6322f70f16f8f2e",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-acceptance.mjs",
+      "sha256": "92f0daf77c9c61aa60e2b5854d693b9e25042249edfe5da224f561da0117d5e7",
+      "category": "validation_script"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-empty-20260913-062531/browser-result.json",
+      "sha256": "7c0bd1d7a8008c5ba4f993d063431ec1aa4d9c926c196f0bd9c029f9e14dae58",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-empty-20260913-062531/browser-stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-empty-20260913-062531/browser.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-empty-20260913-062531/cleanup.txt",
+      "sha256": "7b97286d38a2362ac309ffb361381ea631cd5d3154a34a0a53c4f2a5f844ac14",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-empty-20260913-062531/go-test.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-empty-20260913-062531/go-test.txt",
+      "sha256": "97e44f9d7318ed999d2deb5cb8ddf2596c76fce84ff32e85a903584e3e7e88af",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-empty-20260913-062531/initdb.txt",
+      "sha256": "96d54e010041c970c7cd6d4e89d934ba1f0f4a15158da9a7a3367f0e0d69ee5e",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-empty-20260913-062531/manifest.json",
+      "sha256": "4284b00ce4fbcf98d22c9ac2d66fb4da884c5f8f281f7a0abeddce7606f13907",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-empty-20260913-062531/network-whitelist.json",
+      "sha256": "741d3e62740ec5e6afb9ef063e4dde1473c4eabf3186900d1bc1a1b2c37c4e42",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-empty-20260913-062531/postgres-start.txt",
+      "sha256": "66afd0411ccc09366e99fdd99b85f21899c8d2d064f5835126859618802153ad",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-empty-20260913-062531/run-summary.txt",
+      "sha256": "80305ce5d8243c5dc15f58fdb4b7efff426351b94c62471eef761d98277f4822",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-061719/browser-result.json",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-061719/browser-stderr.txt",
+      "sha256": "b9f8734bc4699ba9cc8642be9181d54610cf6a15bab3b44f0cc7d7dab67fe367",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-061719/browser.exit",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-061719/cleanup.txt",
+      "sha256": "6f8cd6dbeb8babeb623e83ac7ea77f464b3023c63aac192277d89fd338974a5f",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-061719/go-test.txt",
+      "sha256": "153b0ab36d10d73ee4e9a435a5aaff1cb04ccac903b1244a32c4252c7b07bf0a",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-061719/initdb.txt",
+      "sha256": "699bd13c7cf2e13caec562fd0b3cd0e7eaecdfd8565a2f8a1e9da6dc485d84fd",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-061719/manifest.json",
+      "sha256": "0ba4d96deb04a88f0ec5763d5280f7f212a28b20ce845bd769c803d5ee1be9ad",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-061719/postgres-start.txt",
+      "sha256": "66afd0411ccc09366e99fdd99b85f21899c8d2d064f5835126859618802153ad",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-061911/browser-result.json",
+      "sha256": "7e07da8c67d7a85b77ac541547ee0c439b16686d97c0a1d769d63ff429981211",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-061911/browser-stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-061911/browser.exit",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-061911/cleanup.txt",
+      "sha256": "dfae1e9cd4b90e9f93a040995da6dc060fa86885df46af7161314cc85dfebcbf",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-061911/go-test.txt",
+      "sha256": "4c33d57075afb3757bd3d3c560c1b3710782e778d526a7d73878a67e70a62b73",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-061911/initdb.txt",
+      "sha256": "c2926d9dd21f8f30b010dc9a9a114060c407712fcb6b335aed9babcf3f646d49",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-061911/manifest.json",
+      "sha256": "2117364a7d094872daed55857e57f40cf27be3d2cddb2c8440c9fdca327dc0cc",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-061911/postgres-start.txt",
+      "sha256": "66afd0411ccc09366e99fdd99b85f21899c8d2d064f5835126859618802153ad",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062159/browser-result.json",
+      "sha256": "92c8872c95d76b5f632c007485bcb255b371e5f66eac14a4322b4c9ccfa9d169",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062159/browser-stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062159/browser.exit",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062159/cleanup.txt",
+      "sha256": "7b97286d38a2362ac309ffb361381ea631cd5d3154a34a0a53c4f2a5f844ac14",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062159/failure-shutdown.txt",
+      "sha256": "8ffb666fb9ee9d7d7ea591c8f20aa3dcfc93586ef1500efd1890040d0e16de28",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062159/go-test.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062159/go-test.txt",
+      "sha256": "65b6a1fa44441b57e71bbdbef965475a8221167af507bc51ca1b1ad198d00a55",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062159/initdb.txt",
+      "sha256": "81721e2d854aa9873691f5bd69e53acb94e1b739fd5acefac6d25c448999be7e",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062159/manifest.json",
+      "sha256": "df99d200950c7882721dc8086d8ae923dddd4b5da655829a165368aca5cd09c4",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062159/network-whitelist.json",
+      "sha256": "ba328e823a77255e1d8e284c6d7382ca2d1ec7ea459395639ee72b3f2ade994a",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062159/postgres-start.txt",
+      "sha256": "66afd0411ccc09366e99fdd99b85f21899c8d2d064f5835126859618802153ad",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062231/browser-result.json",
+      "sha256": "6e207a6afd910d87482e9ed768ca84c981baba576a535c9d628334310f4282b0",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062231/browser-stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062231/browser.exit",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062231/cleanup.txt",
+      "sha256": "7b97286d38a2362ac309ffb361381ea631cd5d3154a34a0a53c4f2a5f844ac14",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062231/failure-shutdown.txt",
+      "sha256": "8ffb666fb9ee9d7d7ea591c8f20aa3dcfc93586ef1500efd1890040d0e16de28",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062231/go-test.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062231/go-test.txt",
+      "sha256": "8d00fc8f21b14636d6c6084be9664157983589be95c6e1d5a5e5875af6c92924",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062231/initdb.txt",
+      "sha256": "c3cdc9406e40a32b2d0a8a79d579badb1a3d611d3483846e40258c5367b7f9ef",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062231/manifest.json",
+      "sha256": "685aab79dc5e3f59cdef84a60e95584f35086510e12ec15c01fa6b6d90a76b24",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062231/network-whitelist.json",
+      "sha256": "3b742ecd1d34cc8bdbc30bc3f0330aa96db8c8abe05f1f69d63b23e3b0dd81a6",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062231/postgres-start.txt",
+      "sha256": "66afd0411ccc09366e99fdd99b85f21899c8d2d064f5835126859618802153ad",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062417/browser-result.json",
+      "sha256": "8ab06bc7e68449b9d5f3a6a5a98aea4ec86ce17391d4d1afcfa86383dae0d0bb",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062417/browser-stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062417/browser.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062417/cleanup.txt",
+      "sha256": "7b97286d38a2362ac309ffb361381ea631cd5d3154a34a0a53c4f2a5f844ac14",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062417/go-test.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062417/go-test.txt",
+      "sha256": "c50ce8d883b07191963045c6042794c21b3049adbacfe2d40bbe2fddf3609e60",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062417/initdb.txt",
+      "sha256": "3d768152828bf0328694a34e5a5932ebae6d846f219bc23a5506e2d16761b01a",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062417/manifest.json",
+      "sha256": "16e3b318503acea16660115e1196f23a11dbb0c24237c6f93712bfa0940c4c08",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062417/network-whitelist.json",
+      "sha256": "59f6a3ae87263c342b3ee8a9743481dd98be670fbe475d360aff9a73044f10c2",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062417/postgres-start.txt",
+      "sha256": "66afd0411ccc09366e99fdd99b85f21899c8d2d064f5835126859618802153ad",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/browser-normal-20260913-062417/run-summary.txt",
+      "sha256": "bc73b45f68002c42c123d6a0dc509e029e9a9f3e0e06603d436e57f19d47ba62",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/checks.md",
+      "sha256": "c4c6299f5dfbed02edca5b61136c5b45ca64311f82edb11c3dbe0da6f7bed18a",
+      "category": "integration_record"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/final-protection-audit.md",
+      "sha256": "a0f2929c3ef28956196f022d0d2873daa839f0daa19bb444ccb7af3bf7b236a2",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/frontend-verification-20260913-061228/build.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/frontend-verification-20260913-061228/build.txt",
+      "sha256": "cce2a421f5811d5049e634bfed6b316555c29613d574fdfc12dc9dbdad99230f",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/frontend-verification-20260913-061228/npm-ci.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/frontend-verification-20260913-061228/npm-ci.txt",
+      "sha256": "e22dd2ced22b56e4008b063533640bf21ee274377b3b0c118328dc433fcb1c3c",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/frontend-verification-20260913-061228/test.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/frontend-verification-20260913-061228/test.txt",
+      "sha256": "7381b17cace522c42338a7e8b95fe16e32e96404c4d72074bfbc7037f3a08110",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/frontend-verification-20260913-061228/typecheck.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/frontend-verification-20260913-061228/typecheck.txt",
+      "sha256": "e0de5c21e986411ad3bb449879f4fab332a97835f46b73aac53105b6b82df4dc",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/frontend-verification-20260913-062547/build.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/frontend-verification-20260913-062547/build.txt",
+      "sha256": "396e9d4ada0ee5ab01a630f494180d3f3f34775dc963782e6f134c28d0c4c770",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/frontend-verification-20260913-062547/npm-ci.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/frontend-verification-20260913-062547/npm-ci.txt",
+      "sha256": "e22dd2ced22b56e4008b063533640bf21ee274377b3b0c118328dc433fcb1c3c",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/frontend-verification-20260913-062547/test.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/frontend-verification-20260913-062547/test.txt",
+      "sha256": "6fa04019b2ce5a56b06405faaa9e0c42ff579989004f05e87ce7bfaaddfc8a21",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/frontend-verification-20260913-062547/typecheck.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/frontend-verification-20260913-062547/typecheck.txt",
+      "sha256": "e0de5c21e986411ad3bb449879f4fab332a97835f46b73aac53105b6b82df4dc",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/generate-final-protection-audit.py",
+      "sha256": "5ca8c8e4366cb162b9a6921555571bb5b2f0680c75145758194efd77129b2102",
+      "category": "validation_script"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/i0-candidates.tsv",
+      "sha256": "046a699d9488c6d08cdc905fef32bf14e73ae57b18bea6d81a8315bdca069c4b",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/i1-output.tsv",
+      "sha256": "d70961ea517665103fde817c18cc19192ac3d4baf6c944d209d2fb8c1bd60ea2",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/i2-rollback.tsv",
+      "sha256": "0229150d1b595826fdfa02c09957a7d4cfd95a5abae4fed5482a36c562ac3383",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/artifact-check.json",
+      "sha256": "4804b19c8316c4e1594dd87021341d0aea4dcaa5700bfb7f0b1fbd71f1920b7e",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/cleanup.txt",
+      "sha256": "d770a16d45ce31361118f4b85752f2ffb8f9e75e40af241bdba243e4371865c0",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/coordinator.exit",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/coordinator.txt",
+      "sha256": "9e9d7394d64ebc50384424fadf2c8b57ddd2e26de393679c13c5320b89d100b3",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/db-check-empty.exit",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/db-check-empty.txt",
+      "sha256": "0c89bd4044cd9508f93442ee6f5201ea0b506e9bb3dcea4c4868e9ad48845b90",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/db-check-final.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/db-check-final.txt",
+      "sha256": "ea0cef104c48341f16ca520093ea5c95e36a0e0bca071aae1500470287373a69",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/db-migrate-repeat.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/db-migrate-repeat.txt",
+      "sha256": "ea0cef104c48341f16ca520093ea5c95e36a0e0bca071aae1500470287373a69",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/db-migrate.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/db-migrate.txt",
+      "sha256": "ea0cef104c48341f16ca520093ea5c95e36a0e0bca071aae1500470287373a69",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/healthz.json",
+      "sha256": "a911e52c37d643868cbaaff48a43f4aec9ba2c8aef00b2f58c74a15b252328c4",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/host-executor.exit",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/host-executor.txt",
+      "sha256": "62ed5437d1050b8a4290e317aec743701840345f73a0593860482988c5890058",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/http-status.tsv",
+      "sha256": "959a6526e32651314ef0d027c0db5ab5c1e4fc94f40e3fec03ae18a9ecb6e608",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/initdb.txt",
+      "sha256": "cda1e765b2968d09d0cdcd82d83542aab88f30f83b426025e7aa72ba08ee006d",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/postgres-start.txt",
+      "sha256": "66afd0411ccc09366e99fdd99b85f21899c8d2d064f5835126859618802153ad",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/precheck.txt",
+      "sha256": "7c304a09beb203513c4a214bb9ca2b81ae0815c72e84731aa6942cac1320a1f7",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/process-restart.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/process-restart.txt",
+      "sha256": "6927adaf84cb3ebd569f70c7e47afccb91352efd4f11063d2d1b8b10a14f0e36",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/repomesh-coordinator-version.txt",
+      "sha256": "15f6fc8d11589caef094a5c71626abf7bccba21812db78f727ddc6776625436c",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/repomesh-host-executor-version.txt",
+      "sha256": "1e2d6b7cd624a28b8629807e0e73dbc8f388ccd1abfafc6cc82a8f812b9ab63b",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/repomesh-web-version.txt",
+      "sha256": "786b6659f251091d93b86cc9f5e898b213cee3ee688e74b9a8d1ef3296005788",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/unconfigured-web.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062912/unconfigured-web.txt",
+      "sha256": "ba30c207d2103edf64889b642048819a6d51f292052556ca0b8bbd44d3effc90",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/artifact-check.json",
+      "sha256": "4804b19c8316c4e1594dd87021341d0aea4dcaa5700bfb7f0b1fbd71f1920b7e",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/cleanup.txt",
+      "sha256": "d770a16d45ce31361118f4b85752f2ffb8f9e75e40af241bdba243e4371865c0",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/coordinator.exit",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/coordinator.txt",
+      "sha256": "9e9d7394d64ebc50384424fadf2c8b57ddd2e26de393679c13c5320b89d100b3",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/db-check-empty.exit",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/db-check-empty.txt",
+      "sha256": "0c89bd4044cd9508f93442ee6f5201ea0b506e9bb3dcea4c4868e9ad48845b90",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/db-check-final.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/db-check-final.txt",
+      "sha256": "ea0cef104c48341f16ca520093ea5c95e36a0e0bca071aae1500470287373a69",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/db-migrate-repeat.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/db-migrate-repeat.txt",
+      "sha256": "ea0cef104c48341f16ca520093ea5c95e36a0e0bca071aae1500470287373a69",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/db-migrate.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/db-migrate.txt",
+      "sha256": "ea0cef104c48341f16ca520093ea5c95e36a0e0bca071aae1500470287373a69",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/healthz.json",
+      "sha256": "a911e52c37d643868cbaaff48a43f4aec9ba2c8aef00b2f58c74a15b252328c4",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/host-executor.exit",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/host-executor.txt",
+      "sha256": "62ed5437d1050b8a4290e317aec743701840345f73a0593860482988c5890058",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/http-status.tsv",
+      "sha256": "959a6526e32651314ef0d027c0db5ab5c1e4fc94f40e3fec03ae18a9ecb6e608",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/initdb.txt",
+      "sha256": "406f924e50327e1b8c10788c15c9b95a85700c6dff2a95ea6639d25cf0a88c91",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/postgres-start.txt",
+      "sha256": "66afd0411ccc09366e99fdd99b85f21899c8d2d064f5835126859618802153ad",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/precheck.txt",
+      "sha256": "7c304a09beb203513c4a214bb9ca2b81ae0815c72e84731aa6942cac1320a1f7",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/process-restart.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/process-restart.txt",
+      "sha256": "9efe88dad5b285640da3c92f5da9075a101ca92f9961cdc956fdd01e92e2cd12",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/repomesh-coordinator-version.txt",
+      "sha256": "15f6fc8d11589caef094a5c71626abf7bccba21812db78f727ddc6776625436c",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/repomesh-host-executor-version.txt",
+      "sha256": "1e2d6b7cd624a28b8629807e0e73dbc8f388ccd1abfafc6cc82a8f812b9ab63b",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/repomesh-web-version.txt",
+      "sha256": "786b6659f251091d93b86cc9f5e898b213cee3ee688e74b9a8d1ef3296005788",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/summary.json",
+      "sha256": "cb44c8984b7813e2f9ca938379d2e6f31eb9ec00c41233c8f28c5048dbbd3e72",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/unconfigured-web.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-validation-20260913-062934/unconfigured-web.txt",
+      "sha256": "c593da0e3c709b210028ae35948ffbfb210c259d348e6a14589defc212398897",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-verification-20260913-062726/artifact-check.json",
+      "sha256": "4804b19c8316c4e1594dd87021341d0aea4dcaa5700bfb7f0b1fbd71f1920b7e",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-verification-20260913-062726/build.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-verification-20260913-062726/build.txt",
+      "sha256": "814c2fa89f6c86d5a93cb7b6402702c7dc238b3c71e17e4ce7c1d492a687f590",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-verification-20260913-062726/cleanup.txt",
+      "sha256": "03271e76284b814c5d896eab089803e6183c60c8341b4544f4497ca2704bde7b",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-verification-20260913-062726/precheck.txt",
+      "sha256": "b2d732074e18165836a053bccc89951d6a3d4f4c15ddff7b0143e4316fe2ddb6",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/release-verification-20260913-062726/repomesh-web-version.txt",
+      "sha256": "786b6659f251091d93b86cc9f5e898b213cee3ee688e74b9a8d1ef3296005788",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/run-browser-validation.sh",
+      "sha256": "acbf7911e60e85d9ff1c69bc0eac2da7d7f89693749a5d92d5ec86d72f077f18",
+      "category": "validation_script"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/run-release-validation.sh",
+      "sha256": "5fde1df4a385e4ceeeb72c6ce4b34489482586e14814d490574e89ed5c159e3c",
+      "category": "validation_script"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/targeted-20260913-061027/cleanup.txt",
+      "sha256": "c5fd860984881e0048657926f027437eb779a7f10f81bf83532371c84ca4b369",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/targeted-20260913-061027/go-test.exit",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/targeted-20260913-061027/go-test.txt",
+      "sha256": "da00357f4cda1979ddf423de07ba5a2b0eb9497e43d300b9b7d1631883a4ad4f",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/targeted-20260913-061027/initdb.txt",
+      "sha256": "d86339018cf23a65caa12119c3ec179429f8815331829a45e7900ecdc27db368",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/targeted-20260913-061027/pg-start.txt",
+      "sha256": "66afd0411ccc09366e99fdd99b85f21899c8d2d064f5835126859618802153ad",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/targeted-20260913-061111/cleanup.txt",
+      "sha256": "c5fd860984881e0048657926f027437eb779a7f10f81bf83532371c84ca4b369",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/targeted-20260913-061111/go-test.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/targeted-20260913-061111/go-test.txt",
+      "sha256": "946115e8a031cfdc3ac2ae5a486d7beffff42f96d1876911fa7186a678d0106e",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/targeted-20260913-061111/initdb.txt",
+      "sha256": "52e1b5ac4fae670bf4688165dabcf975972ad88e84168f06689cea47b3d5b1d7",
+      "category": "validation_evidence"
+    },
+    {
+      "path": "docs/development/2026-09-12-b03-integration-01/targeted-20260913-061111/pg-start.txt",
+      "sha256": "66afd0411ccc09366e99fdd99b85f21899c8d2d064f5835126859618802153ad",
+      "category": "validation_evidence"
+    }
+  ],
+  "b04DocumentsCountedSeparately": [
+    {
+      "path": "docs/current/NEXT-TASK-B04-PROMPT.md",
+      "sha256": "c6d3e6148682e4ac32075f73e2b23983b71df7f6c6d4cca69e3fbe212b28598c",
+      "exists": true
+    },
+    {
+      "path": "docs/development/2026-09-12-b04-handoff-01/HANDOFF.md",
+      "sha256": "03b6748725c522d5b13047bc20a1f3ab8cf8363ef30590a3212d0a9f874e3eb7",
+      "exists": true
+    },
+    {
+      "path": "docs/development/2026-09-12-b04-handoff-01/NEXT-SESSION-PROMPT.md",
+      "sha256": "c6d3e6148682e4ac32075f73e2b23983b71df7f6c6d4cca69e3fbe212b28598c",
+      "exists": true
+    }
+  ],
+  "secretBodiesRead": false
+}

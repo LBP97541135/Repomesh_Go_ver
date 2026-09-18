@@ -1,0 +1,38 @@
+{
+  "capturedAt": "2026-09-14T17:57:47Z",
+  "origin": "https://127.0.0.1:18443",
+  "httpStatus": 200,
+  "itemCount": 15,
+  "fixture": {
+    "id": "repo_00000000001367444901",
+    "userParticipation": {
+      "status": "allowed",
+      "reasonCodes": [],
+      "observedAt": "2026-09-14T17:57:45.970617653Z"
+    },
+    "appCapability": {
+      "status": "allowed",
+      "reasonCodes": [],
+      "observedAt": "2026-09-14T17:57:45.970582944Z"
+    }
+  },
+  "counts": {
+    "userAllowed": 15,
+    "appAllowed": 1,
+    "appDenied": 14
+  },
+  "coverage": {
+    "status": "partial",
+    "reasonCodes": [
+      "APP_INSTALLATION_SCOPE"
+    ],
+    "observedAt": "2026-09-14T17:53:00.022933Z"
+  },
+  "hasNext": false,
+  "installation": {
+    "id": "161608372",
+    "repositoryIds": [
+      "1367444901"
+    ]
+  }
+}

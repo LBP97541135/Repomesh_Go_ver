@@ -1,0 +1,45 @@
+{
+  "dep_evidence": [
+    {
+      "confidence": "confirmed",
+      "mechanism": "BUILD",
+      "name": "org.springframework.boot:spring-boot-starter-data-jpa"
+    },
+    {
+      "confidence": "confirmed",
+      "mechanism": "BUILD",
+      "name": "mysql:mysql-connector-java"
+    },
+    {
+      "confidence": "confirmed",
+      "mechanism": "BUILD",
+      "name": "org.services:ts-common"
+    },
+    {
+      "confidence": "confirmed",
+      "mechanism": "BUILD",
+      "name": "jakarta.validation:jakarta.validation-api"
+    }
+  ],
+  "deploy_identities": [],
+  "deps": [
+    "org.springframework.boot:spring-boot-starter-data-jpa",
+    "mysql:mysql-connector-java",
+    "org.services:ts-common",
+    "jakarta.validation:jakarta.validation-api"
+  ],
+  "exposed_apis": [],
+  "identities": [
+    "fdse.microservice:ts-food-delivery-service",
+    "ts-food-delivery-service"
+  ],
+  "low_signal": false,
+  "recent_commits": [
+    "Reconstruction (#227)"
+  ],
+  "top_dirs": [
+    "src",
+    "src/main",
+    "src/test"
+  ]
+}

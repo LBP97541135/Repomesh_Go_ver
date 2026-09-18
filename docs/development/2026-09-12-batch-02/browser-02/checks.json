@@ -1,0 +1,43 @@
+{
+  "result": "PASS",
+  "recordedAt": "2026-09-12T12:25:41.218Z",
+  "browser": "153.0.8010.12",
+  "checks": [
+    {
+      "name": "actual-unconfigured-backend",
+      "passed": true,
+      "provider": "actual Go API; no App configuration"
+    },
+    {
+      "name": "unknown-start-refresh-and-explicit-same-key-retry",
+      "passed": true,
+      "provider": "browser API fixtures"
+    },
+    {
+      "name": "confirmed-attempt-without-session-cannot-continue",
+      "passed": true,
+      "provider": "browser API fixtures"
+    },
+    {
+      "name": "connected-session-does-not-confirm-reconnect",
+      "passed": true,
+      "provider": "browser API fixtures"
+    },
+    {
+      "name": "explicit-continue-rechecks-session-and-receipt",
+      "passed": true,
+      "provider": "browser API fixtures"
+    },
+    {
+      "name": "empty-page-cursor-and-partial-final-page",
+      "passed": true,
+      "provider": "browser API fixtures"
+    },
+    {
+      "name": "logout-clears-sensitive-view-mobile-and-keyboard",
+      "passed": true,
+      "provider": "browser API fixtures"
+    }
+  ],
+  "externalGitHub": "NOT_RUN"
+}

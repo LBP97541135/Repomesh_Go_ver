@@ -1,0 +1,641 @@
+{
+  "batch": "B01",
+  "result": "VERIFIED",
+  "recordedAt": "2026-09-12T10:36:46.0836233Z",
+  "failure": null,
+  "cleanupPassed": true,
+  "checks": [
+    {
+      "name": "go-version",
+      "command": [
+        "/usr/local/bin/go",
+        "version"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.163,
+      "stdout": "go version go1.26.4 linux/amd64\n",
+      "stderr": ""
+    },
+    {
+      "name": "node-version",
+      "command": [
+        "/usr/local/bin/node",
+        "--version"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.065,
+      "stdout": "v22.22.1\n",
+      "stderr": ""
+    },
+    {
+      "name": "npm-version",
+      "command": [
+        "/usr/local/bin/node",
+        "/opt/repomesh-dev-tools/node-v22.22.1-linux-x64/lib/node_modules/npm/bin/npm-cli.js",
+        "--version"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.211,
+      "stdout": "10.9.4\n",
+      "stderr": ""
+    },
+    {
+      "name": "postgres-version",
+      "command": [
+        "/usr/lib/postgresql/17/bin/postgres",
+        "--version"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.016,
+      "stdout": "postgres (PostgreSQL) 17.11 (Ubuntu 17.11-1.pgdg22.04+2)\n",
+      "stderr": ""
+    },
+    {
+      "name": "initdb",
+      "command": [
+        "/usr/lib/postgresql/17/bin/initdb",
+        "-D",
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/data",
+        "-U",
+        "repomesh_test",
+        "--pwfile=/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/password.txt",
+        "--auth-host=scram-sha-256",
+        "--auth-local=scram-sha-256",
+        "--encoding=UTF8",
+        "--locale=C"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.711,
+      "stdout": "The files belonging to this database system will be owned by user \"xubohan\".\nThis user must also own the server process.\n\nThe database cluster will be initialized with locale \"C\".\nThe default text search configuration will be set to \"english\".\n\nData page checksums are disabled.\n\ncreating directory /tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/data ... ok\ncreating subdirectories ... ok\nselecting dynamic shared memory implementation ... posix\nselecting default \"max_connections\" ... 100\nselecting default \"shared_buffers\" ... 128MB\nselecting default time zone ... America/Los_Angeles\ncreating configuration files ... ok\nrunning bootstrap script ... ok\nperforming post-bootstrap initialization ... ok\nsyncing data to disk ... ok\n\nSuccess. You can now start the database server using:\n\n    /usr/lib/postgresql/17/bin/pg_ctl -D /tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/data -l logfile start\n\n",
+      "stderr": ""
+    },
+    {
+      "name": "postgres-start",
+      "command": [
+        "/usr/lib/postgresql/17/bin/pg_ctl",
+        "-D",
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/data",
+        "-l",
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/postgres.log",
+        "-o",
+        "-h 127.0.0.1 -p 46719 -c fsync=on",
+        "-w",
+        "-t",
+        "30",
+        "start"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.11,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "go-build",
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 11.245,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "go-test",
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "./..."
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 4.053,
+      "stdout": "{\"Time\":\"2026-09-12T03:36:28.262637962-07:00\",\"Action\":\"start\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-coordinator\"}\n{\"Time\":\"2026-09-12T03:36:28.262727098-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-coordinator\",\"Output\":\"?   \\trepomesh.local/repomesh/cmd/repomesh-coordinator\\t[no test files]\\n\"}\n{\"Time\":\"2026-09-12T03:36:28.262750533-07:00\",\"Action\":\"skip\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-coordinator\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:28.262764947-07:00\",\"Action\":\"start\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-host-executor\"}\n{\"Time\":\"2026-09-12T03:36:28.262772654-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-host-executor\",\"Output\":\"?   \\trepomesh.local/repomesh/cmd/repomesh-host-executor\\t[no test files]\\n\"}\n{\"Time\":\"2026-09-12T03:36:28.262777647-07:00\",\"Action\":\"skip\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-host-executor\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.098877672-07:00\",\"Action\":\"start\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\"}\n{\"Time\":\"2026-09-12T03:36:29.099077897-07:00\",\"Action\":\"start\",\"Package\":\"repomesh.local/repomesh/internal/buildinfo\"}\n{\"Time\":\"2026-09-12T03:36:29.099099845-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/buildinfo\",\"Output\":\"?   \\trepomesh.local/repomesh/internal/buildinfo\\t[no test files]\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.099135111-07:00\",\"Action\":\"skip\",\"Package\":\"repomesh.local/repomesh/internal/buildinfo\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.099150372-07:00\",\"Action\":\"start\",\"Package\":\"repomesh.local/repomesh/internal/database\"}\n{\"Time\":\"2026-09-12T03:36:29.099194517-07:00\",\"Action\":\"start\",\"Package\":\"repomesh.local/repomesh/internal/web\"}\n{\"Time\":\"2026-09-12T03:36:29.103334779-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness\"}\n{\"Time\":\"2026-09-12T03:36:29.103436485-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness\",\"Output\":\"=== RUN   TestScaffoldDoesNotClaimBusinessReadiness\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.103451649-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/GET/healthz\"}\n{\"Time\":\"2026-09-12T03:36:29.10345522-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/GET/healthz\",\"Output\":\"=== RUN   TestScaffoldDoesNotClaimBusinessReadiness/GET/healthz\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.103465738-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/GET/healthz\",\"Output\":\"--- PASS: TestScaffoldDoesNotClaimBusinessReadiness/GET/healthz (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.103479099-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/GET/healthz\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.10348482-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/GET/readyz\"}\n{\"Time\":\"2026-09-12T03:36:29.103491354-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/GET/readyz\",\"Output\":\"=== RUN   TestScaffoldDoesNotClaimBusinessReadiness/GET/readyz\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.10355533-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/GET/readyz\",\"Output\":\"--- PASS: TestScaffoldDoesNotClaimBusinessReadiness/GET/readyz (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.10356638-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/GET/readyz\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.103595437-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/POST/api/v1/issues\"}\n{\"Time\":\"2026-09-12T03:36:29.103600799-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/POST/api/v1/issues\",\"Output\":\"=== RUN   TestScaffoldDoesNotClaimBusinessReadiness/POST/api/v1/issues\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.103960655-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments\"}\n{\"Time\":\"2026-09-12T03:36:29.103982863-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/POST/api/v1/issues\",\"Output\":\"--- PASS: TestScaffoldDoesNotClaimBusinessReadiness/POST/api/v1/issues (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.103993848-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/POST/api/v1/issues\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.103985023-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments\",\"Output\":\"=== RUN   TestDatabaseCommandArguments\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104026194-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/GET/\"}\n{\"Time\":\"2026-09-12T03:36:29.104030774-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/GET/\",\"Output\":\"=== RUN   TestScaffoldDoesNotClaimBusinessReadiness/GET/\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104031295-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/missing_subcommand\"}\n{\"Time\":\"2026-09-12T03:36:29.104037927-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/missing_subcommand\",\"Output\":\"=== RUN   TestDatabaseCommandArguments/missing_subcommand\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104043181-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/missing_subcommand\",\"Output\":\"--- PASS: TestDatabaseCommandArguments/missing_subcommand (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104046622-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/missing_subcommand\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104052841-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/unknown_subcommand\"}\n{\"Time\":\"2026-09-12T03:36:29.104055544-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/unknown_subcommand\",\"Output\":\"=== RUN   TestDatabaseCommandArguments/unknown_subcommand\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104059506-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/unknown_subcommand\",\"Output\":\"--- PASS: TestDatabaseCommandArguments/unknown_subcommand (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104062708-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/unknown_subcommand\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104065975-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/missing_connection\"}\n{\"Time\":\"2026-09-12T03:36:29.104068656-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/missing_connection\",\"Output\":\"=== RUN   TestDatabaseCommandArguments/missing_connection\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104077058-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/missing_connection\",\"Output\":\"--- PASS: TestDatabaseCommandArguments/missing_connection (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104080086-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/missing_connection\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104083158-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/invalid_environment\"}\n{\"Time\":\"2026-09-12T03:36:29.104086023-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/invalid_environment\",\"Output\":\"=== RUN   TestDatabaseCommandArguments/invalid_environment\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104092199-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/invalid_environment\",\"Output\":\"--- PASS: TestDatabaseCommandArguments/invalid_environment (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104103249-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/invalid_environment\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.10410986-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/invalid_flag_connection\"}\n{\"Time\":\"2026-09-12T03:36:29.104121018-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/invalid_flag_connection\",\"Output\":\"=== RUN   TestDatabaseCommandArguments/invalid_flag_connection\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104083679-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest\"}\n{\"Time\":\"2026-09-12T03:36:29.10413616-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest\",\"Output\":\"=== RUN   TestMigrationManifest\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104143921-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/missing\"}\n{\"Time\":\"2026-09-12T03:36:29.104147123-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/missing\",\"Output\":\"=== RUN   TestMigrationManifest/missing\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104153375-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/missing\",\"Output\":\"--- PASS: TestMigrationManifest/missing (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104157663-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/missing\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104194372-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/starts_at_zero\"}\n{\"Time\":\"2026-09-12T03:36:29.104204934-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/starts_at_zero\",\"Output\":\"=== RUN   TestMigrationManifest/starts_at_zero\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.10421302-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/starts_at_zero\",\"Output\":\"--- PASS: TestMigrationManifest/starts_at_zero (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104220662-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/starts_at_zero\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104224602-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/gap\"}\n{\"Time\":\"2026-09-12T03:36:29.104228075-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/gap\",\"Output\":\"=== RUN   TestMigrationManifest/gap\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104232351-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/invalid_flag_connection\",\"Output\":\"--- PASS: TestDatabaseCommandArguments/invalid_flag_connection (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.10426143-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/invalid_flag_connection\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104268138-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/explicit_empty_overrides_env\"}\n{\"Time\":\"2026-09-12T03:36:29.104271785-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/explicit_empty_overrides_env\",\"Output\":\"=== RUN   TestDatabaseCommandArguments/explicit_empty_overrides_env\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104276919-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/explicit_empty_overrides_env\",\"Output\":\"--- PASS: TestDatabaseCommandArguments/explicit_empty_overrides_env (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104280653-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/explicit_empty_overrides_env\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104284485-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/unknown_flag\"}\n{\"Time\":\"2026-09-12T03:36:29.104288045-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/unknown_flag\",\"Output\":\"=== RUN   TestDatabaseCommandArguments/unknown_flag\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.10429217-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/unknown_flag\",\"Output\":\"--- PASS: TestDatabaseCommandArguments/unknown_flag (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104298302-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/unknown_flag\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104301602-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/invalid_timeout\"}\n{\"Time\":\"2026-09-12T03:36:29.104304446-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/invalid_timeout\",\"Output\":\"=== RUN   TestDatabaseCommandArguments/invalid_timeout\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104314096-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/invalid_timeout\",\"Output\":\"--- PASS: TestDatabaseCommandArguments/invalid_timeout (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104318937-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/invalid_timeout\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104326676-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/zero_timeout\"}\n{\"Time\":\"2026-09-12T03:36:29.104329552-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/zero_timeout\",\"Output\":\"=== RUN   TestDatabaseCommandArguments/zero_timeout\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104333395-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/zero_timeout\",\"Output\":\"--- PASS: TestDatabaseCommandArguments/zero_timeout (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104336727-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/zero_timeout\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104339853-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/negative_timeout\"}\n{\"Time\":\"2026-09-12T03:36:29.104342425-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/negative_timeout\",\"Output\":\"=== RUN   TestDatabaseCommandArguments/negative_timeout\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104345931-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/negative_timeout\",\"Output\":\"--- PASS: TestDatabaseCommandArguments/negative_timeout (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104348895-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/negative_timeout\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104351565-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/positional_value\"}\n{\"Time\":\"2026-09-12T03:36:29.104355798-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/positional_value\",\"Output\":\"=== RUN   TestDatabaseCommandArguments/positional_value\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104360835-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/positional_value\",\"Output\":\"--- PASS: TestDatabaseCommandArguments/positional_value (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104367423-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/positional_value\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104236563-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/gap\",\"Output\":\"--- PASS: TestMigrationManifest/gap (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.10437475-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/gap\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104377898-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/duplicate_version\"}\n{\"Time\":\"2026-09-12T03:36:29.104380774-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/duplicate_version\",\"Output\":\"=== RUN   TestMigrationManifest/duplicate_version\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104384269-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/duplicate_version\",\"Output\":\"--- PASS: TestMigrationManifest/duplicate_version (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104387417-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/duplicate_version\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104390326-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/invalid_name\"}\n{\"Time\":\"2026-09-12T03:36:29.104394027-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/invalid_name\",\"Output\":\"=== RUN   TestMigrationManifest/invalid_name\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104401984-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/invalid_name\",\"Output\":\"--- PASS: TestMigrationManifest/invalid_name (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104405142-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/invalid_name\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104436186-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/empty_SQL\"}\n{\"Time\":\"2026-09-12T03:36:29.104441906-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/empty_SQL\",\"Output\":\"=== RUN   TestMigrationManifest/empty_SQL\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104446801-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/empty_SQL\",\"Output\":\"--- PASS: TestMigrationManifest/empty_SQL (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104451045-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/empty_SQL\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.10445733-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/directory\"}\n{\"Time\":\"2026-09-12T03:36:29.104460228-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/directory\",\"Output\":\"=== RUN   TestMigrationManifest/directory\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104426103-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/group_help\"}\n{\"Time\":\"2026-09-12T03:36:29.104500357-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/group_help\",\"Output\":\"=== RUN   TestDatabaseCommandArguments/group_help\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104557614-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/group_help\",\"Output\":\"--- PASS: TestDatabaseCommandArguments/group_help (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104563801-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/group_help\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104570401-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/check_help\"}\n{\"Time\":\"2026-09-12T03:36:29.104573516-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/check_help\",\"Output\":\"=== RUN   TestDatabaseCommandArguments/check_help\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104466871-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/directory\",\"Output\":\"--- PASS: TestMigrationManifest/directory (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104577901-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/check_help\",\"Output\":\"--- PASS: TestDatabaseCommandArguments/check_help (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104582547-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/check_help\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104585836-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/migrate_help\"}\n{\"Time\":\"2026-09-12T03:36:29.104583296-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/directory\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104588875-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/migrate_help\",\"Output\":\"=== RUN   TestDatabaseCommandArguments/migrate_help\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104591556-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/ordered_and_checksummed\"}\n{\"Time\":\"2026-09-12T03:36:29.104594074-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/migrate_help\",\"Output\":\"--- PASS: TestDatabaseCommandArguments/migrate_help (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104594997-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/ordered_and_checksummed\",\"Output\":\"=== RUN   TestMigrationManifest/ordered_and_checksummed\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104597341-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/migrate_help\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104600098-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/ordered_and_checksummed\",\"Output\":\"--- PASS: TestMigrationManifest/ordered_and_checksummed (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104601542-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/help_after_secret\"}\n{\"Time\":\"2026-09-12T03:36:29.104604364-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/help_after_secret\",\"Output\":\"=== RUN   TestDatabaseCommandArguments/help_after_secret\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104603615-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest/ordered_and_checksummed\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104608435-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/help_after_secret\",\"Output\":\"--- PASS: TestDatabaseCommandArguments/help_after_secret (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104609618-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest\",\"Output\":\"--- PASS: TestMigrationManifest (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104613156-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments/help_after_secret\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104614361-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestMigrationManifest\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104617759-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestOpenRejectsInvalidConfigurationWithoutSecrets\"}\n{\"Time\":\"2026-09-12T03:36:29.104616988-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments\",\"Output\":\"--- PASS: TestDatabaseCommandArguments (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.10462057-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestOpenRejectsInvalidConfigurationWithoutSecrets\",\"Output\":\"=== RUN   TestOpenRejectsInvalidConfigurationWithoutSecrets\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104621948-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandArguments\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104624249-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestOpenRejectsInvalidConfigurationWithoutSecrets\",\"Output\":\"--- PASS: TestOpenRejectsInvalidConfigurationWithoutSecrets (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104626225-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandCanceledConnection\"}\n{\"Time\":\"2026-09-12T03:36:29.104632966-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandCanceledConnection\",\"Output\":\"=== RUN   TestDatabaseCommandCanceledConnection\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104630762-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestOpenRejectsInvalidConfigurationWithoutSecrets\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104697614-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestOpenRequiresBoundedContextBeforeConnecting\"}\n{\"Time\":\"2026-09-12T03:36:29.10470493-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestOpenRequiresBoundedContextBeforeConnecting\",\"Output\":\"=== RUN   TestOpenRequiresBoundedContextBeforeConnecting\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104714927-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestOpenRequiresBoundedContextBeforeConnecting\",\"Output\":\"--- PASS: TestOpenRequiresBoundedContextBeforeConnecting (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104719204-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestOpenRequiresBoundedContextBeforeConnecting\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104726085-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic\"}\n{\"Time\":\"2026-09-12T03:36:29.104731686-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic\",\"Output\":\"=== RUN   TestSafeErrorPreservesOnlySafeDiagnostic\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104740717-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/transport\"}\n{\"Time\":\"2026-09-12T03:36:29.104743648-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/transport\",\"Output\":\"=== RUN   TestSafeErrorPreservesOnlySafeDiagnostic/transport\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104749531-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/transport\",\"Output\":\"--- PASS: TestSafeErrorPreservesOnlySafeDiagnostic/transport (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104753818-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/transport\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104757737-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/postgres\"}\n{\"Time\":\"2026-09-12T03:36:29.104762665-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/postgres\",\"Output\":\"=== RUN   TestSafeErrorPreservesOnlySafeDiagnostic/postgres\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104774648-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/postgres\",\"Output\":\"--- PASS: TestSafeErrorPreservesOnlySafeDiagnostic/postgres (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104778718-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/postgres\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104782159-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/malformed_sqlstate\"}\n{\"Time\":\"2026-09-12T03:36:29.104784851-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandCanceledConnection\",\"Output\":\"--- PASS: TestDatabaseCommandCanceledConnection (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104784992-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/malformed_sqlstate\",\"Output\":\"=== RUN   TestSafeErrorPreservesOnlySafeDiagnostic/malformed_sqlstate\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.10479982-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestDatabaseCommandCanceledConnection\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104805192-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/malformed_sqlstate\",\"Output\":\"--- PASS: TestSafeErrorPreservesOnlySafeDiagnostic/malformed_sqlstate (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.1048058-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility\"}\n{\"Time\":\"2026-09-12T03:36:29.10481113-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/malformed_sqlstate\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104811227-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility\",\"Output\":\"=== RUN   TestScaffoldCommandCompatibility\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104815493-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/canceled\"}\n{\"Time\":\"2026-09-12T03:36:29.104818207-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/canceled\",\"Output\":\"=== RUN   TestSafeErrorPreservesOnlySafeDiagnostic/canceled\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104898832-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/canceled\",\"Output\":\"--- PASS: TestSafeErrorPreservesOnlySafeDiagnostic/canceled (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.104930343-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/canceled\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.104981337-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/deadline\"}\n{\"Time\":\"2026-09-12T03:36:29.104989218-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/deadline\",\"Output\":\"=== RUN   TestSafeErrorPreservesOnlySafeDiagnostic/deadline\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.105088047-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/deadline\",\"Output\":\"--- PASS: TestSafeErrorPreservesOnlySafeDiagnostic/deadline (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.10512556-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic/deadline\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.10513598-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic\",\"Output\":\"--- PASS: TestSafeErrorPreservesOnlySafeDiagnostic (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.10516406-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestSafeErrorPreservesOnlySafeDiagnostic\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.105192075-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresFreshCheckAndMigrationPersistence\"}\n{\"Time\":\"2026-09-12T03:36:29.105198425-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresFreshCheckAndMigrationPersistence\",\"Output\":\"=== RUN   TestPostgresFreshCheckAndMigrationPersistence\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.105682949-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility/version_does_not_require_assets_or_database\"}\n{\"Time\":\"2026-09-12T03:36:29.105745818-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility/version_does_not_require_assets_or_database\",\"Output\":\"=== RUN   TestScaffoldCommandCompatibility/version_does_not_require_assets_or_database\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.105760721-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility/version_does_not_require_assets_or_database\",\"Output\":\"--- PASS: TestScaffoldCommandCompatibility/version_does_not_require_assets_or_database (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.105765106-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility/version_does_not_require_assets_or_database\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.105770077-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility/normal_serve_still_requires_built_assets\"}\n{\"Time\":\"2026-09-12T03:36:29.105772964-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility/normal_serve_still_requires_built_assets\",\"Output\":\"=== RUN   TestScaffoldCommandCompatibility/normal_serve_still_requires_built_assets\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.105776807-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility/normal_serve_still_requires_built_assets\",\"Output\":\"--- PASS: TestScaffoldCommandCompatibility/normal_serve_still_requires_built_assets (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.105779727-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility/normal_serve_still_requires_built_assets\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.105785566-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility/serve_help\"}\n{\"Time\":\"2026-09-12T03:36:29.10578853-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility/serve_help\",\"Output\":\"=== RUN   TestScaffoldCommandCompatibility/serve_help\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.105882729-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility/serve_help\",\"Output\":\"--- PASS: TestScaffoldCommandCompatibility/serve_help (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.105933343-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility/serve_help\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.105945609-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility/unexpected_positional_argument\"}\n{\"Time\":\"2026-09-12T03:36:29.105970834-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility/unexpected_positional_argument\",\"Output\":\"=== RUN   TestScaffoldCommandCompatibility/unexpected_positional_argument\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.105980343-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility/unexpected_positional_argument\",\"Output\":\"--- PASS: TestScaffoldCommandCompatibility/unexpected_positional_argument (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.106005384-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility/unexpected_positional_argument\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.106204497-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility\",\"Output\":\"--- PASS: TestScaffoldCommandCompatibility (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.106237267-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Test\":\"TestScaffoldCommandCompatibility\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.10624392-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Output\":\"PASS\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.107161984-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Output\":\"ok  \\trepomesh.local/repomesh/cmd/repomesh-web\\t0.008s\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.107201093-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/cmd/repomesh-web\",\"Elapsed\":0.008}\n{\"Time\":\"2026-09-12T03:36:29.108005355-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/GET/\",\"Output\":\"--- PASS: TestScaffoldDoesNotClaimBusinessReadiness/GET/ (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.108051073-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/GET/\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.108059377-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/GET/missing\"}\n{\"Time\":\"2026-09-12T03:36:29.108062829-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/GET/missing\",\"Output\":\"=== RUN   TestScaffoldDoesNotClaimBusinessReadiness/GET/missing\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.10807276-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/GET/missing\",\"Output\":\"--- PASS: TestScaffoldDoesNotClaimBusinessReadiness/GET/missing (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.108080858-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/GET/missing\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.108089444-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/POST/\"}\n{\"Time\":\"2026-09-12T03:36:29.108092711-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/POST/\",\"Output\":\"=== RUN   TestScaffoldDoesNotClaimBusinessReadiness/POST/\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.10815057-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/POST/\",\"Output\":\"--- PASS: TestScaffoldDoesNotClaimBusinessReadiness/POST/ (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.108187432-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness/POST/\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.108195258-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness\",\"Output\":\"--- PASS: TestScaffoldDoesNotClaimBusinessReadiness (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.108222719-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestScaffoldDoesNotClaimBusinessReadiness\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.108230426-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestMissingAssetsFailsBeforeListening\"}\n{\"Time\":\"2026-09-12T03:36:29.108235896-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestMissingAssetsFailsBeforeListening\",\"Output\":\"=== RUN   TestMissingAssetsFailsBeforeListening\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.108839823-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestMissingAssetsFailsBeforeListening\",\"Output\":\"--- PASS: TestMissingAssetsFailsBeforeListening (0.00s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.108874449-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestMissingAssetsFailsBeforeListening\",\"Elapsed\":0}\n{\"Time\":\"2026-09-12T03:36:29.108883241-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestShutdownWaitsForInflightRequest\"}\n{\"Time\":\"2026-09-12T03:36:29.10888691-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestShutdownWaitsForInflightRequest\",\"Output\":\"=== RUN   TestShutdownWaitsForInflightRequest\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.199467728-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestShutdownWaitsForInflightRequest\",\"Output\":\"--- PASS: TestShutdownWaitsForInflightRequest (0.09s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.199531205-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Test\":\"TestShutdownWaitsForInflightRequest\",\"Elapsed\":0.09}\n{\"Time\":\"2026-09-12T03:36:29.199541071-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Output\":\"PASS\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.20052185-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Output\":\"ok  \\trepomesh.local/repomesh/internal/web\\t0.101s\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.200580143-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/web\",\"Elapsed\":0.101}\n{\"Time\":\"2026-09-12T03:36:29.221603645-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresFreshCheckAndMigrationPersistence\",\"Output\":\"--- PASS: TestPostgresFreshCheckAndMigrationPersistence (0.12s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.221648041-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresFreshCheckAndMigrationPersistence\",\"Elapsed\":0.12}\n{\"Time\":\"2026-09-12T03:36:29.221655746-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresTwentyConcurrentMigrations\"}\n{\"Time\":\"2026-09-12T03:36:29.221658952-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresTwentyConcurrentMigrations\",\"Output\":\"=== RUN   TestPostgresTwentyConcurrentMigrations\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.350270527-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresTwentyConcurrentMigrations\",\"Output\":\"--- PASS: TestPostgresTwentyConcurrentMigrations (0.13s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.350327016-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresTwentyConcurrentMigrations\",\"Elapsed\":0.13}\n{\"Time\":\"2026-09-12T03:36:29.350337657-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresSQLFailureRollsBackBootstrapAndDDL\"}\n{\"Time\":\"2026-09-12T03:36:29.350342867-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresSQLFailureRollsBackBootstrapAndDDL\",\"Output\":\"=== RUN   TestPostgresSQLFailureRollsBackBootstrapAndDDL\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.424084868-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresSQLFailureRollsBackBootstrapAndDDL\",\"Output\":\"--- PASS: TestPostgresSQLFailureRollsBackBootstrapAndDDL (0.07s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.424138673-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresSQLFailureRollsBackBootstrapAndDDL\",\"Elapsed\":0.07}\n{\"Time\":\"2026-09-12T03:36:29.42414771-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryInsertFailureRollsBackDDL\"}\n{\"Time\":\"2026-09-12T03:36:29.424151848-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryInsertFailureRollsBackDDL\",\"Output\":\"=== RUN   TestPostgresHistoryInsertFailureRollsBackDDL\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.496204562-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryInsertFailureRollsBackDDL\",\"Output\":\"--- PASS: TestPostgresHistoryInsertFailureRollsBackDDL (0.07s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.496253727-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryInsertFailureRollsBackDDL\",\"Elapsed\":0.07}\n{\"Time\":\"2026-09-12T03:36:29.496262173-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresAtomicMultipleFileUpgrade\"}\n{\"Time\":\"2026-09-12T03:36:29.496265059-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresAtomicMultipleFileUpgrade\",\"Output\":\"=== RUN   TestPostgresAtomicMultipleFileUpgrade\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.49627075-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresAtomicMultipleFileUpgrade/fail=false\"}\n{\"Time\":\"2026-09-12T03:36:29.496272774-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresAtomicMultipleFileUpgrade/fail=false\",\"Output\":\"=== RUN   TestPostgresAtomicMultipleFileUpgrade/fail=false\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.56428874-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresAtomicMultipleFileUpgrade/fail=false\",\"Output\":\"--- PASS: TestPostgresAtomicMultipleFileUpgrade/fail=false (0.07s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.564337564-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresAtomicMultipleFileUpgrade/fail=false\",\"Elapsed\":0.07}\n{\"Time\":\"2026-09-12T03:36:29.564344287-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresAtomicMultipleFileUpgrade/fail=true\"}\n{\"Time\":\"2026-09-12T03:36:29.564347353-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresAtomicMultipleFileUpgrade/fail=true\",\"Output\":\"=== RUN   TestPostgresAtomicMultipleFileUpgrade/fail=true\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.628441319-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresAtomicMultipleFileUpgrade/fail=true\",\"Output\":\"--- PASS: TestPostgresAtomicMultipleFileUpgrade/fail=true (0.06s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.628497178-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresAtomicMultipleFileUpgrade/fail=true\",\"Elapsed\":0.06}\n{\"Time\":\"2026-09-12T03:36:29.628506636-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresAtomicMultipleFileUpgrade\",\"Output\":\"--- PASS: TestPostgresAtomicMultipleFileUpgrade (0.13s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.628510654-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresAtomicMultipleFileUpgrade\",\"Elapsed\":0.13}\n{\"Time\":\"2026-09-12T03:36:29.628513429-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites\"}\n{\"Time\":\"2026-09-12T03:36:29.628516505-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites\",\"Output\":\"=== RUN   TestPostgresHistoryMismatchIsRejectedWithoutWrites\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.628522727-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/future_version\"}\n{\"Time\":\"2026-09-12T03:36:29.628525122-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/future_version\",\"Output\":\"=== RUN   TestPostgresHistoryMismatchIsRejectedWithoutWrites/future_version\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.701961225-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/future_version\",\"Output\":\"--- PASS: TestPostgresHistoryMismatchIsRejectedWithoutWrites/future_version (0.07s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.702009588-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/future_version\",\"Elapsed\":0.07}\n{\"Time\":\"2026-09-12T03:36:29.702017183-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/missing_middle\"}\n{\"Time\":\"2026-09-12T03:36:29.70202083-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/missing_middle\",\"Output\":\"=== RUN   TestPostgresHistoryMismatchIsRejectedWithoutWrites/missing_middle\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.772598667-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/missing_middle\",\"Output\":\"--- PASS: TestPostgresHistoryMismatchIsRejectedWithoutWrites/missing_middle (0.07s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.772645538-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/missing_middle\",\"Elapsed\":0.07}\n{\"Time\":\"2026-09-12T03:36:29.772653053-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/changed_name\"}\n{\"Time\":\"2026-09-12T03:36:29.772656118-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/changed_name\",\"Output\":\"=== RUN   TestPostgresHistoryMismatchIsRejectedWithoutWrites/changed_name\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.836303167-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/changed_name\",\"Output\":\"--- PASS: TestPostgresHistoryMismatchIsRejectedWithoutWrites/changed_name (0.06s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.836348395-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/changed_name\",\"Elapsed\":0.06}\n{\"Time\":\"2026-09-12T03:36:29.836355329-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/changed_checksum\"}\n{\"Time\":\"2026-09-12T03:36:29.836361751-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/changed_checksum\",\"Output\":\"=== RUN   TestPostgresHistoryMismatchIsRejectedWithoutWrites/changed_checksum\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.898489902-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/changed_checksum\",\"Output\":\"--- PASS: TestPostgresHistoryMismatchIsRejectedWithoutWrites/changed_checksum (0.06s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.898541302-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/changed_checksum\",\"Elapsed\":0.06}\n{\"Time\":\"2026-09-12T03:36:29.898554989-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/missing_bootstrap\"}\n{\"Time\":\"2026-09-12T03:36:29.898559688-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/missing_bootstrap\",\"Output\":\"=== RUN   TestPostgresHistoryMismatchIsRejectedWithoutWrites/missing_bootstrap\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.961834555-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/missing_bootstrap\",\"Output\":\"--- PASS: TestPostgresHistoryMismatchIsRejectedWithoutWrites/missing_bootstrap (0.06s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.96187835-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites/missing_bootstrap\",\"Elapsed\":0.06}\n{\"Time\":\"2026-09-12T03:36:29.961886826-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites\",\"Output\":\"--- PASS: TestPostgresHistoryMismatchIsRejectedWithoutWrites (0.33s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:29.961889712-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresHistoryMismatchIsRejectedWithoutWrites\",\"Elapsed\":0.33}\n{\"Time\":\"2026-09-12T03:36:29.961892828-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresCancellationDuringSQLRollsBack\"}\n{\"Time\":\"2026-09-12T03:36:29.961895273-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresCancellationDuringSQLRollsBack\",\"Output\":\"=== RUN   TestPostgresCancellationDuringSQLRollsBack\\n\"}\n{\"Time\":\"2026-09-12T03:36:30.033677887-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresCancellationDuringSQLRollsBack\",\"Output\":\"--- PASS: TestPostgresCancellationDuringSQLRollsBack (0.07s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:30.033735188-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresCancellationDuringSQLRollsBack\",\"Elapsed\":0.07}\n{\"Time\":\"2026-09-12T03:36:30.033748804-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresCancellationDuringAdvisoryLock\"}\n{\"Time\":\"2026-09-12T03:36:30.033756539-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresCancellationDuringAdvisoryLock\",\"Output\":\"=== RUN   TestPostgresCancellationDuringAdvisoryLock\\n\"}\n{\"Time\":\"2026-09-12T03:36:30.104128823-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresCancellationDuringAdvisoryLock\",\"Output\":\"--- PASS: TestPostgresCancellationDuringAdvisoryLock (0.07s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:30.104169151-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresCancellationDuringAdvisoryLock\",\"Elapsed\":0.07}\n{\"Time\":\"2026-09-12T03:36:30.104175984-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresDeadlineDuringAdvisoryLock\"}\n{\"Time\":\"2026-09-12T03:36:30.10417894-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresDeadlineDuringAdvisoryLock\",\"Output\":\"=== RUN   TestPostgresDeadlineDuringAdvisoryLock\\n\"}\n{\"Time\":\"2026-09-12T03:36:30.31840432-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresDeadlineDuringAdvisoryLock\",\"Output\":\"--- PASS: TestPostgresDeadlineDuringAdvisoryLock (0.21s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:30.318463645-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresDeadlineDuringAdvisoryLock\",\"Elapsed\":0.21}\n{\"Time\":\"2026-09-12T03:36:30.318473163-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresInvalidCredentialsAreRedacted\"}\n{\"Time\":\"2026-09-12T03:36:30.318477241-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresInvalidCredentialsAreRedacted\",\"Output\":\"=== RUN   TestPostgresInvalidCredentialsAreRedacted\\n\"}\n{\"Time\":\"2026-09-12T03:36:30.379087383-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresInvalidCredentialsAreRedacted\",\"Output\":\"--- PASS: TestPostgresInvalidCredentialsAreRedacted (0.06s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:30.379140396-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresInvalidCredentialsAreRedacted\",\"Elapsed\":0.06}\n{\"Time\":\"2026-09-12T03:36:30.379150926-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresDatabasesAreIsolated\"}\n{\"Time\":\"2026-09-12T03:36:30.379158922-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresDatabasesAreIsolated\",\"Output\":\"=== RUN   TestPostgresDatabasesAreIsolated\\n\"}\n{\"Time\":\"2026-09-12T03:36:30.595233846-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresDatabasesAreIsolated\",\"Output\":\"--- PASS: TestPostgresDatabasesAreIsolated (0.22s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:30.595285285-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresDatabasesAreIsolated\",\"Elapsed\":0.22}\n{\"Time\":\"2026-09-12T03:36:30.59529273-07:00\",\"Action\":\"run\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresCommitFailureNeverReportsSuccess\"}\n{\"Time\":\"2026-09-12T03:36:30.595294924-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresCommitFailureNeverReportsSuccess\",\"Output\":\"=== RUN   TestPostgresCommitFailureNeverReportsSuccess\\n\"}\n{\"Time\":\"2026-09-12T03:36:30.668889955-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresCommitFailureNeverReportsSuccess\",\"Output\":\"--- PASS: TestPostgresCommitFailureNeverReportsSuccess (0.07s)\\n\"}\n{\"Time\":\"2026-09-12T03:36:30.668943258-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Test\":\"TestPostgresCommitFailureNeverReportsSuccess\",\"Elapsed\":0.07}\n{\"Time\":\"2026-09-12T03:36:30.668952426-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Output\":\"PASS\\n\"}\n{\"Time\":\"2026-09-12T03:36:30.670507499-07:00\",\"Action\":\"output\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Output\":\"ok  \\trepomesh.local/repomesh/internal/database\\t1.571s\\n\"}\n{\"Time\":\"2026-09-12T03:36:30.670546825-07:00\",\"Action\":\"pass\",\"Package\":\"repomesh.local/repomesh/internal/database\",\"Elapsed\":1.571}\n",
+      "stderr": ""
+    },
+    {
+      "name": "postgres-test-gate",
+      "passedTests": 19,
+      "skippedTests": 0
+    },
+    {
+      "name": "go-vet",
+      "command": [
+        "/usr/local/bin/go",
+        "vet",
+        "./..."
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 1.875,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "npm-ci",
+      "command": [
+        "/usr/local/bin/node",
+        "/opt/repomesh-dev-tools/node-v22.22.1-linux-x64/lib/node_modules/npm/bin/npm-cli.js",
+        "--prefix",
+        "web",
+        "ci"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 12.24,
+      "stdout": "\nadded 26 packages, and audited 27 packages in 10s\n\n8 packages are looking for funding\n  run `npm fund` for details\n\nfound 0 vulnerabilities\n",
+      "stderr": "npm notice\nnpm notice New major version of npm available! 10.9.4 -> 12.0.2\nnpm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2\nnpm notice To update run: npm install -g npm@12.0.2\nnpm notice\n"
+    },
+    {
+      "name": "npm-typecheck",
+      "command": [
+        "/usr/local/bin/node",
+        "/opt/repomesh-dev-tools/node-v22.22.1-linux-x64/lib/node_modules/npm/bin/npm-cli.js",
+        "--prefix",
+        "web",
+        "run",
+        "typecheck"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.228,
+      "stdout": "\n> repomesh-web@0.0.0 typecheck\n> tsc --noEmit\n\n",
+      "stderr": ""
+    },
+    {
+      "name": "npm-build",
+      "command": [
+        "/usr/local/bin/node",
+        "/opt/repomesh-dev-tools/node-v22.22.1-linux-x64/lib/node_modules/npm/bin/npm-cli.js",
+        "--prefix",
+        "web",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.644,
+      "stdout": "\n> repomesh-web@0.0.0 build\n> npm run typecheck && vite build\n\n\n> repomesh-web@0.0.0 typecheck\n> tsc --noEmit\n\nvite v8.2.2 building client environment for production...\ntransforming...\n✓ 15 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                   0.49 kB │ gzip:  0.32 kB\ndist/assets/index-rI43kEuq.css    1.63 kB │ gzip:  0.73 kB\ndist/assets/index-C3EmKHkh.js   221.41 kB │ gzip: 69.49 kB\n\n✓ built in 145ms\n",
+      "stderr": ""
+    },
+    {
+      "name": "web-binary",
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "-o",
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/repomesh-web",
+        "./cmd/repomesh-web"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.846,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "coordinator-binary",
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "-o",
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/repomesh-coordinator",
+        "./cmd/repomesh-coordinator"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.257,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "coordinator-version",
+      "command": [
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/repomesh-coordinator",
+        "--version"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.002,
+      "stdout": "repomesh-coordinator dev\n",
+      "stderr": ""
+    },
+    {
+      "name": "coordinator-unimplemented",
+      "command": [
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/repomesh-coordinator"
+      ],
+      "exitCode": 1,
+      "expectedExit": [
+        1
+      ],
+      "seconds": 0.002,
+      "stdout": "",
+      "stderr": "repomesh-coordinator: not implemented (scaffold only); no queue, scheduling, Graph or AgentTeams integration is running\n"
+    },
+    {
+      "name": "host-executor-binary",
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "-o",
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/repomesh-host-executor",
+        "./cmd/repomesh-host-executor"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.226,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "host-executor-version",
+      "command": [
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/repomesh-host-executor",
+        "--version"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.002,
+      "stdout": "repomesh-host-executor dev\n",
+      "stderr": ""
+    },
+    {
+      "name": "host-executor-unimplemented",
+      "command": [
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/repomesh-host-executor"
+      ],
+      "exitCode": 1,
+      "expectedExit": [
+        1
+      ],
+      "seconds": 0.002,
+      "stdout": "",
+      "stderr": "repomesh-host-executor: not implemented (scaffold only); no listener, host commands, containers or Python analysis are enabled\n"
+    },
+    {
+      "name": "web-version",
+      "command": [
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/repomesh-web",
+        "--version"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.005,
+      "stdout": "repomesh-web dev\n",
+      "stderr": ""
+    },
+    {
+      "name": "db-check-empty",
+      "command": [
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/repomesh-web",
+        "db",
+        "check"
+      ],
+      "exitCode": 1,
+      "expectedExit": [
+        1
+      ],
+      "seconds": 0.013,
+      "stdout": "schema status=missing current=0 target=1 pending=1\n",
+      "stderr": "",
+      "expectedOutput": "schema status=missing current=0 target=1 pending=1"
+    },
+    {
+      "name": "db-migrate",
+      "command": [
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/repomesh-web",
+        "db",
+        "migrate"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.017,
+      "stdout": "schema status=current current=1 target=1 pending=0\n",
+      "stderr": "",
+      "expectedOutput": "schema status=current current=1 target=1 pending=0"
+    },
+    {
+      "name": "db-check",
+      "command": [
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/repomesh-web",
+        "db",
+        "check"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.011,
+      "stdout": "schema status=current current=1 target=1 pending=0\n",
+      "stderr": "",
+      "expectedOutput": "schema status=current current=1 target=1 pending=0"
+    },
+    {
+      "name": "db-migrate-repeat",
+      "command": [
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/repomesh-web",
+        "db",
+        "migrate"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.01,
+      "stdout": "schema status=current current=1 target=1 pending=0\n",
+      "stderr": "",
+      "expectedOutput": "schema status=current current=1 target=1 pending=0"
+    },
+    {
+      "name": "postgres-restart-stop",
+      "command": [
+        "/usr/lib/postgresql/17/bin/pg_ctl",
+        "-D",
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/data",
+        "-m",
+        "fast",
+        "-w",
+        "-t",
+        "30",
+        "stop"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.102,
+      "stdout": "waiting for server to shut down.... done\nserver stopped\n",
+      "stderr": ""
+    },
+    {
+      "name": "postgres-restart-start",
+      "command": [
+        "/usr/lib/postgresql/17/bin/pg_ctl",
+        "-D",
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/data",
+        "-l",
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/postgres.log",
+        "-o",
+        "-h 127.0.0.1 -p 46719 -c fsync=on",
+        "-w",
+        "-t",
+        "30",
+        "start"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.111,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "db-check-after-server-restart",
+      "command": [
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/repomesh-web",
+        "db",
+        "check"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.013,
+      "stdout": "schema status=current current=1 target=1 pending=0\n",
+      "stderr": "",
+      "expectedOutput": "schema status=current current=1 target=1 pending=0"
+    },
+    {
+      "name": "db-ledger",
+      "command": [
+        "/usr/lib/postgresql/17/bin/psql",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "46719",
+        "-U",
+        "repomesh_test",
+        "-d",
+        "postgres",
+        "-X",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-At",
+        "-c",
+        "SELECT version, name, octet_length(checksum) FROM public.repomesh_schema_migrations ORDER BY version"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.018,
+      "stdout": "1|0001_schema_migrations.sql|32\n",
+      "stderr": ""
+    },
+    {
+      "name": "db-tamper",
+      "command": [
+        "/usr/lib/postgresql/17/bin/psql",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "46719",
+        "-U",
+        "repomesh_test",
+        "-d",
+        "postgres",
+        "-X",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-At",
+        "-c",
+        "UPDATE public.repomesh_schema_migrations SET name = 'tampered' WHERE version = 1"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.014,
+      "stdout": "UPDATE 1\n",
+      "stderr": ""
+    },
+    {
+      "name": "db-check-drift",
+      "command": [
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/repomesh-web",
+        "db",
+        "check"
+      ],
+      "exitCode": 1,
+      "expectedExit": [
+        1
+      ],
+      "seconds": 0.011,
+      "stdout": "",
+      "stderr": "database migration history does not match this binary: name or checksum differs at version 1\n",
+      "expectedOutput": "migration history does not match this binary: name or checksum differs at version 1"
+    },
+    {
+      "name": "db-migrate-drift",
+      "command": [
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/repomesh-web",
+        "db",
+        "migrate"
+      ],
+      "exitCode": 1,
+      "expectedExit": [
+        1
+      ],
+      "seconds": 0.01,
+      "stdout": "",
+      "stderr": "database migration history does not match this binary: name or checksum differs at version 1\n",
+      "expectedOutput": "migration history does not match this binary: name or checksum differs at version 1"
+    },
+    {
+      "name": "db-invalid-command",
+      "command": [
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/repomesh-web",
+        "db",
+        "reset"
+      ],
+      "exitCode": 2,
+      "expectedExit": [
+        2
+      ],
+      "seconds": 0.004,
+      "stdout": "",
+      "stderr": "expected db check or db migrate; use db --help\n",
+      "expectedOutput": "expected db check or db migrate"
+    },
+    {
+      "name": "db-missing-url",
+      "command": [
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/repomesh-web",
+        "db",
+        "check"
+      ],
+      "exitCode": 2,
+      "expectedExit": [
+        2
+      ],
+      "seconds": 0.004,
+      "stdout": "",
+      "stderr": "invalid database configuration: a connection string is required\n",
+      "expectedOutput": "invalid database configuration: a connection string is required"
+    },
+    {
+      "name": "http-/healthz",
+      "status": 200,
+      "expected": 200,
+      "body": "{\"businessReady\":false,\"process\":\"repomesh-web\",\"status\":\"scaffold\",\"version\":\"dev\"}\n"
+    },
+    {
+      "name": "http-/readyz",
+      "status": 503,
+      "expected": 503,
+      "body": "{\"message\":\"Business capabilities are not implemented.\",\"status\":\"not_implemented\"}\n"
+    },
+    {
+      "name": "http-/api/projects",
+      "status": 404,
+      "expected": 404,
+      "body": "{\"error\":\"not_implemented\"}\n"
+    },
+    {
+      "name": "http-/",
+      "status": 200,
+      "expected": 200,
+      "contentType": "text/html",
+      "matchesBuiltIndex": true,
+      "sha256": "18e855ab96984b54c1b5ae2d193f0cccbd55f95d326ba61193753c60bf2df956"
+    },
+    {
+      "name": "postgres-status",
+      "command": [
+        "/usr/lib/postgresql/17/bin/pg_ctl",
+        "-D",
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/data",
+        "status"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0,
+        3
+      ],
+      "seconds": 0.001,
+      "stdout": "pg_ctl: server is running (PID: 7994)\n/usr/lib/postgresql/17/bin/postgres \"-D\" \"/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/data\" \"-h\" \"127.0.0.1\" \"-p\" \"46719\" \"-c\" \"fsync=on\"\n",
+      "stderr": ""
+    },
+    {
+      "name": "postgres-stop",
+      "command": [
+        "/usr/lib/postgresql/17/bin/pg_ctl",
+        "-D",
+        "/tmp/repomesh-verify-cc59d0b492214a42967a398c046620b8/data",
+        "-m",
+        "fast",
+        "-w",
+        "-t",
+        "30",
+        "stop"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.102,
+      "stdout": "waiting for server to shut down.... done\nserver stopped\n",
+      "stderr": ""
+    }
+  ]
+}

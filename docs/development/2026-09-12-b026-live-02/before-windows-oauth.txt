@@ -1,0 +1,21 @@
+BEGIN
+          sampled_at           
+-------------------------------
+ 2026-09-12 08:21:20.194408-07
+(1 row)
+
+                  id                  | purpose |   state    |     reason      |          created_at           |          observed_at          
+--------------------------------------+---------+------------+-----------------+-------------------------------+-------------------------------
+ 00b02a0f-7ce4-4fda-8e6f-30e2240f1ff3 | login   | superseded | NEWER_ATTEMPT   | 2026-09-12 06:55:22.566783-07 | 2026-09-12 06:58:16.237684-07
+ 6413121b-1b3c-42a7-8cee-34b8d32cc9d5 | login   | expired    | ATTEMPT_EXPIRED | 2026-09-12 06:58:16.237684-07 | 2026-09-12 07:08:16.730688-07
+(2 rows)
+
+ actor | revision | access_epoch | status | refresh_state | credential_committed_at | observed_at | access_expires_at | refresh_expires_at | has_refresh_token | refresh_due_at | access_refresh_due 
+-------+----------+--------------+--------+---------------+-------------------------+-------------+-------------------+--------------------+-------------------+----------------+--------------------
+(0 rows)
+
+ actor | generation | created_at | last_active_at | expires_at | revoked 
+-------+------------+------------+----------------+------------+---------
+(0 rows)
+
+COMMIT

@@ -1,0 +1,48 @@
+# RepoMesh verification operator config.
+# Copy, then fill only what the chosen run_scope requires:
+#   cp .cursor/skills/verify-repomesh/config.example.yaml .cursor/skills/verify-repomesh/config.yaml
+# Do not put secret bodies here. Use absolute paths to files the process already has.
+
+# Local process the skill launches, doctors, and drives.
+# Must be a loopback HTTP origin. Public hostnames are rejected.
+listen:
+  host: "127.0.0.1"
+  port: 18080
+# Empty means http://<listen.host>:<listen.port>
+origin: ""
+
+# unconfigured-only | account-a-live | restore-leftovers
+run_scope: unconfigured-only
+
+# Absolute path to auth.json. Optional for unconfigured-only.
+# Required for account-a-live and restore-leftovers. Path only; never paste the JSON body.
+auth_config_path: ""
+
+# Reuse the existing PostgreSQL plus wrap root when those already hold auth rows.
+# Required as an explicit boolean for account-a-live and restore-leftovers.
+reuse_existing_postgres_and_wrap_root: false
+
+# GitHub login of account A. Required for account-a-live and restore-leftovers.
+github_account_a_login: ""
+
+# Installed private repository stable numeric id. Required for account-a-live discovery items.
+installed_private_repo_id: ""
+# Optional. Needed for LIVE-08 pagination or out-of-install absence.
+out_of_install_repo_id: ""
+
+confirmations:
+  # Account holder will click GitHub Authorize, Cancel, App permission, and install UI.
+  # Agents must not complete those GitHub pages. Required true for live scopes.
+  holder_will_click_github_ui: false
+  # Restore leftovers. All required true when run_scope is restore-leftovers.
+  app_visibility_private_again: false
+  installation_161284386_gone: false
+  collaborator_and_invite_gone: false
+  b_oauth_grant_revoked: false
+  a_installation_161172403_selects_only_1367444901: false
+  account_a_cannot_see_1368000734: false
+
+# Database URL: env var name or a file that contains the URL. Not the password.
+database:
+  url_env_var: "REPOMESH_DATABASE_URL"
+  connection_url_file: ""

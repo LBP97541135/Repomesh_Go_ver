@@ -1,0 +1,40 @@
+{
+  "repomesh-0.2.0-b02-local-20260912-r1": {
+    "releaseJsonSha256": "eb421e6d7c901aad20dbfce071b685433b1aa9541c3b661be700dd320df4cdb4",
+    "artifactCount": 11,
+    "allMatch": true,
+    "artifacts": {
+      "README.txt": "87e6fa296ae1981940a9abedfddf9795f3fa3b15a4bc6a5733f50ebec5c5f95b",
+      "SOURCE-README.md": "7e37b8d6457e090fd314f9035eacd0db07c123de9bacbfa198cd361d3e57e0d0",
+      "bin/repomesh-coordinator": "765825db99cbe64d84d8efb7f6d541e8543f663d99cf5e5327d972dbec672c34",
+      "bin/repomesh-host-executor": "7616f6119554cb78f24dbd94741a78249de5d566cb3f132cf742d911fe0fb242",
+      "bin/repomesh-web": "ec990720f70e7255caf8d4e0f14445dbe74f6eac0d471d511e6dcc2f722f3d91",
+      "configs/auth.example.json": "ef6a9db98df41982242d628404af6d8dc48c1024a10abd41e5cb03f0f0d9d451",
+      "configs/repomesh.env.example": "a251a2ec36230d4428e3838008b1427b24e43a4b774ba8643fe3dd7461982a0c",
+      "web/dist/assets/index-CH4x9jbV.js": "54622413e828e7ec005c7ef116f3e6892ccebd2cbf3f4706275000a9da1b5707",
+      "web/dist/assets/index-Cq0F5qZC.css": "1a639c7ebaa3ac687dbd94837d47926e579746897ecfc687e42a4b55d00d43dc",
+      "web/dist/index.html": "5fa955d68bc97861dd9de7bfbaa4d03b903989a9747e4c0a515ed1e6c0a3f36c",
+      "web/package-lock.json": "0de7f257445b9dbd21716ee05f886489181b9d56c073f55fb288c037f43ecb6b"
+    },
+    "mismatches": []
+  },
+  "repomesh-0.2.0-b026-utc-20260912-r2": {
+    "releaseJsonSha256": "5af0545707a9feb020436b56dfab407255a6b8d51046eeb4ed7f51bc41c76152",
+    "artifactCount": 11,
+    "allMatch": true,
+    "artifacts": {
+      "README.txt": "60c2330e3cc82ca3491acce405191c7431d56779b38ec1542434961322b1b5b7",
+      "SOURCE-README.md": "cef7e97875d11c7adf4a98817bfb6c98e9d20b711034666a8f76290827affed1",
+      "bin/repomesh-coordinator": "5d287897535c4dcc75d0fc8e20f3c01fc5d7dfb9d8ead491266dc8d8abea821b",
+      "bin/repomesh-host-executor": "7cacd9083606aa6ccce242fa1dfeadc8d7da7645447634cd3815cae37188fce4",
+      "bin/repomesh-web": "7b27f17b57b83b2f9a2f7139ecae473c91f9b67d63ade20607955fee291b03e0",
+      "configs/auth.example.json": "ef6a9db98df41982242d628404af6d8dc48c1024a10abd41e5cb03f0f0d9d451",
+      "configs/repomesh.env.example": "a251a2ec36230d4428e3838008b1427b24e43a4b774ba8643fe3dd7461982a0c",
+      "web/dist/assets/index-CH4x9jbV.js": "54622413e828e7ec005c7ef116f3e6892ccebd2cbf3f4706275000a9da1b5707",
+      "web/dist/assets/index-Cq0F5qZC.css": "1a639c7ebaa3ac687dbd94837d47926e579746897ecfc687e42a4b55d00d43dc",
+      "web/dist/index.html": "5fa955d68bc97861dd9de7bfbaa4d03b903989a9747e4c0a515ed1e6c0a3f36c",
+      "web/package-lock.json": "0de7f257445b9dbd21716ee05f886489181b9d56c073f55fb288c037f43ecb6b"
+    },
+    "mismatches": []
+  }
+}

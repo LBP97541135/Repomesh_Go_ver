@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>RepoMesh Go 版数据库重构方案</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; margin: 0; background: #f4f6fb; color: #1f2430; }
+  .wrap { max-width: 1150px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  .sub { color: #5a6270; font-size: 14px; margin-bottom: 20px; line-height: 1.7; }
+  .stats { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0 26px; }
+  .stat { background: #fff; border: 1px solid #e2e6f0; border-radius: 10px; padding: 12px 20px; min-width: 150px; }
+  .stat .n { font-size: 26px; font-weight: 700; color: #3742fa; }
+  .stat .t { font-size: 12px; color: #5a6270; }
+  h2 { font-size: 20px; margin: 40px 0 6px; padding-bottom: 8px; border-bottom: 2px solid #e2e6f0; }
+  .gdesc { font-size: 13px; color: #5a6270; margin: 0 0 14px; }
+  .tbl { background: #fff; border: 1px solid #e2e6f0; border-radius: 12px; margin: 14px 0; overflow: hidden; }
+  .thead { padding: 12px 18px 4px; }
+  .thead .nm { font-family: Consolas, monospace; font-weight: 700; font-size: 16px; }
+  .thead .use { font-size: 13px; color: #444b58; margin-top: 4px; }
+  .src { padding: 6px 18px; font-size: 12.5px; }
+  .src b { color: #b45309; }
+  .src .s { display: inline-block; background: #fef3c7; border: 1px solid #fde68a; border-radius: 4px; padding: 0 7px; margin: 2px 4px 2px 0; font-family: Consolas, monospace; font-size: 11.5px; }
+  .src .s.new { background: #dcfce7; border-color: #bbf7d0; color: #166534; }
+  table.cols { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.cols th { text-align: left; background: #f8f9fd; color: #5a6270; font-weight: 600; padding: 6px 12px; border-top: 1px solid #eef0f7; border-bottom: 1px solid #eef0f7; }
+  table.cols td { padding: 5px 12px; border-bottom: 1px solid #f1f3f9; vertical-align: top; }
+  .cn { font-family: Consolas, monospace; font-weight: 600; white-space: nowrap; }
+  .ct { font-family: Consolas, monospace; color: #0d6efd; white-space: nowrap; }
+  .cm { white-space: nowrap; }
+  .cm span { display: inline-block; font-size: 10.5px; border-radius: 4px; padding: 0 5px; margin-right: 3px; }
+  .PK { background: #fee2e2; color: #b91c1c; font-weight: 700; }
+  .req { background: #fef9c3; color: #854d0e; }
+  .nul { background: #f1f5f9; color: #64748b; }
+  .ix { background: #dbeafe; color: #1d4ed8; }
+  .unq { background: #ede9fe; color: #6d28d9; }
+  .cd { color: #444b58; }
+  .fks { padding: 8px 18px 14px; font-size: 12.5px; color: #444b58; border-top: 1px dashed #eef0f7; }
+  .fks code { font-family: Consolas, monospace; background: #f4f5fa; border-radius: 3px; padding: 0 4px; font-size: 11.5px; }
+  .moved { background: #fff; border: 1px solid #e2e6f0; border-radius: 12px; padding: 14px 20px; margin: 10px 0; font-size: 13px; }
+  .moved table { width: 100%; border-collapse: collapse; }
+  .moved td, .moved th { padding: 6px 10px; border-bottom: 1px solid #f1f3f9; text-align: left; }
+  .toc { columns: 2; font-size: 13px; background: #fff; border: 1px solid #e2e6f0; border-radius: 12px; padding: 14px 22px; margin-bottom: 8px; }
+  .toc a { color: #3742fa; text-decoration: none; display: block; padding: 2px 0; }
+  .ok { color: #166534; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>RepoMesh Go 版数据库重构方案</h1>
+<div class="sub">72 张现有表 → <b>44 张目标表</b>（7 大功能方向）· 每张表：完整字段、主键、由哪些表合并而来 · 告警 / 降级 / 日志 / 恢复 / 决策链全部保留 · Skill 体系按定稿方案全新设计</div>
+<div class="stats">
+<div class="stat"><div class="n">72 → 44</div><div class="t">表数量</div></div>
+<div class="stat"><div class="n">64</div><div class="t">原表并入 / 保留</div></div>
+<div class="stat"><div class="n">6</div><div class="t">迁出数据库（换存放方式）</div></div>
+<div class="stat"><div class="n">7</div><div class="t">功能方向</div></div>
+</div>
+<div class="toc">
+<div style="margin-bottom:10px" class="ok">✓ 核对：72 张原表全部有着落（64 并入/保留 + 6 迁出 + 1 归档 + 1 删除）</div>
+<div><b>① 账号与身份</b>（4 张）
+<a href="#t_organizations">organizations</a>
+<a href="#t_users">users</a>
+<a href="#t_agents">agents</a>
+<a href="#t_credentials">credentials</a>
+</div>
+<div><b>② 项目与编制</b>（5 张）
+<a href="#t_projects">projects</a>
+<a href="#t_repositories">repositories</a>
+<a href="#t_plans">plans</a>
+<a href="#t_agent_teams">agent_teams</a>
+<a href="#t_review_requests">review_requests</a>
+</div>
+<div><b>③ 任务主线</b>（4 张）
+<a href="#t_tasks">tasks</a>
+<a href="#t_plan_steps">plan_steps</a>
+<a href="#t_task_assignments">task_assignments</a>
+<a href="#t_handoffs">handoffs</a>
+</div>
+<div><b>④ 协作与上下文</b>（5 张）
+<a href="#t_messages">messages</a>
+<a href="#t_context_objects">context_objects</a>
+<a href="#t_context_bundles">context_bundles</a>
+<a href="#t_context_deltas">context_deltas</a>
+<a href="#t_context_access_events">context_access_events</a>
+</div>
+<div><b>⑤ 交付与验证</b>（6 张）
+<a href="#t_change_sets">change_sets</a>
+<a href="#t_scm_commands">scm_commands</a>
+<a href="#t_scm_observations">scm_observations</a>
+<a href="#t_delivery_policies">delivery_policies</a>
+<a href="#t_validation_snapshots">validation_snapshots</a>
+<a href="#t_database_branch_validations">database_branch_validations</a>
+</div>
+<div><b>⑥ Skill 体系</b>（7 张）
+<a href="#t_skills">skills</a>
+<a href="#t_skill_versions">skill_versions</a>
+<a href="#t_skill_test_questions">skill_test_questions</a>
+<a href="#t_skill_evaluation_runs">skill_evaluation_runs</a>
+<a href="#t_skill_approvals">skill_approvals</a>
+<a href="#t_agent_skill_bindings">agent_skill_bindings</a>
+<a href="#t_skill_update_suggestions">skill_update_suggestions</a>
+</div>
+<div><b>⑦ 运行账本</b>（13 张）
+<a href="#t_events">events</a>
+<a href="#t_llm_usage">llm_usage</a>
+<a href="#t_alert_rules">alert_rules</a>
+<a href="#t_alert_events">alert_events</a>
+<a href="#t_trace_sessions">trace_sessions</a>
+<a href="#t_trace_events">trace_events</a>
+<a href="#t_log_entries">log_entries</a>
+<a href="#t_recovery_cases">recovery_cases</a>
+<a href="#t_recovery_decisions">recovery_decisions</a>
+<a href="#t_recovery_operations">recovery_operations</a>
+<a href="#t_decision_chain_nodes">decision_chain_nodes</a>
+<a href="#t_decision_embeddings">decision_embeddings</a>
+<a href="#t_mcp_server_policies">mcp_server_policies</a>
+</div>
+</div>
+<h2>① 账号与身份</h2><div class="gdesc">谁在这个平台上：组织、人、Agent、集成凭据</div>
+<div class="tbl" id="t_organizations">
+<div class="thead"><span class="nm">organizations</span><div class="use">组织：最高层租户单位（多租户隔离单位，一人只属一个组织），所有数据都挂在组织下</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">organizations（原样保留）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">name</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">组织名</td></tr>
+<tr><td class="cn">created_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">创建时间</td></tr>
+</table>
+</div>
+<div class="tbl" id="t_users">
+<div class="thead"><span class="nm">users</span><div class="use">人：账号与登录态，一人只属一个组织（多租户：数据按组织隔离）。审批、逐级审核、驳回都是"人"这个动作主体</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">local_human_accounts</span>
+<span class="s">local_human_sessions</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">organization_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">所属组织（一人一组织）</td></tr>
+<tr><td class="cn">username</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="唯一">唯一</span></td><td class="cd">登录名</td></tr>
+<tr><td class="cn">display_name</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">显示名</td></tr>
+<tr><td class="cn">password_hash</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">密码哈希（盐含在哈希内）</td></tr>
+<tr><td class="cn">org_role</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">组织内角色（组织管理员/普通成员）</td></tr>
+<tr><td class="cn">active</td><td class="ct">布尔</td><td class="cm"><span class="必填">必填</span></td><td class="cd">是否启用</td></tr>
+<tr><td class="cn">session_token_hash</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span></td><td class="cd">当前会话令牌哈希（会话表 1:1 并入）</td></tr>
+<tr><td class="cn">session_expires_at</td><td class="ct">时间</td><td class="cm"><span class="可空">可空</span></td><td class="cd">令牌过期时间</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>organization_id</code> → <code>organizations</code>（归属）
+</div>
+</div>
+<div class="tbl" id="t_agents">
+<div class="thead"><span class="nm">agents</span><div class="use">Agent 名册：Leader（总）、Manager（仓库）、Worker、数据库测试团队每个可干活的身份</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">agent_principals（改造保留）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">organization_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">所属组织</td></tr>
+<tr><td class="cn">role</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">角色（leader=总/manager=仓库/worker/db-test-team）</td></tr>
+<tr><td class="cn">parent_agent_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">直接上级（worker 的 manager、manager 的 leader）</td></tr>
+<tr><td class="cn">repository_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">绑定仓库</td></tr>
+<tr><td class="cn">responsibility_paths</td><td class="ct">JSON</td><td class="cm"><span class="可空">可空</span></td><td class="cd">负责的路径范围</td></tr>
+<tr><td class="cn">resource_ref</td><td class="ct">JSON</td><td class="cm"><span class="可空">可空</span></td><td class="cd">agentteams 资源绑定</td></tr>
+<tr><td class="cn">singleton_key</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span><span class="唯一">唯一</span></td><td class="cd">防重复注册的固定标识</td></tr>
+<tr><td class="cn">status</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">状态</td></tr>
+<tr><td class="cn">idempotency_key</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span><span class="唯一">唯一</span></td><td class="cd">注册幂等键</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>organization_id</code> → <code>organizations</code>（归属）；<code>parent_agent_id</code> → <code>agents（自引用）</code>（隶属）；<code>repository_id</code> → <code>repositories</code>（绑定）
+</div>
+</div>
+<div class="tbl" id="t_credentials">
+<div class="thead"><span class="nm">credentials</span><div class="use">集成凭据登记：GitHub App 注册结果、平台级配置项（存加密值，不含明文）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">platform_credentials</span>
+<span class="s">github_app_registrations</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">kind</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">类型（platform-kv / github-app）</td></tr>
+<tr><td class="cn">key</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="唯一">唯一</span></td><td class="cd">凭据键名或 App 标识</td></tr>
+<tr><td class="cn">value_encrypted</td><td class="ct">文本</td><td class="cm"><span class="必填">必填</span></td><td class="cd">加密后的值</td></tr>
+<tr><td class="cn">app_id</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span></td><td class="cd">GitHub App ID</td></tr>
+<tr><td class="cn">installation_id</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span></td><td class="cd">安装 ID</td></tr>
+<tr><td class="cn">owner_login</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span></td><td class="cd">App 归属账号</td></tr>
+<tr><td class="cn">updated_by</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span></td><td class="cd">最后更新人</td></tr>
+<tr><td class="cn">updated_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">更新时间</td></tr>
+</table>
+</div>
+<h2>② 项目与编制</h2><div class="gdesc">拿什么仓库、开什么项目、做过什么规划、派什么班子、什么时候请人来审</div>
+<div class="tbl" id="t_projects">
+<div class="thead"><span class="nm">projects</span><div class="use">项目：一次接入仓库开展工作的工作单元。原库 project_id 满天飞却没有实体表，Go 版补上落点</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s new">新表（补原库缺失的实体落点）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">organization_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">所属组织</td></tr>
+<tr><td class="cn">repository_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="唯一">唯一</span></td><td class="cd">对应仓库</td></tr>
+<tr><td class="cn">name</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">项目名</td></tr>
+<tr><td class="cn">status</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">状态</td></tr>
+<tr><td class="cn">created_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">创建时间</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>organization_id</code> → <code>organizations</code>（归属）；<code>repository_id</code> → <code>repositories</code>（对应仓库）
+</div>
+</div>
+<div class="tbl" id="t_repositories">
+<div class="thead"><span class="nm">repositories</span><div class="use">仓库档案：接入仓库的基础信息、画像结论、轮询进度（游标 1:1 并入）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">repositories</span>
+<span class="s">plan_snapshots（画像部分）</span>
+<span class="s">scm_poll_cursors（游标部分）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">name</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">仓库名</td></tr>
+<tr><td class="cn">url</td><td class="ct">文本</td><td class="cm"><span class="必填">必填</span><span class="唯一">唯一</span></td><td class="cd">仓库地址</td></tr>
+<tr><td class="cn">description</td><td class="ct">文本</td><td class="cm"><span class="必填">必填</span></td><td class="cd">描述</td></tr>
+<tr><td class="cn">topics</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">主题标签</td></tr>
+<tr><td class="cn">languages</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">语言构成</td></tr>
+<tr><td class="cn">profiled_at</td><td class="ct">时间</td><td class="cm"><span class="可空">可空</span></td><td class="cd">画像时间</td></tr>
+<tr><td class="cn">poll_last_at</td><td class="ct">时间</td><td class="cm"><span class="可空">可空</span></td><td class="cd">上次轮询</td></tr>
+<tr><td class="cn">poll_next_at</td><td class="ct">时间</td><td class="cm"><span class="可空">可空</span></td><td class="cd">下次轮询</td></tr>
+<tr><td class="cn">poll_failures</td><td class="ct">整数</td><td class="cm"><span class="必填">必填</span></td><td class="cd">连续失败次数</td></tr>
+</table>
+</div>
+<div class="tbl" id="t_plans">
+<div class="thead"><span class="nm">plans</span><div class="use">规划快照：对这个仓库做过哪次规划分析。规格、版本史、执行计划全并进这一张</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">plan_snapshots</span>
+<span class="s">specifications</span>
+<span class="s">specification_versions</span>
+<span class="s">execution_plans</span>
+<span class="s">execution_plan_revisions</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">project_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">所属项目</td></tr>
+<tr><td class="cn">plan_version</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">规划版本</td></tr>
+<tr><td class="cn">requirement_text</td><td class="ct">文本</td><td class="cm"><span class="必填">必填</span></td><td class="cd">需求原文</td></tr>
+<tr><td class="cn">engineering_spec</td><td class="ct">文本</td><td class="cm"><span class="必填">必填</span></td><td class="cd">工程规格（原规格表并入）</td></tr>
+<tr><td class="cn">contracts</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">接口契约</td></tr>
+<tr><td class="cn">task_dag</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">任务依赖图</td></tr>
+<tr><td class="cn">execution_batches</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">执行批次</td></tr>
+<tr><td class="cn">revisions</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">修订史（原修订表并入）</td></tr>
+<tr><td class="cn">execution_plan_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">对应执行计划</td></tr>
+<tr><td class="cn">created_by_agent_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">规划者</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>project_id</code> → <code>projects（组织下）</code>（归属）；<code>created_by_agent_id</code> → <code>agents</code>（规划者）
+</div>
+</div>
+<div class="tbl" id="t_agent_teams">
+<div class="thead"><span class="nm">agent_teams</span><div class="use">编制表：哪个仓库用哪套 Agent 班子、谁领导谁、执行策略、运行状态</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">agent_topologies</span>
+<span class="s">repository_agent_teams</span>
+<span class="s">topology_policy_drafts</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">project_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">所属项目</td></tr>
+<tr><td class="cn">repository_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">适用仓库（项目级编制时可空）</td></tr>
+<tr><td class="cn">leader_agent_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">总 Leader</td></tr>
+<tr><td class="cn">manager_agent_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">仓库 Manager</td></tr>
+<tr><td class="cn">worker_agent_ids</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">Worker 名单</td></tr>
+<tr><td class="cn">team_name</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span></td><td class="cd">执行面编制名</td></tr>
+<tr><td class="cn">room_id</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span></td><td class="cd">协作房间</td></tr>
+<tr><td class="cn">execution_mode</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">执行模式（原草稿表并入）</td></tr>
+<tr><td class="cn">required_checkpoints</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">必要检查点</td></tr>
+<tr><td class="cn">human_grants</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">人工授权项</td></tr>
+<tr><td class="cn">runtime_status</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">运行状态</td></tr>
+<tr><td class="cn">idempotency_key</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span><span class="唯一">唯一</span></td><td class="cd">幂等键</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>repository_id</code> → <code>repositories</code>（适用）；<code>leader_agent_id</code> → <code>agents</code>（总 Leader）；<code>manager_agent_id</code> → <code>agents</code>（仓库 Manager）
+</div>
+</div>
+<div class="tbl" id="t_review_requests">
+<div class="thead"><span class="nm">review_requests</span><div class="use">评审请求：机器拿不准请人审 + 人的批复，一来一回一张表记完</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">human_review_requests</span>
+<span class="s">checkpoint_decisions</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">project_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">所属项目</td></tr>
+<tr><td class="cn">object_type</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">评审对象类型（任务/编制/Skill 放行）</td></tr>
+<tr><td class="cn">object_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">评审对象 ID</td></tr>
+<tr><td class="cn">request_content</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">请求内容快照</td></tr>
+<tr><td class="cn">status</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">待审/通过/驳回</td></tr>
+<tr><td class="cn">requested_by_agent_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">发起评审的 Agent</td></tr>
+<tr><td class="cn">decided_by</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">批复人</td></tr>
+<tr><td class="cn">decision_note</td><td class="ct">文本</td><td class="cm"><span class="可空">可空</span></td><td class="cd">批复意见</td></tr>
+<tr><td class="cn">decided_at</td><td class="ct">时间</td><td class="cm"><span class="可空">可空</span></td><td class="cd">批复时间</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>decided_by</code> → <code>users</code>（批复人）；<code>requested_by_agent_id</code> → <code>agents</code>（发起方）
+</div>
+</div>
+<h2>③ 任务主线</h2><div class="gdesc">核心主线：一条 Issue 怎么变成计划、拆步骤、派单、干完、交测试</div>
+<div class="tbl" id="t_tasks">
+<div class="thead"><span class="nm">tasks</span><div class="use">任务主表：一条 Issue 一个任务；占位锁并入状态字段</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">tasks</span>
+<span class="s">worker_execution_reservations（占位部分）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">organization_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">所属组织</td></tr>
+<tr><td class="cn">project_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">所属项目</td></tr>
+<tr><td class="cn">repository_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">关联仓库</td></tr>
+<tr><td class="cn">parent_task_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">父任务</td></tr>
+<tr><td class="cn">title</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">标题</td></tr>
+<tr><td class="cn">instruction</td><td class="ct">文本</td><td class="cm"><span class="必填">必填</span></td><td class="cd">任务说明</td></tr>
+<tr><td class="cn">acceptance</td><td class="ct">文本</td><td class="cm"><span class="必填">必填</span></td><td class="cd">验收标准</td></tr>
+<tr><td class="cn">source_ref</td><td class="ct">JSON</td><td class="cm"><span class="可空">可空</span></td><td class="cd">来源溯源（如 Issue：编号/标题/链接）</td></tr>
+<tr><td class="cn">status</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">状态机（含被占位状态）</td></tr>
+<tr><td class="cn">assigned_by_agent_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">派单方</td></tr>
+<tr><td class="cn">assignee_agent_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">当前执行者（占位并入）</td></tr>
+<tr><td class="cn">reserved_at</td><td class="ct">时间</td><td class="cm"><span class="可空">可空</span></td><td class="cd">占位时间</td></tr>
+<tr><td class="cn">result_summary</td><td class="ct">文本</td><td class="cm"><span class="可空">可空</span></td><td class="cd">结果摘要</td></tr>
+<tr><td class="cn">version</td><td class="ct">整数</td><td class="cm"><span class="必填">必填</span></td><td class="cd">乐观锁版本</td></tr>
+<tr><td class="cn">idempotency_key</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span><span class="唯一">唯一</span></td><td class="cd">幂等键</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>repository_id</code> → <code>repositories</code>（关联）；<code>assignee_agent_id</code> → <code>agents</code>（执行）；<code>parent_task_id</code> → <code>tasks（自引用）</code>（拆解）
+</div>
+</div>
+<div class="tbl" id="t_plan_steps">
+<div class="thead"><span class="nm">plan_steps</span><div class="use">计划步骤：Manager 拆出的每个具体步骤，谁做、依赖谁、什么状态</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">execution_plan_tasks（独立保留——看板和依赖调度按行读）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">plan_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">所属计划</td></tr>
+<tr><td class="cn">step_no</td><td class="ct">整数</td><td class="cm"><span class="必填">必填</span></td><td class="cd">步骤序号</td></tr>
+<tr><td class="cn">content</td><td class="ct">文本</td><td class="cm"><span class="必填">必填</span></td><td class="cd">步骤内容</td></tr>
+<tr><td class="cn">assignee_role</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">负责角色</td></tr>
+<tr><td class="cn">depends_on</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">依赖步骤</td></tr>
+<tr><td class="cn">status</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">状态</td></tr>
+<tr><td class="cn">output</td><td class="ct">JSON</td><td class="cm"><span class="可空">可空</span></td><td class="cd">产出物</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>plan_id</code> → <code>plans</code>（归属）
+</div>
+</div>
+<div class="tbl" id="t_task_assignments">
+<div class="thead"><span class="nm">task_assignments</span><div class="use">派单表：一次派单一行，含每轮尝试的结果史与执行派发记录</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">leader_assignments</span>
+<span class="s">task_assignment_attempts</span>
+<span class="s">runner_dispatches</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">task_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">被派任务</td></tr>
+<tr><td class="cn">step_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">对应计划步骤</td></tr>
+<tr><td class="cn">manager_agent_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">派单 Manager</td></tr>
+<tr><td class="cn">worker_agent_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">接单 Worker</td></tr>
+<tr><td class="cn">phase</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">派单阶段</td></tr>
+<tr><td class="cn">safety_envelope</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">安全边界</td></tr>
+<tr><td class="cn">generation</td><td class="ct">整数</td><td class="cm"><span class="必填">必填</span></td><td class="cd">第几轮尝试</td></tr>
+<tr><td class="cn">attempt_state</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">尝试结果</td></tr>
+<tr><td class="cn">attempt_reason</td><td class="ct">文本</td><td class="cm"><span class="可空">可空</span></td><td class="cd">失败原因</td></tr>
+<tr><td class="cn">previous_attempt_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">上一轮尝试</td></tr>
+<tr><td class="cn">dispatch_ref</td><td class="ct">JSON</td><td class="cm"><span class="可空">可空</span></td><td class="cd">执行派发记录（原派发表并入）</td></tr>
+<tr><td class="cn">execution_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">对应执行</td></tr>
+<tr><td class="cn">finished_at</td><td class="ct">时间</td><td class="cm"><span class="可空">可空</span></td><td class="cd">完成时间</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>task_id</code> → <code>tasks</code>（派谁）；<code>worker_agent_id</code> → <code>agents</code>（接单）；<code>step_id</code> → <code>plan_steps</code>（对应步骤）
+</div>
+</div>
+<div class="tbl" id="t_handoffs">
+<div class="thead"><span class="nm">handoffs</span><div class="use">数据库测试交接：交给测试团队验证的交接单（核心卖点，独立保留）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">database_test_team_handoffs（原样保留）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">task_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">来源任务</td></tr>
+<tr><td class="cn">branch_validation_key</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="唯一">唯一</span></td><td class="cd">分支验证键</td></tr>
+<tr><td class="cn">payload</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">交接材料</td></tr>
+<tr><td class="cn">evidence</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">验证证据</td></tr>
+<tr><td class="cn">status</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">交接状态</td></tr>
+<tr><td class="cn">created_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">创建时间</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>task_id</code> → <code>tasks</code>（来源）
+</div>
+</div>
+<h2>④ 协作与上下文</h2><div class="gdesc">怎么说话、喂什么材料、谁读过什么</div>
+<div class="tbl" id="t_messages">
+<div class="thead"><span class="nm">messages</span><div class="use">消息：人与 Agent、Agent 之间交流的单条消息（时间线冗余表删除）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">messages</span>
+<span class="s new">room_timeline_messages（删除）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">organization_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">所属组织</td></tr>
+<tr><td class="cn">project_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">所属项目</td></tr>
+<tr><td class="cn">task_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">关联任务</td></tr>
+<tr><td class="cn">sender_type</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">发送方类型（agent/human）</td></tr>
+<tr><td class="cn">sender_agent_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">发送方（Agent 消息时填）</td></tr>
+<tr><td class="cn">sender_user_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">发送方（人工消息时填）</td></tr>
+<tr><td class="cn">recipient_agent_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">接收方</td></tr>
+<tr><td class="cn">kind</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">消息类型</td></tr>
+<tr><td class="cn">subject</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">主题</td></tr>
+<tr><td class="cn">body</td><td class="ct">文本</td><td class="cm"><span class="必填">必填</span></td><td class="cd">正文</td></tr>
+<tr><td class="cn">room_id</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">房间</td></tr>
+<tr><td class="cn">status</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">状态</td></tr>
+<tr><td class="cn">correlation_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">关联链</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>task_id</code> → <code>tasks</code>（关联）
+</div>
+</div>
+<div class="tbl" id="t_context_objects">
+<div class="thead"><span class="nm">context_objects</span><div class="use">上下文材料：可喂给 Agent 的背景材料登记、当前内容与版本史</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">context_objects</span>
+<span class="s">context_object_versions</span>
+<span class="s">handoff_docs</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">project_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">所属项目</td></tr>
+<tr><td class="cn">repository_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">来源仓库</td></tr>
+<tr><td class="cn">kind</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">材料类型</td></tr>
+<tr><td class="cn">name</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">名称</td></tr>
+<tr><td class="cn">content</td><td class="ct">文本</td><td class="cm"><span class="必填">必填</span></td><td class="cd">当前内容</td></tr>
+<tr><td class="cn">version_no</td><td class="ct">整数</td><td class="cm"><span class="必填">必填</span></td><td class="cd">当前版本号</td></tr>
+<tr><td class="cn">version_history</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">版本史（原版本表并入）</td></tr>
+<tr><td class="cn">source_ref</td><td class="ct">JSON</td><td class="cm"><span class="可空">可空</span></td><td class="cd">来源/派生关系（原关系表无人使用，JSON 化）</td></tr>
+<tr><td class="cn">created_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">创建</td></tr>
+<tr><td class="cn">updated_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">更新</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>repository_id</code> → <code>repositories</code>（来源）
+</div>
+</div>
+<div class="tbl" id="t_context_bundles">
+<div class="thead"><span class="nm">context_bundles</span><div class="use">上下文包：派活时打包发给 Agent 的材料包（包内清单并入）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">context_bundles</span>
+<span class="s">context_bundle_items</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">assignment_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">随哪次派单</td></tr>
+<tr><td class="cn">name</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">包名</td></tr>
+<tr><td class="cn">items</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">包内材料及版本快照</td></tr>
+<tr><td class="cn">created_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">创建时间</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>assignment_id</code> → <code>task_assignments</code>（随单）
+</div>
+</div>
+<div class="tbl" id="t_context_deltas">
+<div class="thead"><span class="nm">context_deltas</span><div class="use">上下文增量：材料更新时的差量（明细并入）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">context_deltas</span>
+<span class="s">context_delta_items</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">object_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">针对哪份材料</td></tr>
+<tr><td class="cn">base_version</td><td class="ct">整数</td><td class="cm"><span class="必填">必填</span></td><td class="cd">基于哪个版本</td></tr>
+<tr><td class="cn">changes</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">变化内容</td></tr>
+<tr><td class="cn">synced_to</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">已同步给谁</td></tr>
+<tr><td class="cn">created_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">创建时间</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>object_id</code> → <code>context_objects</code>（针对）
+</div>
+</div>
+<div class="tbl" id="t_context_access_events">
+<div class="thead"><span class="nm">context_access_events</span><div class="use">访问记录：谁在什么时候读过哪份材料（审计+热度）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">context_access_events（原样保留）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">object_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">哪份材料</td></tr>
+<tr><td class="cn">reader_agent_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">读者</td></tr>
+<tr><td class="cn">read_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">读取时间</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>object_id</code> → <code>context_objects</code>（对象）；<code>reader_agent_id</code> → <code>agents</code>（读者）
+</div>
+</div>
+<h2>⑤ 交付与验证</h2><div class="gdesc">代码怎么交付回去、验没验过、门禁策略——数据库分支验证是核心卖点单独成表</div>
+<div class="tbl" id="t_change_sets">
+<div class="thead"><span class="nm">change_sets</span><div class="use">变更集：一组代码改动（对应一个 PR）。冲突、归档、Issue 归档全部字段化</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">change_sets</span>
+<span class="s">change_set_repositories</span>
+<span class="s">conflict_cases（字段化）</span>
+<span class="s">delivery_archives（终态化）</span>
+<span class="s">issue_archives（终态化）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">organization_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">所属组织</td></tr>
+<tr><td class="cn">task_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">来源任务</td></tr>
+<tr><td class="cn">repository_ids</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">涉及仓库（每仓库一份：{仓库, 提交, PR 号, 交付状态}）</td></tr>
+<tr><td class="cn">status</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">状态机（含 archived 终态，不再复制归档表）</td></tr>
+<tr><td class="cn">pr_url</td><td class="ct">文本</td><td class="cm"><span class="可空">可空</span></td><td class="cd">PR 链接</td></tr>
+<tr><td class="cn">branch</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span></td><td class="cd">分支名</td></tr>
+<tr><td class="cn">conflict_kind</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span></td><td class="cd">冲突类型</td></tr>
+<tr><td class="cn">conflict_status</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span></td><td class="cd">冲突处理状态</td></tr>
+<tr><td class="cn">conflict_detail</td><td class="ct">JSON</td><td class="cm"><span class="可空">可空</span></td><td class="cd">冲突细节与修复任务引用</td></tr>
+<tr><td class="cn">payload</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">变更载荷</td></tr>
+<tr><td class="cn">version</td><td class="ct">整数</td><td class="cm"><span class="必填">必填</span></td><td class="cd">乐观锁</td></tr>
+<tr><td class="cn">idempotency_key</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span><span class="唯一">唯一</span></td><td class="cd">幂等键</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>task_id</code> → <code>tasks</code>（来源）
+</div>
+</div>
+<div class="tbl" id="t_scm_commands">
+<div class="thead"><span class="nm">scm_commands</span><div class="use">SCM 命令：发给托管平台的每条命令（建分支/开 PR）及结果</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">scm_commands（原样保留）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">change_set_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">属于哪个变更集</td></tr>
+<tr><td class="cn">command_type</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">命令类型</td></tr>
+<tr><td class="cn">params</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">参数</td></tr>
+<tr><td class="cn">result</td><td class="ct">JSON</td><td class="cm"><span class="可空">可空</span></td><td class="cd">结果</td></tr>
+<tr><td class="cn">retry_count</td><td class="ct">整数</td><td class="cm"><span class="必填">必填</span></td><td class="cd">重试次数</td></tr>
+<tr><td class="cn">status</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">状态</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>change_set_id</code> → <code>change_sets</code>（归属）
+</div>
+</div>
+<div class="tbl" id="t_scm_observations">
+<div class="thead"><span class="nm">scm_observations</span><div class="use">SCM 观察：从托管平台轮询回来的状态（合并没、CI 过没）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">scm_observations（原样保留）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">change_set_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">哪个变更集</td></tr>
+<tr><td class="cn">repository_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">哪个仓库</td></tr>
+<tr><td class="cn">observation</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">观察内容</td></tr>
+<tr><td class="cn">consumed</td><td class="ct">布尔</td><td class="cm"><span class="必填">必填</span></td><td class="cd">是否已消费</td></tr>
+<tr><td class="cn">observed_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">观察时间</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>change_set_id</code> → <code>change_sets</code>（归属）；<code>repository_id</code> → <code>repositories</code>（仓库）
+</div>
+</div>
+<div class="tbl" id="t_delivery_policies">
+<div class="thead"><span class="nm">delivery_policies</span><div class="use">交付策略：什么条件下允许交付（审核门禁、流水线要求），运行时按项目读取</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">delivery_policies（原样保留）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">project_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="唯一">唯一</span></td><td class="cd">所属项目</td></tr>
+<tr><td class="cn">policy</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">策略内容</td></tr>
+<tr><td class="cn">updated_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">更新时间</td></tr>
+</table>
+</div>
+<div class="tbl" id="t_validation_snapshots">
+<div class="thead"><span class="nm">validation_snapshots</span><div class="use">验证快照：一次验证动作的完整结果存档（通用验证）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">validation_snapshots（改造保留）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">organization_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">所属组织</td></tr>
+<tr><td class="cn">project_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">所属项目</td></tr>
+<tr><td class="cn">object_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">验证对象</td></tr>
+<tr><td class="cn">environment_hash</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span></td><td class="cd">环境指纹</td></tr>
+<tr><td class="cn">status</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">通过/失败</td></tr>
+<tr><td class="cn">payload</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">完整结果</td></tr>
+<tr><td class="cn">expires_at</td><td class="ct">时间</td><td class="cm"><span class="可空">可空</span></td><td class="cd">过期时间</td></tr>
+</table>
+</div>
+<div class="tbl" id="t_database_branch_validations">
+<div class="thead"><span class="nm">database_branch_validations</span><div class="use">数据库分支验证：为候选提交建数据库分支、跑验证——核心卖点独立成表</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">database_branch_validations（原样保留）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">organization_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">所属组织</td></tr>
+<tr><td class="cn">project_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">所属项目</td></tr>
+<tr><td class="cn">repository_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">所属仓库</td></tr>
+<tr><td class="cn">task_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">关联任务（同仓库可复验）</td></tr>
+<tr><td class="cn">candidate_sha</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">被验提交</td></tr>
+<tr><td class="cn">source_database_ref</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">来源数据库</td></tr>
+<tr><td class="cn">provider</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">分支提供方</td></tr>
+<tr><td class="cn">provider_branch_ref</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">提供方分支标识</td></tr>
+<tr><td class="cn">engine_version</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">引擎版本</td></tr>
+<tr><td class="cn">status</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">验证状态</td></tr>
+<tr><td class="cn">failure_code</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span></td><td class="cd">失败码</td></tr>
+<tr><td class="cn">cleanup_pending</td><td class="ct">布尔</td><td class="cm"><span class="必填">必填</span></td><td class="cd">待清理标记</td></tr>
+<tr><td class="cn">results</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">验证结果</td></tr>
+</table>
+</div>
+<h2>⑥ Skill 体系</h2><div class="gdesc">按定稿方案全新设计：出题 → AB 评估 → 盲选 → 逐级审核 → 绑定 → 沉淀，共 7 张新表</div>
+<div class="tbl" id="t_skills">
+<div class="thead"><span class="nm">skills</span><div class="use">Skill 主档：使用场景、给谁用（定稿：场景必填，"给谁用"是选择题）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s new">新表</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">name</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="唯一">唯一</span></td><td class="cd">技能名</td></tr>
+<tr><td class="cn">scenario</td><td class="ct">文本</td><td class="cm"><span class="必填">必填</span></td><td class="cd">使用场景（必填项）</td></tr>
+<tr><td class="cn">target_agent_role</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">目标 Agent 角色（选择题）</td></tr>
+<tr><td class="cn">created_by</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">创建人</td></tr>
+<tr><td class="cn">created_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">创建时间</td></tr>
+</table>
+</div>
+<div class="tbl" id="t_skill_versions">
+<div class="thead"><span class="nm">skill_versions</span><div class="use">Skill 版本：每次发布有版本号、状态机、SKILL.md 全文、内容指纹</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">skill_versions（改造：加全文、去 local_path）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">skill_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">所属技能</td></tr>
+<tr><td class="cn">version</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">版本号</td></tr>
+<tr><td class="cn">status</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">草稿/评估中/已发布/废弃</td></tr>
+<tr><td class="cn">content</td><td class="ct">文本</td><td class="cm"><span class="必填">必填</span></td><td class="cd">SKILL.md 全文（定稿：全文进库）</td></tr>
+<tr><td class="cn">content_hash</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">内容指纹</td></tr>
+<tr><td class="cn">created_by</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">创建人</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>skill_id</code> → <code>skills</code>（归属）
+</div>
+</div>
+<div class="tbl" id="t_skill_test_questions">
+<div class="thead"><span class="nm">skill_test_questions</span><div class="use">测试题：Manager 出题与人工共同确定，三类题</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s new">新表（原 skill_evaluations 废弃，题目独立成表）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">skill_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">针对技能</td></tr>
+<tr><td class="cn">kind</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">题型（成功/业务失败/前提缺失）</td></tr>
+<tr><td class="cn">question</td><td class="ct">文本</td><td class="cm"><span class="必填">必填</span></td><td class="cd">题面</td></tr>
+<tr><td class="cn">expected</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">标准答案/预期</td></tr>
+<tr><td class="cn">provided_by</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">出题方（manager/leader/human）</td></tr>
+<tr><td class="cn">created_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">创建时间</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>skill_id</code> → <code>skills</code>（针对）
+</div>
+</div>
+<div class="tbl" id="t_skill_evaluation_runs">
+<div class="thead"><span class="nm">skill_evaluation_runs</span><div class="use">评估运行：AB 对照（带/不带 Skill）+ 抹标签盲选记录</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s new">新表（原 skill_evaluations 废弃）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">version_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">被评版本</td></tr>
+<tr><td class="cn">question_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">用哪道题</td></tr>
+<tr><td class="cn">arm</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">带/不带 Skill</td></tr>
+<tr><td class="cn">blinded_label</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">盲选标签（抹掉来源）</td></tr>
+<tr><td class="cn">answer</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">作答内容</td></tr>
+<tr><td class="cn">judged_by</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span></td><td class="cd">盲选判定</td></tr>
+<tr><td class="cn">result</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">单题结论</td></tr>
+<tr><td class="cn">run_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">运行时间</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>version_id</code> → <code>skill_versions</code>（被评）；<code>question_id</code> → <code>skill_test_questions</code>（用题）
+</div>
+</div>
+<div class="tbl" id="t_skill_approvals">
+<div class="thead"><span class="nm">skill_approvals</span><div class="use">逐级审核：谁的 Skill 谁的上级审——Worker 的 Manager 审、Manager 的 Leader 审、Leader 的人工审；异步不阻塞</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s new">新表</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">version_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="唯一">唯一</span></td><td class="cd">放行哪个版本</td></tr>
+<tr><td class="cn">subject_role</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">被审 Skill 归属角色（worker/manager/leader）</td></tr>
+<tr><td class="cn">reviewer_kind</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">审核方（manager/leader/human，按上一条角色定）</td></tr>
+<tr><td class="cn">reviewer_user_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">人工审核时：审核人</td></tr>
+<tr><td class="cn">review_status</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">审核状态</td></tr>
+<tr><td class="cn">reviewed_at</td><td class="ct">时间</td><td class="cm"><span class="可空">可空</span></td><td class="cd">审核时间</td></tr>
+<tr><td class="cn">review_note</td><td class="ct">文本</td><td class="cm"><span class="可空">可空</span></td><td class="cd">审核意见</td></tr>
+<tr><td class="cn">recused</td><td class="ct">布尔</td><td class="cm"><span class="必填">必填</span></td><td class="cd">审核方是否回避（审自己的产出时换上级或人工）</td></tr>
+<tr><td class="cn">conclusion</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span></td><td class="cd">最终结论</td></tr>
+<tr><td class="cn">decided_at</td><td class="ct">时间</td><td class="cm"><span class="可空">可空</span></td><td class="cd">定论时间</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>version_id</code> → <code>skill_versions</code>（对象）
+</div>
+</div>
+<div class="tbl" id="t_agent_skill_bindings">
+<div class="thead"><span class="nm">agent_skill_bindings</span><div class="use">绑定：哪个 Agent 挂载哪个版本（定稿：绑 Agent 不绑 Issue）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s new">新表（替代 skill_snapshots 的快照式记录）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">agent_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">哪个 Agent</td></tr>
+<tr><td class="cn">version_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">挂载版本</td></tr>
+<tr><td class="cn">source</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">来源（审批放行/修订自动）</td></tr>
+<tr><td class="cn">bound_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">绑定时间</td></tr>
+<tr><td class="cn">active</td><td class="ct">布尔</td><td class="cm"><span class="必填">必填</span></td><td class="cd">是否生效</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>agent_id</code> → <code>agents</code>（谁挂）；<code>version_id</code> → <code>skill_versions</code>（挂什么）
+</div>
+</div>
+<div class="tbl" id="t_skill_update_suggestions">
+<div class="thead"><span class="nm">skill_update_suggestions</span><div class="use">沉淀建议：任务结束后提更新意见 → 异步审批队列</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s new">新表</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">task_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">来源任务</td></tr>
+<tr><td class="cn">skill_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">目标技能</td></tr>
+<tr><td class="cn">suggestion</td><td class="ct">文本</td><td class="cm"><span class="必填">必填</span></td><td class="cd">建议内容</td></tr>
+<tr><td class="cn">status</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">待审/采纳/驳回</td></tr>
+<tr><td class="cn">decided_by</td><td class="ct">字符串</td><td class="cm"><span class="可空">可空</span></td><td class="cd">拍板人</td></tr>
+<tr><td class="cn">decided_at</td><td class="ct">时间</td><td class="cm"><span class="可空">可空</span></td><td class="cd">拍板时间</td></tr>
+<tr><td class="cn">created_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">提出时间</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>task_id</code> → <code>tasks</code>（来源）；<code>skill_id</code> → <code>skills</code>（目标）
+</div>
+</div>
+<h2>⑦ 运行账本</h2><div class="gdesc">平台底账：事件总账、用量、告警、追踪、日志、恢复、决策链、降级策略——按你的要求全部保留</div>
+<div class="tbl" id="t_events">
+<div class="thead"><span class="nm">events</span><div class="use">事件总账：状态流水 + 审计 + 发件箱 + 运行事件，四张同构表合一</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">state_events</span>
+<span class="s">audit_events</span>
+<span class="s">outbox_events</span>
+<span class="s">runner_events</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">channel</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">通道（state/audit/outbox/run）</td></tr>
+<tr><td class="cn">event_type</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">事件类型</td></tr>
+<tr><td class="cn">occurred_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">发生时间</td></tr>
+<tr><td class="cn">recorded_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">落库时间</td></tr>
+<tr><td class="cn">actor_type</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">操作者类型</td></tr>
+<tr><td class="cn">actor_id</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">操作者</td></tr>
+<tr><td class="cn">organization_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">组织</td></tr>
+<tr><td class="cn">task_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">任务</td></tr>
+<tr><td class="cn">run_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">运行</td></tr>
+<tr><td class="cn">correlation_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">关联链</td></tr>
+<tr><td class="cn">causation_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">起因事件</td></tr>
+<tr><td class="cn">aggregate_type</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">聚合对象类型</td></tr>
+<tr><td class="cn">aggregate_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">聚合对象</td></tr>
+<tr><td class="cn">aggregate_version</td><td class="ct">整数</td><td class="cm"><span class="必填">必填</span></td><td class="cd">对象版本</td></tr>
+<tr><td class="cn">payload</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">事件内容</td></tr>
+<tr><td class="cn">published_at</td><td class="ct">时间</td><td class="cm"><span class="可空">可空</span></td><td class="cd">发件通道专用：发布时间</td></tr>
+<tr><td class="cn">attempts</td><td class="ct">整数</td><td class="cm"><span class="可空">可空</span></td><td class="cd">发件通道专用：尝试次数</td></tr>
+<tr><td class="cn">last_error</td><td class="ct">文本</td><td class="cm"><span class="可空">可空</span></td><td class="cd">发件通道专用：错误</td></tr>
+</table>
+</div>
+<div class="tbl" id="t_llm_usage">
+<div class="thead"><span class="nm">llm_usage</span><div class="use">大模型用量：每次调用的 token 与耗时，算账与告警的数据源</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">llm_usage（原样保留）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">agent_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">调用方</td></tr>
+<tr><td class="cn">task_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">关联任务</td></tr>
+<tr><td class="cn">provider</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">模型提供方</td></tr>
+<tr><td class="cn">model</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">模型</td></tr>
+<tr><td class="cn">operation</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">调用用途（规划/评审/出题等）</td></tr>
+<tr><td class="cn">prompt_tokens</td><td class="ct">整数</td><td class="cm"><span class="必填">必填</span></td><td class="cd">输入 token</td></tr>
+<tr><td class="cn">completion_tokens</td><td class="ct">整数</td><td class="cm"><span class="必填">必填</span></td><td class="cd">输出 token</td></tr>
+<tr><td class="cn">duration_ms</td><td class="ct">整数</td><td class="cm"><span class="必填">必填</span></td><td class="cd">耗时</td></tr>
+<tr><td class="cn">created_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">调用时间</td></tr>
+</table>
+</div>
+<div class="tbl" id="t_alert_rules">
+<div class="thead"><span class="nm">alert_rules</span><div class="use">告警规则：什么情况该报警（保留）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">alert_rules（原样保留）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">name</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">规则名</td></tr>
+<tr><td class="cn">metric</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">监控指标</td></tr>
+<tr><td class="cn">threshold</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">阈值</td></tr>
+<tr><td class="cn">enabled</td><td class="ct">布尔</td><td class="cm"><span class="必填">必填</span></td><td class="cd">是否启用</td></tr>
+<tr><td class="cn">created_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">创建时间</td></tr>
+</table>
+</div>
+<div class="tbl" id="t_alert_events">
+<div class="thead"><span class="nm">alert_events</span><div class="use">告警事件：规则命中产生的告警与处置动作一并记录（保留）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">alert_events</span>
+<span class="s">operational_responses</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">rule_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">命中规则</td></tr>
+<tr><td class="cn">metric_value</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">触发时的值</td></tr>
+<tr><td class="cn">status</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">触发/认领/处理中/关闭</td></tr>
+<tr><td class="cn">handled_by</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">处置人</td></tr>
+<tr><td class="cn">handled_at</td><td class="ct">时间</td><td class="cm"><span class="可空">可空</span></td><td class="cd">处置时间</td></tr>
+<tr><td class="cn">note</td><td class="ct">文本</td><td class="cm"><span class="可空">可空</span></td><td class="cd">处置备注（原处置表并入）</td></tr>
+<tr><td class="cn">fired_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">触发时间</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>rule_id</code> → <code>alert_rules</code>（规则）；<code>handled_by</code> → <code>users</code>（处置人）
+</div>
+</div>
+<div class="tbl" id="t_trace_sessions">
+<div class="thead"><span class="nm">trace_sessions</span><div class="use">追踪会话：一次完整执行的链路入口（保留）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">trace_sessions（原样保留）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">name</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">会话名</td></tr>
+<tr><td class="cn">status</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">状态</td></tr>
+<tr><td class="cn">started_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">开始</td></tr>
+<tr><td class="cn">ended_at</td><td class="ct">时间</td><td class="cm"><span class="可空">可空</span></td><td class="cd">结束</td></tr>
+</table>
+</div>
+<div class="tbl" id="t_trace_events">
+<div class="thead"><span class="nm">trace_events</span><div class="use">追踪事件：链路里的每一步 span（保留）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">trace_events（原样保留）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">session_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">所属会话</td></tr>
+<tr><td class="cn">parent_span_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">父步骤</td></tr>
+<tr><td class="cn">name</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">步骤名</td></tr>
+<tr><td class="cn">attributes</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">属性</td></tr>
+<tr><td class="cn">started_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">开始</td></tr>
+<tr><td class="cn">ended_at</td><td class="ct">时间</td><td class="cm"><span class="可空">可空</span></td><td class="cd">结束</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>session_id</code> → <code>trace_sessions</code>（归属）
+</div>
+</div>
+<div class="tbl" id="t_log_entries">
+<div class="thead"><span class="nm">log_entries</span><div class="use">运行日志：业务级结构化日志存档（保留；应用流水日志另走日志管道）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">log_entries（原样保留）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">level</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">级别</td></tr>
+<tr><td class="cn">source</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">来源</td></tr>
+<tr><td class="cn">message</td><td class="ct">文本</td><td class="cm"><span class="必填">必填</span></td><td class="cd">内容</td></tr>
+<tr><td class="cn">context</td><td class="ct">JSON</td><td class="cm"><span class="可空">可空</span></td><td class="cd">上下文</td></tr>
+<tr><td class="cn">logged_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">记录时间</td></tr>
+</table>
+</div>
+<div class="tbl" id="t_recovery_cases">
+<div class="thead"><span class="nm">recovery_cases</span><div class="use">恢复案件：异常需要恢复时立案（保留）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">recovery_cases（原样保留）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">object_type</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">异常对象类型</td></tr>
+<tr><td class="cn">object_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span></td><td class="cd">异常对象</td></tr>
+<tr><td class="cn">reason</td><td class="ct">文本</td><td class="cm"><span class="必填">必填</span></td><td class="cd">异常原因</td></tr>
+<tr><td class="cn">severity</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">严重程度</td></tr>
+<tr><td class="cn">status</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">立案/决策/执行/关闭</td></tr>
+<tr><td class="cn">created_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">立案时间</td></tr>
+</table>
+</div>
+<div class="tbl" id="t_recovery_decisions">
+<div class="thead"><span class="nm">recovery_decisions</span><div class="use">恢复决定：案件怎么处理的决策（保留）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">recovery_decisions（原样保留）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">case_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">哪个案件</td></tr>
+<tr><td class="cn">decision</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">决策内容</td></tr>
+<tr><td class="cn">decided_by</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">决策方</td></tr>
+<tr><td class="cn">decided_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">决策时间</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>case_id</code> → <code>recovery_cases</code>（案件）
+</div>
+</div>
+<div class="tbl" id="t_recovery_operations">
+<div class="thead"><span class="nm">recovery_operations</span><div class="use">恢复操作：决策后实际执行的恢复动作，Worker 与平台侧动作合并记</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">recovery_operations</span>
+<span class="s">worker_recovery_operations</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">case_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="索引">索引</span></td><td class="cd">哪个案件</td></tr>
+<tr><td class="cn">operation</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">操作类型</td></tr>
+<tr><td class="cn">params</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">参数</td></tr>
+<tr><td class="cn">result</td><td class="ct">JSON</td><td class="cm"><span class="可空">可空</span></td><td class="cd">结果</td></tr>
+<tr><td class="cn">executed_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">执行时间</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>case_id</code> → <code>recovery_cases</code>（案件）
+</div>
+</div>
+<div class="tbl" id="t_decision_chain_nodes">
+<div class="thead"><span class="nm">decision_chain_nodes</span><div class="use">决策链：把"为什么这么做"串成链（保留）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">decision_chain_nodes（原样保留）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">project_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span><span class="索引">索引</span></td><td class="cd">所属项目（按项目查链）</td></tr>
+<tr><td class="cn">parent_node_id</td><td class="ct">UUID</td><td class="cm"><span class="可空">可空</span></td><td class="cd">上级节点</td></tr>
+<tr><td class="cn">actor_type</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">决策者类型</td></tr>
+<tr><td class="cn">actor_id</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">决策者</td></tr>
+<tr><td class="cn">action</td><td class="ct">文本</td><td class="cm"><span class="必填">必填</span></td><td class="cd">决策动作</td></tr>
+<tr><td class="cn">rationale</td><td class="ct">文本</td><td class="cm"><span class="必填">必填</span></td><td class="cd">理由</td></tr>
+<tr><td class="cn">context_ref</td><td class="ct">JSON</td><td class="cm"><span class="可空">可空</span></td><td class="cd">上下文引用</td></tr>
+<tr><td class="cn">created_at</td><td class="ct">时间</td><td class="cm"><span class="必填">必填</span></td><td class="cd">创建时间</td></tr>
+</table>
+</div>
+<div class="tbl" id="t_decision_embeddings">
+<div class="thead"><span class="nm">decision_embeddings</span><div class="use">决策向量：决策的向量表示，支持语义检索（保留）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">decision_embeddings（原样保留）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">node_id</td><td class="ct">UUID</td><td class="cm"><span class="必填">必填</span><span class="唯一">唯一</span></td><td class="cd">对应决策节点</td></tr>
+<tr><td class="cn">embedding</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">向量</td></tr>
+<tr><td class="cn">model</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span></td><td class="cd">向量模型</td></tr>
+</table>
+<div class="fks"><b>关联：</b>
+<code>node_id</code> → <code>decision_chain_nodes</code>（节点）
+</div>
+</div>
+<div class="tbl" id="t_mcp_server_policies">
+<div class="thead"><span class="nm">mcp_server_policies</span><div class="use">降级策略：MCP 服务超时/重试/只读降级/写阻断（保留，这是"降级"的落点）</div></div>
+<div class="src"><b>由哪些表来：</b>
+<span class="s">mcp_server_policies（改造保留：补服务器标识）</span>
+</div>
+<table class="cols"><tr><th style="width:190px">字段</th><th style="width:110px">类型</th><th style="width:150px">标记</th><th>说明</th></tr>
+<tr><td class="cn">id</td><td class="ct">UUID</td><td class="cm"><span class="PK">PK</span></td><td class="cd">主键</td></tr>
+<tr><td class="cn">server_name</td><td class="ct">字符串</td><td class="cm"><span class="必填">必填</span><span class="唯一">唯一</span></td><td class="cd">MCP 服务器标识（哪台服务器的策略）</td></tr>
+<tr><td class="cn">timeout_seconds</td><td class="ct">整数</td><td class="cm"><span class="必填">必填</span></td><td class="cd">超时秒数</td></tr>
+<tr><td class="cn">max_retries</td><td class="ct">整数</td><td class="cm"><span class="必填">必填</span></td><td class="cd">最大重试</td></tr>
+<tr><td class="cn">retryable_only_reads</td><td class="ct">布尔</td><td class="cm"><span class="必填">必填</span></td><td class="cd">仅只读可重试</td></tr>
+<tr><td class="cn">degraded_block_writes</td><td class="ct">布尔</td><td class="cm"><span class="必填">必填</span></td><td class="cd">降级时阻断写</td></tr>
+<tr><td class="cn">required_task_features</td><td class="ct">JSON</td><td class="cm"><span class="必填">必填</span></td><td class="cd">必需任务特性</td></tr>
+</table>
+</div>
+<h2>迁出数据库与删除（不是砍功能，是换更合适的存放方式）</h2>
+<div class="moved"><table>
+<tr><th>去处</th><th>原表</th><th>理由</th></tr>
+<tr><td>链路追踪系统</td><td>trace_links</td><td>代码核实：无人读写。追踪关联由追踪系统自己维护</td></tr>
+<tr><td>Redis</td><td>idempotency_records</td><td>代码核实：无人读写。防重做放 Redis，带过期时间更合适</td></tr>
+<tr><td>应用内存</td><td>context_relations</td><td>代码核实：无人读写。领域模型存在但从不落库，随宿主表 JSON 化</td></tr>
+<tr><td>应用内存 / Redis</td><td>processed_matrix_events</td><td>消息去重账，一行代码 + 自动过期即可</td></tr>
+<tr><td>应用内存</td><td>github_app_manifest_states</td><td>几分钟走完的安装向导临时态，落库无意义</td></tr>
+<tr><td>应用内存</td><td>bootstrap_operations</td><td>启动引导的临时操作状态，进程内存足够</td></tr>
+<tr><td>直接删除</td><td>room_timeline_messages</td><td>消息时间线的冗余副本，messages 表加索引即可替代</td></tr>
+<tr><td>skill_versions 字段</td><td>skill_evaluations</td><td>定稿废弃：评估改走"出题 → AB → 盲选 → 逐级审核"新表，旧记录随迁移归档</td></tr>
+<tr><td>agent_skill_bindings</td><td>skill_snapshots</td><td>快照式记录被逐 Agent 绑定表替代，实时可查</td></tr>
+</table></div>
+
+<h2>7 个功能方向一览</h2>
+<div class="moved"><table>
+<tr><th>方向</th><th>表数</th><th>一句话职责</th></tr>
+<tr><td><b>① 账号与身份</b></td><td>4</td><td>谁在这个平台上：组织、人、Agent、集成凭据</td></tr>
+<tr><td><b>② 项目与编制</b></td><td>5</td><td>拿什么仓库、开什么项目、做过什么规划、派什么班子、什么时候请人来审</td></tr>
+<tr><td><b>③ 任务主线</b></td><td>4</td><td>核心主线：一条 Issue 怎么变成计划、拆步骤、派单、干完、交测试</td></tr>
+<tr><td><b>④ 协作与上下文</b></td><td>5</td><td>怎么说话、喂什么材料、谁读过什么</td></tr>
+<tr><td><b>⑤ 交付与验证</b></td><td>6</td><td>代码怎么交付回去、验没验过、门禁策略——数据库分支验证是核心卖点单独成表</td></tr>
+<tr><td><b>⑥ Skill 体系</b></td><td>7</td><td>按定稿方案全新设计：出题 → AB 评估 → 盲选 → 逐级审核 → 绑定 → 沉淀，共 7 张新表</td></tr>
+<tr><td><b>⑦ 运行账本</b></td><td>13</td><td>平台底账：事件总账、用量、告警、追踪、日志、恢复、决策链、降级策略——按你的要求全部保留</td></tr>
+</table></div>
+</div></body></html>

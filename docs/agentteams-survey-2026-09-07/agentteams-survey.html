@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentTeams 调研：RepoMesh 真正能用到什么</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f4f7f6;
+  --surface: #ffffff;
+  --ink: #17211f;
+  --muted: #5b6b67;
+  --line: #d6dedb;
+  --accent: #0e7f66;
+  --accent-soft: #ddf1ea;
+  --code: #eef3f1;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1614;
+    --surface: #16201d;
+    --ink: #e4ece9;
+    --muted: #9aaba5;
+    --line: #2a3733;
+    --accent: #58d6b4;
+    --accent-soft: #143a31;
+    --code: #1c2724;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.75 system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+main {
+  width: min(980px, calc(100% - 32px));
+  margin: 32px auto 72px;
+  padding: clamp(24px, 5vw, 56px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 16px 50px rgba(0,0,0,.06);
+}
+h1, h2, h3 { line-height: 1.3; text-wrap: balance; }
+h1 { margin: 0 0 24px; font-size: clamp(30px, 5vw, 46px); letter-spacing: -.025em; }
+h2 { margin: 52px 0 18px; padding-top: 16px; border-top: 2px solid var(--ink); font-size: 24px; }
+h3 { margin: 30px 0 12px; font-size: 18px; }
+p { max-width: 78ch; }
+a { color: var(--accent); text-underline-offset: 3px; }
+blockquote {
+  margin: 20px 0;
+  padding: 14px 18px;
+  border-left: 4px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  background: var(--accent-soft);
+}
+blockquote p { margin: 0; }
+code {
+  padding: .12em .38em;
+  border-radius: 4px;
+  background: var(--code);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: .9em;
+}
+pre {
+  overflow-x: auto;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--code);
+  line-height: 1.6;
+}
+pre code { padding: 0; background: transparent; }
+table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 18px 0 24px;
+  font-size: 14px;
+}
+th, td { min-width: 140px; padding: 10px 12px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+th { background: var(--code); }
+li { margin: 5px 0; }
+hr { margin: 44px 0; border: 0; border-top: 1px solid var(--line); }
+strong { font-weight: 700; }
+@media (max-width: 600px) {
+  main { width: 100%; margin: 0; border: 0; border-radius: 0; }
+}
+</style>
+</head>
+<body>
+<main>
+<h1 id="agentteams-repomesh">AgentTeams 调研：RepoMesh 真正能用到什么</h1>
+<blockquote>
+<p>日期：2026-09-07<br>
+调查对象：<a href="https://github.com/agentscope-ai/AgentTeams"><code>agentscope-ai/AgentTeams</code></a><br>
+源码基线：<code>eeaab64391ccaec9118e84977f538aefd40720d6</code><br>
+调查方式：只读核查官方源码、官方文档和官方 Dashboard；没有安装、部署或调用真实服务。<br>
+详细的 API、CLI 和源码清单见：<a href="./agentteams-api-cli-survey-2026-09-07.md">AgentTeams API、CLI、Matrix 与 Harness 接口调查</a></p>
+</blockquote>
+<h2 id="_1">先说结论</h2>
+<p>AgentTeams 能为 RepoMesh 提供一套已经成形的“团队协作底座”：它会创建和管理 Manager、Leader、Worker，让这些 Agent 在 Matrix 房间里通信，通过共享存储交换计划和产物，并通过 Controller 管理运行时。</p>
+<p>但它没有替 RepoMesh 做完产品层：多仓项目、仓库授权、Issue 队列、全局容量、单 Worker 单任务、独立工作副本、Codex/Claude Code/Qoder 执行适配、验证和交付门禁，都还需要 RepoMesh 自己负责。</p>
+<p>最容易混淆的四件事是：</p>
+<ol>
+<li>AgentTeams 的 <code>Project</code> 不是 RepoMesh 的多仓项目，更接近一次 Issue 的工作计划或执行记录。</li>
+<li>Matrix 房间是会话边界之一，但消息不是业务状态的唯一事实源。</li>
+<li>创建 Worker 的接口返回成功，只表示 Controller 已接单，不表示 Worker 已经可用。</li>
+<li>AgentTeams 目前没有完整接入 Codex、Claude Code、Qoder 这类 coding harness。</li>
+</ol>
+<h2 id="_2">如何阅读本文</h2>
+<ul>
+<li><strong>已核实</strong>：在锁定提交的源码或官方文档中能够直接找到。</li>
+<li><strong>RepoMesh 已确认</strong>：我们已经决定采用的产品或架构原则，不代表上游自动提供。</li>
+<li><strong>建议</strong>：为了让 RepoMesh 可控、可替换而提出的设计。</li>
+<li><strong>待验证</strong>：静态看源码仍不足以证明，需要以后实际部署测试。</li>
+</ul>
+<h2 id="1-agentteams">1. AgentTeams 到底负责什么</h2>
+<p>用人话说，AgentTeams 更像一家“Agent 公司”的办公系统：</p>
+<ul>
+<li>Controller 是行政和运维系统，负责建账号、建房间、发凭据、拉起或停掉 Agent。</li>
+<li>Manager 是总负责人，接收范围不明或跨团队的工作。</li>
+<li>Team Leader 是某个团队的负责人，负责拆任务、派任务和验收。</li>
+<li>Worker 是具体干活的人。</li>
+<li>Matrix 是会议室和聊天系统。</li>
+<li>MinIO/OSS 是共享文件柜，也是 Project、Task 和产物的持久存储。</li>
+<li>Higress/AI Gateway 是模型和外部服务的统一出口，真实高价值密钥留在网关侧。</li>
+<li>TeamHarness 是一组协作工具，让 Agent 能建任务房间、发消息、同步文件、记录计划和提交结果。</li>
+</ul>
+<pre><code class="language-text">人类 / RepoMesh
+      |
+      v
+AgentTeams Controller  --------  管理 Manager / Worker / Team / Human
+      |
+      +---- Matrix              房间、消息、成员、唤醒
+      +---- MinIO / OSS         计划、任务、共享文件、产物、历史
+      +---- AI Gateway          LLM 与 MCP 的受控出口
+      `---- Docker / Kubernetes 运行 Manager 和 Worker
+
+Manager
+  `---- Team Leader
+          `---- Workers
+</code></pre>
+<p><strong>已核实：</strong> Controller 只负责资源和运行状态，不理解 RepoMesh 的仓库、Issue、排队、工作副本和交付语义。<a href="https://github.com/agentscope-ai/AgentTeams/blob/eeaab64391ccaec9118e84977f538aefd40720d6/agentteams-controller/internal/server/http.go">Controller 路由</a></p>
+<h2 id="2-session">2. 房间、上下文和 session 是怎么回事</h2>
+<h3 id="21">2.1 不是所有人都在同一个房间</h3>
+<p>AgentTeams 会使用多种 Matrix 房间，不同房间承担不同职责：</p>
+<pre><code class="language-text">Admin DM       人类管理员与 Manager
+Worker Room    某个 Worker 的工作与沟通
+Leader Room    Manager 与某个 Leader
+Team Room      Leader 与本团队 Workers
+Leader DM      Leader 的直接会话
+Task Room      按需要创建的任务/协作房间
+</code></pre>
+<p>所以，不能把 AgentTeams 描述为“所有参与者共享同一个大群”。房间本身就是可见范围、消息路由和上下文隔离的一部分。</p>
+<h3 id="22-qwenpaw-session">2.2 当前 QwenPaw 怎么映射 session</h3>
+<p>在当前 QwenPaw Matrix channel 中，一个 Matrix 房间会映射为一个稳定会话：</p>
+<pre><code class="language-text">Matrix room_id
+    |
+    +--&gt; session_id = &quot;matrix:&quot; + room_id
+    +--&gt; user_id    = room_id
+    `--&gt; 真正的发送者放在 channel metadata 中
+</code></pre>
+<p>这意味着，对于同一个 QwenPaw bot/runtime：</p>
+<ul>
+<li>同一房间里的连续消息会进入这个 bot 的同一条房间会话。</li>
+<li>换一个房间，就会得到另一个 session。</li>
+<li>session 的隔离粒度首先是房间，不是发送消息的个人。</li>
+</ul>
+<p>这不表示多个 Manager、Leader、Worker 进程共享同一个全局 session store。每个 Agent runtime 仍有自己的运行时和会话存储，只是都用 <code>room_id</code> 作为各自的房间会话键。</p>
+<p><a href="https://github.com/agentscope-ai/AgentTeams/blob/eeaab64391ccaec9118e84977f538aefd40720d6/plugins/agentteams-matrix-channel/agentteams_matrix/channel.py">QwenPaw Matrix channel 源码</a></p>
+<h3 id="23-mention">2.3 <code>@mention</code> 是唤醒条件，不等于上下文开关</h3>
+<p>群房间可以要求 <code>@mention</code> 才触发 Agent 回答。不过，当前 QwenPaw channel 对普通的非 DM、非 thread 群聊文本，会为每个房间暂存最近的未触发消息，默认最多 50 条；下一次真正触发并成功入队时，这些消息可以一起进入上下文，然后清空临时缓冲。thread 中未 mention 的事件会直接忽略，slash/thread 路径也不会拼接这份缓冲。缓冲只在内存中，进程重启后会丢失。</p>
+<p>因此更准确的说法是：</p>
+<blockquote>
+<p><code>@mention</code> 主要决定这条消息是否立即唤醒 Agent；未触发的消息不一定被丢弃，是否进入后续上下文取决于具体 runtime/channel 的实现。</p>
+</blockquote>
+<p>这个行为不能无条件推广到所有运行时。DeepSeek Harness 等其他 adapter 需要分别验证。</p>
+<h3 id="24-repomesh">2.4 RepoMesh 应该怎么用</h3>
+<p><strong>RepoMesh 已确认：</strong> 每个 issue 有独立会话、计划和任务记录，但不会重新创建 Manager 或整个团队。</p>
+<p><strong>建议：</strong> 为每个 issue 建立显式映射，不要只靠 Matrix 历史反推：</p>
+<pre><code class="language-text">Issue
+  `---- IssueSession
+          +---- matrix_room_id
+          +---- runtime_session_id
+          +---- plan_id / task_ids
+          `---- active_attempt_ids
+</code></pre>
+<p>Task Room 可以作为 issue 主房间，但这是 RepoMesh 的产品规则，不是 AgentTeams 已经强制执行的规则。计划、任务、队列、执行尝试和交付状态仍应保存在 RepoMesh 数据库中。</p>
+<h2 id="3-manager-harness">3. Manager 自己的 harness 是什么</h2>
+<p>Manager 不是一个独立发明出来的“大模型运行时”。当前主路径中，它运行在 QwenPaw 上，也可以看到历史上的 OpenClaw 支持。QwenPaw 负责：</p>
+<ul>
+<li>调用模型；</li>
+<li>维护运行时 session；</li>
+<li>执行工具循环；</li>
+<li>加载 prompt、skills 和 MCP 工具；</li>
+<li>连接 Matrix channel。</li>
+</ul>
+<p>AgentTeams 在这个运行时外面补上团队协作能力：Controller 管资源，Matrix 管通信，TeamHarness 管计划、任务和共享文件。</p>
+<pre><code class="language-text">Manager
+  |
+  +---- QwenPaw runtime         模型、session、工具循环
+  +---- Matrix channel          收发消息、房间上下文
+  +---- TeamHarness MCP         项目、任务、文件、房间、产物
+  `---- agt / Controller REST   管理团队和 Worker 运行状态
+</code></pre>
+<p>这里有一条重要边界：很多“Manager 应该怎么派活”的限制来自 prompt、skill 和协作约定，并不是 Controller 强制执行的安全策略。RepoMesh 不能把提示词当成权限系统。</p>
+<h2 id="4-agentteams-coding-harness">4. AgentTeams 有没有接 Coding Harness</h2>
+<p>答案是：有相关尝试，但还没有一层可以直接满足 RepoMesh 的通用 coding harness。</p>
+<h3 id="_3">已经实际存在</h3>
+<ul>
+<li><strong>QwenPaw adapter</strong>：当前 TeamHarness 的主要实际接入路径。<a href="https://github.com/agentscope-ai/AgentTeams/tree/eeaab64391ccaec9118e84977f538aefd40720d6/plugins/teamharness/adapters/qwenpaw">QwenPaw adapter</a></li>
+<li><strong>DeepSeek Harness</strong>：有实际 runtime 和 adapter，但官方明确标记为 experimental，而且绑定 release candidate。<a href="https://github.com/agentscope-ai/AgentTeams/blob/eeaab64391ccaec9118e84977f538aefd40720d6/deepseek-harness/README.md">DSH README</a></li>
+</ul>
+<h3 id="_4">不能算正式接入</h3>
+<ul>
+<li><strong>Claude Code adapter</strong>：目录存在，但目前主要是占位 README 和记录日志的安装脚本，不是可用的完整适配器。<a href="https://github.com/agentscope-ai/AgentTeams/tree/eeaab64391ccaec9118e84977f538aefd40720d6/plugins/teamharness/adapters/claude-code">Claude Code adapter 目录</a></li>
+<li><strong>coding-cli-management</strong>：<code>skills-alpha</code> 中有一条让 Manager 代替 Worker 调用 <code>claude</code>、<code>gemini</code>、<code>qodercli</code> 的实验路径。它使用高权限、非交互参数，不包含 Codex，也不是正式的 TeamHarness runtime adapter。<a href="https://github.com/agentscope-ai/AgentTeams/blob/eeaab64391ccaec9118e84977f538aefd40720d6/manager/agent/skills-alpha/coding-cli-management/SKILL.md">alpha skill</a></li>
+<li><strong>Codex</strong>：锁定提交中没有正式 adapter。</li>
+</ul>
+<p><strong>RepoMesh 已确认：</strong> 一个 Worker 同时只执行一个任务，每次执行尝试使用独立工作副本。</p>
+<p><strong>建议：</strong> RepoMesh 自己定义稳定的 <code>CodingHarnessAdapter</code>：</p>
+<pre><code class="language-text">prepare_attempt
+start
+stream_events
+cancel
+collect_artifacts
+classify_result
+cleanup
+</code></pre>
+<p>下面再接 Codex、Claude Code、Qoder、DSH 或其他执行器。这样 AgentTeams adapter 以后成熟时可以接进来，但不会反过来控制 RepoMesh 的任务模型。</p>
+<h2 id="5">5. 对外到底有哪些接口</h2>
+<p>不要用“总共有 13 个公开 API”这类数字描述 AgentTeams。它有多个性质不同的接口面，其中一些还是 Matrix、MinIO、Higress 等依赖系统的标准接口。</p>
+<table>
+<thead>
+<tr>
+<th>接口面</th>
+<th>人话解释</th>
+<th>RepoMesh 是否建议直接使用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Controller REST <code>/api/v1</code></td>
+<td>管理 Manager、Worker、Team、Human，控制 Worker 生命周期，读取和干预 TeamHarness Project</td>
+<td><strong>是，使用锁版本的窄客户端</strong></td>
+</tr>
+<tr>
+<td><code>agt</code></td>
+<td>Controller REST 的官方运维命令行；不是另一个调度器</td>
+<td>人工运维可用，程序不要 shell-out</td>
+</tr>
+<tr>
+<td>Kubernetes CRD</td>
+<td><code>Worker/Team/Human/Manager</code> 四类声明式资源</td>
+<td>in-cluster 可用；首阶段不要让 RepoMesh 强耦合</td>
+</tr>
+<tr>
+<td>TeamHarness MCP</td>
+<td>Agent 在运行时里调用的协作工具</td>
+<td>可复用语义，外面包 adapter</td>
+</tr>
+<tr>
+<td>WorkerFlow MCP</td>
+<td>单个 Worker 内创建临时子 Agent</td>
+<td>不能代替 RepoMesh 的长期 Worker 调度</td>
+</tr>
+<tr>
+<td>Matrix Client/AppService</td>
+<td>房间、消息、成员和休眠 Worker 唤醒</td>
+<td>通过 transport adapter 使用</td>
+</tr>
+<tr>
+<td>Dashboard BFF</td>
+<td>官方 Dashboard 的组合后端</td>
+<td>可作参考，不是 Controller SDK</td>
+</tr>
+<tr>
+<td><code>agentteams plugin</code> CLI</td>
+<td>管理本地 <code>.agentteams/</code> 插件</td>
+<td>与 Controller 管理无关</td>
+</tr>
+</tbody>
+</table>
+<h3 id="controller-rest">Controller REST 的主要能力</h3>
+<p>Controller 默认监听 <code>:8090</code>。主要路由组包括：</p>
+<ul>
+<li>Manager、Worker、Team、Human 的增删查改；Human 没有更新端点。</li>
+<li>Worker 的 <code>wake</code>、<code>sleep</code>、<code>ensure-ready</code>、<code>ready</code>、<code>status</code>。</li>
+<li>TeamHarness Project 的创建、工作流、历史、产物、衍生会话，以及 pause/resume/replan/cancel/complete。</li>
+<li>包上传、网关 consumer、短期存储凭据、Matrix token 和 AppService 管理。</li>
+<li><code>/healthz</code>、<code>/api/v1/status</code>、<code>/api/v1/version</code>。</li>
+</ul>
+<p>锁定提交中共有 13 条 Project 路由模式，另有 1 条 Worker checkpoint 路由。详细清单见<a href="./agentteams-api-cli-survey-2026-09-07.md#3-controller-rest-api-全路由">专项报告</a>。</p>
+<h3 id="_5">接口成熟度要保守看待</h3>
+<ul>
+<li>没有找到 Controller REST 的 OpenAPI、Swagger UI 或官方生成 SDK。</li>
+<li>URL 虽然叫 <code>/api/v1</code>，但不能据此推断已经有正式的长期兼容承诺。</li>
+<li>REST DTO 不是 CRD 的完整镜像，一些 CRD 字段没有通过 REST 暴露。</li>
+<li><code>PUT</code> 不是标准 JSON Merge Patch。很多字符串只有非空时才更新，所以不一定能用空字符串清除字段。</li>
+<li>Manager 请求 DTO 中声明的 <code>remoteSkills</code> 在当前 handler 中没有真正写入，会被静默忽略。</li>
+<li><code>/api/v1/version</code> 需要认证，但没有经过与其他资源路由相同的细粒度授权。</li>
+</ul>
+<p><strong>建议：</strong> RepoMesh 只接自己真正需要的一小组端点，并为每个端点做固定版本的契约测试和写后读回检查。</p>
+<h2 id="6">6. 创建成功不等于已经就绪</h2>
+<p>这是 RepoMesh 页面和状态机必须正确表达的地方。</p>
+<p>调用 <code>POST /api/v1/workers</code> 后，Controller 先写入 Worker CR，然后异步 reconcile。刚创建时通常只能得到 <code>Pending</code>；<code>matrixUserID</code>、<code>roomID</code> 等字段可能仍为空。</p>
+<pre><code class="language-text">用户点击“创建 Worker”
+        |
+        v
+Controller 接受请求 / 写入 CR
+        |
+        v
+Pending -&gt; Starting -&gt; Running
+   |          |
+   `----------+----&gt; Failed
+
+Running 之后还要结合 ready、heartbeat、房间和团队成员状态判断是否真的可接单
+</code></pre>
+<p>当前 Worker reconcile 中实际观察到的 phase 包括：</p>
+<pre><code class="language-text">Pending / Starting / Running / Stopping / Sleeping / Stopped / Failed
+</code></pre>
+<p>不能把 <code>Updating</code> 当成当前 Worker 已实现的稳定状态。Human 还可能出现 <code>Degraded</code>，旧文档容易漏掉。</p>
+<p><code>Ready</code> 也不是 Worker CRD 的 phase。当前 <code>/status</code> 会在 backend 已运行且 Controller 内存中的 ready map 为真时，把结果临时显示为 Ready；Controller 重启会丢掉这份内存状态，直到 Worker 再次报告 ready。因此 RepoMesh 应分别保存“上游原始 phase”和“当前是否 ready”。</p>
+<p><strong>建议：</strong> RepoMesh 页面至少区分：</p>
+<pre><code class="language-text">未创建 -&gt; 已提交 -&gt; 准备中 -&gt; 已就绪 -&gt; 受限/降级 -&gt; 失败
+</code></pre>
+<p>“团队就绪”也应是 RepoMesh 的组合判断，而不是只看某一次 POST 是否返回 200/201：</p>
+<ul>
+<li>Manager 可运行；</li>
+<li>Team CR 已 reconcile；</li>
+<li>Leader 和必需 Workers 已运行；</li>
+<li>Matrix 身份与必要房间存在；</li>
+<li>TeamHarness/关键工具健康；</li>
+<li>RepoMesh 还能拿到 Worker lease 和服务器容量。</li>
+</ul>
+<h2 id="7">7. 权限：谁能做什么</h2>
+<p>生产/正常部署使用 Bearer token。主要身份包括 Admin、Manager、Team Leader、L2 Human 和 Worker。</p>
+<table>
+<thead>
+<tr>
+<th>身份</th>
+<th>当前代码级能力概要</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Admin / Manager</td>
+<td>Controller 管理面全权限</td>
+</tr>
+<tr>
+<td>Team Leader</td>
+<td>读取本团队 Worker/Project；更新和控制权限范围内已有 Worker；创建和干预本团队 Project；<strong>不能创建 Worker 资源</strong></td>
+</tr>
+<tr>
+<td>L2 Human</td>
+<td>在 <code>accessibleTeams</code> 内读取 Team/Worker/Project、创建和干预 Project；只能修改范围内 Worker 的 <code>skills</code></td>
+</tr>
+<tr>
+<td>Worker</td>
+<td>读取和汇报自身状态，刷新自身短期凭据；不能任意读取 Project</td>
+</tr>
+</tbody>
+</table>
+<p>Team Leader 创建 Worker 的请求会在当前 handler 中被明确拒绝并返回 409。因此，虽然 Leader 负责业务派工，Worker 基础设施的创建仍属于 Manager/Admin/控制面职责。<a href="https://github.com/agentscope-ai/AgentTeams/blob/eeaab64391ccaec9118e84977f538aefd40720d6/agentteams-controller/internal/server/resource_handler.go">资源 handler</a></p>
+<p>还有一个安全问题需要单独记录：<code>Human.status.initialPassword</code> 的类型注释声称只展示一次，但当前实现会把它保存在 status 中，后续 GET/CLI 仍可能再次返回。RepoMesh 不应把这个字段展示在普通详情页，也不能假定它已经被服务端一次性销毁。</p>
+<h2 id="8-project">8. 两个 Project 不是一回事</h2>
+<h3 id="repomesh-project">RepoMesh Project</h3>
+<p>这是用户创建的多仓项目。根据已确认决策：</p>
+<ul>
+<li>一个 RepoMesh 管理多个相互独立的多仓项目；</li>
+<li>每个项目拥有一个独立 AgentTeams 实例；</li>
+<li>实例内只有一个 Manager；</li>
+<li>每个仓库对应一支长期 Team。</li>
+</ul>
+<h3 id="agentteams-project">AgentTeams Project</h3>
+<p>这是 TeamHarness 的持久工作流对象，主要存放：</p>
+<ul>
+<li>项目标题和来源；</li>
+<li>DAG/Loop 计划；</li>
+<li>Task 状态和结果；</li>
+<li>历史快照、审计信息和产物引用。</li>
+</ul>
+<p>它存放在对象存储中，不是第五种 CRD。真实身份是 <code>(team, project_id)</code>；同一个 <code>project_id</code> 在多个团队存在时，不带 <code>team</code> 查询会发生歧义并返回 409。写操作使用 ETag 做并发保护，并保留历史快照。</p>
+<p>所以更合理的映射是：</p>
+<pre><code class="language-text">RepoMesh Project                 多仓项目/租户边界
+  `---- RepoMesh Issue           用户提出的一项工作
+          `---- IssueRun         一次计划与执行
+                  `---- AgentTeams Project（可选执行镜像）
+</code></pre>
+<p><strong>建议：</strong> RepoMesh 首阶段不要让 AgentTeams Project 成为唯一事实源。可以把它当作执行镜像和协作记录，RepoMesh 自己仍保存 Issue、Plan、Task、ExecutionAttempt、Queue 和 Delivery。</p>
+<h2 id="9-teamharness">9. TeamHarness 实际提供什么</h2>
+<p>TeamHarness 通过 MCP 暴露以下工具：</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>message</code></td>
+<td>给房间或外部 reply route 发消息</td>
+</tr>
+<tr>
+<td><code>roomflow</code></td>
+<td>创建、查看、描述和归档任务房间</td>
+</tr>
+<tr>
+<td><code>filesync</code></td>
+<td>在工作区和共享存储之间拉取、推送文件</td>
+</tr>
+<tr>
+<td><code>artifact</code></td>
+<td>把文件发布成 Matrix 文件消息</td>
+</tr>
+<tr>
+<td><code>projectflow</code></td>
+<td>创建计划、维护 DAG/Loop、接收结果、暂停或完成 Project</td>
+</tr>
+<tr>
+<td><code>taskflow</code></td>
+<td>委托、确认、提交、检查和取消 Task</td>
+</tr>
+</tbody>
+</table>
+<p><a href="https://github.com/agentscope-ai/AgentTeams/blob/eeaab64391ccaec9118e84977f538aefd40720d6/plugins/teamharness/plugin.yaml">TeamHarness manifest</a> / <a href="https://github.com/agentscope-ai/AgentTeams/blob/eeaab64391ccaec9118e84977f538aefd40720d6/plugins/teamharness/mcp/server.py">MCP server</a></p>
+<p>这些工具已经有真实实现，但插件清单仍是 <code>v1alpha1</code>，版本为 <code>0.1.0</code>。部分角色限制由 MCP server 检查，另一些依赖安装时给不同角色注入不同工具或提示词。因此应把它当作“可复用但仍在演化的协作层”。</p>
+<p>WorkerFlow 只负责单个 Worker 内部的临时子 Agent。源码明确说明临时 Agent 不是 TeamHarness Worker，所以它不能承担 RepoMesh 的长期团队、跨 issue 排队或单 Worker 租约。</p>
+<h2 id="10-agt">10. <code>agt</code> 命令行应该怎么理解</h2>
+<p><code>agt</code> 是 Controller REST 的官方薄客户端，适合管理员或排障人员使用。它覆盖：</p>
+<pre><code class="language-text">agt apply
+agt create worker|team|human|manager
+agt get workers|teams|humans|managers|projects
+agt update worker|team|manager
+agt delete worker|team|human|manager
+agt project create|pause|resume|replan|cancel|complete
+agt worker wake|sleep|ensure-ready|status|report-ready
+agt status
+agt version
+agt llm-preflight
+agt rotate appservice-token
+</code></pre>
+<p><code>agt create worker</code> 默认会在 POST 之后继续轮询 Worker status；<code>--no-wait</code> 只表示不等待真正就绪。这也再次证明“资源已创建”和“运行时已就绪”是两个状态。</p>
+<p>需要注意：</p>
+<ul>
+<li>官方文档中仍有 <code>agt get worker</code> 单数示例，当前 Cobra 命令实际注册的是复数 <code>agt get workers</code>。</li>
+<li><code>agt apply</code> 没有 server-side apply、dry-run 或 prune。</li>
+<li>Project 相关 CLI 没有完整处理跨团队同名 Project 的 <code>team</code> 消歧。</li>
+<li><code>agt</code> 并没有进入所有 Worker 镜像；Controller、Manager 和部分 Worker 镜像包含它，但 QwenPaw、DeepSeek Harness 镜像并不都包含。</li>
+<li>官方安装器不会把 <code>agt</code> 安装成宿主机全局命令；不过可以从源码构建或从包含它的镜像中使用，所以也不能说“绝对没有宿主机使用方式”。</li>
+</ul>
+<p>RepoMesh 程序不应通过执行 <code>agt</code> 命令来集成 AgentTeams。更稳妥的方式是直接调用一组很窄的 REST 接口。</p>
+<h2 id="11-repomesh">11. RepoMesh 应复用什么、自己掌握什么</h2>
+<h3 id="_6">可以复用</h3>
+<ul>
+<li>Manager、Worker、Team、Human 的资源管理和 reconcile。</li>
+<li>Worker 的 wake/sleep/ensure-ready/status。</li>
+<li>Matrix 房间、消息和 AppService 唤醒机制。</li>
+<li>TeamHarness 的 task room、文件同步、计划、任务和产物语义。</li>
+<li>Project workflow/history/artifact 作为执行观察和审计补充。</li>
+</ul>
+<h3 id="repomesh">RepoMesh 必须自己掌握</h3>
+<ul>
+<li>多仓项目和项目间隔离；</li>
+<li>Git 平台授权、仓库集合和仓库权限；</li>
+<li>Issue、路由、计划、任务、执行尝试和交付；</li>
+<li>全局容量、项目额度、排队、公平性和 Worker lease；</li>
+<li>单 Worker 单任务；</li>
+<li>每次执行的独立工作副本；</li>
+<li>Codex/Claude Code/Qoder 等 coding harness 适配；</li>
+<li>验证门禁、提交、PR 和最终交付状态；</li>
+<li>跨实例可观测性、审计和故障恢复。</li>
+</ul>
+<p>建议的边界：</p>
+<pre><code class="language-text">RepoMesh Control Plane（产品事实源）
+  |
+  +---- Project / RepositoryAuthorization / Instance
+  +---- Issue / IssueSession / Plan / Task
+  +---- ExecutionAttempt / WorkerLease / Queue / Delivery
+  |
+  `---- AgentTeamsInstanceAdapter
+          +---- Controller REST
+          +---- MatrixTransportAdapter
+          `---- CodingHarnessAdapter
+</code></pre>
+<h2 id="12">12. 从第一个多仓项目看完整链路</h2>
+<p>下面是把已确认决策和建议边界串起来后的产品主线。它不是声称上游已经全部实现。</p>
+<pre><code class="language-text">创建 RepoMesh 多仓项目                         [RepoMesh]
+        |
+授权并选择多个仓库                             [RepoMesh]
+        |
+准备独立 AgentTeams 实例                       [复用上游 + RepoMesh 编排]
+        |
+创建/检查 Manager、每仓 Team、Leader、Workers  [复用上游资源 API]
+        |
+等待团队达到 RepoMesh 的“就绪”条件             [RepoMesh 组合状态]
+        |
+接收 issue                                      [RepoMesh]
+        |
+跨仓/范围不明 -&gt; Manager；明确单仓 -&gt; Leader    [RepoMesh 已确认]
+        |
+创建 IssueSession 和可选 Task Room              [RepoMesh + Matrix]
+        |
+形成计划并写入任务记录                          [RepoMesh；可镜像到 TeamHarness]
+        |
+申请 Worker lease、排队或并行                    [RepoMesh]
+        |
+为每次尝试准备独立工作副本                       [RepoMesh + Coding Harness]
+        |
+执行、收集事件和产物                             [Harness + TeamHarness]
+        |
+验证、验收、提交或创建 PR                        [RepoMesh 门禁]
+        |
+交付并释放 Worker/容量                           [RepoMesh]
+</code></pre>
+<h2 id="13">13. 已确认的上游文档/实现不一致</h2>
+<p>这些问题不一定都是严重 bug，但会影响 RepoMesh 集成：</p>
+<ol>
+<li>Human <code>initialPassword</code> 的“一次展示”注释与实际持久返回行为不一致。</li>
+<li>Manager REST DTO 声明 <code>remoteSkills</code>，当前 handler/CRD 没有真正接住。</li>
+<li>REST <code>PUT</code> 的实际部分更新语义没有由正式 OpenAPI 描述。</li>
+<li>CLI 的单复数、runtime help、Project <code>team</code> 参数与当前实现并不完全一致。</li>
+<li>Project API 文档中仍残留“只有四个只读端点”的旧描述。</li>
+<li>TeamHarness 自称 runtime-neutral，但当前基础安装器实际只自动探测 QwenPaw。</li>
+<li>Claude Code adapter 目录的存在不代表功能已经完成。</li>
+</ol>
+<p>因此，RepoMesh 应以锁定提交下的路由、handler、测试和真实契约测试为准，不能只看 README 或目录名。</p>
+<h2 id="14">14. 仍需部署验证</h2>
+<p>以下内容目前只能标记为待验证：</p>
+<ol>
+<li>同一台服务器上运行多个 embedded 实例时，Controller 地址、token、资源前缀、Matrix、对象存储前缀是否能完全隔离。</li>
+<li>创建 Manager、Workers、Team 后，完整 phase、错误、重试和恢复状态机是什么。</li>
+<li>QwenPaw 重启、容器替换或 session 压缩以后，房间上下文和持久历史具体怎样恢复。</li>
+<li>多个 Issue 同时写 TeamHarness Project 时，ETag 冲突、重试和审计是否满足 RepoMesh 要求。</li>
+<li>Worker sleep/wake、AppService mention 唤醒和 <code>ensure-ready</code> 的实际延迟与失败表现。</li>
+<li>Matrix 房间成员变化后，旧消息、上下文缓冲和权限是否符合预期。</li>
+<li>RepoMesh 自定义 CodingHarnessAdapter 如何安全接入 Codex、Claude Code、Qoder，并保证工作副本、取消、超时和产物回收。</li>
+</ol>
+<p>在这些验证完成前，文档应使用“源码显示”“计划采用”“建议”或“待验证”，不应写成已经部署验证过的能力。</p>
+<h2 id="15">15. 主要源码入口</h2>
+<ul>
+<li><a href="https://github.com/agentscope-ai/AgentTeams/blob/eeaab64391ccaec9118e84977f538aefd40720d6/agentteams-controller/internal/server/http.go">Controller 路由注册</a></li>
+<li><a href="https://github.com/agentscope-ai/AgentTeams/blob/eeaab64391ccaec9118e84977f538aefd40720d6/agentteams-controller/internal/server/types.go">Controller REST DTO</a></li>
+<li><a href="https://github.com/agentscope-ai/AgentTeams/blob/eeaab64391ccaec9118e84977f538aefd40720d6/agentteams-controller/internal/server/resource_handler.go">资源 handler 与权限细节</a></li>
+<li><a href="https://github.com/agentscope-ai/AgentTeams/blob/eeaab64391ccaec9118e84977f538aefd40720d6/agentteams-controller/api/v1beta1/types.go">四种 CRD 的 Go 类型</a></li>
+<li><a href="https://github.com/agentscope-ai/AgentTeams/blob/eeaab64391ccaec9118e84977f538aefd40720d6/docs/usage/project-workflow-api.md">Project API 文档</a></li>
+<li><a href="https://github.com/agentscope-ai/AgentTeams/blob/eeaab64391ccaec9118e84977f538aefd40720d6/agentteams-controller/internal/server/project_handler.go">Project handler</a></li>
+<li><a href="https://github.com/agentscope-ai/AgentTeams/blob/eeaab64391ccaec9118e84977f538aefd40720d6/plugins/agentteams-matrix-channel/agentteams_matrix/channel.py">QwenPaw Matrix channel</a></li>
+<li><a href="https://github.com/agentscope-ai/AgentTeams/blob/eeaab64391ccaec9118e84977f538aefd40720d6/plugins/teamharness/plugin.yaml">TeamHarness manifest</a></li>
+<li><a href="https://github.com/agentscope-ai/AgentTeams/blob/eeaab64391ccaec9118e84977f538aefd40720d6/plugins/teamharness/mcp/server.py">TeamHarness MCP server</a></li>
+<li><a href="https://github.com/agentscope-ai/AgentTeams/blob/eeaab64391ccaec9118e84977f538aefd40720d6/agentteams-controller/cmd/agt/main.go"><code>agt</code> 根命令</a></li>
+</ul>
+<hr>
+<p>这份文档面向产品和架构讨论，刻意不复制每一个请求字段。需要实现时，以同日的<a href="./agentteams-api-cli-survey-2026-09-07.md">详细接口调查</a>为索引，再回到锁定源码逐项确认。</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,520 @@
+{
+  "files": 117,
+  "local_links": {
+    "checked": 1294,
+    "missing": []
+  },
+  "json_examples": {
+    "checked": 30,
+    "invalid": []
+  },
+  "changed_document_trailing_whitespace": [],
+  "changed_since_audit": [
+    "docs/adr/README.md",
+    "docs/current/architecture-design-v1.md",
+    "docs/current/authentication-browser-api-draft.md",
+    "docs/current/backend-first-batch-persistence.md",
+    "docs/current/backend-model-operations-draft.md",
+    "docs/current/first-batch-complete-review.md",
+    "docs/current/first-batch-recovery-design.md",
+    "docs/current/first-development-todo.md",
+    "docs/current/graph-loop-design.md",
+    "docs/current/HANDOFF-BACKEND-DESIGN-2026-09-11.md",
+    "docs/current/HANDOFF-BACKEND-DESIGN.md",
+    "docs/current/HANDOFF-PAGE-API-DESIGN.md",
+    "docs/current/HANDOFF.md",
+    "docs/current/issue-page-create-api-contract.md",
+    "docs/current/login-recovery-page-design.md",
+    "docs/current/model-connection-settings-design.md",
+    "docs/current/model-key-save-design.md",
+    "docs/current/model-project-apply-design.md",
+    "docs/current/model-settings-browser-api-draft.md",
+    "docs/current/README.md",
+    "docs/current/verification-node-design.md",
+    "docs/prototypes/first-batch-review.html.template",
+    "docs/prototypes/index.html",
+    "docs/prototypes/model-key-save.prototype.js",
+    "docs/prototypes/model-project-apply.prototype.js",
+    "docs/prototypes/model-test.prototype.js",
+    "docs/prototypes/README.md"
+  ],
+  "new_sources": [
+    "docs/current/design-readiness-revisions.md",
+    "docs/current/execution-integration-gates.md",
+    "docs/current/issue-configuration-binding-design.md"
+  ],
+  "inventory": [
+    {
+      "path": "docs/adr/0001-agentteams-issue-concurrency-and-isolation.md",
+      "sha256": "85f50fa7cc1fd6f84b7d4879aa7bfd696a13861b7e2f345338b0df4ea5af6e6b"
+    },
+    {
+      "path": "docs/adr/0002-github-app-authorization-and-draft-pr-delivery.md",
+      "sha256": "be144e7f402238e32b74ed176d289bd0d2f552814eef1f08d3d7352d046ba698"
+    },
+    {
+      "path": "docs/adr/0003-plan-change-authorization-and-activation.md",
+      "sha256": "73d990681870f8430aa6b15a8ae68562eb4bdfa6a938b57b2edea07693e95cb2"
+    },
+    {
+      "path": "docs/adr/0004-acceptance-rule-clarification.md",
+      "sha256": "b457b8f01191f7145bf8a28592b34f55a6ae4ab092aac33d95c12065d9bb4a65"
+    },
+    {
+      "path": "docs/adr/0005-optional-project-verification-group.md",
+      "sha256": "99f05c258b935ff075ac10ff368be2ca8262f2c2052cd816ff7dd2382e12abe5"
+    },
+    {
+      "path": "docs/adr/0006-manager-entry-modes-and-skill-driven-execution.md",
+      "sha256": "231140c9c750cbb6c2fd6b7e9b1f0c4ab72247d16de505e94f885859c6adfef0"
+    },
+    {
+      "path": "docs/adr/0007-graph-loop-plugin.md",
+      "sha256": "0427ab6ff06b5b667c8190468946314e2887ca481351db90316370ccfb899445"
+    },
+    {
+      "path": "docs/adr/0008-changeset-attribution-and-history.md",
+      "sha256": "df252cb67899ca972216766bb619d9ea09c105ab7ad474ac149ff6ecc7fc9482"
+    },
+    {
+      "path": "docs/adr/0009-skill-engineering-deferred.md",
+      "sha256": "2254de15b2564aceec81f93f1e88876ac4203b79b1d867c8e223ce75864dc322"
+    },
+    {
+      "path": "docs/adr/0010-technology-stack-and-modular-monolith.md",
+      "sha256": "aba9cb57b4020280cb84b1db67e5e0d7129b2e33532e5b13804585822d563c46"
+    },
+    {
+      "path": "docs/adr/0011-agentteams-controlled-integration.md",
+      "sha256": "8ea03f2e3d44a81f7d26a44b768be8e862f104c80a01058656d8b9a955490d5e"
+    },
+    {
+      "path": "docs/adr/0012-issue-scoped-upstream-projects.md",
+      "sha256": "a06d3a9535ac4581cf49493b34205ddfc6444ad0d3445530961d5feb8d0ab610"
+    },
+    {
+      "path": "docs/adr/0013-web-coordinator-host-executor-processes.md",
+      "sha256": "46e5a2e12b0b2d3bb4d8d7540019e23da9aa32461d9cc9524b9a7d1005db8564"
+    },
+    {
+      "path": "docs/adr/0014-in-process-graph-plugin.md",
+      "sha256": "9c0551e0dc42278d84a09ee0104f5224a890b45b0f4ea52c7e5de0c90b6d81e2"
+    },
+    {
+      "path": "docs/adr/0015-round-scoped-upstream-dags.md",
+      "sha256": "069b7a25db17df9b0d1851e46773c07a057f1a61090c3a66ed60ab8b055d970d"
+    },
+    {
+      "path": "docs/adr/0016-transactional-background-work.md",
+      "sha256": "85786b770f8e7491b9a4b57f89385047934d80eefc9d80046355e273dbd967c3"
+    },
+    {
+      "path": "docs/adr/0017-atomic-attempt-resource-reservation.md",
+      "sha256": "60d0517027f3145a94c13ebf23c5280fd85c14298d43005076ceb76654de14c6"
+    },
+    {
+      "path": "docs/adr/0018-provision-instance-after-first-draft.md",
+      "sha256": "ba3790868523715ee4a41e631f09f3c0fbfe9bc66276b5f84a1e9df502086a16"
+    },
+    {
+      "path": "docs/adr/0019-conversation-issue-separation.md",
+      "sha256": "b530a614d393f35e67cb304025ffa7bb4c31a3d0fc66b860467120e4f9b884f4"
+    },
+    {
+      "path": "docs/adr/0020-python-repository-analysis-plugin.md",
+      "sha256": "1b10d03b3af14e065f7062e6d5c62d2c726b30a7bf9264a9c1bb7735bbb8bcf0"
+    },
+    {
+      "path": "docs/adr/README.md",
+      "sha256": "521fc2cafb202a26547e0ba2800c2246401779a32922cacc09f1867d39dd7b37"
+    },
+    {
+      "path": "docs/agentteams-survey-2026-09-07/agentteams-api-cli-survey-2026-09-07.md",
+      "sha256": "275076313b0426e8630b48cfaf9b304d3c661037c4de60fca2cc62ffb25bf67d"
+    },
+    {
+      "path": "docs/agentteams-survey-2026-09-07/agentteams-survey.html",
+      "sha256": "56a8774ae5f5486b49b1cb647c334d4e9e2599afd4f7d8af3702efd84a139097"
+    },
+    {
+      "path": "docs/agentteams-survey-2026-09-07/agentteams-survey.md",
+      "sha256": "9083d5ed90d3908291c920704e8e65f7049e0a587b616259a4843a50adcd2323"
+    },
+    {
+      "path": "docs/current/agentteams-validation-plan.md",
+      "sha256": "e704fb68cdfd4d14f47a1dec5847c77dde2d142e9b7075302a7efc777d676298"
+    },
+    {
+      "path": "docs/current/architecture-design-v1.md",
+      "sha256": "903e23a69272bbb197c42ff285f5e38ac3fd45f1d1abf36944db7e2d60dbfb0f"
+    },
+    {
+      "path": "docs/current/authentication-browser-api-draft.md",
+      "sha256": "2761e8583e47b05f3209601ff96c7e4b5b2752f78b8aaeaf532abf1193b2a2d3"
+    },
+    {
+      "path": "docs/current/backend-first-batch-persistence.md",
+      "sha256": "39720c0d8d44ad94883fc56a464373b9453db0967ec255f8613f9feca4abcfce"
+    },
+    {
+      "path": "docs/current/backend-first-batch-sources-draft.md",
+      "sha256": "fc41c31cd395ca4467e24f3cd332f3e9efe5f52d45fb308a7fb7c752a9d301bb"
+    },
+    {
+      "path": "docs/current/backend-first-development-access-draft.md",
+      "sha256": "30d969506846cb6c19723335f4dde83708004a6850b3a5e6876f9cda746bb602"
+    },
+    {
+      "path": "docs/current/backend-message-clarification-design.md",
+      "sha256": "80b83c823a1dbd4b1d9b81d81410fd1e26c0fb381a22e076ce85dd9cd5d342a4"
+    },
+    {
+      "path": "docs/current/backend-model-operations-draft.md",
+      "sha256": "d593383e60801c8bacc029ce7b38137d2cdf87643f1b3280f9e2cd91b8924015"
+    },
+    {
+      "path": "docs/current/changeset-design-discussion.md",
+      "sha256": "d3136e31e711e289ec40a7d60555068cac215797629cc953a2af6d78f44d2c42"
+    },
+    {
+      "path": "docs/current/changeset-design.md",
+      "sha256": "a1e29131eb781ee9afc790e6e81d76f6a03701d246a1814e623060118988a87a"
+    },
+    {
+      "path": "docs/current/changeset-structure.md",
+      "sha256": "d7793b3c9b62bbe02b4c60061ebab3d70393680c48d67f9e5afcf84bfcfaf3c4"
+    },
+    {
+      "path": "docs/current/conversation-issue-separation-design.md",
+      "sha256": "c7595412ed64b88da11651104320f6d49c8f3e8366f0892ff3f910c78b1b6ddb"
+    },
+    {
+      "path": "docs/current/conversation-message-clarification-api-contract.md",
+      "sha256": "36b94930390c6b600608d04066172414e6a69c2340f6dd2679774611bd659dfc"
+    },
+    {
+      "path": "docs/current/conversation-message-target-design.md",
+      "sha256": "658055f521d3c03e6c357a8309d9fd7cbdc744457b15351dd6d1e407d72dcb62"
+    },
+    {
+      "path": "docs/current/design-communication-backend-2026-09-10.md",
+      "sha256": "65e65847ca0f565b1c775bd77399f09bd23391c0f5f584d12e419ea50165ae41"
+    },
+    {
+      "path": "docs/current/design-communication-backend-2026-09-11.md",
+      "sha256": "4a928a1a58823c23478548d01eab2d24262790c381fb21ee725a332de145da75"
+    },
+    {
+      "path": "docs/current/design-communication-backend-log.md",
+      "sha256": "2e6c4e94024783744c09c6227bc01598616184ca88341b5c76166665b7b71fd7"
+    },
+    {
+      "path": "docs/current/design-communication-page-2026-09-10.md",
+      "sha256": "c9b8cd4c9dbdd6797a4327a9ebb3952702252a345f6f76527695aa273debbd65"
+    },
+    {
+      "path": "docs/current/design-communication-page-2026-09-11.md",
+      "sha256": "35be6699f96a9103777e98fa269cba128a8e3d3450e9ff488d98e991b424655d"
+    },
+    {
+      "path": "docs/current/design-communication-page-log.md",
+      "sha256": "f4f9564d4bbdc4af1524d1db2dd9e93572716081e7a7cd0ed57520e2ea86aa1b"
+    },
+    {
+      "path": "docs/current/design-communication.md",
+      "sha256": "7f26cbed8e264dc6dca072624bfdb9f6fb7b8b558335303551a8e9df2ca6ce12"
+    },
+    {
+      "path": "docs/current/design-delegation.md",
+      "sha256": "d664372f853daae565d516e97deeabf87b04afa927c25b58e6ca83c9c3739abf"
+    },
+    {
+      "path": "docs/current/design-readiness-revisions.md",
+      "sha256": "f2d6966f0fc551650078c4878adec55c3bc7e77d2260dab751da621652abb828"
+    },
+    {
+      "path": "docs/current/development-scaffold.md",
+      "sha256": "389378f80053c8db2c376223b64c3809733cbb70679c1ff8cd21c1df63e0ae3d"
+    },
+    {
+      "path": "docs/current/document-review-2026-09-09.md",
+      "sha256": "9712165212efa4ff6f780d9b260aee4904cf12f5dd2c28de220278d2b0bf0657"
+    },
+    {
+      "path": "docs/current/draft-conversation-backend-design.md",
+      "sha256": "1802e0ba64b1d960b4d6517db47016907f69d006a7f0b6cf20a23add2b7bfb25"
+    },
+    {
+      "path": "docs/current/draft-issue-and-room-entry-design.md",
+      "sha256": "79b3c63d7708410c29016b69d318c89e525f3d39d98d984a3dd110f9df3e5a45"
+    },
+    {
+      "path": "docs/current/draft-pr-review-design.md",
+      "sha256": "93593dfa9d946bbf086995880fbc058370a9fb3174928271edbf58fd1ce44305"
+    },
+    {
+      "path": "docs/current/execution-integration-gates.md",
+      "sha256": "35c9b965865df15840b829bf134e3dcbe63df7972f11a62130d3ecfd963ac8ef"
+    },
+    {
+      "path": "docs/current/first-batch-browser-api-contract.md",
+      "sha256": "50c2806a7981d6ba31c7152a71478361afdbfd37d0df1b4d87e272846662050e"
+    },
+    {
+      "path": "docs/current/first-batch-complete-review.md",
+      "sha256": "f2eafcb7c77a7abd5b061ae9fd7036cf0c922e90f890be1de48d04600b16b285"
+    },
+    {
+      "path": "docs/current/first-batch-recovery-design.md",
+      "sha256": "03df3a666dc78c08208ff594fe9ab55bef7abb69082d76940cea841a8103c6dd"
+    },
+    {
+      "path": "docs/current/first-development-todo.md",
+      "sha256": "5fdbdbeec0f221779a1f3684bb1fab51b1e81b518542ef48b1ecadc60da0a0b6"
+    },
+    {
+      "path": "docs/current/graph-loop-design.md",
+      "sha256": "4a397ae63edaf928d945c972b44d14b6abea44ddc1f6d2bf3e81cc8076cc77cf"
+    },
+    {
+      "path": "docs/current/HANDOFF-BACKEND-DESIGN-2026-09-11.md",
+      "sha256": "2e8ffe393b35c83daa08d9d2ec09ed299f40865cfb91c6347f0092c780685adf"
+    },
+    {
+      "path": "docs/current/HANDOFF-BACKEND-DESIGN.md",
+      "sha256": "035b6f25f90b1b7bbfd4e4ee89d19de2944499495e71a77204a8883c193edff5"
+    },
+    {
+      "path": "docs/current/HANDOFF-PAGE-API-DESIGN.md",
+      "sha256": "12b4bf077a16e432e66a1a8eb6aee5a1be9a039c046c766a6942c864ff5bcf12"
+    },
+    {
+      "path": "docs/current/HANDOFF.md",
+      "sha256": "5ea33d96641495e0ff030776eca6949876365caa5c52142f8517350033492689"
+    },
+    {
+      "path": "docs/current/integration-environment-design.md",
+      "sha256": "9d193a3862d6774f817e0a1b1bd2922f2954f94c24d95bb51326a42ba8210cde"
+    },
+    {
+      "path": "docs/current/issue-configuration-binding-design.md",
+      "sha256": "c79c4c6317fc1d658a80091048805881c1c57a3851edeab3ca7811369b2b5346"
+    },
+    {
+      "path": "docs/current/issue-creation-repository-analysis.md",
+      "sha256": "a17475341204d4a491f34f83c347ab994989fe925c0e13754543be460c8862f3"
+    },
+    {
+      "path": "docs/current/issue-overview-minimal-design.md",
+      "sha256": "0ab552f6febc7f55bd4cdbcd38e7dcedcbb9dfaec5197e53cd5b0704fc4f7bd9"
+    },
+    {
+      "path": "docs/current/issue-page-create-api-contract.md",
+      "sha256": "0c2b76edb481319cf8080b83587b0b8fe03132ba4256ab9b3a228f259a7504bc"
+    },
+    {
+      "path": "docs/current/login-recovery-page-design.md",
+      "sha256": "d871a506cfe14751abdcdef7fc55803ad19e8345540f0259538575fc00f4ab9c"
+    },
+    {
+      "path": "docs/current/manager-create-issue-tool-design.md",
+      "sha256": "26428b3964b03391792130cc21d19c81fe9cbbebc35ac2ca9ddae038291c41f3"
+    },
+    {
+      "path": "docs/current/model-connection-settings-design.md",
+      "sha256": "434924007d530eece63a3fc62f2675498a95d4811199cdbb9789ba3e849286ab"
+    },
+    {
+      "path": "docs/current/model-key-save-design.md",
+      "sha256": "d0b0b1396d8372d118180043d4acf90107c3c0f4e156f766e283fb0f32411c43"
+    },
+    {
+      "path": "docs/current/model-project-apply-design.md",
+      "sha256": "6b5894fecf58971d05e0c7883b86e3aad5da40982d389b0fd21b1f6354624253"
+    },
+    {
+      "path": "docs/current/model-settings-browser-api-draft.md",
+      "sha256": "c4e207513f40b6772583212f1d1b7b798fe818a9af9bfbb09dc8059a4e826b94"
+    },
+    {
+      "path": "docs/current/NEXT-BACKEND-SESSION-PROMPT.md",
+      "sha256": "539538bcd3ac63a6fc2d419fbc8adaadc5692067b991ab00e60fe543182645cb"
+    },
+    {
+      "path": "docs/current/NEXT-SESSION-PROMPT.md",
+      "sha256": "6ab3ea27c0373dbbad1b9023e4ce4a9ef3e244a5f8fd5cc0cbf2ddc0e1e73e96"
+    },
+    {
+      "path": "docs/current/page-interface-prototype.md",
+      "sha256": "c14cde6893c2129acba75b0d8b71894c3e4b16edc1b29517c72f4b64137bf47b"
+    },
+    {
+      "path": "docs/current/project-configuration-design.md",
+      "sha256": "95caca85dfb78bc3ab5af794baaa9cf43d2e8bc9d378a2d334fcfb33684512db"
+    },
+    {
+      "path": "docs/current/project-first-entry-design.md",
+      "sha256": "5e2bbc9d06271b969f1d6b463cf2b2f078e7fc05de149ca3a7cb058344242a4f"
+    },
+    {
+      "path": "docs/current/prototype-walkthrough-design.md",
+      "sha256": "184dd894bd770ee30756d116cd80a47caa2477784e65e3e9cc5878efba134d14"
+    },
+    {
+      "path": "docs/current/README.md",
+      "sha256": "607884c7ba3310f67427ad43a62736e43e0370870bde6a7f70ec04756c680c30"
+    },
+    {
+      "path": "docs/current/repository-picker-design.md",
+      "sha256": "c36182211193fdf45147e3918681dd9acc0327a2f49fcbd6b2145ffa1d04c016"
+    },
+    {
+      "path": "docs/current/scaffold-adr-review.md",
+      "sha256": "169caf27f9e8aa06a560ba36e1cc832b644f32135ed093302b08771e64257ebe"
+    },
+    {
+      "path": "docs/current/scaffold-agentteams-evidence.md",
+      "sha256": "72ef7c84de715d1035c4b6c3a2d910e667da3ba8e453e86ec4d8f73b83a18961"
+    },
+    {
+      "path": "docs/current/scaffold-page-backend-review.md",
+      "sha256": "89a5a23f5ba5747c7890e2fa6a8f10789086c5339d1a466d7ae7f9c725e3c74a"
+    },
+    {
+      "path": "docs/current/scaffold-source-inventory.md",
+      "sha256": "d93b93fe5210d47813200539ed5c99b15ea0df3187963ccf180cd39c046174df"
+    },
+    {
+      "path": "docs/current/scaffold-verification.md",
+      "sha256": "086e7cd2cdc99ee26a373c086dfcc0399431bb61858b5b7efe291661c6f10add"
+    },
+    {
+      "path": "docs/current/skill-engineering-design.md",
+      "sha256": "b35c27024217252a5eb73c07b9cace2f1131df081ea9bc401e61c53894b4bf07"
+    },
+    {
+      "path": "docs/current/team-execution-policy.md",
+      "sha256": "67ed66a005a8933d136af4dd3f95589e2872bc5602abcf8e9521f20d39fee4d7"
+    },
+    {
+      "path": "docs/current/technology-selection.md",
+      "sha256": "70b9c992c2d8654b7ee50d277144e190594baad40da91b2003dc9a02e7061beb"
+    },
+    {
+      "path": "docs/current/verification-node-design.md",
+      "sha256": "5641b18a9791d3bb672d6add3f8129c95a27f32e8d292d66094d1db01f1a660f"
+    },
+    {
+      "path": "docs/prototypes/assemble-prototypes.py",
+      "sha256": "41e71e84b2fd791f55a0bf7bf4be13f5b87603990fad37929233bf5e50697eb4"
+    },
+    {
+      "path": "docs/prototypes/auth-recovery.prototype.js",
+      "sha256": "ee6ed5600def72fbaea99f1e18297744b35267c3955729565ff1cb3a774387ac"
+    },
+    {
+      "path": "docs/prototypes/first-batch-review.html.template",
+      "sha256": "c59ab09801dff789dc659fb5e7a48991250477977c0f423972892b00dad3b372"
+    },
+    {
+      "path": "docs/prototypes/index.html",
+      "sha256": "3433826e5b1c54cfea62b3ec4c154d0545b479f94ad6f8716276ec212324dcd9"
+    },
+    {
+      "path": "docs/prototypes/issue-overview.prototype.js",
+      "sha256": "32875db3260cabf0416b61564f5721fa8c42e6ba0887930a4194fa2d70eeb738"
+    },
+    {
+      "path": "docs/prototypes/joined-preview-shell.html.template",
+      "sha256": "c433d325e3cf3f19dd7fa3f14a09cb2f8132e1cecb644ff8b3859d5f493cfa44"
+    },
+    {
+      "path": "docs/prototypes/model-key-save.prototype.js",
+      "sha256": "3a2cc0f8fd71ed9ce6be9a45fdc4c0e0adae172c1995b32334c3bd849532c9ac"
+    },
+    {
+      "path": "docs/prototypes/model-project-apply.prototype.js",
+      "sha256": "5274e04f0d20c092be70aae5b76ae6a7970ee5d7a164b948f10d54c5b8d2d2a1"
+    },
+    {
+      "path": "docs/prototypes/model-test.prototype.js",
+      "sha256": "da4fb71fa721c94a0b35c97b3c18d4f95fceca83c7fafeb823efc3ec41210913"
+    },
+    {
+      "path": "docs/prototypes/README.md",
+      "sha256": "9ff118d09409bffc98de679a31d8921c340b9ef31475d1e5126c081c0f673bad"
+    },
+    {
+      "path": "docs/prototypes/repomesh-conversation-dock-prototype.html",
+      "sha256": "f3abbf0f69e0de04954a3162038e5b5b45e4124e769d9bf59c0aacdb0b9f5330"
+    },
+    {
+      "path": "docs/prototypes/repomesh-conversation-navigation-prototype.html",
+      "sha256": "a70b9c53a95a41f07a3b074534d5b511cdf63f293df701753ef1f1ccd24782ff"
+    },
+    {
+      "path": "docs/prototypes/repomesh-conversations-issues.html",
+      "sha256": "5bda301607d122c55034c46e67c3a6d869ee1d268e8b56326a082f8c8f7b2073"
+    },
+    {
+      "path": "docs/prototypes/repomesh-issue-conversation-prototype.html",
+      "sha256": "8724e8eb53bbbcb95b6d31da2fd14d9130bc85cfffbc396dd01ea40be6e649f4"
+    },
+    {
+      "path": "docs/prototypes/repomesh-issue-dag-prototype.html",
+      "sha256": "6f3d4b784732527b9009127beb259fdbe9cd60f2ec71750b5b426404461b5f3d"
+    },
+    {
+      "path": "docs/prototypes/repomesh-issue-detail-prototype.html",
+      "sha256": "4d83b74b614de80f694761d7fb430170253d4c187b11ddc7aba2823176126c15"
+    },
+    {
+      "path": "docs/prototypes/repomesh-issue-modal-prototype.html",
+      "sha256": "b4ca04dfaf7b8d9e7dce3f7c6c2ec04972a554fb4003aaec3cbe62ba3cc1bd9a"
+    },
+    {
+      "path": "docs/prototypes/repomesh-issue-submit-prototype.html",
+      "sha256": "bd6ad91d9e3c316a494f49a95b4440da7355e8318f4b12b893f62f16881f2f90"
+    },
+    {
+      "path": "docs/prototypes/repomesh-message-target-prototype.html",
+      "sha256": "bb98d1e5262c92de2f790a6c36f2cc98825a15edda03b276b077ff1585070f3a"
+    },
+    {
+      "path": "docs/prototypes/repomesh-model-provider-prototype.html",
+      "sha256": "0345fcee1644879a9c688a8f98978c3074f293c621ad3747ba419b10cdb40ff5"
+    },
+    {
+      "path": "docs/prototypes/repomesh-model-settings-prototype.html",
+      "sha256": "1550f58057f21d7e7add6b1ff60e1392008914cc02d1509a3030aa466efe077c"
+    },
+    {
+      "path": "docs/prototypes/repomesh-project-entry-prototype.html",
+      "sha256": "3c7cd0763352e499aad7cd2520f428be6790e3afc5068ca86718be9f4d1a88a3"
+    },
+    {
+      "path": "docs/prototypes/repomesh-project-first.html",
+      "sha256": "fd78dd1380a2e9268b146e3eda75f1cb53a20b8933165167f22851dddceb29fb"
+    },
+    {
+      "path": "docs/prototypes/repomesh-project-settings-prototype.html",
+      "sha256": "7d93b2ff2a754ab847cddf61ad7e048f40c6817fa4618aeff3f38f728fe7dbb8"
+    },
+    {
+      "path": "docs/prototypes/repomesh-rooms-prototype.html",
+      "sha256": "04762b4b6040044b1553f414db673a7c7d09a83d14c23d0ca3ea8ec8b30f8103"
+    },
+    {
+      "path": "docs/prototypes/repository-picker.prototype.js",
+      "sha256": "56ed7d2d85d91bc8d99891e8e4af18779013fb784daccb1dbebd77f9b25fa367"
+    },
+    {
+      "path": "docs/reviews/2026-09-12-design-fixes/README.md",
+      "sha256": "722c38fd9850d5609cabdaa8fd2278498cf2955484ecceb8d8aba689de5ee5ea"
+    }
+  ],
+  "limitations": [
+    "Local file existence only; anchors and remote URLs not checked.",
+    "JSON syntax only; no business schema or runtime validation."
+  ]
+}

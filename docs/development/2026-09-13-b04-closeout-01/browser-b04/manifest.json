@@ -1,0 +1,15 @@
+{
+  "origin": "https://127.0.0.1:33533",
+  "loginPath": "/__test/login",
+  "controlPath": "/__test/control",
+  "statusPath": "/__test/status",
+  "emptyCatalog": false,
+  "fixtures": {
+    "actorA": "10000000-0000-4000-8000-000000000001",
+    "actorB": "10000000-0000-4000-8000-000000000002",
+    "repositoryA": "repo_00000000000000000301",
+    "repositoryB": "repo_00000000000000000302",
+    "modelProfile": "model_fixture_a",
+    "executionProfile": "execution_fixture_a"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "date": "2026-09-11",
+  "plugin": "pstack",
+  "version": "0.9.28",
+  "commit": "5d8752c3dd620f344ed8f87ec47fbf3b1fb90b7e",
+  "codexVersion": "0.153.4",
+  "scope": "repository",
+  "upstreamFilesCompared": 181,
+  "upstreamFilesIdentical": true,
+  "installedSkillDirectories": 54,
+  "projectVisibleEnabledSkills": 54,
+  "outsideProjectVisibleSkills": 0,
+  "skillLoadErrors": 0,
+  "userConfigUnchanged": true,
+  "verification": "Actual Codex app-server plugin/list refresh followed by skills/list for project and unrelated directory. No model turn was started."
+}

@@ -1,0 +1,52 @@
+{
+  "batch": "B01",
+  "result": "NOT_VERIFIED",
+  "recordedAt": "2026-09-12T10:43:44.1678748Z",
+  "failure": "Cannot find path '/nonexistent-repomesh-validation' because it does not exist.",
+  "cleanupPassed": true,
+  "checks": [
+    {
+      "name": "go-version",
+      "command": [
+        "/usr/local/bin/go",
+        "version"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.205,
+      "stdout": "go version go1.26.4 linux/amd64\n",
+      "stderr": ""
+    },
+    {
+      "name": "node-version",
+      "command": [
+        "/usr/local/bin/node",
+        "--version"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.023,
+      "stdout": "v22.22.1\n",
+      "stderr": ""
+    },
+    {
+      "name": "npm-version",
+      "command": [
+        "/usr/local/bin/node",
+        "/opt/repomesh-dev-tools/node-v22.22.1-linux-x64/lib/node_modules/npm/bin/npm-cli.js",
+        "--version"
+      ],
+      "exitCode": 0,
+      "expectedExit": [
+        0
+      ],
+      "seconds": 0.081,
+      "stdout": "10.9.4\n",
+      "stderr": ""
+    }
+  ]
+}

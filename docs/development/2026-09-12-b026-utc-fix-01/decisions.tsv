@@ -1,0 +1,4 @@
+ts	phase	decision	why	evidence	result
+2026-09-12T14:29:47Z	fix	统一 PostgreSQL timestamptz 扫描为 UTC	真实 r1 observedAt 含 -07:00，被前端严格 UTC 契约拒绝	../2026-09-12-b026-live-01/utc-failure.md; pre-fix.txt; post-fix.txt	database.Open最小修复；不改时刻或期限；保留r1失败
+2026-09-12T14:29:47Z	verify	隔离非 UTC 子进程并使用独立 SCRAM 测试库	关闭time.Local测试耦合并满足错误密码用例实际条件	go-test-scram.json; independent-review-closure.md	229pass/1权限skip/0fail；无PGskip；无开放P0/P1/P2
+2026-09-12T14:29:47Z	live	切换新r2配套包并开启真实验收02	UTC修复已验证，原失败不可覆盖为通过	../2026-09-12-b026-live-02/switch.txt; preservation-audit/audit.json	r2常驻；原r1 11文件/旧70证据未变；等待专用浏览器账号登录

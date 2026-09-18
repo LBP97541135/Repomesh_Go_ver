@@ -1,0 +1,7 @@
+# Operator copy. Paths and flags only, but still local to the host.
+config.yaml
+
+# Accidental dumps beside the operator file
+*.har
+cookies.json
+session-cookies.json

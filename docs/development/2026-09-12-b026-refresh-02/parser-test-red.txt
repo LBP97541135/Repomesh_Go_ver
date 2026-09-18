@@ -1,0 +1,7 @@
+Command: python3 -m unittest -v docs/development/2026-09-12-b026-refresh-02/test_observer.py
+Python: 3.10.12
+Exit: 1
+
+The copied refresh-01 parser passed the timezone-naive rejection but raised INVALID_TIMESTAMP for valid timestamps with 1, 2, 4, or 5 fractional digits, for both Z and +05:30 timezone forms. The test ran two test methods with eight failing subtests.
+
+These fixed timestamp values test only the observer parser. They are not real refresh observations or external acceptance evidence.

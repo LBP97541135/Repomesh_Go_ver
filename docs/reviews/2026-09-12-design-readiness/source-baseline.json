@@ -1,0 +1,680 @@
+[
+  {
+    "path": "docs/adr/0001-agentteams-issue-concurrency-and-isolation.md",
+    "bytes": 41372,
+    "lines": 479,
+    "sha256": "85f50fa7cc1fd6f84b7d4879aa7bfd696a13861b7e2f345338b0df4ea5af6e6b"
+  },
+  {
+    "path": "docs/adr/0002-github-app-authorization-and-draft-pr-delivery.md",
+    "bytes": 7802,
+    "lines": 55,
+    "sha256": "be144e7f402238e32b74ed176d289bd0d2f552814eef1f08d3d7352d046ba698"
+  },
+  {
+    "path": "docs/adr/0003-plan-change-authorization-and-activation.md",
+    "bytes": 24323,
+    "lines": 255,
+    "sha256": "73d990681870f8430aa6b15a8ae68562eb4bdfa6a938b57b2edea07693e95cb2"
+  },
+  {
+    "path": "docs/adr/0004-acceptance-rule-clarification.md",
+    "bytes": 2736,
+    "lines": 32,
+    "sha256": "b457b8f01191f7145bf8a28592b34f55a6ae4ab092aac33d95c12065d9bb4a65"
+  },
+  {
+    "path": "docs/adr/0005-optional-project-verification-group.md",
+    "bytes": 7294,
+    "lines": 94,
+    "sha256": "99f05c258b935ff075ac10ff368be2ca8262f2c2052cd816ff7dd2382e12abe5"
+  },
+  {
+    "path": "docs/adr/0006-manager-entry-modes-and-skill-driven-execution.md",
+    "bytes": 14247,
+    "lines": 122,
+    "sha256": "231140c9c750cbb6c2fd6b7e9b1f0c4ab72247d16de505e94f885859c6adfef0"
+  },
+  {
+    "path": "docs/adr/0007-graph-loop-plugin.md",
+    "bytes": 5465,
+    "lines": 68,
+    "sha256": "0427ab6ff06b5b667c8190468946314e2887ca481351db90316370ccfb899445"
+  },
+  {
+    "path": "docs/adr/0008-changeset-attribution-and-history.md",
+    "bytes": 9895,
+    "lines": 99,
+    "sha256": "df252cb67899ca972216766bb619d9ea09c105ab7ad474ac149ff6ecc7fc9482"
+  },
+  {
+    "path": "docs/adr/0009-skill-engineering-deferred.md",
+    "bytes": 9296,
+    "lines": 73,
+    "sha256": "2254de15b2564aceec81f93f1e88876ac4203b79b1d867c8e223ce75864dc322"
+  },
+  {
+    "path": "docs/adr/0010-technology-stack-and-modular-monolith.md",
+    "bytes": 4433,
+    "lines": 41,
+    "sha256": "aba9cb57b4020280cb84b1db67e5e0d7129b2e33532e5b13804585822d563c46"
+  },
+  {
+    "path": "docs/adr/0011-agentteams-controlled-integration.md",
+    "bytes": 5712,
+    "lines": 43,
+    "sha256": "8ea03f2e3d44a81f7d26a44b768be8e862f104c80a01058656d8b9a955490d5e"
+  },
+  {
+    "path": "docs/adr/0012-issue-scoped-upstream-projects.md",
+    "bytes": 5830,
+    "lines": 61,
+    "sha256": "a06d3a9535ac4581cf49493b34205ddfc6444ad0d3445530961d5feb8d0ab610"
+  },
+  {
+    "path": "docs/adr/0013-web-coordinator-host-executor-processes.md",
+    "bytes": 5235,
+    "lines": 57,
+    "sha256": "46e5a2e12b0b2d3bb4d8d7540019e23da9aa32461d9cc9524b9a7d1005db8564"
+  },
+  {
+    "path": "docs/adr/0014-in-process-graph-plugin.md",
+    "bytes": 5437,
+    "lines": 57,
+    "sha256": "9c0551e0dc42278d84a09ee0104f5224a890b45b0f4ea52c7e5de0c90b6d81e2"
+  },
+  {
+    "path": "docs/adr/0015-round-scoped-upstream-dags.md",
+    "bytes": 5943,
+    "lines": 59,
+    "sha256": "069b7a25db17df9b0d1851e46773c07a057f1a61090c3a66ed60ab8b055d970d"
+  },
+  {
+    "path": "docs/adr/0016-transactional-background-work.md",
+    "bytes": 10332,
+    "lines": 102,
+    "sha256": "85786b770f8e7491b9a4b57f89385047934d80eefc9d80046355e273dbd967c3"
+  },
+  {
+    "path": "docs/adr/0017-atomic-attempt-resource-reservation.md",
+    "bytes": 3323,
+    "lines": 43,
+    "sha256": "60d0517027f3145a94c13ebf23c5280fd85c14298d43005076ceb76654de14c6"
+  },
+  {
+    "path": "docs/adr/0018-provision-instance-after-first-draft.md",
+    "bytes": 8484,
+    "lines": 90,
+    "sha256": "ba3790868523715ee4a41e631f09f3c0fbfe9bc66276b5f84a1e9df502086a16"
+  },
+  {
+    "path": "docs/adr/0019-conversation-issue-separation.md",
+    "bytes": 8875,
+    "lines": 64,
+    "sha256": "b530a614d393f35e67cb304025ffa7bb4c31a3d0fc66b860467120e4f9b884f4"
+  },
+  {
+    "path": "docs/adr/0020-python-repository-analysis-plugin.md",
+    "bytes": 2021,
+    "lines": 14,
+    "sha256": "1b10d03b3af14e065f7062e6d5c62d2c726b30a7bf9264a9c1bb7735bbb8bcf0"
+  },
+  {
+    "path": "docs/adr/README.md",
+    "bytes": 7181,
+    "lines": 48,
+    "sha256": "0d3954e539a56c3f05ef4a4166aef93c318d5d315840ffcfadad699c2e5ce1e8"
+  },
+  {
+    "path": "docs/current/agentteams-validation-plan.md",
+    "bytes": 29880,
+    "lines": 151,
+    "sha256": "e704fb68cdfd4d14f47a1dec5847c77dde2d142e9b7075302a7efc777d676298"
+  },
+  {
+    "path": "docs/current/architecture-design-v1.md",
+    "bytes": 54364,
+    "lines": 431,
+    "sha256": "87c5a31f52f5b64e95bfbaaed7db1bee5e4f18bd607cabcdbabbe7b37748e9d9"
+  },
+  {
+    "path": "docs/current/authentication-browser-api-draft.md",
+    "bytes": 12722,
+    "lines": 108,
+    "sha256": "e1ba508cdd8a725c4e27cc03174ae6f9890af75100ed7b2d5cbc8cbbd793e440"
+  },
+  {
+    "path": "docs/current/backend-first-batch-persistence.md",
+    "bytes": 30954,
+    "lines": 218,
+    "sha256": "5f916287b3f1979d334fd290d95c54ab91941e05c27fcd90efee38ef617c595e"
+  },
+  {
+    "path": "docs/current/backend-first-batch-sources-draft.md",
+    "bytes": 21965,
+    "lines": 156,
+    "sha256": "fc41c31cd395ca4467e24f3cd332f3e9efe5f52d45fb308a7fb7c752a9d301bb"
+  },
+  {
+    "path": "docs/current/backend-first-development-access-draft.md",
+    "bytes": 27588,
+    "lines": 191,
+    "sha256": "30d969506846cb6c19723335f4dde83708004a6850b3a5e6876f9cda746bb602"
+  },
+  {
+    "path": "docs/current/backend-message-clarification-design.md",
+    "bytes": 36425,
+    "lines": 258,
+    "sha256": "80b83c823a1dbd4b1d9b81d81410fd1e26c0fb381a22e076ce85dd9cd5d342a4"
+  },
+  {
+    "path": "docs/current/backend-model-operations-draft.md",
+    "bytes": 22134,
+    "lines": 173,
+    "sha256": "0c85a33d2d09b4909f0497c5a0262058d26e1d1fc3bf3ef49d87f7424fe1909b"
+  },
+  {
+    "path": "docs/current/changeset-design-discussion.md",
+    "bytes": 540,
+    "lines": 9,
+    "sha256": "d3136e31e711e289ec40a7d60555068cac215797629cc953a2af6d78f44d2c42"
+  },
+  {
+    "path": "docs/current/changeset-design.md",
+    "bytes": 8809,
+    "lines": 57,
+    "sha256": "a1e29131eb781ee9afc790e6e81d76f6a03701d246a1814e623060118988a87a"
+  },
+  {
+    "path": "docs/current/changeset-structure.md",
+    "bytes": 7552,
+    "lines": 115,
+    "sha256": "d7793b3c9b62bbe02b4c60061ebab3d70393680c48d67f9e5afcf84bfcfaf3c4"
+  },
+  {
+    "path": "docs/current/conversation-issue-separation-design.md",
+    "bytes": 42433,
+    "lines": 262,
+    "sha256": "c7595412ed64b88da11651104320f6d49c8f3e8366f0892ff3f910c78b1b6ddb"
+  },
+  {
+    "path": "docs/current/conversation-message-clarification-api-contract.md",
+    "bytes": 12851,
+    "lines": 159,
+    "sha256": "36b94930390c6b600608d04066172414e6a69c2340f6dd2679774611bd659dfc"
+  },
+  {
+    "path": "docs/current/conversation-message-target-design.md",
+    "bytes": 8598,
+    "lines": 64,
+    "sha256": "658055f521d3c03e6c357a8309d9fd7cbdc744457b15351dd6d1e407d72dcb62"
+  },
+  {
+    "path": "docs/current/design-communication-backend-2026-09-10.md",
+    "bytes": 149388,
+    "lines": 1172,
+    "sha256": "65e65847ca0f565b1c775bd77399f09bd23391c0f5f584d12e419ea50165ae41"
+  },
+  {
+    "path": "docs/current/design-communication-backend-2026-09-11.md",
+    "bytes": 118076,
+    "lines": 800,
+    "sha256": "4a928a1a58823c23478548d01eab2d24262790c381fb21ee725a332de145da75"
+  },
+  {
+    "path": "docs/current/design-communication-backend-log.md",
+    "bytes": 140583,
+    "lines": 840,
+    "sha256": "2e6c4e94024783744c09c6227bc01598616184ca88341b5c76166665b7b71fd7"
+  },
+  {
+    "path": "docs/current/design-communication-page-2026-09-10.md",
+    "bytes": 150560,
+    "lines": 1029,
+    "sha256": "c9b8cd4c9dbdd6797a4327a9ebb3952702252a345f6f76527695aa273debbd65"
+  },
+  {
+    "path": "docs/current/design-communication-page-2026-09-11.md",
+    "bytes": 124114,
+    "lines": 818,
+    "sha256": "35be6699f96a9103777e98fa269cba128a8e3d3450e9ff488d98e991b424655d"
+  },
+  {
+    "path": "docs/current/design-communication-page-log.md",
+    "bytes": 120704,
+    "lines": 714,
+    "sha256": "f4f9564d4bbdc4af1524d1db2dd9e93572716081e7a7cd0ed57520e2ea86aa1b"
+  },
+  {
+    "path": "docs/current/design-communication.md",
+    "bytes": 24481,
+    "lines": 147,
+    "sha256": "7f26cbed8e264dc6dca072624bfdb9f6fb7b8b558335303551a8e9df2ca6ce12"
+  },
+  {
+    "path": "docs/current/design-delegation.md",
+    "bytes": 4621,
+    "lines": 35,
+    "sha256": "d664372f853daae565d516e97deeabf87b04afa927c25b58e6ca83c9c3739abf"
+  },
+  {
+    "path": "docs/current/development-scaffold.md",
+    "bytes": 8807,
+    "lines": 92,
+    "sha256": "389378f80053c8db2c376223b64c3809733cbb70679c1ff8cd21c1df63e0ae3d"
+  },
+  {
+    "path": "docs/current/document-review-2026-09-09.md",
+    "bytes": 10720,
+    "lines": 66,
+    "sha256": "9712165212efa4ff6f780d9b260aee4904cf12f5dd2c28de220278d2b0bf0657"
+  },
+  {
+    "path": "docs/current/draft-conversation-backend-design.md",
+    "bytes": 50014,
+    "lines": 358,
+    "sha256": "1802e0ba64b1d960b4d6517db47016907f69d006a7f0b6cf20a23add2b7bfb25"
+  },
+  {
+    "path": "docs/current/draft-issue-and-room-entry-design.md",
+    "bytes": 11467,
+    "lines": 101,
+    "sha256": "79b3c63d7708410c29016b69d318c89e525f3d39d98d984a3dd110f9df3e5a45"
+  },
+  {
+    "path": "docs/current/draft-pr-review-design.md",
+    "bytes": 2498,
+    "lines": 29,
+    "sha256": "93593dfa9d946bbf086995880fbc058370a9fb3174928271edbf58fd1ce44305"
+  },
+  {
+    "path": "docs/current/first-batch-browser-api-contract.md",
+    "bytes": 23138,
+    "lines": 293,
+    "sha256": "50c2806a7981d6ba31c7152a71478361afdbfd37d0df1b4d87e272846662050e"
+  },
+  {
+    "path": "docs/current/first-batch-complete-review.md",
+    "bytes": 16577,
+    "lines": 128,
+    "sha256": "256ca7cf2e19d5675f7e1de1dbbeaaee9be8dc1826669f500193eb38ca6f68dd"
+  },
+  {
+    "path": "docs/current/first-batch-recovery-design.md",
+    "bytes": 10232,
+    "lines": 82,
+    "sha256": "23ece9925da4448862c9f48863fc7afbfbfdfca363ef3df81fc5f1374698a5f7"
+  },
+  {
+    "path": "docs/current/first-development-todo.md",
+    "bytes": 10881,
+    "lines": 64,
+    "sha256": "4c0e6a5c5463d41a6f251e58ea87cc067c291b5af55a6b9c98d2038c6d120332"
+  },
+  {
+    "path": "docs/current/graph-loop-design.md",
+    "bytes": 19218,
+    "lines": 144,
+    "sha256": "59532accaa00ff2cedadb505f064d65632191ffe091d87c2076d9dd08f532bcd"
+  },
+  {
+    "path": "docs/current/HANDOFF-BACKEND-DESIGN-2026-09-11.md",
+    "bytes": 37853,
+    "lines": 208,
+    "sha256": "a1d34897be7c355600c875e71e20048ce95318a8294ea9a80b942bd602aa5e80"
+  },
+  {
+    "path": "docs/current/HANDOFF-BACKEND-DESIGN.md",
+    "bytes": 1085,
+    "lines": 10,
+    "sha256": "eecbd0df05fed4fe9866a0c81b32ec791b9029cdbc7d7e0da0fa91fb1894edbd"
+  },
+  {
+    "path": "docs/current/HANDOFF-PAGE-API-DESIGN.md",
+    "bytes": 27558,
+    "lines": 159,
+    "sha256": "59cf06bc51a2058540c3cbb6c411be9dd099b5aa1ff29fbb18c56ff975e9067b"
+  },
+  {
+    "path": "docs/current/HANDOFF.md",
+    "bytes": 35211,
+    "lines": 169,
+    "sha256": "6b877b46fc5ff53aa521963f78956356b370d50be3222ebdcdcdcce7288fc277"
+  },
+  {
+    "path": "docs/current/integration-environment-design.md",
+    "bytes": 3260,
+    "lines": 49,
+    "sha256": "9d193a3862d6774f817e0a1b1bd2922f2954f94c24d95bb51326a42ba8210cde"
+  },
+  {
+    "path": "docs/current/issue-creation-repository-analysis.md",
+    "bytes": 12072,
+    "lines": 99,
+    "sha256": "a17475341204d4a491f34f83c347ab994989fe925c0e13754543be460c8862f3"
+  },
+  {
+    "path": "docs/current/issue-overview-minimal-design.md",
+    "bytes": 4079,
+    "lines": 33,
+    "sha256": "0ab552f6febc7f55bd4cdbcd38e7dcedcbb9dfaec5197e53cd5b0704fc4f7bd9"
+  },
+  {
+    "path": "docs/current/issue-page-create-api-contract.md",
+    "bytes": 30950,
+    "lines": 334,
+    "sha256": "a4d7759ee62f70fe9f8fd4c8f6eb9e8afda123fe794844b7e700d43baef08cc9"
+  },
+  {
+    "path": "docs/current/login-recovery-page-design.md",
+    "bytes": 4405,
+    "lines": 33,
+    "sha256": "a172695b7450aa0f75f0dafd3691b8877ebc4f4b3bb8ceb42ae2beea0c2c42dc"
+  },
+  {
+    "path": "docs/current/manager-create-issue-tool-design.md",
+    "bytes": 7636,
+    "lines": 57,
+    "sha256": "26428b3964b03391792130cc21d19c81fe9cbbebc35ac2ca9ddae038291c41f3"
+  },
+  {
+    "path": "docs/current/model-connection-settings-design.md",
+    "bytes": 11467,
+    "lines": 82,
+    "sha256": "75a026b832995d90e477bdae92a18b3b0045780dbe9df940981c878ac19a2fef"
+  },
+  {
+    "path": "docs/current/model-key-save-design.md",
+    "bytes": 4293,
+    "lines": 35,
+    "sha256": "96e297dcd584f597ba7de9efe5019838ebe09db9450baf97dc0bdd111f0d8073"
+  },
+  {
+    "path": "docs/current/model-project-apply-design.md",
+    "bytes": 4707,
+    "lines": 33,
+    "sha256": "b52fc0031081799b70a27367c27fd9bddc69b7ef6a7bdedd386440d872172a44"
+  },
+  {
+    "path": "docs/current/model-settings-browser-api-draft.md",
+    "bytes": 17799,
+    "lines": 139,
+    "sha256": "66df77145ed578b9ad8c6e5e9482be0a01b67a6b55e6783ec4e6b63cb5f82c19"
+  },
+  {
+    "path": "docs/current/NEXT-BACKEND-SESSION-PROMPT.md",
+    "bytes": 41999,
+    "lines": 255,
+    "sha256": "539538bcd3ac63a6fc2d419fbc8adaadc5692067b991ab00e60fe543182645cb"
+  },
+  {
+    "path": "docs/current/NEXT-SESSION-PROMPT.md",
+    "bytes": 36724,
+    "lines": 255,
+    "sha256": "6ab3ea27c0373dbbad1b9023e4ce4a9ef3e244a5f8fd5cc0cbf2ddc0e1e73e96"
+  },
+  {
+    "path": "docs/current/page-interface-prototype.md",
+    "bytes": 7106,
+    "lines": 68,
+    "sha256": "c14cde6893c2129acba75b0d8b71894c3e4b16edc1b29517c72f4b64137bf47b"
+  },
+  {
+    "path": "docs/current/project-configuration-design.md",
+    "bytes": 27607,
+    "lines": 222,
+    "sha256": "95caca85dfb78bc3ab5af794baaa9cf43d2e8bc9d378a2d334fcfb33684512db"
+  },
+  {
+    "path": "docs/current/project-first-entry-design.md",
+    "bytes": 12826,
+    "lines": 81,
+    "sha256": "5e2bbc9d06271b969f1d6b463cf2b2f078e7fc05de149ca3a7cb058344242a4f"
+  },
+  {
+    "path": "docs/current/prototype-walkthrough-design.md",
+    "bytes": 7657,
+    "lines": 64,
+    "sha256": "184dd894bd770ee30756d116cd80a47caa2477784e65e3e9cc5878efba134d14"
+  },
+  {
+    "path": "docs/current/README.md",
+    "bytes": 16584,
+    "lines": 114,
+    "sha256": "5e6d9f7e5e106b40a8f710e1fc6f6ed870f57b8b349c5e955cc7ff53828d6b78"
+  },
+  {
+    "path": "docs/current/repository-picker-design.md",
+    "bytes": 3868,
+    "lines": 31,
+    "sha256": "c36182211193fdf45147e3918681dd9acc0327a2f49fcbd6b2145ffa1d04c016"
+  },
+  {
+    "path": "docs/current/scaffold-adr-review.md",
+    "bytes": 15067,
+    "lines": 115,
+    "sha256": "169caf27f9e8aa06a560ba36e1cc832b644f32135ed093302b08771e64257ebe"
+  },
+  {
+    "path": "docs/current/scaffold-agentteams-evidence.md",
+    "bytes": 25508,
+    "lines": 162,
+    "sha256": "72ef7c84de715d1035c4b6c3a2d910e667da3ba8e453e86ec4d8f73b83a18961"
+  },
+  {
+    "path": "docs/current/scaffold-page-backend-review.md",
+    "bytes": 7433,
+    "lines": 65,
+    "sha256": "89a5a23f5ba5747c7890e2fa6a8f10789086c5339d1a466d7ae7f9c725e3c74a"
+  },
+  {
+    "path": "docs/current/scaffold-source-inventory.md",
+    "bytes": 62459,
+    "lines": 707,
+    "sha256": "d93b93fe5210d47813200539ed5c99b15ea0df3187963ccf180cd39c046174df"
+  },
+  {
+    "path": "docs/current/scaffold-verification.md",
+    "bytes": 6265,
+    "lines": 58,
+    "sha256": "086e7cd2cdc99ee26a373c086dfcc0399431bb61858b5b7efe291661c6f10add"
+  },
+  {
+    "path": "docs/current/skill-engineering-design.md",
+    "bytes": 10031,
+    "lines": 92,
+    "sha256": "b35c27024217252a5eb73c07b9cace2f1131df081ea9bc401e61c53894b4bf07"
+  },
+  {
+    "path": "docs/current/team-execution-policy.md",
+    "bytes": 2828,
+    "lines": 33,
+    "sha256": "67ed66a005a8933d136af4dd3f95589e2872bc5602abcf8e9521f20d39fee4d7"
+  },
+  {
+    "path": "docs/current/technology-selection.md",
+    "bytes": 4037,
+    "lines": 39,
+    "sha256": "70b9c992c2d8654b7ee50d277144e190594baad40da91b2003dc9a02e7061beb"
+  },
+  {
+    "path": "docs/current/verification-node-design.md",
+    "bytes": 15115,
+    "lines": 177,
+    "sha256": "74783608a46c1adae488dd35a10c76a12919189aaaf235f275d133a868aa1048"
+  },
+  {
+    "path": "docs/prototypes/assemble-prototypes.py",
+    "bytes": 11156,
+    "lines": 135,
+    "sha256": "41e71e84b2fd791f55a0bf7bf4be13f5b87603990fad37929233bf5e50697eb4"
+  },
+  {
+    "path": "docs/prototypes/auth-recovery.prototype.js",
+    "bytes": 7687,
+    "lines": 50,
+    "sha256": "ee6ed5600def72fbaea99f1e18297744b35267c3955729565ff1cb3a774387ac"
+  },
+  {
+    "path": "docs/prototypes/first-batch-review.html.template",
+    "bytes": 13181,
+    "lines": 26,
+    "sha256": "3e86582ed1150249db74c67da27f6584f38c6ca7088d75e82e5796bd62c6f892"
+  },
+  {
+    "path": "docs/prototypes/index.html",
+    "bytes": 381523,
+    "lines": 60,
+    "sha256": "c928bf54aa4f5250e532b98d04b5aa15bb0eedfb73e03d075fcdbe9474362cf5"
+  },
+  {
+    "path": "docs/prototypes/issue-overview.prototype.js",
+    "bytes": 6237,
+    "lines": 20,
+    "sha256": "32875db3260cabf0416b61564f5721fa8c42e6ba0887930a4194fa2d70eeb738"
+  },
+  {
+    "path": "docs/prototypes/joined-preview-shell.html.template",
+    "bytes": 14039,
+    "lines": 60,
+    "sha256": "c433d325e3cf3f19dd7fa3f14a09cb2f8132e1cecb644ff8b3859d5f493cfa44"
+  },
+  {
+    "path": "docs/prototypes/model-key-save.prototype.js",
+    "bytes": 8709,
+    "lines": 55,
+    "sha256": "f07707616ca834615662cee3736ba4f48aea5c2e52fbdd87a7ec129bdc6052d2"
+  },
+  {
+    "path": "docs/prototypes/model-project-apply.prototype.js",
+    "bytes": 10850,
+    "lines": 55,
+    "sha256": "c4fae6583f2afb518d0bd40d67bed174a1f56fd9f373be0b7cd054203c1c8a92"
+  },
+  {
+    "path": "docs/prototypes/model-test.prototype.js",
+    "bytes": 7973,
+    "lines": 20,
+    "sha256": "f2922648a27747121576db4f570a5cacda549d6d3032bff8f66adb864d07c451"
+  },
+  {
+    "path": "docs/prototypes/README.md",
+    "bytes": 9419,
+    "lines": 62,
+    "sha256": "9e57f97596ac5e6e37b6709818c284dc77b986d056e57fd7d4254efcffc6cd78"
+  },
+  {
+    "path": "docs/prototypes/repomesh-conversation-dock-prototype.html",
+    "bytes": 90241,
+    "lines": 474,
+    "sha256": "f3abbf0f69e0de04954a3162038e5b5b45e4124e769d9bf59c0aacdb0b9f5330"
+  },
+  {
+    "path": "docs/prototypes/repomesh-conversation-navigation-prototype.html",
+    "bytes": 84416,
+    "lines": 422,
+    "sha256": "a70b9c53a95a41f07a3b074534d5b511cdf63f293df701753ef1f1ccd24782ff"
+  },
+  {
+    "path": "docs/prototypes/repomesh-conversations-issues.html",
+    "bytes": 56152,
+    "lines": 246,
+    "sha256": "5bda301607d122c55034c46e67c3a6d869ee1d268e8b56326a082f8c8f7b2073"
+  },
+  {
+    "path": "docs/prototypes/repomesh-issue-conversation-prototype.html",
+    "bytes": 62134,
+    "lines": 283,
+    "sha256": "8724e8eb53bbbcb95b6d31da2fd14d9130bc85cfffbc396dd01ea40be6e649f4"
+  },
+  {
+    "path": "docs/prototypes/repomesh-issue-dag-prototype.html",
+    "bytes": 76108,
+    "lines": 347,
+    "sha256": "6f3d4b784732527b9009127beb259fdbe9cd60f2ec71750b5b426404461b5f3d"
+  },
+  {
+    "path": "docs/prototypes/repomesh-issue-detail-prototype.html",
+    "bytes": 69762,
+    "lines": 320,
+    "sha256": "4d83b74b614de80f694761d7fb430170253d4c187b11ddc7aba2823176126c15"
+  },
+  {
+    "path": "docs/prototypes/repomesh-issue-modal-prototype.html",
+    "bytes": 59015,
+    "lines": 271,
+    "sha256": "b4ca04dfaf7b8d9e7dce3f7c6c2ec04972a554fb4003aaec3cbe62ba3cc1bd9a"
+  },
+  {
+    "path": "docs/prototypes/repomesh-issue-submit-prototype.html",
+    "bytes": 67343,
+    "lines": 306,
+    "sha256": "bd6ad91d9e3c316a494f49a95b4440da7355e8318f4b12b893f62f16881f2f90"
+  },
+  {
+    "path": "docs/prototypes/repomesh-message-target-prototype.html",
+    "bytes": 97558,
+    "lines": 549,
+    "sha256": "bb98d1e5262c92de2f790a6c36f2cc98825a15edda03b276b077ff1585070f3a"
+  },
+  {
+    "path": "docs/prototypes/repomesh-model-provider-prototype.html",
+    "bytes": 44930,
+    "lines": 229,
+    "sha256": "0345fcee1644879a9c688a8f98978c3074f293c621ad3747ba419b10cdb40ff5"
+  },
+  {
+    "path": "docs/prototypes/repomesh-model-settings-prototype.html",
+    "bytes": 39613,
+    "lines": 222,
+    "sha256": "1550f58057f21d7e7add6b1ff60e1392008914cc02d1509a3030aa466efe077c"
+  },
+  {
+    "path": "docs/prototypes/repomesh-project-entry-prototype.html",
+    "bytes": 37541,
+    "lines": 214,
+    "sha256": "3c7cd0763352e499aad7cd2520f428be6790e3afc5068ca86718be9f4d1a88a3"
+  },
+  {
+    "path": "docs/prototypes/repomesh-project-first.html",
+    "bytes": 49037,
+    "lines": 215,
+    "sha256": "fd78dd1380a2e9268b146e3eda75f1cb53a20b8933165167f22851dddceb29fb"
+  },
+  {
+    "path": "docs/prototypes/repomesh-project-settings-prototype.html",
+    "bytes": 23442,
+    "lines": 61,
+    "sha256": "7d93b2ff2a754ab847cddf61ad7e048f40c6817fa4618aeff3f38f728fe7dbb8"
+  },
+  {
+    "path": "docs/prototypes/repomesh-rooms-prototype.html",
+    "bytes": 36620,
+    "lines": 168,
+    "sha256": "04762b4b6040044b1553f414db673a7c7d09a83d14c23d0ca3ea8ec8b30f8103"
+  },
+  {
+    "path": "docs/prototypes/repository-picker.prototype.js",
+    "bytes": 5299,
+    "lines": 33,
+    "sha256": "56ed7d2d85d91bc8d99891e8e4af18779013fb784daccb1dbebd77f9b25fa367"
+  },
+  {
+    "path": "docs/agentteams-survey-2026-09-07/agentteams-api-cli-survey-2026-09-07.md",
+    "bytes": 50790,
+    "lines": 511,
+    "sha256": "275076313b0426e8630b48cfaf9b304d3c661037c4de60fca2cc62ffb25bf67d"
+  },
+  {
+    "path": "docs/agentteams-survey-2026-09-07/agentteams-survey.html",
+    "bytes": 32954,
+    "lines": 563,
+    "sha256": "56a8774ae5f5486b49b1cb647c334d4e9e2599afd4f7d8af3702efd84a139097"
+  },
+  {
+    "path": "docs/agentteams-survey-2026-09-07/agentteams-survey.md",
+    "bytes": 26046,
+    "lines": 476,
+    "sha256": "9083d5ed90d3908291c920704e8e65f7049e0a587b616259a4843a50adcd2323"
+  }
+]

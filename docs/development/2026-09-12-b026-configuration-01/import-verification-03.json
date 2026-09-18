@@ -1,0 +1,39 @@
+{
+  "success": {
+    "exit": 0,
+    "appId": "12345",
+    "clientId": "Iv1.client",
+    "otherFieldsPreserved": true,
+    "secretMode": "0o600",
+    "privateKeyMode": "0o600",
+    "backupCount": 1,
+    "backupExact": true,
+    "secretAbsentFromOutput": true
+  },
+  "existingDestination": {
+    "exit": 1,
+    "existingUnchanged": true,
+    "pendingUnchanged": true,
+    "privateKeyAbsent": true
+  },
+  "nonRsa": {
+    "exit": 1,
+    "pendingUnchanged": true,
+    "secretDestinationsAbsent": true,
+    "secretAbsentFromOutput": true
+  },
+  "pathMismatch": {
+    "exit": 1,
+    "pendingUnchanged": true,
+    "secretDestinationsAbsent": true
+  },
+  "secondWriteFailure": {
+    "exit": 1,
+    "pendingUnchanged": true,
+    "firstSecretExists": true,
+    "firstSecretMode": "0o600",
+    "secondSecretAbsent": true,
+    "createdPathReported": true,
+    "secretAbsentFromOutput": true
+  }
+}

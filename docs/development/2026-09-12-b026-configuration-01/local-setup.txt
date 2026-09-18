@@ -1,0 +1,56 @@
+RepoMesh B02.6 server preparation
+Date: 2026-09-12 America/Los_Angeles
+Operator: xubohan uid 1000
+
+Scope
+- Product source, Codex configuration, prior evidence, and r1 release files were not modified.
+- No Web or coordinator process was started.
+- No GitHub client secret or App private key was created.
+- Final auth.json was not created.
+
+Configuration
+- /home/xubohan/.config/repomesh is an owned 0700 directory.
+- root-1.key is an owned regular 0600 file of exactly 32 bytes and is not a symlink.
+- auth.pending.json is an owned regular 0600 draft. Origin is https://repomesh.bohanxu.me:8443 and callback URL is https://repomesh.bohanxu.me:8443/api/auth/github/callback. App ID and Client ID remain empty. Secret paths are absolute. TLS paths remain empty until the certificate location is known.
+- runtime.env is an owned regular 0600 file. It points to the final auth.json path, r1 release, and the private Unix-socket database.
+
+PostgreSQL
+- PostgreSQL 17.11 cluster: /home/xubohan/.local/share/repomesh/b026-postgres
+- Database: repomesh_b026
+- PID at verification: 158685
+- listen_addresses is empty.
+- Port setting is 55432.
+- Unix socket directory: /home/xubohan/.local/state/repomesh-b026
+- TCP listener on 55432 at verification: none
+- pg_isready over the private Unix socket: accepting connections
+- Migration result: schema status=current current=3 target=3 pending=0
+- Check result: schema status=current current=3 target=3 pending=0
+- Applied migration versions: 1, 2, 3
+- Product schemas: repomesh_access, repomesh_secrets
+
+Lifecycle commands
+- Start: /usr/lib/postgresql/17/bin/pg_ctl -D /home/xubohan/.local/share/repomesh/b026-postgres -l /home/xubohan/.local/state/repomesh-b026/postgres.log start
+- Stop: /usr/lib/postgresql/17/bin/pg_ctl -D /home/xubohan/.local/share/repomesh/b026-postgres stop
+- Status: /usr/lib/postgresql/17/bin/pg_ctl -D /home/xubohan/.local/share/repomesh/b026-postgres status
+
+Recorded failure
+- An initial read-only metadata query referenced repomesh_schema.migrations, which does not exist. PostgreSQL returned relation-not-found. The actual migration table is public.repomesh_schema_migrations. No mutation occurred. The corrected query found versions 1, 2, and 3.
+- The first draft validation command tried jq, but jq is not installed. No file was changed by that failed check. Node.js then parsed and validated the same non-secret draft successfully.
+- The first temporary hosts-script test copy did not replace its internal Windows hosts path because the sed pattern did not match. PowerShell stopped before reading or writing a hosts file. A fresh temporary copy used an exact line replacement and passed all cases.
+
+Windows hosts helper
+- Script: /tmp/repomesh-b026-setup-QeTVYCxE/enable-local-host.ps1
+- The no-parameter script targets the Windows system hosts file and does not request UAC elevation.
+- It makes no change when the hostname already maps to 127.0.0.1.
+- It refuses to change the file when any active mapping for the hostname uses another address.
+- Before an append, it writes an exact-byte backup to a new GUID-named file under Windows TEMP using CreateNew.
+- It preserves all existing bytes, adds a CRLF first when the original file lacks a final newline, and appends only the new mapping.
+- PowerShell parser check passed.
+- Isolated tests passed for insertion, byte-identical backup, correct-mapping no-op, and conflicting-mapping refusal without mutation.
+- Isolated successful test directory: /tmp/repomesh-b026-hosts-test-d4ki9M0K
+
+Remaining gates
+- Create the dedicated GitHub App and install it on the selected test repository.
+- Place github-client-secret and github-app.pem as owned regular 0600 files.
+- Fill the empty App ID and Client ID fields, add the verified TLS certificate and key paths, validate the fixed HTTPS ingress, then atomically create final auth.json from the reviewed draft. Origin and callback URL are already fixed in the draft.
+- Start Web and coordinator only after those gates pass.

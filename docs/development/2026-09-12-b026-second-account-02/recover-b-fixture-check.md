@@ -1,0 +1,10 @@
+# Account B fixture recovery helper check
+
+- Scope: recover one already-created account B fixture from an exact open-page path, then verify account A receives the fixed GitHub 404 page. The helper performs no fill, click, submit, repository creation, or browser/page close.
+- Identity and privacy: account B and A are checked through fixed meta login values. The repository name and URL remain in memory. Private state is accepted only from optional fixed metadata, exact `Private repository`, or the live exact `Private` marker with no exact `Public` marker; output records the fixed indicator enum rather than source content.
+- Live recovery diagnosis: exactly one created B page exists with repository ID `1368000734`, B target `06E2ADCF2F9BB1D5CEDA17690A0A1CBA`, and `ACCESSIBLE_PRIVATE_EXACT`. The previous resume/recover stopped at the old private-indicator guard before opening the matching A page. A read-only retry then returned HTTP 404 under meta login A with exact title `Page not found · GitHub`, proving access denial through fixed variants without persisting the name or URL.
+- Recovery output: the missing adjacent `b-fixture-created.json` is written with exclusive 0600 creation only after repository ID, private state, B page target, and A 404 checks pass.
+- Diagnostic output: zero matching created pages returns only a `/new` presence boolean and capped counts for the live fixed controls: `Repository name *`, `Public`/`Private`, `Add README`, `No .gitignore`, `No license`, `Create repository`, and owner B exact text. Multiple matching pages fail with `AMBIGUOUS_CREATED_PAGES`.
+- Duplicate cleanup: the explicit `close-empty-new-pages` command closes only exact account B `/new` pages whose fixed `Repository name *` textbox is empty and whose exact Create button is visible. It never closes the filled failed-attempt page and reports only a capped count.
+- Static validation: `node --check docs/development/2026-09-12-b026-second-account-02/recover-b-fixture.mjs` passed on 2026-09-12.
+- Runtime validation: not run; no CDP connection or GitHub navigation occurred during implementation.

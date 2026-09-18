@@ -1,0 +1,36 @@
+{
+  "version": "0.3.0-b03-integrated-20260912-r1",
+  "businessReady": false,
+  "artifactCheck": "passed",
+  "versions": "three matched",
+  "migration": {
+    "empty": [
+      0,
+      4,
+      4
+    ],
+    "current": [
+      4,
+      4,
+      0
+    ],
+    "repeat": [
+      4,
+      4,
+      0
+    ]
+  },
+  "processRestart": {
+    "passed": 1,
+    "skipped": 0
+  },
+  "http": {
+    "healthz": 200,
+    "readyz": 503,
+    "apiProjects": 503,
+    "projects": 200,
+    "projectCreation": 200
+  },
+  "coordinatorExit": 1,
+  "hostExecutorExit": 1
+}

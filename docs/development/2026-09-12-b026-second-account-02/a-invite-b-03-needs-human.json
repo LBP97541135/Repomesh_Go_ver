@@ -1,0 +1,10 @@
+{
+  "sampledAt": "2026-09-13T04:49:42.028150Z",
+  "status": "NEEDS_HUMAN",
+  "pathClass": "REPOSITORY_ACCESS",
+  "controlState": "FINAL_INVITE_CONTROL_AMBIGUOUS",
+  "aTargetId": "401F8A47E432AFFD87512CD38032284C",
+  "finalInviteControlClicked": false,
+  "knownActualInvitationState": "PENDING_FROM_SEPARATE_READ_ONLY_CHECK",
+  "repeatInviteProhibited": true
+}
