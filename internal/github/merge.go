@@ -25,6 +25,13 @@ func (c *Client) MergePullRequest(ctx context.Context, token, owner, name string
 	target := "/repos/" + owner + "/" + name + "/pulls/" + strconv.Itoa(number) + "/merge"
 	body, _, status, err := c.request(ctx, http.MethodPut, target, token, bytes.NewReader(payload))
 	if err != nil {
+		// 2026-09-20 线上实测：这里此前把 err 原样上抛，而 github.Error 对
+		// 405/409/415/5xx 这类状态一律只吐一句 "github: unavailable" —— 界面上
+		// 看到「合并被 GitHub 拒绝：github: unavailable」，查不出到底是哪一类。
+		// 状态码带上（不带响应体，避免把响应内容里的敏感串带进界面/日志）。
+		if status != 0 {
+			return fmt.Errorf("%w (HTTP %d)", err, status)
+		}
 		return err
 	}
 	if status < 200 || status > 299 {
