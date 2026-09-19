@@ -74,7 +74,9 @@ func TestPostgresProductMigrationUpgrade(t *testing.T) {
 	}
 	var tables int
 	err = current.pool.QueryRow(testContext(t), `SELECT count(*) FROM information_schema.tables WHERE table_schema IN ('repomesh_access','repomesh_secrets')`).Scan(&tables)
-	if err != nil || tables != 13 {
+	// 14 = 原 13 张 + 0045 的 repomesh_access.participation_observations
+	//（参与权探测缓存，2026-09-18 主线并入）。
+	if err != nil || tables != 14 {
 		t.Fatalf("product tables=%d error=%v", tables, err)
 	}
 	before := historySnapshot(t, current)
