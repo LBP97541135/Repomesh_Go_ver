@@ -37,7 +37,6 @@ import { subscribeEvents } from "../../api/events";
 import { autoTrigger } from "./autoTrigger";
 import { useIssueFlowState } from "./useIssueFlowState";
 import { PlanDagCapsule } from "../../components/PlanDagCapsule";
-import { AgentTeamsDagPanel } from "../../components/AgentTeamsDagPanel";
 import { SupervisionPolicyDialog } from "../../components/SupervisionPolicyDialog";
 import { AIChatInput } from "../../components/ui/ai-chat-input";
 import { errText } from "../../display";
@@ -1244,18 +1243,7 @@ export function WorkbenchPage({
         </div>
       )}
       {!loading && !error && detail && (
-        <>
-          {/* AgentTeams 执行进度 DAG 面板（2026-09-20 接回工作台）。
-              它在你 9/16 的 9a162a5e 里就是「mounted in the workbench behind
-              PlanDagCapsule for real issues」，但两条线后来都没有任何地方引用它，
-              成了死代码——所以你在界面上一直看不到这张图。
-              这里还原那个意图：真 issue 就挂上，摆在顶栏下当一条**通栏**（原处是在
-              顶栏 h-12 的行内，展开后会把顶栏撑破，所以移到行下），默认折叠，
-              点标题条才展开。 */}
-          <div className="flex-none px-6 pt-2">
-            <AgentTeamsDagPanel issueId={detail.issue_id} defaultProjectId={projectId ?? ""} />
-          </div>
-          <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1">
           <div className="flex min-w-0 flex-1 flex-col">
             <div className="min-h-0 flex-1">
               <DispatchTree
@@ -1341,7 +1329,6 @@ export function WorkbenchPage({
             </div>
           )}
         </div>
-        </>
       )}
 
       {/* 监管策略弹窗（迁移 5-1b）：草稿卡片上的「配置 / 修改」打开它。
