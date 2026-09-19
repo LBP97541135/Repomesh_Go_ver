@@ -404,6 +404,45 @@ func (s *Service) Materialize(ctx context.Context, issueID, agentID, idempotency
 				ErrConflict, planTask.Repository)
 		}
 	}
+	// 2026-09-20 线上实测：物化此前只写 tasks，**没有写 public.plans 这一行**，
+	// 而 tasks 上的 bind_task_repository_scope 触发器要求 plan_id 必须指向本项目的
+	// 一把计划（迁移 0042）—— 于是「确认物化并开工」以 23503
+	// 'task plan outside project' 收场，界面只看到 HTTP 500。先落计划快照，再落任务。
+	planVersion, _ := st.Plan["plan_version"].(string)
+	if strings.TrimSpace(planVersion) == "" {
+		planVersion = "v1"
+	}
+	dagEntries := []map[string]any{}
+	for index, planTask := range planned {
+		dagEntries = append(dagEntries, map[string]any{
+			"index": index, "repository": planTask.Repository, "title": planTask.Title,
+			"acceptance": planTask.Acceptance,
+		})
+	}
+	dagJSON, _ := json.Marshal(map[string]any{"tasks": dagEntries})
+	// 批次划分就是物化实际做的事：一次性下发批次 1。
+	batchJSON, _ := json.Marshal([]map[string]any{{
+		"batch_no": 1,
+		"tasks":    dagEntries,
+	}})
+	var createdByAgent any
+	if isUUID(agentID) {
+		createdByAgent = agentID
+	}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO public.plans
+			(id, project_id, plan_version, requirement_text, specs, task_dag, execution_batches,
+			 revisions, integration_method, created_by_agent_id, requirement_key, replan_state, issue_id)
+		 VALUES ($1::uuid, $2::uuid, $3, $4, '[]'::jsonb, $5::jsonb, $6::jsonb,
+			 '[]'::jsonb, NULL, $7::uuid, $8, '', $9)
+		 ON CONFLICT (id) DO UPDATE SET
+			requirement_text = EXCLUDED.requirement_text,
+			task_dag = EXCLUDED.task_dag,
+			execution_batches = EXCLUDED.execution_batches`,
+		planID, st.ProjectID, planVersion, st.RequirementText, string(dagJSON), string(batchJSON),
+		createdByAgent, issueID, issueID); err != nil {
+		return nil, err
+	}
 	taskIDs := []string{}
 	for index, planTask := range planned {
 		repo := planTask.Repository
