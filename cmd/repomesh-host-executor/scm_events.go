@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -193,18 +194,11 @@ func (e *executor) recordDeliveryFacts(ctx context.Context, runID, workspace str
 // 结论。文件缺失或解不开就什么都不写（fail-closed：宁可界面显示"还没有记录"，
 // 也不能拿一个空的"通过"去骗合并闸门）。
 func (e *executor) recordTestEvidence(ctx context.Context, runID, taskRef, workspace string, exitCode int) {
-	raw, err := os.ReadFile(filepath.Join(workspace, execution.TestEvidenceFile))
-	if err != nil {
-		return
-	}
-	var evidence struct {
-		Script   string `json:"script"`
-		Command  string `json:"command"`
-		ExitCode *int   `json:"exit_code"`
-		Passed   *bool  `json:"passed"`
-		Summary  string `json:"summary"`
-	}
-	if json.Unmarshal(raw, &evidence) != nil || evidence.Passed == nil {
+	// 用共用的读取器：测试 agent 的 cwd 是 repo/，证据落在 <workspace>/repo/ 下。
+	// 2026-09-20：这条路径起初自己内联了一份"只读工作区根目录"的解析 —— 路径修了
+	// 一半（集成那条修了、单点这条没修），于是 test_evidence 一直是 0 条。
+	evidence, ok := readTestEvidence(workspace)
+	if !ok {
 		return
 	}
 	// 进程退出码非 0 时，无论 agent 在文件里写了什么，都按不通过记 ——
@@ -229,11 +223,15 @@ func (e *executor) recordTestEvidence(ctx context.Context, runID, taskRef, works
 	if planID != "" {
 		plan = planID
 	}
-	_, _ = e.pool.Exec(ctx, `INSERT INTO public.test_evidence
+	// 写不进去要说出来：2026-09-20 这条 INSERT 曾经把错误吞掉（`_, _ =`），
+	// 结果是"文件明明写好了、库里一条没有"这种最难查的沉默失败。
+	if _, err := e.pool.Exec(ctx, `INSERT INTO public.test_evidence
 		(id, project_id, issue_id, plan_id, task_id, repository_id, kind,
 		 script, command, exit_code, passed, summary, run_id, producer)
 		VALUES (gen_random_uuid(), $1::uuid, $2, $3::uuid, $4::uuid, $5, 'task_single_point',
 		 $6, $7, $8, $9, $10, $11, 'test_agent')`,
 		projectID, issueID, plan, taskRef, repositoryID,
-		evidence.Script, evidence.Command, code, passed, evidence.Summary, runID)
+		evidence.Script, evidence.Command, code, passed, evidence.Summary, runID); err != nil {
+		fmt.Fprintf(os.Stderr, "executor: record test evidence failed run=%s task=%s err=%v\n", runID, taskRef, err)
+	}
 }
