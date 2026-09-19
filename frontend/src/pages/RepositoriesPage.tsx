@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { UsersRound } from "lucide-react";
 import { listRepositories, type RepositoryCard } from "../api/repositories";
 import { allProjectRepositories } from "../api/projects";
 import { gridSourceMode } from "../api/grid";
@@ -33,7 +34,15 @@ function orgScanUrl(url: string, org: string): string | null {
   }
 }
 
-function RepositoryCardView({ repo, appStatus }: { repo: RepositoryCard; appStatus?: string }) {
+function RepositoryCardView({
+  repo,
+  appStatus,
+  onManageTeam,
+}: {
+  repo: RepositoryCard;
+  appStatus?: string;
+  onManageTeam?: (repositoryId: string) => void;
+}) {
   return (
     <div className="rounded-hard border border-line bg-panel px-4 py-3">
       <div className="flex items-baseline gap-3">
@@ -65,9 +74,23 @@ function RepositoryCardView({ repo, appStatus }: { repo: RepositoryCard; appStat
         {repo.url}
       </a>
       {repo.description && <p className="mt-1 text-[11.5px] text-tx2">{repo.description}</p>}
-      <div className="mt-1 text-[11px] text-tx3">
-        {repo.profiledAt ? `画像 ${dayLabel(repo.profiledAt)}` : "尚未画像"}
-        {repo.fingerprint ? ` · 指纹 ${repo.fingerprint.slice(0, 8)}` : ""}
+      <div className="mt-1 flex items-center gap-3 text-[11px] text-tx3">
+        <span>
+          {repo.profiledAt ? `画像 ${dayLabel(repo.profiledAt)}` : "尚未画像"}
+          {repo.fingerprint ? ` · 指纹 ${repo.fingerprint.slice(0, 8)}` : ""}
+        </span>
+        {/* 团队管理入口（管理员可见）：仓库作用域的长生命周期编制，不在全局入口 */}
+        {onManageTeam && (
+          <button
+            type="button"
+            className="ml-auto flex flex-none items-center gap-1.5 rounded-hard border border-line px-2 py-[2px] text-[11px] text-tx2 hover:border-amber hover:text-amber-hi"
+            onClick={() => onManageTeam(repo.id)}
+            title="管理该仓库的团队（Leader 与 Worker 编制）"
+          >
+            <UsersRound size={12} strokeWidth={1.6} aria-hidden />
+            团队
+          </button>
+        )}
       </div>
     </div>
   );
@@ -88,10 +111,15 @@ export function RepositoriesPage({
   projectId,
   projectName,
   onNewIssue,
+  isAdmin = false,
+  onManageTeam,
 }: {
   projectId: string;
   projectName: string;
   onNewIssue: () => void;
+  /** 管理员才能管理仓库团队（服务端仍是权威：写路由每次都查 is_admin）。 */
+  isAdmin?: boolean;
+  onManageTeam?: (repositoryId: string) => void;
 }) {
   void projectName;
   void onNewIssue;
@@ -247,7 +275,12 @@ export function RepositoriesPage({
                 {!isCollapsed && (
                   <div className="mt-1.5 grid gap-2 pl-4">
                     {rs.map((repo) => (
-                      <RepositoryCardView key={repo.id} repo={repo} appStatus={appStatusById[repo.id]} />
+                      <RepositoryCardView
+                        key={repo.id}
+                        repo={repo}
+                        appStatus={appStatusById[repo.id]}
+                        onManageTeam={isAdmin ? onManageTeam : undefined}
+                      />
                     ))}
                   </div>
                 )}

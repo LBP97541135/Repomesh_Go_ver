@@ -308,6 +308,10 @@ function StageHistory({
   /** 人确认追加一个仓库 */
   onAppendRepository: (repositoryId: string) => Promise<void>;
 }) {
+  // A1 提交带进来的范围追加 props：本组件暂未消费（构建阻塞项），先显式忽略。
+  void scopeRepoIds;
+  void repoOptions;
+  void onAppendRepository;
   const stepState = (i: number): string => {
     const st = stepStates[i];
     return st === "done" ? "已完成" : st === "run" ? "进行中" : st === "gate" ? "待人审" : st === "failed" ? "失败" : "未开始";

@@ -18,6 +18,7 @@ import { ObserveLogs } from "./pages/observe/ObserveLogs";
 import { ObserveTrace } from "./pages/observe/ObserveTrace";
 import { ObserveUsage } from "./pages/observe/ObserveUsage";
 import { RepositoriesPage } from "./pages/RepositoriesPage";
+import { RepositoryTeamPage } from "./pages/RepositoryTeamPage";
 import { ProjectSelectPage } from "./pages/ProjectSelectPage";
 import { SkillsPage } from "./pages/SkillsPage";
 import { ModelProvidersPage } from "./pages/ModelProvidersPage";
@@ -29,9 +30,8 @@ import { RoomViewContainer } from "./pages/RoomViewContainer";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SetupWizardPage } from "./pages/SetupWizardPage";
 import { fetchSetupStatus } from "./api/platformSetup";
-import { TeamsPage } from "./pages/TeamsPage";
 import { WorkbenchPage } from "./pages/workbench/WorkbenchPage";
-import { NAV_HASH, readRoute, type Route } from "./routes";
+import { NAV_HASH, parseTeamRepositoryId, readRoute, type Route } from "./routes";
 
 /** v2 控制台外壳：身份门 → 侧栏导航 → 主区页面。
  *  路由用 hash（#/issues 等），不引入路由库。
@@ -243,6 +243,9 @@ export default function ConsoleShell() {
       .finally(() => { if (epoch === issuesEpoch.current) setIssuesMore(false); });
   };
 
+  /** 仓库作用域团队页：hash 里带仓库 id 时才渲染团队页（2026-09-20）。 */
+  const teamRepositoryId = parseTeamRepositoryId(window.location.hash);
+
   const navigate = (nav: NavKey) => {
     window.location.hash = NAV_HASH[nav];
     setRoute({ nav, issueId: null, roomId: null, observeSection: null, settingsSection: null });
@@ -272,10 +275,6 @@ export default function ConsoleShell() {
     setRoute({ nav: "issues", issueId: "new", roomId: null, observeSection: null, settingsSection: null });
   };
 
-  const openRoom = (issueId: string, roomId: string) => {
-    window.location.hash = `#/issues/${issueId}/rooms/${encodeURIComponent(roomId)}`;
-    setRoute({ nav: "issues", issueId, roomId, observeSection: null, settingsSection: null });
-  };
 
   /** B-1 创建回路：POST /projects/{projectId}/issue-creations（B06 契约）→
    *  刷新列表 → 跳新 issue 详情。幂等键由弹窗/主页聊天框持有（A2：每次逻辑
@@ -497,8 +496,28 @@ export default function ConsoleShell() {
             onOpenIssue={openIssue}
           />
         )}
-      {route.nav === "repositories" && activeProjectId !== null && (
-        <RepositoriesPage key={activeProjectId} projectId={activeProjectId} projectName={projects?.find(p => p.id === activeProjectId)?.name ?? activeProjectId} onNewIssue={openNewSession} />
+      {route.nav === "repositories" && activeProjectId !== null && teamRepositoryId === null && (
+        <RepositoriesPage
+          key={activeProjectId}
+          projectId={activeProjectId}
+          projectName={projects?.find(p => p.id === activeProjectId)?.name ?? activeProjectId}
+          onNewIssue={openNewSession}
+          isAdmin={account.is_admin}
+          onManageTeam={(repositoryId) => {
+            window.location.hash = `#/repositories/${encodeURIComponent(repositoryId)}/team`;
+          }}
+        />
+      )}
+      {route.nav === "repositories" && teamRepositoryId !== null && (
+        <RepositoryTeamPage
+          key={teamRepositoryId}
+          repositoryId={teamRepositoryId}
+          isAdmin={account.is_admin}
+          onBack={() => {
+            window.location.hash = NAV_HASH.repositories;
+          }}
+          onToast={showToast}
+        />
       )}
         {(route.nav === "projects" || (activeProjectId === null && ["issues", "repositories"].includes(route.nav))) && (
           <ProjectSelectPage key={account.id} projects={projects} activeProjectId={activeProjectId} error={projectsError} onRetry={() => setProjectsReload(n => n + 1)} onSelect={handleSelectProject} />
@@ -506,7 +525,6 @@ export default function ConsoleShell() {
         {route.nav === "skills" && <SkillsPage onToast={showToast} />}
         {route.nav === "models" && <ModelProvidersPage />}
         {route.nav === "specs" && <SpecPage onToast={showToast} />}
-        {route.nav === "teams" && <TeamsPage onOpenIssue={openIssue} onOpenRoom={openRoom} />}
         {route.nav === "agents" && <AgentsPage onOpenIssue={openIssue} />}
         {route.nav === "observe" &&
           (route.observeSection === null ? (

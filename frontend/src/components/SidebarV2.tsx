@@ -13,7 +13,6 @@ import {
   PanelLeftOpen,
   Search,
   Settings,
-  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -39,7 +38,6 @@ export type NavKey =
   | "issues"
   | "reviews"
   | "repositories"
-  | "teams"
   | "agents"
   | "observe"
   | "specs"
@@ -53,7 +51,6 @@ const NAV_ICON: Record<NavKey, LucideIcon> = {
   issues: Inbox,
   reviews: FileCheck,
   repositories: FolderKanban,
-  teams: Users,
   agents: Bot,
   observe: Activity,
   specs: FileCheck,
@@ -68,7 +65,6 @@ const NAV_LABEL: Record<NavKey, string> = {
   issues: "issue",
   reviews: "审核",
   repositories: "仓库",
-  teams: "团队",
   agents: "智能体",
   observe: "观测",
   specs: "规格",
@@ -83,7 +79,7 @@ const NAV_LABEL: Record<NavKey, string> = {
  *  not_implemented——先恢复入口，后端补齐即自动点亮。 */
 const NAV_GROUPS: Array<{ heading: string; keys: NavKey[] }> = [
   { heading: "工作台", keys: ["projects", "issues", "reviews", "repositories"] },
-  { heading: "治理", keys: ["teams", "agents", "skills", "specs", "models", "observe"] },
+  { heading: "治理", keys: ["agents", "skills", "specs", "models", "observe"] },
 ];
 const NAV_BOTTOM: NavKey[] = ["decision-chains", "settings"];
 

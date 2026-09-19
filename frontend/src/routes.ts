@@ -11,7 +11,6 @@ export const NAV_HASH: Record<NavKey, string> = {
   issues: "#/issues",
   reviews: "#/reviews",
   repositories: "#/repositories",
-  teams: "#/teams",
   agents: "#/agents",
   observe: "#/observe",
   specs: "#/specs",
@@ -58,6 +57,14 @@ function safeDecode(segment: string): string {
   } catch {
     return segment;
   }
+}
+
+/** #/repositories/{encodedRepositoryId}/team → 解码后的不可变仓库 id；否则 null。
+ *  仓库作用域的团队管理页（2026-09-20 并入）：不走 Route 接口，免得给 20 多个
+ *  分支逐个补字段——页面选择只需要这一个 id。 */
+export function parseTeamRepositoryId(hash: string): string | null {
+  const m = hash.replace(/^#/, "").match(/^\/repositories\/([^/?]+)\/team(?:[/?#]|$)/);
+  return m ? safeDecode(m[1]) : null;
 }
 
 export function parseRoute(hash: string): Route {
