@@ -120,12 +120,18 @@ func (s *Service) Approval(ctx context.Context, issueID, agentID, idempotencyKey
 			if adjustment.Tier != "required" && adjustment.Tier != "maybe" && adjustment.Tier != "excluded" {
 				return nil, ErrConflict
 			}
-			if err := validateRepositories(ctx, tx, st, []string{adjustment.Repository}); err != nil {
-				return nil, err
+			// 2026-09-20：把某个仓库调成「排除」不产生改动，越界也无害 ——
+			// 要求它必须在范围内，等于让人没法把一个越界候选赶出去。
+			if adjustment.Tier != "excluded" {
+				if err := validateRepositories(ctx, tx, st, []string{adjustment.Repository}); err != nil {
+					return nil, err
+				}
 			}
 			st.EffectiveTiers = applyAdjustment(st.EffectiveTiers, adjustment)
 		}
-		if err := validateRepositories(ctx, tx, st, tierNames(st.EffectiveTiers)); err != nil {
+		// 同上：只校验**真会被改动的那两档**。排除档越界不该让审批 409 ——
+		// 线上实测就是这条把「批准分档」按钮点成了永远 409。
+		if err := validateRepositories(ctx, tx, st, includedTierNames(st.EffectiveTiers)); err != nil {
 			return nil, err
 		}
 		if !tiersHaveSelection(st.EffectiveTiers) {
@@ -162,6 +168,29 @@ func tierNames(tiers []any) []string {
 	for _, tierAny := range tiers {
 		tier, ok := tierAny.(map[string]any)
 		if !ok {
+			continue
+		}
+		if name, ok := tier["repository"].(string); ok && name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// includedTierNames 只取**真会被改动**的那两档（required / maybe）。
+//
+// 范围校验用它而不是 tierNames：排除档不进计划、不进任务，一个越界的候选被
+// 排除掉恰恰是正确结论，不该反过来把整步卡死（2026-09-20 线上实测）。
+func includedTierNames(tiers []any) []string {
+	names := []string{}
+	for _, tierAny := range tiers {
+		tier, ok := tierAny.(map[string]any)
+		if !ok {
+			continue
+		}
+		switch tier["tier"] {
+		case "required", "maybe":
+		default:
 			continue
 		}
 		if name, ok := tier["repository"].(string); ok && name != "" {
