@@ -27,7 +27,10 @@ const taskColumns = `id, organization_id::text, project_id::text,
   COALESCE(plan_id::text, ''), COALESCE(task_uid, ''), COALESCE(repository_id, ''),
   title, instruction, acceptance, status,
   COALESCE(assignee_agent_id::text, ''), version, COALESCE(idempotency_key, ''),
-  batch_no, COALESCE(conversation_id, ''), COALESCE(leader_label, ''), COALESCE(worker_label, '')`
+  batch_no, COALESCE(conversation_id, ''), COALESCE(leader_label, ''), COALESCE(worker_label, ''),
+  -- 2026-09-20：审核段的"经理门决策"就写在这一列（ApproveStep 存经理的小结、
+  -- RejectStep 存驳回原因）。读面此前不带它，于是阶段历史里的「审核」只能是空的。
+  COALESCE(result_summary, '')`
 
 func scanTask(row pgx.Row) (Task, error) {
 	var t Task
@@ -35,7 +38,7 @@ func scanTask(row pgx.Row) (Task, error) {
 	err := row.Scan(&t.ID, &t.OrganizationID, &t.ProjectID, &t.PlanID, &t.TaskUID,
 		&t.RepositoryID, &t.Title, &t.Instruction, &t.Acceptance, &t.Status,
 		&t.AssigneeAgentID, &t.Version, &t.IdempotencyKey,
-		&batchNo, &t.ConversationID, &t.LeaderLabel, &t.WorkerLabel)
+		&batchNo, &t.ConversationID, &t.LeaderLabel, &t.WorkerLabel, &t.ResultSummary)
 	t.BatchNo = batchNo
 	return t, err
 }
@@ -48,7 +51,7 @@ func scanTaskWithAssignee(row pgx.Row) (Task, error) {
 	err := row.Scan(&t.ID, &t.OrganizationID, &t.ProjectID, &t.PlanID, &t.TaskUID,
 		&t.RepositoryID, &t.Title, &t.Instruction, &t.Acceptance, &t.Status,
 		&t.AssigneeAgentID, &t.Version, &t.IdempotencyKey,
-		&batchNo, &t.ConversationID, &t.LeaderLabel, &t.WorkerLabel, &t.Assignee)
+		&batchNo, &t.ConversationID, &t.LeaderLabel, &t.WorkerLabel, &t.ResultSummary, &t.Assignee)
 	t.BatchNo = batchNo
 	return t, err
 }

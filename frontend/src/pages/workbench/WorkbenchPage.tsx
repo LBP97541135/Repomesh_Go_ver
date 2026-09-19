@@ -885,21 +885,31 @@ export function WorkbenchPage({
                     }
                   >
                     {i > 0 && <span className={`h-px w-4 ${stageState(i - 1) !== "todo" ? "bg-line-strong" : "bg-line"}`} />}
-                    <span
-                      className={`grid size-[18px] place-items-center rounded-full border-[1.5px] text-[10px] font-bold ${
-                        st === "now"
-                          ? "border-amber bg-amber text-on-amber"
-                          : st === "done"
-                            ? "border-olive bg-olive text-on-amber"
-                            : "border-line-strong text-tx3"
+                    {/* 2026-09-20：这四个阶段此前只是状态指示（不可点），人想看
+                        "这一段到底发生过什么"只能自己翻。现在点哪段就切到哪段的历史，
+                        与左树/右栏是同一套焦点机制（activeEntry）。 */}
+                    <button
+                      className={`flex items-center gap-1.5 rounded-hard px-1 py-0.5 transition-colors hover:bg-white/5 ${
+                        activeEntry?.kind === "stage" && activeEntry.stage === i ? "bg-white/10" : ""
                       }`}
+                      onClick={() => setActiveEntry({ kind: "stage", stage: i as 0 | 1 | 2 | 3 })}
                     >
-                      {st === "done" ? "✓" : st === "now" ? "●" : i + 1}
-                    </span>
-                    <span className={`text-[12px] ${st === "now" ? "font-medium text-tx" : "text-tx3"}`}>
-                      {title}
-                      {i === 0 && !materialized ? ` ${doneSteps}/5` : ""}
-                    </span>
+                      <span
+                        className={`grid size-[18px] place-items-center rounded-full border-[1.5px] text-[10px] font-bold ${
+                          st === "now"
+                            ? "border-amber bg-amber text-on-amber"
+                            : st === "done"
+                              ? "border-olive bg-olive text-on-amber"
+                              : "border-line-strong text-tx3"
+                        }`}
+                      >
+                        {st === "done" ? "✓" : st === "now" ? "●" : i + 1}
+                      </span>
+                      <span className={`text-[12px] ${st === "now" ? "font-medium text-tx" : "text-tx3"}`}>
+                        {title}
+                        {i === 0 && !materialized ? ` ${doneSteps}/5` : ""}
+                      </span>
+                    </button>
                   </span>
                 );
               })}
@@ -963,6 +973,8 @@ export function WorkbenchPage({
             entry={activeEntry}
             discovery={discovery}
             testEvidence={testEvidence}
+            tasks={tasks}
+            trainCars={trainCars}
             stepStates={stepStates}
             task={taskEntry}
             messages={entryMessages}

@@ -69,7 +69,10 @@ type Task struct {
 	// Assignee 是**真实执行者**（最近一条开发 run 的 agent_kind），只在任务树
 	// 读面（ListPlanTasks）带出。WorkerLabel 是装配期写下的显示名快照，物化写入端
 	// 不填它；界面因此优先显示 WorkerLabel，没有就显示这里，再没有才写「待指派」。
-	Assignee  string    `json:"assignee,omitempty"`
+	Assignee string `json:"assignee,omitempty"`
+	// ResultSummary 是经理门的决策留痕：通过时是经理的小结，驳回时是驳回原因
+	// （ApproveStep / RejectStep 写的）。阶段历史里的「审核」段读的就是它。
+	ResultSummary string `json:"resultSummary,omitempty"`
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`
 }

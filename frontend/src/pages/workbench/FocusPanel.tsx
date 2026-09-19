@@ -14,8 +14,9 @@ import { IconCheck, IconClock, IconRun, IconSend } from "./treeIcons";
 import type { DiscoveryProducer, DiscoveryView } from "../../api/contract";
 import type { PlanTaskItem } from "../../api/taskTree";
 import type { ConversationMessage } from "../../api/conversations";
-import type { FocusEntry, StepState } from "./treeModel";
+import { STEP_LABELS, type FocusEntry, type StepState } from "./treeModel";
 import type { TestEvidenceItem, TestEvidenceView } from "../../api/testEvidence";
+import type { TrainCarSpec } from "./PrTrainCard";
 import { SupervisionPolicyCard, type PolicyDraftState } from "../../components/SupervisionPolicyCard";
 
 /** 消息作者 → 角色显示。先看 authorKind（user 是人），服务侧 agent 再按
@@ -204,6 +205,142 @@ function TestEvidenceRow({ item }: { item: TestEvidenceItem }) {
   );
 }
 
+const STAGE_TITLES = ["规划", "执行", "审核", "交付"] as const;
+
+/** 阶段历史：顶栏「流程」四个阶段点开后的**只读回看**。
+ *
+ *  规划 = 五步 + 每步的产出者（谁产的、哪把技能、哪个 run）
+ *  执行 = 任务行（真实执行者、批次、状态）+ 单点验收记录
+ *  审核 = 经理门的决策与原因
+ *  交付 = PR 列车每节车厢的 PR 与合并状态
+ *
+ *  只摆**已经真实发生**的事：没有记录就说没有。 */
+function StageHistory({
+  stage,
+  discovery,
+  stepStates,
+  tasks,
+  testEvidence,
+  trainCars,
+}: {
+  stage: 0 | 1 | 2 | 3;
+  discovery: DiscoveryView | null;
+  stepStates: StepState[];
+  tasks: PlanTaskItem[] | null;
+  testEvidence: TestEvidenceView | null;
+  trainCars: TrainCarSpec[] | null;
+}) {
+  const stepState = (i: number): string => {
+    const st = stepStates[i];
+    return st === "done" ? "已完成" : st === "run" ? "进行中" : st === "gate" ? "待人审" : st === "failed" ? "失败" : "未开始";
+  };
+  const producerOf = (block: { producer?: DiscoveryProducer } | null | undefined): string => {
+    const p = block?.producer;
+    if (!p) return "";
+    const bits = [p.role, p.skill_id, p.run_id].filter(Boolean);
+    return bits.length > 0 ? `产出者：${bits.join(" · ")}` : "";
+  };
+  const empty = (what: string) => (
+    <p className="px-4 py-3 text-[11px] leading-[1.8] text-[var(--tree-faint)]">
+      {what}还没有记录 —— 只显示真实发生过的事，不摆假进度。
+    </p>
+  );
+
+  if (stage === 0) {
+    if (!discovery) return empty("规划");
+    const blocks = [discovery.analysis, discovery.candidates, null, discovery.plan, null];
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-4 py-3">
+        <p className="text-[12px] font-medium text-[var(--tree-ink)]">规划 · 五步回看</p>
+        {STEP_LABELS.map((label, i) => (
+          <div key={label} className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[11.5px] text-[var(--tree-ink)]">{i + 1}. {label}</span>
+              <span className="ml-auto text-[10.5px] text-[var(--tree-sub)]">{stepState(i)}</span>
+            </div>
+            {producerOf(blocks[i] as { producer?: DiscoveryProducer } | null) && (
+              <p className="mt-1 text-[10.5px] leading-[1.7] text-[var(--tree-faint)]">{producerOf(blocks[i] as { producer?: DiscoveryProducer } | null)}</p>
+            )}
+            {i === 2 && discovery.approval?.state === "approved" && (
+              <p className="mt-1 text-[10.5px] text-[var(--tree-faint)]">已批准（证据版本 {discovery.classification_evidence_version ?? "—"}）</p>
+            )}
+            {i === 4 && discovery.materialization?.status === "materialized" && (
+              <p className="mt-1 break-all text-[10.5px] text-[var(--tree-faint)]">已物化 · 计划 {discovery.materialization.plan_id ?? "—"}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (stage === 1) {
+    if (!tasks || tasks.length === 0) return empty("执行");
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 py-3">
+        <p className="text-[12px] font-medium text-[var(--tree-ink)]">执行 · 任务与验收</p>
+        {tasks.map((t) => (
+          <div key={t.id} className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-[11.5px] text-[var(--tree-ink)]">{t.title}</span>
+              <span className="flex-none text-[10.5px] text-[var(--tree-sub)]">{t.status}</span>
+            </div>
+            <p className="mt-1 text-[10.5px] text-[var(--tree-faint)]">
+              执行者 {t.workerLabel || t.assignee || "—"} · 批次 {t.batchNo ?? "—"}
+            </p>
+            {testEvidence?.items
+              .filter((item) => item.task_id === t.id)
+              .map((item, index) => (
+                <p key={index} className={`mt-1 text-[10.5px] leading-[1.7] ${item.passed ? "text-olive" : "text-salmon"}`}>
+                  单点验收 {item.passed ? "通过" : "未过"}：{item.summary || "—"}
+                </p>
+              ))}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (stage === 2) {
+    const decided = (tasks ?? []).filter((t) => t.resultSummary);
+    if (decided.length === 0) {
+      return empty("审核");
+    }
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-4 py-3">
+        <p className="text-[12px] font-medium text-[var(--tree-ink)]">审核 · 经理门决策</p>
+        {decided.map((t) => (
+          <div key={t.id} className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+            <p className="text-[11.5px] text-[var(--tree-ink)]">{t.title}</p>
+            <p className="mt-1 text-[10.5px] leading-[1.7] text-[var(--tree-sub)]">
+              {t.resultSummary}
+            </p>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (!trainCars || trainCars.length === 0) return empty("交付");
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-4 py-3">
+      <p className="text-[12px] font-medium text-[var(--tree-ink)]">交付 · PR 列车</p>
+      {trainCars.map((car, index) => (
+        <div key={index} className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+          <div className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-[11.5px] text-[var(--tree-ink)]">{car.repo}</span>
+            <span className={`flex-none rounded-[5px] border px-1.5 py-px text-[10px] ${car.merged ? "border-olive/40 bg-olive-well text-olive" : "border-[var(--tree-hairline)] text-[var(--tree-sub)]"}`}>
+              {car.merged ? "已合并" : car.pr ? "待合并" : "未开 PR"}
+            </span>
+          </div>
+          <p className="mt-1 break-all text-[10.5px] text-[var(--tree-faint)]">
+            {car.pr || "尚未开 PR"} · 执行者 {car.by || "—"}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export interface FocusPanelProps {
   entry: FocusEntry | null;
   discovery: DiscoveryView | null;
@@ -234,6 +371,9 @@ export interface FocusPanelProps {
   onConfirmMerge?: () => void;
   /** 测试团队的记录（task 单点 / DAG 节点集成 / 跨仓库联调回归）。 */
   testEvidence: TestEvidenceView | null;
+  /** 阶段历史（顶栏「流程」点开）要看的东西：任务行与交付列车。 */
+  tasks: PlanTaskItem[] | null;
+  trainCars: TrainCarSpec[] | null;
 }
 
 export function FocusPanel({
@@ -256,6 +396,8 @@ export function FocusPanel({
   mergePending = false,
   onConfirmMerge,
   testEvidence,
+  tasks,
+  trainCars,
 }: FocusPanelProps) {
   const body = (() => {
     if (entry === null) {
@@ -268,6 +410,19 @@ export function FocusPanel({
     if (entry.kind === "step") return <StepDetail step={entry.step} state={stepStates[entry.step - 1]} discovery={discovery} onGate={onGate} gateBusy={gateBusy} gateError={gateError} onRetryStep={onRetryStep} stepError={stepError} onForceContinue={onForceContinue} policyCard={policyCard} onConfigurePolicy={onConfigurePolicy} onRetryPolicy={onRetryPolicy} messages={messages} />;
     // 测试组：task 单点 / DAG 节点集成 / 跨仓库联调回归的**真实记录**。
     if (entry.kind === "tests") return <TestEvidenceDetail view={testEvidence} />;
+    // 顶栏「流程」点开的阶段历史（规划/执行/审核/交付）。
+    if (entry.kind === "stage") {
+      return (
+        <StageHistory
+          stage={entry.stage}
+          discovery={discovery}
+          stepStates={stepStates}
+          tasks={tasks}
+          testEvidence={testEvidence}
+          trainCars={trainCars}
+        />
+      );
+    }
     if (entry.kind === "task") {
       return (
         <div className="flex min-h-0 flex-1 flex-col">

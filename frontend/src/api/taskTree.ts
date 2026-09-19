@@ -19,6 +19,8 @@ export interface PlanTaskItem {
    *  workerLabel 是装配期的显示名快照、物化写入端不填；没有它时显示这个，
    *  两个都没有才写「待指派」。 */
   assignee?: string;
+  /** 经理门的决策留痕：通过时是经理的小结、驳回时是驳回原因。阶段历史「审核」段用它。 */
+  resultSummary?: string;
 }
 
 export interface PlanTasksPage {

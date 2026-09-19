@@ -13,7 +13,11 @@ export type FocusEntry =
   | { kind: "task"; taskId: string }
   // 测试组：task 单点验收 / DAG 节点集成 / 跨仓库联调回归的**真实记录**
   // （2026-09-20 前这里没有读面，树上那一行是写死的文案）。
-  | { kind: "tests" };
+  | { kind: "tests" }
+  // 阶段历史：顶栏「流程」那四个阶段（规划/执行/审核/交付）点开后看的历史。
+  // 2026-09-20：顶栏此前只是状态指示（不可点），人想看"这一段到底发生过什么"
+  // 只能自己翻；现在点哪段就切到哪段的历史。
+  | { kind: "stage"; stage: 0 | 1 | 2 | 3 };
 
 export type StepState = "done" | "run" | "gate" | "wait" | "failed";
 
