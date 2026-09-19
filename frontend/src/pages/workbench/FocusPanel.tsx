@@ -234,8 +234,13 @@ function IssueScopeCard({
   const [pick, setPick] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const nameOf = (id: string) => repoOptions.find((r) => r.id === id)?.name ?? id;
-  const candidates = repoOptions.filter((r) => !scopeRepoIds.includes(r.id));
+  const nameOf = (id: string) => options.find((r) => r.id === id)?.name ?? id;
+  // 防御性默认值：这个组件是"选中规划阶段才渲染"的，一旦 props 没到位就会把整个
+  // 工作台打成白屏（2026-09-20 实测：TypeError: Cannot read properties of undefined
+  // (reading 'filter')，点「规划」必崩）。宁可这块卡片少显示，也不能让整页崩。
+  const scope = scopeRepoIds ?? [];
+  const options = repoOptions ?? [];
+  const candidates = options.filter((r) => !scope.includes(r.id));
   const submit = () => {
     if (pick === "" || busy) return;
     setBusy(true);
@@ -247,11 +252,11 @@ function IssueScopeCard({
   };
   return (
     <div className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
-      <p className="text-[11.5px] text-[var(--tree-ink)]">本次 Issue 的仓库范围（{scopeRepoIds.length}）</p>
-      {scopeRepoIds.length === 0 && (
+      <p className="text-[11.5px] text-[var(--tree-ink)]">本次 Issue 的仓库范围（{scope.length}）</p>
+      {scope.length === 0 && (
         <p className="mt-1 text-[10.5px] text-[var(--tree-faint)]">还没有仓库 —— 服务端按此范围校验一切改动。</p>
       )}
-      {scopeRepoIds.map((id) => (
+      {scope.map((id) => (
         <p key={id} className="mt-1 break-all font-mono text-[10.5px] text-[var(--tree-sub)]">{nameOf(id)}</p>
       ))}
       {candidates.length > 0 && (
