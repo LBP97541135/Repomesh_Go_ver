@@ -133,7 +133,15 @@ function AgentRow({
   );
 }
 
-export function AgentsPage({ onOpenIssue }: { onOpenIssue: (issueId: string) => void }) {
+/** `embedded`：收进设置页「智能体」分类时为 true——去掉页面级宽度约束与大标题，
+ *  分类标题由设置页提供（与 LocalCliPage 同一范式）。 */
+export function AgentsPage({
+  onOpenIssue,
+  embedded = false,
+}: {
+  onOpenIssue: (issueId: string) => void;
+  embedded?: boolean;
+}) {
   // ── 写面（2026-09-19 新增）：新建 / 删除智能体 ──
   const [creating, setCreating] = useState(false);
   const [writeError, setWriteError] = useState<string | null>(null);
@@ -304,9 +312,9 @@ export function AgentsPage({ onOpenIssue }: { onOpenIssue: (issueId: string) => 
   const busy = rows?.filter((a) => a.active_task_count > 0).length ?? 0;
 
   return (
-    <div className="max-w-[860px]">
-      <div className="flex items-baseline gap-3 border-b border-line pb-3">
-        <h1 className="text-[16px] font-semibold text-cream">智能体</h1>
+    <div className={embedded ? "" : "max-w-[860px]"}>
+      <div className={`${embedded ? "" : "border-b border-line pb-3 "}flex flex-wrap items-baseline gap-3`}>
+        {!embedded && <h1 className="text-[16px] font-semibold text-cream">智能体</h1>}
         {rows && (
           <span className="text-[11.5px] text-tx2">
             {rows.length} 个 · {enabled} 个已启用 · {busy} 个有在途任务

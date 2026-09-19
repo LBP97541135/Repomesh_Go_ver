@@ -38,7 +38,9 @@ const NEXT_ACTIONS: Record<SkillStatus, Array<{ action: SkillAction; label: stri
   rolled_back: [],
 };
 
-export function SkillsPage({ onToast }: { onToast: (text: string) => void }) {
+/** `embedded`：收进设置页「技能」分类时为 true——去掉页面级宽度、大内边距与外框，
+ *  分类标题由设置页提供（与 LocalCliPage 同一范式）。 */
+export function SkillsPage({ onToast, embedded = false }: { onToast: (text: string) => void; embedded?: boolean }) {
   const [skills, setSkills] = useState<SkillSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SkillSummary | null>(null);
@@ -83,9 +85,9 @@ export function SkillsPage({ onToast }: { onToast: (text: string) => void }) {
   };
 
   return (
-    <div className="mx-auto max-w-[1040px] px-8 py-10">
-      <div className="mb-6 flex items-baseline gap-3">
-        <h1 className="text-[16px] font-semibold text-cream">技能</h1>
+    <div className={embedded ? "" : "mx-auto max-w-[1040px] px-8 py-10"}>
+      <div className={`${embedded ? "mb-3 border-b border-line pb-2.5 " : "mb-6 "}flex flex-wrap items-baseline gap-3`}>
+        {!embedded && <h1 className="text-[16px] font-semibold text-cream">技能</h1>}
         {skills && <span className="text-[11.5px] text-tx2">{skills.length} 个</span>}
         <span className="text-[11.5px] text-tx3">
           生命周期：草稿 → 评估中 → 金丝雀 → 晋升 / 回滚

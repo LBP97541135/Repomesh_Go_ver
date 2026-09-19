@@ -502,11 +502,11 @@ export function SettingsPage({
             />
             {/* 智能体花名册与写面（新建/删除）从侧栏顶级入口收编到这里 */}
             <div className="mt-6 border-t border-line pt-4">
-              <AgentsPage onOpenIssue={onOpenIssue} />
+              <AgentsPage onOpenIssue={onOpenIssue} embedded />
             </div>
           </>
         )}
-        {category === "skills" && <SkillsPage onToast={onToast} />}
+        {category === "skills" && <SkillsPage onToast={onToast} embedded />}
         {category === "localcli" && <LocalCliPage embedded />}
         {category === "about" && <AboutCategory account={account} base={base} />}
       </div>
