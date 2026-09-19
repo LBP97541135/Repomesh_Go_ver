@@ -144,8 +144,14 @@ func registerPipelineRoutes(mux *http.ServeMux, auth Auth, pipeline Pipeline) {
 		if err := decodeBody(w, r, &body); err != nil {
 			return err
 		}
-		_ = body
-		writeJSON(w, http.StatusOK, map[string]string{"status": "interrupt_accepted"})
-		return nil
+		// 2026-09-20 线上实测：这条端点此前**什么都没做**就返回
+		// {"status":"interrupt_accepted"} —— 解出 body 随即 `_ = body` 丢掉，一个动作
+		// 都没执行。它对外宣称"打断已受理"，而实际执行中动态加仓库的能力
+		// （tasks.EscalationService.InterruptPlanRepo，代码是写好的）从未被接上。
+		//
+		// 这种"报成功但无动作"比能力缺失更坏：人会以为已经生效，继续往下走。
+		// 在真正接线之前，这里如实回 501 并把原因说清 —— 宁可让人知道没做，
+		// 也不能让人以为做了。
+		return &access.Failure{Status: http.StatusNotImplemented, Code: "INTERRUPT_NOT_WIRED"}
 	})
 }
