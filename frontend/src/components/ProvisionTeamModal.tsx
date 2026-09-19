@@ -54,7 +54,9 @@ export function ProvisionTeamModal({
       // 发布。如实说，不写「已就绪」。
       const rooms = result.team.team_room_id === null ? "房间待发布" : "房间已就绪";
       onToast(
-        `${result.repository_name} 已建团：${result.team.name} · 1 leader + ` +
+        // 用组件自己的 repositoryName（人给的仓库名），而不是响应里的回显字段——
+        // 响应经 assembly 归一后那一格只保证有值，不保证是给人看的名字。
+        `${repositoryName} 已建团：${result.team.name} · 1 leader + ` +
           `${result.workers.length} worker · ${rooms}`,
       );
       onProvisioned();

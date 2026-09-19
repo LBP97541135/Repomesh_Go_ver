@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -21,6 +22,23 @@ type IssueListItem struct {
 	Source          IssueSource `json:"source"`
 	CreatedAt       time.Time   `json:"createdAt"`
 	Revision        string      `json:"revision"`
+	// —— 2026-09-19 方案 A：控制台列表需要的派生读模型 ——
+	// 前端是对着旧 Python 读模型写的（issue_id/phase/round_count/…）。这些字段
+	// 由本文件的 SQL 从 rounds 的替代物与发现链派生，**不是编造**：每个字段的
+	// 语义来源见下面的注释。映射关系：
+	//   round_count  ← 派工代际数（Go 无 rounds 表；代际 = 一次派工波次）
+	//   team_count   ← 仓库数（团队按 project×repository 建，一仓一队）
+	State           string `json:"state"` // open | closed（archived_at）
+	Phase           string `json:"phase"` // 八相：发现链状态的显式映射
+	PhaseNote       string `json:"phaseNote"`
+	PlanVersion     string `json:"planVersion"`     // plans.plan_version（v1…），空=还没计划
+	RoundCount      int    `json:"roundCount"`      // count(DISTINCT attempts.reservation_generation)
+	TeamCount       int    `json:"teamCount"`       // = RepositoryCount（一仓一队）
+	RepositoryCount int    `json:"repositoryCount"` // issue_repository_scope 计数
+	PendingPlanning bool   `json:"pendingPlanning"` // 需求已落库但还没物化
+	RequirementText string `json:"requirementText"`
+	IssueKey        string `json:"issueKey"`
+	OrganizationID  string `json:"organizationId"`
 }
 
 // IssueSource carries the origin reference; conversationId is an identity
@@ -32,8 +50,10 @@ type IssueSource struct {
 
 // IssuePage is the paginated issue list.
 type IssuePage struct {
-	Items      []IssueListItem `json:"items"`
-	NextCursor *string         `json:"nextCursor"`
+	Items       []IssueListItem `json:"items"`
+	NextCursor  *string         `json:"nextCursor"`
+	OpenCount   int             `json:"openCount"`
+	ClosedCount int             `json:"closedCount"`
 }
 
 // IssueListQuery carries the §8 unified pagination and filters.
@@ -95,8 +115,29 @@ func (s *Service) ListIssues(ctx context.Context, principal access.ProjectPrinci
 		args = append(args, query.RepositoryID)
 	}
 	args = append(args, query.Limit+1)
-	rows, err := tx.Query(ctx, `SELECT i.id,i.number,i.title,i.main_changeset_id,i.revision,i.created_at,i.main_conversation_id
-		FROM repomesh_issues.issues i `+where+` ORDER BY i.id LIMIT $`+itoa(len(args)), args...)
+	rows, err := tx.Query(ctx, `SELECT i.id,i.number,i.title,i.main_changeset_id,i.revision,i.created_at,i.main_conversation_id,
+		       CASE WHEN i.archived_at IS NULL THEN 'open' ELSE 'closed' END,
+		       COALESCE(i.description,''),
+		       COALESCE(pj.organization_id::text,''),
+		       (SELECT count(*) FROM repomesh_issues.issue_repository_scope s WHERE s.issue_id=i.id),
+		       (SELECT count(DISTINCT a.reservation_generation) FROM repomesh_execution.attempts a WHERE a.issue_id=i.id),
+		       COALESCE((SELECT p.plan_version FROM public.plans p
+		                   JOIN public.tasks t ON t.plan_id=p.id
+		                  WHERE t.source_ref->>'issueId'=i.id
+		                  ORDER BY p.plan_version DESC LIMIT 1),''),
+		       COALESCE(d.materialization IS NULL OR d.materialization='null'::jsonb, true),
+		       CASE
+		         WHEN d.issue_id IS NULL THEN 'contract'
+		         WHEN d.materialization IS NOT NULL AND d.materialization <> 'null'::jsonb THEN 'execute'
+		         WHEN d.plan IS NOT NULL AND d.plan <> 'null'::jsonb THEN 'plan'
+		         WHEN d.approval->>'state' = 'approved' THEN 'plan'
+		         WHEN d.classification IS NOT NULL AND d.classification <> 'null'::jsonb THEN 'validate'
+		         ELSE 'contract'
+		       END
+		FROM repomesh_issues.issues i
+		LEFT JOIN repomesh_issues.issue_discoveries d ON d.issue_id = i.id
+		LEFT JOIN repomesh_projects.projects pj ON pj.id = i.project_id
+		`+where+` ORDER BY i.id LIMIT $`+itoa(len(args)), args...)
 	if err != nil {
 		return IssuePage{}, unavailable()
 	}
@@ -112,9 +153,16 @@ func (s *Service) ListIssues(ctx context.Context, principal access.ProjectPrinci
 		var item IssueListItem
 		var meta rowMeta
 		var conversationID string
-		if rows.Scan(&item.ID, &item.Number, &item.Title, &item.MainChangeSetID, &meta.revision, &meta.createdAt, &conversationID) != nil {
+		if rows.Scan(&item.ID, &item.Number, &item.Title, &item.MainChangeSetID, &meta.revision, &meta.createdAt, &conversationID,
+			&item.State, &item.RequirementText, &item.OrganizationID,
+			&item.RepositoryCount, &item.RoundCount, &item.PlanVersion,
+			&item.PendingPlanning, &item.Phase) != nil {
 			return IssuePage{}, unavailable()
 		}
+		// team_count 与 repository_count 同源：团队按 project×repository 建（一仓一队），
+		// 所以"会承接该 issue 的团队数"就是"该 issue 覆盖的仓库数"。
+		item.TeamCount = item.RepositoryCount
+		item.IssueKey = "#" + strconv.FormatInt(item.Number, 10)
 		item.RepositoryIDs = []string{}
 		item.Source = IssueSource{Kind: "issue_page", ConversationID: conversationID}
 		items = append(items, item)
@@ -138,6 +186,14 @@ func (s *Service) ListIssues(ctx context.Context, principal access.ProjectPrinci
 		items[index].RepositoryIDs = repositories
 	}
 	result.Items = items
+	// 信封计数（2026-09-19 方案 A）：控制台侧栏徽标读 open_count。口径与逐行 state
+	// 一致——归档即 closed，已删除的不计。
+	if err := tx.QueryRow(ctx, `SELECT count(*) FILTER (WHERE archived_at IS NULL),
+		       count(*) FILTER (WHERE archived_at IS NOT NULL)
+		FROM repomesh_issues.issues WHERE project_id=$1 AND removed_at IS NULL`, projectID).
+		Scan(&result.OpenCount, &result.ClosedCount); err != nil {
+		return IssuePage{}, unavailable()
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return IssuePage{}, unavailable()
 	}

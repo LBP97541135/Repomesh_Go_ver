@@ -5,6 +5,9 @@ import type { NavKey } from "./components/SidebarV2";
  *  react(only-export-components) 只能导出组件。 */
 
 export const NAV_HASH: Record<NavKey, string> = {
+  projects: "#/projects",
+  skills: "#/skills",
+  models: "#/models",
   issues: "#/issues",
   reviews: "#/reviews",
   repositories: "#/repositories",

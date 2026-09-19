@@ -11,7 +11,7 @@
  *  写操作（含 logout）要求 `X-CSRF-Token`，令牌来自 `GET /api/session` 的
  *  `csrfToken`，`session()` 会顺手注入 `api/http.ts` 的令牌槽。 */
 
-import { setCsrfToken } from "./http";
+import { getCsrfToken, setCsrfToken } from "./http";
 
 export interface Account {
   id: string;
@@ -106,6 +106,26 @@ export async function startGithubLogin(): Promise<void> {
   window.location.href = result.authorizationUrl;
 }
 
+/** 切换账号：已登录状态下换成另一个 GitHub 账号（整页跳转，同登录）。
+ *
+ *  与 startGithubLogin 的唯一差别是打 `/switch` 端点：`login` 在已有活跃会话时
+ *  返回 409 SESSION_ALREADY_ACTIVE，必须先登出；`switch` 允许带会话发起，后端回调
+ *  成功后会 `identity_generation+1` 并 revoke 该浏览器绑定上的全部旧会话，再种一条
+ *  新会话——所以旧账号的 cookie 随即失效，不需要前端做任何清理。
+ *
+ *  该端点要求 CSRF（与 reconnect 同级），而 goRequest 不注入 CSRF，故显式带头。 */
+export async function switchGithubAccount(): Promise<void> {
+  const result = await goRequest<{ authorizationUrl: string }>("/api/auth/github/switch", {
+    method: "POST",
+    headers: {
+      "Idempotency-Key": crypto.randomUUID(),
+      "X-CSRF-Token": getCsrfToken(),
+    },
+    body: JSON.stringify({ destination: { kind: "home" } }),
+  });
+  window.location.href = result.authorizationUrl;
+}
+
 /** Go `GET /api/auth/attempts/{id}` 出参（access.AttemptResult，as-built）：
  *  OAuth 回跳页轮询登录尝试状态的读面。 */
 export interface AuthAttemptResult {
@@ -134,6 +154,9 @@ export const authApi = {
 
   /** 跳转 GitHub OAuth 登录。 */
   startGithubLogin,
+
+  /** 已登录时切换到另一个 GitHub 账号。 */
+  switchGithubAccount,
 
   /** @deprecated Go 后端无本地账号体系（2026-09-16 裁定），运行时 404。 */
   login: (username: string, password: string) =>

@@ -20,10 +20,16 @@ export interface RepositoryCard {
   scanStatus?: string;
 }
 
-/** GET /api/repositories — 已扫描仓库目录（后端返回卡片数组本身，形状已核
- *  internal/scan/http.go handleRepositoryList）。 */
+/** GET /api/scan/repositories — 已扫描仓库目录（后端返回卡片数组本身，
+ *  形状已核 internal/scan/http.go handleRepositoryList）。
+ *
+ *  2026-09-19 修正：此前打的是 `/repositories`，而那个路径现在归
+ *  internal/web/auth.go 的 GitHub 发现处理器所有，返回的是
+ *  access.RepositoryPage **对象**（{items,nextCursor}）。前端拿对象当数组用，
+ *  仓库页在 useMemo 里直接 `TypeError: n.forEach is not a function` 白屏。
+ *  scan 目录在 as-built 里已挪到 /api/scan/repositories，这里跟过去。 */
 export function listRepositories(): Promise<RepositoryCard[]> {
-  return apiRequest<RepositoryCard[]>("GET", "/repositories");
+  return apiRequest<RepositoryCard[]>("GET", "/scan/repositories");
 }
 
 export interface UrlIdentification {

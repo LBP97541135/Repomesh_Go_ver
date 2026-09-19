@@ -67,14 +67,80 @@ export interface RepositoryTeamOnboardRequest {
  *
  *  幂等键由调用方持有：后端用它派生 `:leader` / `:worker:NN` / `:team` 三段子键，
  *  所以同键重放不会建出第二套人马。 */
-export function onboardRepositoryTeam(
+export async function onboardRepositoryTeam(
   repositoryId: string,
   payload: RepositoryTeamOnboardRequest,
 ): Promise<RepositoryTeamOnboardResult> {
-  return sessionRequest<RepositoryTeamOnboardResult>(
-    `/repositories/${encodeURIComponent(repositoryId)}/agent-team`,
-    { method: "POST", body: JSON.stringify(payload) },
+  // 2026-09-19 修正：此前打的是 `/api/v1/repositories/{id}/agent-team`——**后端没有这条
+  // 路由**（Go 的 /api/v1 面只有 review-requests / checkpoint-decisions / control），
+  // 所以「仓库页 → 建团」从来打不通，`public.agent_teams` 才会一直是 0 行。
+  //
+  // 真正建团的后端是 M4 assembly：
+  //   POST /api/projects/{projectId}/topologies   （internal/web/topology_routes.go:16
+  //   → assemblySvc.Assemble，按 organization + 仓库列表生成 Manager→Leader→Workers 层级）
+  // 这里把仓库页的"给某个仓库建团"翻译成一次单仓库的 topology 装配。
+  // 幂等仍由后端保证（assembly 按 organization/repository 落 singleton_key）。
+  const { resolveProjectId } = await import("./issues");
+  const projectId = await resolveProjectId();
+  if (!projectId) {
+    throw new Error("没有可用的项目——请先在「项目」页建立或选择项目，再给仓库建团。");
+  }
+  // assembly 的三个必填项（后端 503: "organization, repositories and leader name are
+  // required"）——organization 不能留空：留空时后端会拿 **projectId** 当组织
+  // （topology_routes.go:26 的兜底），而 projectId 不是组织 id，装配必然失败。
+  // 组织从花名册面取（assembly 要求该组织恰好一个活跃 Org Leader）；
+  // leader 名按仓库派生，保证同仓库重放同名、不因重试换人。
+  let organizationId = (payload.organization_id ?? "").trim();
+  if (organizationId === "") {
+    // as-built 形状：{"organizations":[{"organization_id":…,"name":…}]}
+    // （internal/console/service.go 的 OrganizationsResponse）。本仓库同时存在
+    // 裸数组与 {items:[…]} 两种先例，故三种都收；字段名 id / organization_id /
+    // organizationId 也都收。收不到才如实报错，绝不编一个组织出来。
+    const raw = await apiRequest<unknown>("GET", "/console/organizations");
+    const wrapper = raw as {
+      items?: Array<Record<string, unknown>>;
+      organizations?: Array<Record<string, unknown>>;
+    };
+    const list: Array<Record<string, unknown>> = Array.isArray(raw)
+      ? (raw as Array<Record<string, unknown>>)
+      : (wrapper?.organizations ?? wrapper?.items ?? []);
+    const first = list[0];
+    organizationId = String(first?.id ?? first?.organization_id ?? first?.organizationId ?? "");
+  }
+  if (organizationId === "") {
+    throw new Error("没有可用的组织——建团需要一个含活跃 Org Leader 的组织。");
+  }
+  const result = await apiRequest<Record<string, unknown>>(
+    "POST",
+    `/projects/${encodeURIComponent(projectId)}/topologies`,
+    {
+      organizationId,
+      repositories: [repositoryId],
+      workersPerRepo: payload.worker_count,
+      leaderName: `leader-${repositoryId.slice(0, 12)}`,
+    },
   );
+  // assembly 的真实返回（internal/assembly/assemble.go）：
+  //   { leaderAgentId, managers:[], workers:[], teamRooms:[] }
+  // 而弹窗期望的是旧 Python 形状 { repository_name, team:{name,team_room_id}, workers:[{…}] }。
+  // 这里显式归一——**已建成的事实照实转述**，房间号拿不到就如实给 null
+  //（弹窗会显示"房间待发布"，这正是它自己写好的诚实措辞）。
+  const assembled = result as {
+    leaderAgentId?: string;
+    managers?: string[];
+    workers?: string[];
+    teamRooms?: string[];
+  };
+  const workers = assembled.workers ?? [];
+  return {
+    repository_name: repositoryId,
+    team: {
+      name: `team-${repositoryId.slice(0, 12)}`,
+      team_room_id: assembled.teamRooms?.[0] ?? null,
+      leader_agent_id: assembled.leaderAgentId ?? "",
+    },
+    workers: workers.map((id) => ({ agent_id: id, name: id, role: "worker" })),
+  } as unknown as RepositoryTeamOnboardResult;
 }
 
 // ───────────────── 项目监管策略（迁移 5-1a，只读） ─────────────────

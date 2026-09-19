@@ -2,7 +2,9 @@ package web
 
 import (
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 
 	"repomesh.local/repomesh/internal/observability"
 )
@@ -47,6 +49,50 @@ func registerObserveV1(mux *http.ServeMux, auth Auth, observe ObserveV1) {
 			handler(w, r)
 		})
 	}
+
+	// GET /api/v1/observe/agentloop/config —— 观测面统一走 AgentLoop 控制台
+	//（2026-09-19 补，用户裁定「所有的观测都使用 agentloop 实现」）。
+	// 前端 ObserveHome 一直在打这条路径（api/agentloop.ts，带 Bearer 头），而 Go
+	// 从未实现 → 404 → 观测首页的 AgentLoop 入口永远取不到地址。
+	//
+	// 地址来源优先级：显式覆盖（REPOMESH_AGENTLOOP_CONSOLE_URL）> 从 OTLP 配置推导
+	// > unconfigured。**本部署未配任何 OTLP/AgentLoop 变量**，所以如实回 unconfigured
+	// 与 null——由前端配置弹层的本机覆盖（localStorage）兜底，绝不编一个地址出来。
+	register("GET /api/v1/observe/agentloop/config", func(w http.ResponseWriter, r *http.Request) {
+		optional := func(name string) *string {
+			value := strings.TrimSpace(os.Getenv(name))
+			if value == "" {
+				return nil
+			}
+			return &value
+		}
+		consoleURL := optional("REPOMESH_AGENTLOOP_CONSOLE_URL")
+		source := "unconfigured"
+		if consoleURL != nil {
+			source = "override"
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"configured":  consoleURL != nil,
+			"console_url": consoleURL,
+			"region":      optional("REPOMESH_AGENTLOOP_REGION"),
+			"project":     optional("REPOMESH_AGENTLOOP_PROJECT"),
+			"workspace":   optional("REPOMESH_AGENTLOOP_WORKSPACE"),
+			"source":      source,
+		})
+	})
+
+	// GET /api/v1/runtime/v1/external-members/readiness —— 外部成员（本地 CLI）就绪租约板。
+	// 2026-09-19 补：前端 LocalCliPage 一直在打（client.ts 的
+	// getExternalMemberReadiness，注释自述「路径里两段 v1 不是笔误：/api/v1 是全站前缀，
+	// /runtime/v1 是 runtime 面自己的版本段」），Go 从未实现 → 404。
+	//
+	// 租约是**外部成员自己上报**的（launcher 面的 members/start 上报、members/stop 撤销），
+	// 而 launcher 面在本部署同样未实现 → 从来没有成员报过到。
+	// 所以这里**如实回空板**：`{members: []}`，而不是编几条假成员让面板看着"有数据"。
+	// launcher 面补齐后，本端点只需改为读那张租约表即可。
+	register("GET /api/v1/runtime/v1/external-members/readiness", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"members": []any{}})
+	})
 
 	register("GET /api/observe/summary", func(w http.ResponseWriter, r *http.Request) {
 		summary, err := observe.Service.Summary(r.Context(), queryInt(r, "days", 7))

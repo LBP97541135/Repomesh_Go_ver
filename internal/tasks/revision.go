@@ -113,9 +113,13 @@ func (p *PostgresStore) ApplyRevision(ctx context.Context, cmd RevisionCommand) 
 	if err := jsonUnmarshalInto(batchesRaw, &plan.Batches); err != nil {
 		return PlanRevision{}, err
 	}
-	if err := jsonUnmarshalInto(dagRaw, &plan.DAG); err != nil {
+	// 同一处 as-built 形状分歧（见 plans.go 的 decodePlanDAG）：物化写富描述、
+	// 读取方旧代码只认邻接表。这里复用同一个容忍解码，避免第二条读面继续 503。
+	decodedDAG, err := decodePlanDAG(dagRaw)
+	if err != nil {
 		return PlanRevision{}, err
 	}
+	plan.DAG = decodedDAG
 
 	history, err := decodeRevisions(revisionsRaw)
 	if err != nil {

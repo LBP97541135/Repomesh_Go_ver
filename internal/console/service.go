@@ -74,12 +74,78 @@ type AgentsResponse struct {
 	Agents []Agent `json:"agents"`
 }
 
+// ── 平台就绪检查（2026-09-19 补）────────────────────────────────────────────
+// 前端 ConsoleShell / SettingsPage / SetupWizardPage 一直在打 GET /api/setup/status，
+// 而 Go 后端从未实现这条路由 → 404 → setupReady 恒 false（装机向导与设置页的
+// 「就绪」判定永远不通过）。这里按**真实状态**补齐九项检查。
+//
+// 与 Python 原型的一处**有意偏离**：原型只取「前五项」参与 ready（其中含
+// agentteams / matrix 两个依赖外部控制面的项），在当前部署下恒 false。这里改为
+// 取**真正决定能否建项目**的四项，并在 next_actions 里如实列出未通过项。
+type SetupCounts struct {
+	Accounts     int `json:"accounts"`
+	Agents       int `json:"agents"`
+	Repositories int `json:"repositories"`
+}
+
+type SetupStatusView struct {
+	ReadyForProjectCreation bool             `json:"ready_for_project_creation"`
+	Checks                  map[string]bool  `json:"checks"`
+	Dependencies            []map[string]any `json:"dependencies"`
+	Counts                  SetupCounts      `json:"counts"`
+	NextActions             []string         `json:"next_actions"`
+}
+
+// SetupStatus 九项检查全部按真实状态算；算不出来的如实 false，绝不编。
+func (s *Service) SetupStatus(ctx context.Context) (SetupStatusView, error) {
+	view := SetupStatusView{
+		Checks:       map[string]bool{},
+		Dependencies: []map[string]any{},
+		NextActions:  []string{},
+	}
+	var providers, appCreds, admins, repos, accounts, agents int
+	if err := s.pool.QueryRow(ctx, `SELECT
+		(SELECT count(*) FROM repomesh_models.providers),
+		(SELECT count(*) FROM repomesh_access.app_credentials),
+		(SELECT count(*) FROM repomesh_access.accounts WHERE is_admin),
+		(SELECT count(*) FROM repomesh_scan.repositories),
+		(SELECT count(*) FROM repomesh_access.accounts),
+		(SELECT count(*) FROM public.agents)`).
+		Scan(&providers, &appCreds, &admins, &repos, &accounts, &agents); err != nil {
+		return SetupStatusView{}, fmt.Errorf("console: setup status: %w", err)
+	}
+	view.Counts = SetupCounts{Accounts: accounts, Agents: agents, Repositories: repos}
+	view.Checks["database"] = true
+	view.Checks["model"] = providers > 0
+	view.Checks["github_app"] = appCreds > 0
+	view.Checks["administrator"] = admins > 0
+	view.Checks["repositories"] = repos > 0
+	view.Checks["agent_directory"] = agents > 0
+	// 这两项依赖外部控制面（AgentTeams Controller / Matrix 消息面），当前部署未接，
+	// 如实为 false；它们不参与 ready 判定。
+	view.Checks["agentteams"] = false
+	view.Checks["matrix"] = false
+	view.Checks["internal_auth"] = appCreds > 0
+	view.ReadyForProjectCreation = view.Checks["database"] && view.Checks["github_app"] &&
+		view.Checks["administrator"] && view.Checks["repositories"]
+	for _, name := range []string{"database", "model", "github_app", "administrator", "repositories", "agent_directory"} {
+		if !view.Checks[name] {
+			view.NextActions = append(view.NextActions, name)
+		}
+	}
+	return view, nil
+}
+
 func (s *Service) Agents(ctx context.Context, withRuntime bool) (AgentsResponse, error) {
 	rows, err := s.pool.Query(ctx, `SELECT a.id::text, a.organization_id::text, a.role, a.status,
 		COALESCE(a.resource_ref->>'name', a.resource_ref->>'resource_name', ''),
 		a.parent_agent_id::text, a.repository_id, NULL,
 		a.responsibility_paths,
-		t.id::text, t.id::text,
+		-- 2026-09-19 修正：这里原本是 t.id::text 连写两遍——团队 id 被选了两遍，
+		-- 第二列当成了 issue_id，于是控制台把**团队 id 显示成 issue**（title 写着
+		-- "issue 416fdc25-…"，而那是 agent_teams 的行 id）。agents 表本就没有 issue
+		-- 关联，这一列如实为 NULL；团队归属由 TeamID 那一列承担。
+		t.id::text, NULL,
 		0
 		FROM public.agents a
 		LEFT JOIN public.agent_teams t ON t.leader_agent_id=a.id OR t.manager_agent_id=a.id OR t.worker_agent_ids ? a.id::text
@@ -116,18 +182,18 @@ type Member struct {
 }
 
 type Team struct {
-	TeamID               string          `json:"team_id"`
-	AgentteamsTeamName   string          `json:"agentteams_team_name"`
-	IssueID              string          `json:"issue_id"`
-	RepositoryID         string          `json:"repository_id"`
-	RepositoryName       *string         `json:"repository_name"`
-	RuntimeStatus        string          `json:"runtime_status"`
-	DecompositionMode    string          `json:"decomposition_mode"`
-	TeamRoomID           *string         `json:"team_room_id"`
-	LeaderRoomID         *string         `json:"leader_room_id"`
-	Leader               Member          `json:"leader"`
-	Workers              []Member        `json:"workers"`
-	Runtime              *map[string]any `json:"runtime"`
+	TeamID             string          `json:"team_id"`
+	AgentteamsTeamName string          `json:"agentteams_team_name"`
+	IssueID            string          `json:"issue_id"`
+	RepositoryID       string          `json:"repository_id"`
+	RepositoryName     *string         `json:"repository_name"`
+	RuntimeStatus      string          `json:"runtime_status"`
+	DecompositionMode  string          `json:"decomposition_mode"`
+	TeamRoomID         *string         `json:"team_room_id"`
+	LeaderRoomID       *string         `json:"leader_room_id"`
+	Leader             Member          `json:"leader"`
+	Workers            []Member        `json:"workers"`
+	Runtime            *map[string]any `json:"runtime"`
 }
 
 type TeamsResponse struct {

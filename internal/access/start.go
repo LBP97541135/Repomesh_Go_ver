@@ -19,7 +19,7 @@ func attemptOwner(binding, id string) secrets.Owner {
 }
 
 func (s *Service) Start(ctx context.Context, command StartCommand) (Started, error) {
-	if !ValidID(command.ID) || command.Destination.canonical == "" || (command.Purpose != "login" && command.Purpose != "reconnect") {
+	if !ValidID(command.ID) || command.Destination.canonical == "" || (command.Purpose != "login" && command.Purpose != "reconnect" && command.Purpose != "switch") {
 		return Started{}, failure(422, "VALIDATION_FAILED")
 	}
 	current, sessionErr := s.Session(ctx, command.SessionCookie)
@@ -31,6 +31,23 @@ func (s *Service) Start(ctx context.Context, command StartCommand) (Started, err
 	}
 	if command.Purpose == "login" && sessionErr == nil {
 		return Started{}, failure(409, "SESSION_ALREADY_ACTIVE")
+	}
+	// switch：已登录状态下主动换成另一个 GitHub 账号。
+	// 与 login 的差别只有一条——允许带着活跃会话发起（login 遇活跃会话直接 409）；
+	// 与 reconnect 的差别是**不写 expected_github_id**，因此回调允许换成完全不同的身份。
+	// 旧会话不需要在这里清理：callback.confirmIdentity 成功后会 identity_generation+1
+	// 并把该 binding 上所有 sessions 置 revoked，再种一条新代际的会话
+	//（callback.go 的 bindings/sessions 两处 UPDATE），旧 cookie 随即失效。
+	if command.Purpose == "switch" {
+		if sessionErr != nil {
+			return Started{}, sessionErr
+		}
+		if err := requireCSRF(current, command.CSRF); err != nil {
+			return Started{}, err
+		}
+		if !validCookie(command.BindingCookie) || digest(command.BindingCookie) != current.Binding {
+			return Started{}, failure(403, "ORIGIN_REJECTED")
+		}
 	}
 	if command.Purpose == "reconnect" {
 		if sessionErr != nil {

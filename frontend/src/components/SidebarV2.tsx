@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Account } from "../api/auth";
+import type { ProjectListItem } from "../api/projects";
 import {
   Activity,
   Bot,
@@ -32,6 +33,9 @@ import {
  *  回放模式提示。计数的 null 语义 = 数据源未提供，不显示 0 不编造。 */
 
 export type NavKey =
+  | "projects"
+  | "skills"
+  | "models"
   | "issues"
   | "reviews"
   | "repositories"
@@ -42,6 +46,9 @@ export type NavKey =
   | "settings";
 
 const NAV_ICON: Record<NavKey, LucideIcon> = {
+  projects: FolderKanban,
+  skills: FileCheck,
+  models: FolderKanban,
   issues: Inbox,
   reviews: FileCheck,
   repositories: FolderKanban,
@@ -53,6 +60,9 @@ const NAV_ICON: Record<NavKey, LucideIcon> = {
 };
 
 const NAV_LABEL: Record<NavKey, string> = {
+  projects: "项目",
+  skills: "技能",
+  models: "模型",
   issues: "issue",
   reviews: "审核",
   repositories: "仓库",
@@ -69,8 +79,8 @@ const NAV_LABEL: Record<NavKey, string> = {
  *  尚无落点（/deliveries/*、/observe/*、/console/*），点开会看到
  *  not_implemented——先恢复入口，后端补齐即自动点亮。 */
 const NAV_GROUPS: Array<{ heading: string; keys: NavKey[] }> = [
-  { heading: "工作台", keys: ["issues", "reviews", "repositories"] },
-  { heading: "治理", keys: ["teams", "agents", "observe"] },
+  { heading: "工作台", keys: ["projects", "issues", "reviews", "repositories"] },
+  { heading: "治理", keys: ["teams", "agents", "skills", "models", "observe"] },
 ];
 const NAV_BOTTOM: NavKey[] = ["decision-chains", "settings"];
 
@@ -82,7 +92,12 @@ export function SidebarV2({
   onNavigate,
   onNewIssue,
   onLogout,
+  onSwitchAccount,
   onOpenSearch,
+  projects,
+  activeProjectId,
+  onSelectProject,
+  onManageProjects,
 }: {
   account: Account;
   nav: NavKey;
@@ -93,12 +108,32 @@ export function SidebarV2({
   onNavigate: (nav: NavKey) => void;
   onNewIssue: () => void;
   onLogout: () => void;
+  onSwitchAccount: () => void;
+  /** 可切换的项目列表；null = 还没取到（显示"读取中"，不编造） */
+  projects: ProjectListItem[] | null;
+  /** 当前项目 id；null = 还没选过 */
+  activeProjectId: string | null;
+  onSelectProject: (projectId: string) => void;
+  /** 打开「项目」页（管理/新建） */
+  onManageProjects: () => void;
   /** 打开 ⌘K 命令面板（面板状态与快捷键监听在 ConsoleShell） */
   onOpenSearch?: () => void;
 }) {
   const [dropOpen, setDropOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
+  const accountRef = useRef<HTMLDivElement>(null);
+  // 2026-09-19 用户裁定：左上角从「REPOMESH」改为**当前项目名**并承载项目切换；
+  // 账号管理（切换账号/退出登录）移到左下角账号块。两处各自点外关闭。
+  useEffect(() => {
+    if (!accountOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (!accountRef.current?.contains(e.target as Node)) setAccountOpen(false);
+    };
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, [accountOpen]);
   useEffect(() => {
     if (!dropOpen) return;
     const onDocClick = (e: MouseEvent) => {
@@ -109,6 +144,7 @@ export function SidebarV2({
   }, [dropOpen]);
 
   const initial = (account.display_name || account.username).slice(0, 1);
+  const activeProject = (projects ?? []).find((item) => item.id === activeProjectId) ?? null;
 
   const countOf = (key: NavKey): number | null =>
     key === "issues" ? issueCount : key === "reviews" ? reviewCount : null;
@@ -155,7 +191,7 @@ export function SidebarV2({
     >
       <div ref={dropRef} className="relative">
         <button
-          title={collapsed ? "REPOMESH · 工作区" : undefined}
+          title={collapsed ? (activeProject?.name ?? "选择项目") : undefined}
           className={`flex w-full items-center rounded-[8px] px-1.5 py-1.5 text-left transition-colors hover:bg-side-active/50 ${
             collapsed ? "justify-center px-0" : "gap-2.5"
           }`}
@@ -165,12 +201,12 @@ export function SidebarV2({
           }}
         >
           <span className="grid size-[32px] flex-none place-items-center rounded-[6px] bg-chalk font-mono text-[14px] font-semibold text-on-chalk">
-            R
+            {(activeProject?.name ?? "R").slice(0, 1).toUpperCase()}
           </span>
           {!collapsed && (
             <span className="min-w-0 flex-1">
-              <span className="block font-mono text-[12.5px] font-medium leading-none tracking-[0.14em] text-tx">
-                REPOMESH
+              <span className="block truncate text-[12.5px] font-medium leading-none text-tx">
+                {activeProject?.name ?? "选择项目"}
               </span>
             </span>
           )}
@@ -184,28 +220,35 @@ export function SidebarV2({
         </button>
 
         {dropOpen && (
-          <div className="absolute top-[52px] left-0 z-20 w-[218px] rounded-[8px] border border-line bg-side-panel py-1 shadow-float">
-            <div className="flex items-center gap-2.5 px-2.5 pt-1 pb-2.5">
-              <span className="grid size-[30px] flex-none place-items-center rounded-full bg-chip text-[12px] font-extrabold text-cream">
-                {initial}
-              </span>
-              <div className="min-w-0">
-                <div className="truncate text-[12.5px] text-tx">{account.display_name || account.username}</div>
-                <div className="truncate font-mono text-[10.5px] text-tx2">
-                  {account.username}
-                  {account.is_admin ? " · ADMIN" : ""}
-                </div>
-              </div>
+          <div className="absolute top-[52px] left-0 z-20 w-[236px] rounded-[8px] border border-line bg-side-panel py-1 shadow-float">
+            <div className="px-2.5 pt-1 pb-1.5 text-[10.5px] tracking-[0.1em] text-tx3">切换项目</div>
+            <div className="max-h-[240px] overflow-y-auto">
+              {projects === null && <div className="px-2.5 py-2 text-[12px] text-tx3">正在读取项目…</div>}
+              {projects !== null && projects.length === 0 && (
+                <div className="px-2.5 py-2 text-[12px] text-tx3">还没有项目，点下面「管理 / 新建项目」。</div>
+              )}
+              {(projects ?? []).map((item) => (
+                <button
+                  key={item.id}
+                  className="flex w-full items-center gap-2 px-2.5 py-[6px] text-left text-[12.5px] text-tx hover:bg-amber/10"
+                  onClick={() => {
+                    setDropOpen(false);
+                    onSelectProject(item.id);
+                  }}
+                >
+                  <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                  {item.id === activeProjectId && <span className="flex-none text-amber-hi">✓</span>}
+                </button>
+              ))}
             </div>
-
-                        <button
-              className="flex w-full items-center gap-2 border-t border-line px-2.5 pt-2 pb-1 text-left text-[12.5px] text-salmon hover:bg-salmon/10"
+            <button
+              className="flex w-full items-center gap-2 border-t border-line px-2.5 pt-2 pb-1 text-left text-[12.5px] text-tx2 hover:bg-amber/10 hover:text-cream"
               onClick={() => {
                 setDropOpen(false);
-                onLogout();
+                onManageProjects();
               }}
             >
-              退出登录
+              管理 / 新建项目
             </button>
           </div>
         )}
@@ -258,19 +301,64 @@ export function SidebarV2({
         {NAV_BOTTOM.map((key) => (
           <NavButton key={key} item={key} />
         ))}
-        <div className={`flex items-center gap-2 px-2 py-1.5 ${collapsed ? "flex-col px-0" : ""}`}>
-          <span
-            className="grid size-7 flex-none place-items-center rounded-full bg-chip text-[12px] font-extrabold text-cream"
+        {/* 账号块（2026-09-19 用户裁定）：账号管理归这里——切换账号 / 退出登录。
+            项目切换在左上角，两处不再混在一个下拉里。 */}
+        <div ref={accountRef} className="relative">
+          <button
             title={collapsed ? account.display_name || account.username : undefined}
+            className={`flex w-full items-center gap-2 rounded-[8px] px-2 py-1.5 text-left transition-colors hover:bg-side-active/50 ${
+              collapsed ? "flex-col justify-center px-0" : ""
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setAccountOpen((v) => !v);
+            }}
           >
-            {initial}
-          </span>
-          {!collapsed && (
-            <div className="min-w-0">
-              <b className="block truncate text-[12px] text-tx">{account.display_name || account.username}</b>
-              <small className="block truncate text-[10.5px] text-tx2">
-                {account.is_admin ? "管理员" : "本地账户"}
-              </small>
+            <span className="grid size-7 flex-none place-items-center rounded-full bg-chip text-[12px] font-extrabold text-cream">
+              {initial}
+            </span>
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <b className="block truncate text-[12px] text-tx">{account.display_name || account.username}</b>
+                <small className="block truncate text-[10.5px] text-tx2">
+                  {account.is_admin ? "管理员" : "本地账户"}
+                </small>
+              </div>
+            )}
+          </button>
+
+          {accountOpen && (
+            <div className="absolute bottom-[46px] left-0 z-20 w-[218px] rounded-[8px] border border-line bg-side-panel py-1 shadow-float">
+              <div className="flex items-center gap-2.5 px-2.5 pt-1 pb-2.5">
+                <span className="grid size-[30px] flex-none place-items-center rounded-full bg-chip text-[12px] font-extrabold text-cream">
+                  {initial}
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate text-[12.5px] text-tx">{account.display_name || account.username}</div>
+                  <div className="truncate font-mono text-[10.5px] text-tx2">
+                    {account.username}
+                    {account.is_admin ? " · ADMIN" : ""}
+                  </div>
+                </div>
+              </div>
+              <button
+                className="flex w-full items-center gap-2 border-t border-line px-2.5 pt-2 text-left text-[12.5px] text-tx2 hover:bg-amber/10 hover:text-cream"
+                onClick={() => {
+                  setAccountOpen(false);
+                  onSwitchAccount();
+                }}
+              >
+                切换账号
+              </button>
+              <button
+                className="flex w-full items-center gap-2 border-t border-line px-2.5 pt-2 pb-1 text-left text-[12.5px] text-salmon hover:bg-salmon/10"
+                onClick={() => {
+                  setAccountOpen(false);
+                  onLogout();
+                }}
+              >
+                退出登录
+              </button>
             </div>
           )}
         </div>

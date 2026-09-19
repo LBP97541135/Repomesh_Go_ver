@@ -165,7 +165,13 @@ export function WorkbenchPage({
   const [principal, setPrincipal] = useState<GovernanceAgent | null>(null);
   const principalOrgKey = detail?.organization_id ?? null;
   useEffect(() => {
-    if (isNew || principalOrgKey === null) return;
+    // 2026-09-19 修正：此前 `principalOrgKey === null` 时直接返回，导致 issue 没有
+    // organization_id 时治理主体永远解析不出来——而驱动器要求 principal 非空，
+    // 于是「处理员自动推进」整条链一次都不开火（建完 issue 后永远停在①等待前序，
+    // 库里连 issue_discoveries 行都不会有）。resolveGovernanceAgent 本身**就是**
+    // 按可空设计的（其注释：issue 的 organization_id 可能为 null，那时不加组织筛选），
+    // 所以这里只需挡住 isNew，把 null 原样交给它。
+    if (isNew) return;
     let cancelled = false;
     resolveGovernanceAgent(principalOrgKey)
       .then((agent) => !cancelled && setPrincipal(agent))

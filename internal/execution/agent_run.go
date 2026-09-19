@@ -139,11 +139,15 @@ func (s *Service) ClaimAgentLaunch(ctx context.Context, workerID string) (AgentR
 	}
 	defer rollback(tx)
 	var runID, attemptID, kind, command, workspace, packageRef string
+	// 双派工后同一 attempt 上挂着开发 run 与 test_agent run，二者在同一事务插入，
+	// created_at（now() = 事务开始时刻）完全相同，只按 created_at 排序时先后是不确定的
+	// ——测试可能在开发产出之前就被认领。加 (agent_kind='test_agent') 作 tiebreaker：
+	// 同一时间戳内开发 run 恒排在测试 run 之前，跨 attempt 仍按插入顺序。
 	err = tx.QueryRow(ctx, `SELECT r.id, r.attempt_id, r.agent_kind, r.command, r.workspace, r.task_package_ref
 		FROM repomesh_execution.agent_runs r
 		JOIN repomesh_execution.attempts a ON a.id = r.attempt_id
 		WHERE a.worker_id=$1 AND r.state='pending' AND a.state IN ('launch_verified','running')
-		ORDER BY r.created_at LIMIT 1 FOR UPDATE OF r`, workerID).
+		ORDER BY r.created_at, (r.agent_kind = 'test_agent') LIMIT 1 FOR UPDATE OF r`, workerID).
 		Scan(&runID, &attemptID, &kind, &command, &workspace, &packageRef)
 	if err != nil {
 		if err.Error() == "no rows in result set" {

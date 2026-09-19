@@ -3,6 +3,7 @@ import { listRepositories, type RepositoryCard } from "../api/repositories";
 import { gridSourceMode } from "../api/grid";
 import { dayLabel, errText } from "../display";
 import { AddRepositoryCard } from "../components/AddRepositoryCard";
+import { ProvisionTeamModal } from "../components/ProvisionTeamModal";
 
 import { ErrorPanel, LoadingLine } from "../components/StatusBlocks";
 
@@ -30,7 +31,7 @@ function orgScanUrl(url: string, org: string): string | null {
   }
 }
 
-function RepositoryCardView({ repo }: { repo: RepositoryCard }) {
+function RepositoryCardView({ repo, onProvision }: { repo: RepositoryCard; onProvision: () => void }) {
   return (
     <div className="rounded-hard border border-line bg-panel px-4 py-3">
       <div className="flex items-baseline gap-3">
@@ -60,6 +61,17 @@ function RepositoryCardView({ repo }: { repo: RepositoryCard }) {
       <div className="mt-1 text-[11px] text-tx3">
         {repo.profiledAt ? `画像 ${dayLabel(repo.profiledAt)}` : "尚未画像"}
         {repo.fingerprint ? ` · 指纹 ${repo.fingerprint.slice(0, 8)}` : ""}
+        {/* 2026-09-19：建团入口接回。此前 ProvisionTeamModal 无人引用（死代码），
+            所以仓库页既看不到建团入口、agent_teams 也恒为 0 行。 */}
+        <button
+          className="ml-2 rounded-hard border border-line px-2 py-[2px] text-[11px] text-tx2 hover:border-amber hover:text-amber-hi"
+          onClick={(event) => {
+            event.stopPropagation();
+            onProvision();
+          }}
+        >
+          建团
+        </button>
       </div>
     </div>
   );
@@ -85,6 +97,8 @@ export function RepositoriesPage({
   onOpenIssue?: (issueId: string) => void;
 }) {
   const [repos, setRepos] = useState<RepositoryCard[] | null>(null);
+  const [provisionTarget, setProvisionTarget] = useState<RepositoryCard | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
@@ -215,7 +229,7 @@ export function RepositoriesPage({
                 {!isCollapsed && (
                   <div className="mt-1.5 grid gap-2 pl-4">
                     {rs.map((repo) => (
-                      <RepositoryCardView key={repo.id} repo={repo} />
+                      <RepositoryCardView key={repo.id} repo={repo} onProvision={() => setProvisionTarget(repo)} />
                     ))}
                   </div>
                 )}
@@ -229,6 +243,27 @@ export function RepositoriesPage({
         圈定提交会同时落一条「范围确认」决策单(历史决策页可见)。
         
       </p>
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 z-30 -translate-x-1/2 rounded-hard border border-line bg-panel px-4 py-2 text-[12.5px] text-tx shadow-float">
+          {toast}
+        </div>
+      )}
+
+      {provisionTarget && (
+        <ProvisionTeamModal
+          open
+          repositoryId={provisionTarget.id}
+          repositoryName={provisionTarget.name}
+          organizationId=""
+          onClose={() => setProvisionTarget(null)}
+          onProvisioned={() => {
+            setToast("已提交建团，正在刷新仓库目录…");
+            setReload((n) => n + 1);
+          }}
+          onToast={setToast}
+        />
+      )}
     </div>
   );
 }

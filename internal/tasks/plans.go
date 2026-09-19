@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -127,6 +128,40 @@ func DiffRepositories(oldBatches, newBatches [][]string) (added, removed []strin
 const planColumns = `id, project_id::text, plan_version, requirement_text,
   COALESCE(requirement_key, ''), replan_state, execution_batches, task_dag`
 
+// decodePlanDAG 容忍 task_dag 的两种 as-built 形状（2026-09-19 修）：
+//
+//  1. 简单邻接表 {"1": ["2","3"], …}          ← PlanWrite 写入的形状
+//  2. 富描述     {"dag":{"nodes":[{repository,task_count}],"edges":[]},
+//     "by_agent_id":…,"generated_at":…,"repositories":[…]}  ← 物化写入的形状
+//
+// 旧代码把两种都按 1) 解，遇到 2) 就 `cannot unmarshal object into Go value of
+// type []string` 整条失败——GET /plans/{id}/tasks 因此每 60 秒报一次 503。
+// 这里两种都收：**富形状没有邻接语义，DAG 留空**（绝不从 nodes 反推依赖，那是编造）。
+func decodePlanDAG(raw []byte) (map[string][]string, error) {
+	if len(raw) == 0 {
+		return map[string][]string{}, nil
+	}
+	var probe map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &probe); err != nil {
+		return nil, fmt.Errorf("decode json: %w", err)
+	}
+	if _, isRich := probe["dag"]; isRich {
+		return map[string][]string{}, nil
+	}
+	if _, isRich := probe["by_agent_id"]; isRich {
+		return map[string][]string{}, nil
+	}
+	out := map[string][]string{}
+	for key, value := range probe {
+		var deps []string
+		if err := json.Unmarshal(value, &deps); err != nil {
+			continue // 逐键跳过：单个键形状怪不该让整条计划读不出来
+		}
+		out[key] = deps
+	}
+	return out, nil
+}
+
 func scanPlan(row pgx.Row) (ExecutionPlan, error) {
 	var (
 		p            ExecutionPlan
@@ -140,9 +175,11 @@ func scanPlan(row pgx.Row) (ExecutionPlan, error) {
 	if err := jsonUnmarshalInto(batches, &p.Batches); err != nil {
 		return ExecutionPlan{}, err
 	}
-	if err := jsonUnmarshalInto(dag, &p.DAG); err != nil {
+	decodedDAG, err := decodePlanDAG(dag)
+	if err != nil {
 		return ExecutionPlan{}, err
 	}
+	p.DAG = decodedDAG
 	if p.DAG == nil {
 		p.DAG = map[string][]string{}
 	}

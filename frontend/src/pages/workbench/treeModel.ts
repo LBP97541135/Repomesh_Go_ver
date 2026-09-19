@@ -63,7 +63,15 @@ export function deriveStepStates(d: DiscoveryView | null): StepState[] {
               : "wait"
           : "wait";
   // ④ 生成计划（物化在场也算——计划的 artifact 已消费）
-  const planned = d.plan !== null || d.materialization !== null;
+  //
+  // 2026-09-19 修正（用户实测："怎么先完成了 1 和 4"）：旧代码读 `d.plan`，而
+  // 后端 `State.View()` **根本不返回 plan 字段**（只有 analysis / candidates /
+  // classification / approval / integration / materialization）。于是 `d.plan`
+  // 恒为 undefined、`undefined !== null` 恒为 true → **planned 恒真 → ④ 永远
+  // "已完成"、⑤ 永远"待人审"**，与真实进度无关。
+  // 改按后端自己的口径：`deriveStep` 只在 plan 或 materialization 在场时返回
+  // (4,"done")，所以「step===4 且 step_state==="done"」才是计划已生成。
+  const planned = d.step === 4 && d.step_state === "done";
   states[3] = planned
     ? "done"
     : states[2] === "done"

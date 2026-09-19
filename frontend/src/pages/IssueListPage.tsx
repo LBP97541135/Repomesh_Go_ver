@@ -71,7 +71,10 @@ function IssueRow({
           </span>
         )}
         <span className={`mt-0.5 flex-none rounded-hard border px-2 py-px text-[11px] ${skin.badge}`}>
-          {item.phase_note}
+          {/* 2026-09-19 用户裁定（"plan 换成版本号"）：徽标显示计划版本号
+              （plans.plan_version，如 v1）；还没生成计划时回落到阶段说明，
+              不显示空白徽标。皮肤仍按 phase 取色，版本号只改文字。 */}
+          {item.plan_version || item.phase_note}
         </span>
       </button>
 

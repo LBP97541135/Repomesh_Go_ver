@@ -74,6 +74,9 @@ export interface IssueListItemView {
   pending_planning: boolean;
   repository_count: number;
   team_count: number;
+  /** 计划版本号（plans.plan_version，如 "v1"）；空串 = 还没生成计划。
+   *  2026-09-19 用户裁定：列表的阶段列显示它（"plan 换成版本号"）。 */
+  plan_version: string;
   /** §2.1：paused **不影响** state，前端以独立徽标呈现 */
   operational_status: "active" | "paused" | "cancelled" | null;
   execution_mode: "auto" | "supervised" | "manual_controlled" | null;

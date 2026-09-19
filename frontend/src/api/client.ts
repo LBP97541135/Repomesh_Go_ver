@@ -137,6 +137,49 @@ async function request<T>(config: ApiClientConfig, method: string, path: string,
 /** 环境默认配置的 client：同源（Vite 代理或 Go 服务托管）。各数据源模块共用
  *  这一处。认证走会话 cookie——先经 api/auth.ts 的 fetchSession 登录并注入
  *  CSRF 令牌，写请求才会带上 X-CSRF-Token。 */
+/** Go `GET /api/projects/{id}/issues` 的响应（as-built；2026-09-19 方案 A 起含派生字段）。 */
+interface GoIssuePage {
+  items?: Array<Record<string, unknown>>;
+  nextCursor?: string | null;
+  openCount?: number;
+  closedCount?: number;
+}
+
+/** Go 列表行 → 控制台读模型（2026-09-19 方案 A）。
+ *
+ *  两种读模型不同源：Go 是薄行（id/number/title/repositoryIds/createdAt/revision
+ *  + 本次补的派生字段），控制台是对着旧 Python 读模型写的（issue_id/phase/
+ *  round_count/…）。能对上的逐项映射；Go 尚未产出的（phase_note、
+ *  pending_decision_count…）**如实留空，绝不编造**——后端补齐后本函数无需再改。 */
+function toIssueListItemView(row: Record<string, unknown>): IssueListResponse["issues"][number] {
+  const repositoryIds = Array.isArray(row.repositoryIds) ? (row.repositoryIds as string[]) : [];
+  const number = typeof row.number === "number" ? row.number : null;
+  return {
+    ...row,
+    issue_id: String(row.id ?? ""),
+    issue_key: (row.issueKey as string | null) ?? (number !== null ? `#${number}` : null),
+    organization_id: (row.organizationId as string | null) ?? null,
+    title: String(row.title ?? ""),
+    requirement_text: (row.requirementText as string | null) ?? null,
+    document_filename: null,
+    state: (row.state as "open" | "closed") ?? "open",
+    phase: (row.phase as IssueListResponse["issues"][number]["phase"]) ?? "contract",
+    phase_note: (row.phaseNote as string) ?? "",
+    round_count: Number(row.roundCount ?? 0),
+    active_round_id: null,
+    latest_round_id: null,
+    pending_decision_count: 0,
+    pending_planning: Boolean(row.pendingPlanning ?? false),
+    repository_count: Number(row.repositoryCount ?? repositoryIds.length),
+    team_count: Number(row.teamCount ?? repositoryIds.length),
+    plan_version: String(row.planVersion ?? ""),
+    // 列表副标题「更新于 X」：Go 行里只有 createdAt（没有 updated_at），
+    // 此前没映射 → 界面显示「更新于 —」。有 updatedAt 就用它，否则退回 createdAt，
+    // 都是真实时间戳，不编造。
+    updated_at: String(row.updatedAt ?? row.createdAt ?? ""),
+  } as unknown as IssueListResponse["issues"][number];
+}
+
 export function defaultClient() {
   return createApiClient({
     baseUrl: import.meta.env.VITE_API_BASE ?? "",
@@ -149,7 +192,7 @@ export function createApiClient(config: ApiClientConfig) {
      *  cursor/limit 语义同 §4.1 events。 */
     /** 项目作用域（对齐总文档 4.x / B06 实现）：issue 列表挂在项目下。
      *  projectId 必填——47 表模型里 issue 永远属于一个项目。 */
-    listIssues: (opts: {
+    listIssues: async (opts: {
       projectId: string;
       state?: "open" | "closed" | "all";
       organizationId?: string;
@@ -165,11 +208,20 @@ export function createApiClient(config: ApiClientConfig) {
       if (opts?.limit !== undefined) params.set("limit", String(opts.limit));
       if (opts?.includeArchived) params.set("include_archived", "true");
       const q = params.toString();
-      return request<IssueListResponse>(
+      // 2026-09-19 方案 A：此前把 Go 响应直接按 IssueListResponse 断言，而 Go 返回的是
+      // {items,nextCursor} → 前端读 issues.issues 得 undefined → 界面「issues 0 条」
+      // 而接口明明有数据（实测 1319 字节）。这里显式归一。
+      const raw = await request<GoIssuePage>(
         config,
         "GET",
         `/projects/${encodeURIComponent(opts.projectId)}/issues${q ? `?${q}` : ""}`,
       );
+      return {
+        issues: (raw.items ?? []).map(toIssueListItemView),
+        open_count: raw.openCount ?? 0,
+        closed_count: raw.closedCount ?? 0,
+        next_cursor: raw.nextCursor ?? null,
+      };
     },
 
     /** v0.5 §1：归档 issue（墓碑，不是删除；重复调用幂等返回同一 archived_at）。
@@ -301,11 +353,15 @@ export function createApiClient(config: ApiClientConfig) {
     /** A-1：**202** + 任务对象（不是结果），进度靠 `getScanTask` 轮询。
      *  能提前拒的（本地路径 / allowlist 外 host）仍在 202 之前以 400 拒掉。 */
     scanOrganization: (payload: ConsoleOrgScanRequest) =>
-      request<ScanTaskView>(config, "POST", `/console/repositories/scan-org`, payload),
+      // 2026-09-19：原本打 `/console/repositories/scan-org`——Go 从未实现那条路径
+      //（console 面只有 GET /api/console/repositories）。scan 能力在 Go 侧就是
+      // `/api/scan-jobs`（POST 建任务 / GET 轮询，scan 块已实现且仓库页已在用），
+      // 所以这里重指向它，不再留一条打不通的死路径。
+      request<ScanTaskView>(config, "POST", `/scan-jobs`, payload),
 
     /** A-1：同上，单仓面。组织 URL 发到这里 → 400（服务端复核徽标判定，不轻信）。 */
     scanRepository: (payload: ConsoleRepoScanRequest) =>
-      request<ScanTaskView>(config, "POST", `/console/repositories/scan-repo`, payload),
+      request<ScanTaskView>(config, "POST", `/scan-jobs`, payload),
 
     /** A-2：轮询进度。**404 = 任务状态随进程重启丢失**（端点 detail 自述），
      *  不是坏 id，调用方据此提示「重扫安全」而不是「找不到该任务」。 */
@@ -313,7 +369,7 @@ export function createApiClient(config: ApiClientConfig) {
       request<ScanTaskView>(
         config,
         "GET",
-        `/console/repositories/scan-tasks/${encodeURIComponent(taskId)}`,
+        `/scan-jobs/${encodeURIComponent(taskId)}`,
       ),
 
     /* ── 契约 v0.4 发现链（批次 B）───────────────────────────────────────── */

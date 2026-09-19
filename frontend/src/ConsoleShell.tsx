@@ -18,6 +18,11 @@ import { ObserveLogs } from "./pages/observe/ObserveLogs";
 import { ObserveTrace } from "./pages/observe/ObserveTrace";
 import { ObserveUsage } from "./pages/observe/ObserveUsage";
 import { RepositoriesPage } from "./pages/RepositoriesPage";
+import { ProjectSelectPage } from "./pages/ProjectSelectPage";
+import { SkillsPage } from "./pages/SkillsPage";
+import { ModelProvidersPage } from "./pages/ModelProvidersPage";
+import { readActiveProject, setActiveProject } from "./api/activeProject";
+import { listProjects, type ProjectListItem } from "./api/projects";
 import { ReviewDeskPage } from "./pages/ReviewDeskPage";
 import { RoomViewContainer } from "./pages/RoomViewContainer";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -215,6 +220,17 @@ export default function ConsoleShell() {
     setRoute({ nav: "issues", issueId, roomId: null, observeSection: null, settingsSection: null });
   };
 
+  // 主界面流程（2026-09-19 用户裁定）：登录后若还没选过项目，先落到「项目」页。
+  // issue 必须挂在项目上、由该项目的团队处理，所以「建立/选择项目」是进 issues
+  // 工作台之前的必经一步，不能像旧行为那样由前端盲取列表第一项。
+  useEffect(() => {
+    if (authState !== "authenticated") return;
+    if (readActiveProject() !== null) return;
+    const hash = window.location.hash;
+    if (hash !== "" && hash !== "#/" && hash !== "#/issues" && hash !== "#/issues/new") return;
+    navigate("projects");
+  }, [authState]);
+
   /** 新建 issue = 主页对话框：#/issues/new 就是「空流 + 可用输入框」的新会话态，
    *  发送即建 issue 并进入其对话视图（原 NewIssueModal 弹窗已按用户裁决退役）。 */
   const openNewSession = () => {
@@ -288,6 +304,39 @@ export default function ConsoleShell() {
       });
   };
 
+  /** 切换账号：直接打 /api/auth/github/switch（不必先登出）。
+   *  后端允许带活跃会话发起，回调成功后会作废本浏览器绑定上的旧会话再种新会话，
+   *  所以这里只需整页跳转 GitHub 授权；失败（如 CSRF 过期）时回落到登录页。 */
+  const handleSwitchAccount = () => {
+    authApi.switchGithubAccount().catch((err: unknown) => {
+      showToast(`切换账号失败：${errText(err)}`);
+    });
+  };
+
+  // ── 左上角项目切换器（2026-09-19 用户裁定）──
+  // 左上角从「REPOMESH」改为当前项目名并承载项目切换；账号管理在左下角。
+  // 切换项目后所有按项目取数的面（issue 列表、工作台）都要重取，所以顺手
+  // 递增 issuesReload 并回到 issues 工作台。
+  const [projects, setProjects] = useState<ProjectListItem[] | null>(null);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(() => readActiveProject());
+  useEffect(() => {
+    if (authState !== "authenticated") return;
+    let cancelled = false;
+    listProjects({ limit: 100 })
+      .then((page) => !cancelled && setProjects(page.items))
+      .catch(() => !cancelled && setProjects([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [authState]);
+
+  const handleSelectProject = (projectId: string) => {
+    setActiveProject(projectId);
+    setActiveProjectId(projectId);
+    setIssuesReload((n) => n + 1);
+    navigate("issues");
+  };
+
   if (authState === "checking") {
     return (
       <div className="grid h-screen place-items-center bg-ink">
@@ -352,6 +401,11 @@ export default function ConsoleShell() {
         onNavigate={navigate}
         onNewIssue={openNewSession}
         onLogout={handleLogout}
+        onSwitchAccount={handleSwitchAccount}
+        projects={projects}
+        activeProjectId={activeProjectId}
+        onSelectProject={handleSelectProject}
+        onManageProjects={() => navigate("projects")}
         onOpenSearch={() => setPaletteOpen(true)}
       />
 
@@ -420,9 +474,14 @@ export default function ConsoleShell() {
             onToast={showToast}
           />
         )}
-        {route.nav === "repositories" && (
-          <RepositoriesPage onOpenIssue={openIssue} />
+      {route.nav === "repositories" && (
+        <RepositoriesPage onOpenIssue={openIssue} />
+      )}
+        {route.nav === "projects" && (
+          <ProjectSelectPage onEnterIssues={() => navigate("issues")} />
         )}
+        {route.nav === "skills" && <SkillsPage onToast={showToast} />}
+        {route.nav === "models" && <ModelProvidersPage />}
         {route.nav === "teams" && <TeamsPage onOpenIssue={openIssue} onOpenRoom={openRoom} />}
         {route.nav === "agents" && <AgentsPage onOpenIssue={openIssue} />}
         {route.nav === "observe" &&

@@ -46,6 +46,18 @@ func registerConsoleRoutes(mux *http.ServeMux, auth Auth, consoleAPI Console) {
 		}
 		writeJSON(w, http.StatusOK, result)
 	})
+	// GET /api/setup/status —— 平台就绪检查（2026-09-19 补：前端一直在打，
+	// Go 从未实现 → 404 → ConsoleShell 的 setupReady 恒 false）。
+	// 复用 console 的会话守卫（前端只在登录后调用）。
+	register("GET /api/setup/status", func(w http.ResponseWriter, r *http.Request) {
+		view, err := consoleAPI.Service.SetupStatus(r.Context())
+		if err != nil {
+			writeHumanControlError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, view)
+	})
+
 	register("GET /api/console/agents", func(w http.ResponseWriter, r *http.Request) {
 		result, err := consoleAPI.Service.Agents(r.Context(), withRuntime(r))
 		if err != nil {

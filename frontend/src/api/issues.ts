@@ -6,6 +6,7 @@
 import type { IssueListResponse, ParsedDocumentView } from "./contract";
 import { defaultClient } from "./client";
 import { createIssueCreation, creationOptions } from "./projectIssues";
+import { readActiveProject } from "./activeProject";
 
 /** 标题 = 需求首个非空行,截 200(契约 §3 title 上限)。 */
 function firstLine(text: string): string {
@@ -27,7 +28,13 @@ export async function resolveProjectId(): Promise<string | null> {
   const res = await fetch("/api/projects", { credentials: "same-origin" });
   if (!res.ok) return null;
   const body = (await res.json()) as { items?: Array<{ id?: string }> };
-  return body.items?.[0]?.id ?? null;
+  const items = body.items ?? [];
+  // 主界面流程（2026-09-19 裁定）：用户在「项目」页显式选过就以它为准——issue
+  // 必须挂在他选的项目上，项目自带团队、issue 由该团队处理。只有从未选过才回落
+  // 到列表第一项（旧行为，保留给未走项目页的老入口）。
+  const active = readActiveProject();
+  if (active !== null && items.some((item) => item.id === active)) return active;
+  return items[0]?.id ?? null;
 }
 
 export interface IssuesQuery {

@@ -16,6 +16,10 @@ import (
 // so the feature can be switched back on.
 func (s *Service) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/skills/versions", s.guarded(s.handleListVersions))
+	// 2026-09-19：补上"列出全部技能目录"。此前只有 /skills/versions 且**必须带
+	// ?skill=<name> 或 ?skill_id=<id>**，于是控制台无法枚举那 15 个种子技能——
+	// 技能管理页第一屏因此没有数据源。Store.ListSkills 早已存在，这里只是把它暴露出来。
+	mux.HandleFunc("GET /api/skills", s.guarded(s.handleListSkills))
 	mux.HandleFunc("POST /api/skills", s.guarded(s.handleRegisterSkill))
 	mux.HandleFunc("POST /api/skills/versions", s.guarded(s.handleRegisterVersion))
 	mux.HandleFunc("POST /api/skills/versions/{id}/evaluate", s.guarded(s.handleEvaluate))
@@ -109,6 +113,23 @@ func decodeBody(w http.ResponseWriter, r *http.Request, into any) bool {
 		return false
 	}
 	return true
+}
+
+// handleListSkills 列出技能目录（全部技能，不分版本）。控制台技能管理页的
+// 第一屏数据源；版本明细再按 skill_id 调 /api/skills/versions。
+func (s *Service) handleListSkills(w http.ResponseWriter, r *http.Request) {
+	if !s.requireEnabled(w, r) {
+		return
+	}
+	skills, err := s.Store.ListSkills(r.Context())
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	if skills == nil {
+		skills = []Skill{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"skills": skills})
 }
 
 func (s *Service) handleListVersions(w http.ResponseWriter, r *http.Request) {
