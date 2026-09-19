@@ -31,6 +31,7 @@ import { allProjectRepositories } from "../../api/projects";
 import { allCreationOptions, type CreationOptions } from "../../api/projectIssues";
 import { selectCandidates, supplementCheck, confirmSupplements } from "../../api/discoverySelection";
 import { Modal } from "../../components/Modal";
+import { subscribeEvents } from "../../api/events";
 import { autoTrigger } from "./autoTrigger";
 import { useIssueFlowState } from "./useIssueFlowState";
 import { PlanDagCapsule } from "../../components/PlanDagCapsule";
@@ -148,7 +149,7 @@ export function WorkbenchPage({
     return () => window.clearInterval(timer);
   }, [isNew]);
 
-  // ── 发现链读投影（树的数据源）：快拍 + 2.5s 轮询 ──
+  // ── 发现链读投影（树的数据源）：SSE 主通道 + 首拍，5s 大轮询兜底 ──
   const [discovery, setDiscovery] = useState<DiscoveryView | null>(null);
   const discoveryIssueKey = detail?.issue_id ?? null;
   useEffect(() => {
@@ -158,18 +159,35 @@ export function WorkbenchPage({
     }
     let cancelled = false;
     // 依赖按 issue 标识收敛：detail 每 5s 轮询换新身份，若按对象进依赖，
-    // 计时器会被反复重建、tick 连环补发——树每几秒重取一次就是闪的另一半。
-    const tick = () =>
+    // 订阅会被反复重建——树每几秒重连一次就是闪的另一半。
+    const refresh = () =>
       fetchDiscovery(discoveryIssueKey)
         .then((view) => !cancelled && setDiscovery(view))
         .catch(() => undefined);
-    tick();
-    const timer = window.setInterval(tick, 2500);
+    refresh(); // 首拍：SSE 连上前树上先有数据
+    // SSE 主通道（2026-09-20 并入主线 Phase 4）：discovery_step 事件直接带最新
+    // 读投影；task_status 触发右栏同拍刷新；重连后的 hello 补断线间隙。
+    // 原先的 2.5s 轮询撤除——服务端每 2s 快拍推差量，比轮询更及时也更省。
+    const unsubscribe = subscribeEvents(discoveryIssueKey, {
+      onDiscoveryStep: (view) => {
+        if (!cancelled) setDiscovery(view);
+      },
+      onTaskStatus: () => {
+        if (!cancelled) setReload((n) => n + 1);
+      },
+      onWorkerHealth: () => undefined, // 失败步/疑似中断由观测告警面消费，工作台不弹
+      onHello: () => {
+        if (cancelled) return;
+        setReload((n) => n + 1);
+        refresh();
+      },
+    });
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      unsubscribe();
     };
-  }, [isNew, discoveryIssueKey, reload]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNew, discoveryIssueKey]);
 
   // ── 治理决策主体（人工门与自动推进的「谁在操作」） ──
   // ── 测试团队的记录（task 单点 / DAG 节点集成 / 跨仓库联调回归）──

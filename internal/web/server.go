@@ -101,6 +101,7 @@ func handlerConfigured(assets fs.FS, auth Auth, projectAPI Projects, modelAPI Mo
 	registerAccountDirectory(mux, auth)
 	registerObserveV1(mux, auth, observeV1)
 	registerDiscoveryRoutes(mux, auth, discoveryAPI)
+	registerEventsRoutes(mux, auth, discoveryAPI)
 	registerConsoleRoutes(mux, auth, consoleAPI)
 	registerAgentSettings(mux, auth)
 	registerPipelineRoutes(mux, auth, pipeline)
