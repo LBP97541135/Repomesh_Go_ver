@@ -28,6 +28,9 @@ type ProjectTopologyView struct {
 	RequiredCheckpoints  []string           `json:"required_checkpoints"`
 	HumanGrants          []json.RawMessage  `json:"human_grants"`
 	OperationalStatus    string             `json:"operational_status"`
+	// PolicyFrozen：监管策略是否已随首次物化定死（草稿的 frozen_at）。
+	// 界面据此把「修改」换成只读——定死与否是存储层的事实，不是界面的判断。
+	PolicyFrozen bool `json:"policy_frozen"`
 }
 
 // TopologyTeamView 是拓扑上的一支仓库团队。
@@ -105,9 +108,9 @@ func (s *Service) ProjectTopology(ctx context.Context, projectID string) (Projec
 	// 真实形态就是全自动，这与前端「未设定」那句陈述同源。
 	var mode string
 	var checkpoints, grants []byte
-	err = s.pool.QueryRow(ctx, `SELECT execution_mode, required_checkpoints, human_grants
+	err = s.pool.QueryRow(ctx, `SELECT execution_mode, required_checkpoints, human_grants, frozen_at IS NOT NULL
 		 FROM public.project_policy_drafts WHERE project_id=$1::uuid`, projectID).
-		Scan(&mode, &checkpoints, &grants)
+		Scan(&mode, &checkpoints, &grants, &view.PolicyFrozen)
 	switch {
 	case err == nil:
 		view.ExecutionMode = mode

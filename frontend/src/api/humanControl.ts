@@ -328,6 +328,12 @@ export interface TopologyPolicyDraftView {
   human_grants: HumanProjectGrantView[];
   created_at: string;
   updated_at: string;
+  /** 已随首次物化定死：此后改不动、也撤不掉（后端 frozen_at）。
+   *
+   *  **草稿窗口的开关是这一位，不是「有没有建过团」**：一个项目可能早就被别的需求
+   *  物化过、有过团队，而**从来没有人被问过监管策略** —— 那正是这批迁移要修的洞。
+   *  拿「有团队」当「已定死」，等于把这个洞原样保留。 */
+  frozen: boolean;
 }
 
 /** 读一个需求的监管策略草稿。**`project_id` 就是 `issue_id`**（契约 §0）。

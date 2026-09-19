@@ -84,9 +84,10 @@ export function useIssueFlowState(issueId: string, detail: IssueDetailView | nul
 
   // ── 监管策略草稿（§3.2/§3.4）：与拓扑读面同一个 reload 拍子 ──
   //
-  // 为什么两件事要一起取：草稿卡片**只在拓扑还不存在时**渲染（拓扑一落地，档案
-  // 就锁死了，草稿窗口关闭）。两个取数点各问一次，会在物化那一瞬间给出互相矛盾的
-  // 答案——卡片说「还没设」而档案已经在了。所以卡片态由这里的拓扑态与草稿态合成。
+  // 草稿窗口的开关是**草稿有没有被定死**（后端 frozen_at），不是「这个项目有没有
+  // 建过团」。理由：一个项目可能早就被别的需求物化过、有过团队，而**从来没有人
+  // 被问过监管策略** —— 那正是这批迁移要修的洞；拿「有团队」当「已定死」，等于把
+  // 这个洞原样保留下来。两件事仍在同一拍子取（物化会把草稿定死，两边要同时变）。
   const [policyDraft, setPolicyDraft] = useState<PolicyDraftState>({ kind: "loading" });
   const [policyReload, setPolicyReload] = useState(0);
   const reloadPolicy = useCallback(() => setPolicyReload((n) => n + 1), []);
@@ -227,11 +228,9 @@ export function useIssueFlowState(issueId: string, detail: IssueDetailView | nul
    *
    *  `sealed` / `unknown` 不是错误态，是「这个问题已经不归草稿管了」。 */
   const policyCard: PolicyDraftState =
-    supervision.status === "ready" || supervision.status === "forbidden"
+    policyDraft.kind === "set" && policyDraft.draft.frozen
       ? { kind: "sealed" }
-      : supervision.status === "loading" || supervision.status === "replay"
-        ? { kind: "unknown" }
-        : policyDraft;
+      : policyDraft;
 
   return {
     planState,

@@ -93,6 +93,9 @@ type PolicyDraftView struct {
 	HumanGrants         []PolicyGrant `json:"human_grants"`
 	CreatedAt           time.Time     `json:"created_at"`
 	UpdatedAt           time.Time     `json:"updated_at"`
+	// Frozen = 已随首次物化定死，改不动了。界面据此把「修改」换成只读——
+	// 定死与否是存储层的事实（frozen_at），不是界面的判断。
+	Frozen bool `json:"frozen"`
 }
 
 // PolicyDraftCommand 是整份覆盖写的入参。三个字段都允许缺省
@@ -149,10 +152,10 @@ func (s *Service) PolicyDraft(ctx context.Context, projectID string) (PolicyDraf
 	var view PolicyDraftView
 	var checkpoints, grants []byte
 	err := s.pool.QueryRow(ctx, `SELECT project_id::text, created_by, execution_mode,
-		 required_checkpoints, human_grants, created_at, updated_at
+		 required_checkpoints, human_grants, created_at, updated_at, frozen_at IS NOT NULL
 		 FROM public.project_policy_drafts WHERE project_id=$1::uuid`, projectID).
 		Scan(&view.ProjectID, &view.CreatedBy, &view.ExecutionMode,
-			&checkpoints, &grants, &view.CreatedAt, &view.UpdatedAt)
+			&checkpoints, &grants, &view.CreatedAt, &view.UpdatedAt, &view.Frozen)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PolicyDraftView{}, pgx.ErrNoRows
 	}
