@@ -2,6 +2,8 @@ package discovery
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +16,15 @@ import (
 
 	"repomesh.local/repomesh/internal/decisionchain"
 )
+
+// newRoomID 由 (计划, 仓库, 序号) 确定性派生一个协作房间 id。
+//
+// 确定性是硬要求：物化可能重试，重试必须落回**同一间房** —— 随机 id 会让每次
+// 重试都开一间新房，之前说过的话全丢。前缀 conv_ 与既有会话 id 的约定一致。
+func newRoomID(planID, repository string, index int) string {
+	sum := sha256.Sum256([]byte(planID + "|" + repository + "|" + strconv.Itoa(index)))
+	return "conv_task_" + hex.EncodeToString(sum[:12])
+}
 
 // ---- step 3: plan generation, approval, materialization ----
 
@@ -461,6 +472,17 @@ func (s *Service) Materialize(ctx context.Context, issueID, agentID, idempotency
 	if isUUID(agentID) {
 		createdByAgent = agentID
 	}
+	// 每条任务一个**协作房间**：右栏聊天窗口读的就是它。
+	//
+	// 2026-09-20 实测：tasks.conversation_id 从来没有任何写入方 —— 房间不存在，
+	// 于是右栏永远停在「消息流加载中…」，消息既读不出来也发不进去。房间的创建者
+	// 与内容范围照实取自 issue 行（不编造）。
+	var issueOperationID, issueScopeRevision string
+	if err := tx.QueryRow(ctx, `SELECT creation_operation_id, initial_configuration_revision
+		FROM repomesh_issues.issues WHERE id=$1`, issueID).
+		Scan(&issueOperationID, &issueScopeRevision); err != nil {
+		return nil, err
+	}
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO public.plans
 			(id, project_id, plan_version, requirement_text, specs, task_dag, execution_batches,
@@ -481,6 +503,16 @@ func (s *Service) Materialize(ctx context.Context, issueID, agentID, idempotency
 		title := planTask.Title
 		instruction := planTask.Instruction
 		acceptance := planTask.Acceptance
+		// 房间 id 由 (计划, 仓库, 序号) 确定性派生：物化重试必须落回**同一间房**，
+		// 否则每次重试都开一间新房、把之前说过的话丢掉。
+		conversationID := newRoomID(planID, repo, index)
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO repomesh_issues.conversations
+				(id, project_id, title, created_by_operation_id, title_origin_operation_id, content_scope_revision)
+			 VALUES ($1,$2,$3,$4,$4,$5) ON CONFLICT (id) DO NOTHING`,
+			conversationID, st.ProjectID, title, issueOperationID, issueScopeRevision); err != nil {
+			return nil, err
+		}
 		var taskID string
 		// tasks 真实列（0010/0021）：organization_id/project_id NOT NULL；
 		// idempotency_key 与 task_uid 都用 planID:repo——前者保证重放幂等，
@@ -493,11 +525,11 @@ func (s *Service) Materialize(ctx context.Context, issueID, agentID, idempotency
 		// batch_no 填 1：物化实际做的事就是"下发批次 1"（同一批全部任务），
 		// 这里此前留空，界面上的任务行只能显示「批次—」——而它明明就在批次 1 里。
 		err = tx.QueryRow(ctx,
-			"INSERT INTO public.tasks (id, organization_id, project_id, plan_id, task_uid, repository_id, title, instruction, acceptance, source_ref, idempotency_key, batch_no)"+
-				" VALUES (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9::jsonb, $10, 1)"+
-				" ON CONFLICT (idempotency_key) DO UPDATE SET title = public.tasks.title RETURNING id::text",
+			"INSERT INTO public.tasks (id, organization_id, project_id, plan_id, task_uid, repository_id, title, instruction, acceptance, source_ref, idempotency_key, batch_no, conversation_id)"+
+				" VALUES (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9::jsonb, $10, 1, $11)"+
+				" ON CONFLICT (idempotency_key) DO UPDATE SET title = public.tasks.title, conversation_id = EXCLUDED.conversation_id RETURNING id::text",
 			orgID, st.ProjectID, planID, planID+":"+repo+":"+strconv.Itoa(index), repo, title, instruction, acceptance,
-			fmt.Sprintf(`{"issueId":%q}`, issueID), planID+":"+repo+":"+strconv.Itoa(index)).Scan(&taskID)
+			fmt.Sprintf(`{"issueId":%q}`, issueID), planID+":"+repo+":"+strconv.Itoa(index), conversationID).Scan(&taskID)
 		if err != nil {
 			return nil, err
 		}

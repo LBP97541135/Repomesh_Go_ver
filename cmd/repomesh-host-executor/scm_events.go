@@ -14,7 +14,27 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"repomesh.local/repomesh/internal/execution"
+	"repomesh.local/repomesh/internal/messages"
 )
+
+// recordRoomMessage 把这次 run 的真实结局写进任务的协作房间（右栏聊天窗口读的就是它）。
+//
+// 2026-09-20：房间此前只有真人发言这一个写入口，而 issue 的协作房间里从来没有人
+// 说过话 —— 界面只能永远显示「消息流加载中…」。这里让流水线自己开口：跑成什么样
+// 就说什么样，不加戏。
+func (e *executor) recordRoomMessage(ctx context.Context, taskRef, actorID, body string) {
+	var projectID, conversationID string
+	if err := e.pool.QueryRow(ctx, `SELECT project_id::text, COALESCE(conversation_id,'')
+		FROM public.tasks WHERE id::text=$1`, taskRef).Scan(&projectID, &conversationID); err != nil {
+		return
+	}
+	if projectID == "" || conversationID == "" {
+		return
+	}
+	if err := messages.RecordServiceMessageWithPool(ctx, e.pool, projectID, conversationID, actorID, body); err != nil {
+		fmt.Fprintf(os.Stderr, "executor: record room message failed task=%s err=%v\n", taskRef, err)
+	}
+}
 
 // testEvidence 是测试 agent 写下的证据文件形状（task 单点与节点级集成共用）。
 type testEvidence struct {
@@ -135,12 +155,14 @@ func (e *executor) ensureChangeSet(ctx context.Context, taskID string) string {
 //
 // 观测不到就什么都不记（闸门因此不开）—— 不补假数据。
 func (e *executor) recordDeliveryFacts(ctx context.Context, runID, workspace string) {
-	var agentKind, taskRef string
+	var agentKind, taskRef, runState string
 	var exitCode int
-	if err := e.pool.QueryRow(ctx, `SELECT agent_kind, COALESCE(task_package_ref,''), COALESCE(exit_code,0)
-		FROM repomesh_execution.agent_runs WHERE id=$1`, runID).Scan(&agentKind, &taskRef, &exitCode); err != nil {
+	// killed 不是列，是 state 的派生值（agent_runs 只存 state）。
+	if err := e.pool.QueryRow(ctx, `SELECT agent_kind, COALESCE(task_package_ref,''), COALESCE(exit_code,0), state
+		FROM repomesh_execution.agent_runs WHERE id=$1`, runID).Scan(&agentKind, &taskRef, &exitCode, &runState); err != nil {
 		return
 	}
+	killed := runState == "killed"
 	if taskRef == "" {
 		return
 	}
@@ -167,6 +189,16 @@ func (e *executor) recordDeliveryFacts(ctx context.Context, runID, workspace str
 		// 界面因此显示"还没有记录"，而不是编一个通过。
 		e.recordTestEvidence(ctx, runID, taskRef, workspace, exitCode)
 		return
+	}
+	// 无论有没有 PR，这次开发 run 的结局都该出现在任务的房间里 —— 早先这里在
+	// "没有 PR 链接"时直接 return，于是**失败的那几条任务房间里一句话都没有**，
+	// 人点进去只看到空白的消息流，还以为系统卡住了。
+	if exitCode == 0 && !killed {
+		e.recordRoomMessage(ctx, taskRef, agentKind,
+			"执行者已跑完并把任务交回（exit 0），等待经理确认。")
+	} else {
+		e.recordRoomMessage(ctx, taskRef, agentKind, fmt.Sprintf(
+			"执行未成功（exit=%d，killed=%t）：没有产出可交付的改动。", exitCode, killed))
 	}
 	raw, err := os.ReadFile(filepath.Join(workspace, "agent-stdout.log"))
 	if err != nil {
@@ -234,4 +266,15 @@ func (e *executor) recordTestEvidence(ctx context.Context, runID, taskRef, works
 		evidence.Script, evidence.Command, code, passed, evidence.Summary, runID); err != nil {
 		fmt.Fprintf(os.Stderr, "executor: record test evidence failed run=%s task=%s err=%v\n", runID, taskRef, err)
 	}
+	// 结论也写进任务房间：这是人点进任务最想知道的那句话。
+	verdict := "未过"
+	if passed {
+		verdict = "通过"
+	}
+	summary := strings.TrimSpace(evidence.Summary)
+	if summary == "" {
+		summary = "agent 没有写结论"
+	}
+	e.recordRoomMessage(ctx, taskRef, "test_agent",
+		"单点验收："+verdict+" —— "+summary+"（脚本 "+evidence.Script+"，命令 "+evidence.Command+"）")
 }
