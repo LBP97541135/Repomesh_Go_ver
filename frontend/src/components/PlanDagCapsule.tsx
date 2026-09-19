@@ -82,9 +82,11 @@ export function PlanDagCapsule({
 
       {open && (
         // 设计定稿(2026-09-08):880px 容器是等比缩放的基准,不按节点数缩水。
-        // 锚定改视口右缘(fixed):右对齐胶囊时 880px 会伸出屏幕左缘(x<0)。
+        // 2026-09-18(主线 d2843311/38c45556 移植):锚定改视口正中——DAG 是整张
+        // 方案图,居中读比钉在右上角更像「看一张图」;宽度 72vw→78vw 让 4~5 个
+        // 批次列排得下。阴影维持 shadow-float(主线中间态试过 shadow-pop 又调回)。
         // 面板仍是 wrapRef 的 DOM 子节点,点外收起的 contains 判定不受影响。
-        <div className="fixed right-4 top-[54px] z-30 w-[min(880px,72vw)] rounded-hard border border-line bg-panel text-tx shadow-float">
+        <div className="fixed left-1/2 top-1/2 z-30 w-[min(880px,78vw)] -translate-x-1/2 -translate-y-1/2 rounded-hard border border-line bg-panel text-tx shadow-float">
           <div className="max-h-[min(68vh,560px)] overflow-y-auto p-2">
             <ErrorBoundary block="计划 DAG" resetKey={resetKey}>
               <PlanDagPanel state={state} execution={execution} onRetry={onRetry} />

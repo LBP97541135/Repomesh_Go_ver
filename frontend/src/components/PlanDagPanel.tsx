@@ -1,3 +1,4 @@
+import { Star as IconFocus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { PlanGraphEdgeView, RepositoryPlanView, TaskDisplayStatus } from "../api/contract";
 import type { DagExecutionView } from "../types";
@@ -16,8 +17,15 @@ import { UnverifiedMarker } from "./AgentVerificationBlock";
  *   - **hover 高亮上下游**：悬停节点时它的依赖边与下游边加亮加粗、直连邻居保持，
  *     无关节点与边淡出——多仓依赖关系一眼可读；
  *   - **配色走主题令牌**：白卡 + 发丝线 + 微阴影（浅色即白浮卡观感；深色自动是
- *     深棕面板），「进行中」在浅色下用信息蓝（见 index.css 的
- *     `--color-status-running`，深色维持琥珀不变）。
+ *     深棕面板）。
+ *
+ *  2026-09-18 换皮（照主线 dag-plan-progress.html 原型，主线 fdea94c4 + d2843311）：
+ *   - 节点由 26px 单行胶囊换成 **48px 白卡**（左缘 3px 色条 + 名称/批次两行），
+ *     批次列之间加虚线层分隔，批次标题回到常规字号；
+ *   - 详情仍由 hover 的原生 title 承载（原型提过的点击浮层**主线未落地**，本面不
+ *     自行加）；高亮边改琥珀实线，未选中边改 `--color-line-strong`；
+ *   - 「进行中」由 `--color-status-running` 统一改读 `--color-amber`，浅色下不再
+ *     是信息蓝——与主线逐字同款；两仓的主题色值本来就一致，**不是**本仓特调。
  *
  *  页脚方法论自述（粒度/边来源/锚点/未验证长文/着色来源/投影边界）按用户裁决退役；
  *  连线契约加注（粗线 + hover 接口与约定）保留。
@@ -26,14 +34,16 @@ import { UnverifiedMarker } from "./AgentVerificationBlock";
  *  上色并原样印进 hover；配色全部取 `index.css` 既有令牌，不新增颜色语义。 */
 
 /* ── 泳道几何（单位 px，SVG 与 HTML 覆盖层共用同一套坐标） ───────────────── */
-const NODE_W = 150;
-const NODE_H = 26;
-const COL_GAP = 46; // 列间距要装得下箭头，太窄会让边看起来贴在节点上
-const ROW_GAP = 12;
-const PAD = 12;
-const HEAD_H = 16; // 批次标题行
+/* 2026-09-18 换皮（dag-plan-progress.html 原型同款比例）：
+   大节点白卡 + 左色条 + 虚线层分隔 + 选中高亮边（详情走 hover 原生 title） */
+const NODE_H = 48;
+const NODE_W2 = 200; // 原型 232，面板宽 880 下 4 列用 200 更合适
+const COL_GAP = 56;
+const ROW_GAP = 18;
+const PAD = 28;
+const HEAD_H = 20;
 
-const nodeX = (col: number) => PAD + col * (NODE_W + COL_GAP);
+const nodeX = (col: number) => PAD + col * (NODE_W2 + COL_GAP);
 const nodeY = (row: number) => PAD + HEAD_H + row * (NODE_H + ROW_GAP);
 
 /** 节点的稳定标识＝`name + batch_index`。**不能用 `repository_id`**：契约 §5.4
@@ -62,26 +72,26 @@ interface Placed {
  *  7 态 → 展示 6 态）；本表只把已经给出的 6 个字面值分到皮肤上，不参与任何判定。
  *  Record 收窄到契约枚举：读模型将来多出第 7 个展示态时，这里缺项即编译错误。
  *
- *  分桶（设计定稿 ③）：橄榄 = 已交付 / 进行中 = `--color-status-running`
- *  （深琥珀 · 浅信息蓝，见 index.css）/ 弱灰 = 等待 / 赭红 = 失败。胶囊只上一圈
- *  细描边加一层极浅底色，重心在色点上——满色块在白底上糊成一团。 */
+ *  分桶（设计定稿 ③）：橄榄 = 已交付 / 琥珀 = 进行中 / 弱灰 = 等待 / 赭红 = 失败。
+ *  （2026-09-18 换皮：「进行中」不再单读 `--color-status-running`，与主线统一走
+ *  `--color-amber`，浅色下因此不再是信息蓝——见文件头换皮说明。）
+ *  白卡只在左缘留一条 3px 色条，余下是细描边加一层极浅底色，重心在色条上——
+ *  满色块在白底上糊成一团。 */
 const EXEC_SKIN: Record<TaskDisplayStatus, string> = {
-  succeeded: "border-olive/50 bg-[color-mix(in_oklab,var(--color-olive)_8%,var(--color-panel))]",
-  running:
-    "border-[var(--color-status-running)]/50 bg-[color-mix(in_oklab,var(--color-status-running)_8%,var(--color-panel))]",
-  repairing:
-    "border-[var(--color-status-running)]/50 bg-[color-mix(in_oklab,var(--color-status-running)_8%,var(--color-panel))]",
-  pending: "border-line bg-panel",
-  blocked: "border-line bg-panel",
-  failed: "border-salmon/50 bg-[color-mix(in_oklab,var(--color-salmon)_8%,var(--color-panel))]",
+  succeeded: "border-olive/40 bg-[color-mix(in_oklab,var(--color-olive)_8%,var(--color-panel))]",
+  running: "border-amber/40 bg-amber-well",
+  repairing: "border-amber/40 bg-amber-well",
+  pending: "border-line bg-panel-2",
+  blocked: "border-line bg-panel-2",
+  failed: "border-salmon/40 bg-[color-mix(in_oklab,var(--color-salmon)_6%,white)]",
 };
 
 const STATUS_DOT: Record<TaskDisplayStatus, string> = {
   succeeded: "bg-olive",
-  running: "bg-[var(--color-status-running)]",
-  repairing: "bg-[var(--color-status-running)]",
-  pending: "bg-paper-dim",
-  blocked: "bg-paper-dim",
+  running: "bg-amber",
+  repairing: "bg-amber",
+  pending: "bg-tx3",
+  blocked: "bg-tx3",
   failed: "bg-salmon",
 };
 
@@ -138,11 +148,11 @@ function NodeBox({
       : [];
 
   const skin = unresolved
-    ? "border-dashed border-salmon/70 bg-panel"
+    ? "border-dashed border-salmon/70 bg-white"
     : colored
       ? EXEC_SKIN[status]
       : node.is_focus
-        ? "border-amber/60 bg-[color-mix(in_oklab,var(--color-amber)_10%,var(--color-panel))]"
+        ? "border-amber/50 bg-amber-well"
         : "border-line bg-panel";
 
   const baseTitle = unresolved
@@ -165,32 +175,34 @@ function NodeBox({
 
   return (
     <div
-      className={`absolute flex items-center gap-1.5 overflow-hidden rounded-full border px-2 transition-opacity ${skin} ${
-        dimmed ? "opacity-25" : ""
+      className={`absolute flex items-center overflow-hidden rounded-[9px] border bg-panel transition-opacity ${skin} ${
+        dimmed ? "opacity-45" : ""
       }`}
-      style={{ left: nodeX(placed.col), top: nodeY(placed.row), width: NODE_W, height: NODE_H }}
+      style={{ left: nodeX(placed.col), top: nodeY(placed.row), width: NODE_W2, height: NODE_H }}
       title={title}
       onMouseEnter={() => onHover(nodeKey(node))}
       onMouseLeave={() => onHover(null)}
     >
-      {/* 状态色点：颜色即皮肤，字面值印在后面——读者不必反查配色表 */}
-      {unresolved ? (
-        <span className="size-2 flex-none rounded-full border border-salmon" />
-      ) : colored ? (
-        <span className={`size-2 flex-none rounded-full ${STATUS_DOT[status]}`} />
-      ) : (
-        <span className="size-2 flex-none rounded-full border border-paper-dim/60" />
-      )}
-      <span className={`min-w-0 flex-1 truncate font-mono text-[11px] leading-none font-semibold ${unresolved ? "text-salmon" : "text-tx"}`}>
-        {node.name}
-      </span>
+      {/* 左色条：颜色即状态（原型同款 3px 色条 + 6px 缩进） */}
+      <span
+        className={`h-[36px] w-[3px] flex-none rounded-[1.5px] ${
+          unresolved ? "bg-salmon" : colored ? STATUS_DOT[status] : "bg-tx3"
+        }`}
+        style={{ marginLeft: 0 }}
+      />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5 pl-2.5 pr-2">
+        <span className={`truncate text-[12px] font-semibold leading-tight ${unresolved ? "text-salmon" : "text-[var(--tree-ink)]"}`}>
+          {node.name}
+          {node.is_focus && <IconFocus size={9} className="ml-1 text-amber" />}
+        </span>
+        <span className="truncate font-mono text-[10px] leading-tight text-tx3">
+          {colored ? `${taskCount} 任务 · ${status}` : unresolved ? "未解析" : `批次 ${node.batch_index + 1}${node.is_focus ? " · 锚点" : ""}`}
+        </span>
+      </div>
       {/* A-18：与状态并排、不覆盖它——「跑成了」和「没验证」都是真的 */}
       {unverified > 0 && (
         <UnverifiedMarker compact blockerCount={blockerCount} title={`${unverified} 条任务未验证（agent 自述）`} />
       )}
-      {/* is_focus 只在 id 非 null 时可能为 true，故与「未解析」互斥 */}
-      {node.is_focus && <span className="flex-none font-mono text-[9px] leading-none text-amber">◆</span>}
-      {unresolved && <span className="flex-none font-mono text-[9px] leading-none font-bold text-salmon">未解析</span>}
     </div>
   );
 }
@@ -222,7 +234,7 @@ function DagCanvas({
   }, []);
 
   const { placed, batches, rows } = layout(dag.nodes);
-  const width = PAD * 2 + batches.length * NODE_W + Math.max(0, batches.length - 1) * COL_GAP;
+  const width = PAD * 2 + batches.length * NODE_W2 + Math.max(0, batches.length - 1) * COL_GAP;
   const gridBottom = PAD + HEAD_H + rows * NODE_H + Math.max(0, rows - 1) * ROW_GAP;
 
   /** 边按 `repository_id` 寻址。同一 id 理论上只出现在一个批次里；真出现重复时
@@ -289,12 +301,30 @@ function DagCanvas({
             </marker>
           </defs>
 
+          {/* 层间虚线分隔（原型同款 #eef0f3 dash 4 6） */}
+          {batches.map((_, i) => {
+            if (i === 0) return null;
+            const x = PAD + i * (NODE_W2 + COL_GAP) - COL_GAP / 2;
+            return (
+              <line
+                key={`sep-${i}`}
+                x1={x}
+                y1={14}
+                x2={x}
+                y2={height - 14}
+                stroke="var(--color-line)"
+                strokeWidth={1}
+                strokeDasharray="4 6"
+              />
+            );
+          })}
+
           {resolved.map(({ from, to }) => {
             // 边语义按**仓库名**匹配：graph_edges 两端存的是名字（与
             // execution_batches 同口径），而这里的连线按 id 寻址。名字是两者
             // 唯一的公共键。
             const semantic = semanticsOf(from.node.name, to.node.name);
-            const x1 = nodeX(from.col) + NODE_W;
+            const x1 = nodeX(from.col) + NODE_W2;
             const y1 = nodeY(from.row) + NODE_H / 2;
             const x2 = nodeX(to.col);
             const y2 = nodeY(to.row) + NODE_H / 2;
@@ -314,7 +344,7 @@ function DagCanvas({
             } else {
               // 同列或回指（execution_batches 的语义下不该出现）退化成竖直连线，
               // 不假装它是一条正常的层间边。
-              d = `M ${nodeX(from.col) + NODE_W / 2} ${nodeY(from.row) + NODE_H} L ${nodeX(to.col) + NODE_W / 2} ${nodeY(to.row)}`;
+              d = `M ${nodeX(from.col) + NODE_W2 / 2} ${nodeY(from.row) + NODE_H} L ${nodeX(to.col) + NODE_W2 / 2} ${nodeY(to.row)}`;
             }
             return (
               <path
@@ -323,8 +353,8 @@ function DagCanvas({
                 fill="none"
                 // 带契约的边画实一点：它比一条纯执行顺序依赖多一份约定。
                 // 只用粗细区分，不新增颜色语义。
-                className={lit ? "stroke-tx" : "stroke-tx2/70"}
-                strokeWidth={semantic?.interface ? (lit ? 2.2 : 1.9) : lit ? 1.7 : 1.2}
+                stroke={lit ? "var(--color-amber)" : "var(--color-line-strong)"}
+                strokeWidth={semantic?.interface ? (lit ? 2.2 : 1.9) : lit ? 2 : 1.5}
                 opacity={dim ? 0.18 : 1}
                 markerEnd="url(#plan-dag-arrow)"
               >
@@ -350,8 +380,8 @@ function DagCanvas({
         {batches.map((batch, col) => (
           <div
             key={batch}
-            className="absolute font-mono text-[9px] font-bold tracking-[0.16em] text-tx3 uppercase"
-            style={{ left: nodeX(col), top: PAD - 2, width: NODE_W }}
+            className="absolute text-[11px] text-tx3"
+            style={{ left: nodeX(col), top: PAD - 4, width: NODE_W2 }}
           >
             批次 {batch + 1}
           </div>
@@ -396,10 +426,12 @@ function Legend({ execution }: { execution: DagExecutionView | null }) {
         </>
       ) : (
         <>
-          <span className="font-bold tracking-[0.1em] uppercase">结构</span>
-          {dot("border border-amber/60 bg-[color-mix(in_oklab,var(--color-amber)_10%,var(--color-panel))]", "锚点仓")}
-          {dot("border border-line bg-panel", "计划内仓库")}
-          {dot("border border-dashed border-salmon bg-transparent", "未解析（catalog 无此仓）")}
+          <span className="font-bold tracking-[0.1em] uppercase">计划结构</span>
+          {dot("bg-olive", "已交付")}
+          {dot("bg-amber", "进行中 / 修复中")}
+          {dot("bg-tx3", "等待 / 受阻")}
+          {dot("border border-dashed border-amber bg-amber-well", "锚点仓（可开工）")}
+          {dot("border border-dashed border-salmon bg-transparent", "未解析")}
         </>
       )}
     </div>
