@@ -13,9 +13,13 @@ import (
 
 func newTask(t *testing.T, store *PostgresStore, key string) Task {
 	t.Helper()
-	org, project := newUUIDv4(), newUUIDv4()
+	org, project := seedOrgProject(t, store.pool)
+	plan, err := store.CreatePlan(context.Background(), PlanWrite{ProjectID: project, Batches: [][]string{{"repo-a"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	task, err := store.CreateTask(context.Background(), TaskWrite{
-		OrganizationID: org, ProjectID: project, PlanID: newUUIDv4(),
+		OrganizationID: org, ProjectID: project, PlanID: plan.ID,
 		RepositoryID: "repo-a", Title: "改造网关协议", IdempotencyKey: key,
 	})
 	if err != nil {

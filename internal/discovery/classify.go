@@ -90,6 +90,15 @@ func (s *Service) Classification(ctx context.Context, issueID, agentID, idempote
 		"supplements": []any{}, "conflicts": []any{}, "observations": []any{},
 		"adjustments": []any{}, "ran_at": time.Now().UTC(), "by_agent_id": agentID, "error": nil,
 	}
+	names := []string{}
+	for _, group := range [][]map[string]any{required, maybe, excluded} {
+		for _, entry := range group {
+			names = append(names, entry["repository"].(string))
+		}
+	}
+	if err := validateRepositories(ctx, tx, st, names); err != nil {
+		return nil, err
+	}
 	st.Classification = block
 	version := newEvidenceVersion(issueID, "classification", time.Now().UTC().Format(time.RFC3339Nano))
 	st.EvidenceVersion = &version

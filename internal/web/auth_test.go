@@ -26,7 +26,7 @@ type httpProvider struct{}
 
 func TestUnconfiguredAuthReturnsUnavailable(t *testing.T) {
 	handler := newHandler(fstest.MapFS{"index.html": {Data: []byte("index")}})
-	for _, endpoint := range []struct{ method, path string }{{"GET", "/api/session"}, {"GET", "/api/repositories/candidates"}, {"POST", "/api/auth/github/login"}, {"POST", "/api/auth/github/reconnect"}, {"POST", "/api/auth/logout"}} {
+	for _, endpoint := range []struct{ method, path string }{{"GET", "/api/session"}, {"GET", "/api/repositories"}, {"POST", "/api/auth/github/login"}, {"POST", "/api/auth/github/reconnect"}, {"POST", "/api/auth/logout"}} {
 		request := httptest.NewRequest(endpoint.method, endpoint.path, strings.NewReader("{}"))
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, request)
@@ -160,8 +160,18 @@ func TestPostgresHTTPAuthenticationBoundary(t *testing.T) {
 		t.Fatal("logout accepted wrong CSRF")
 	}
 	response = request("POST", "/api/auth/logout", "{}", "https://repomesh.test", current.CSRFToken, "", session)
-	if response.StatusCode != 204 || len(response.Cookies()) != 0 {
-		t.Fatal("logout changed a browser cookie")
+	if response.StatusCode != 204 {
+		t.Fatalf("logout status=%d", response.StatusCode)
+	}
+	deleted := map[string]bool{}
+	for _, c := range response.Cookies() {
+		if c.Value != "" || c.MaxAge != -1 || c.Path != "/" || !c.Secure || !c.HttpOnly {
+			t.Fatalf("logout did not expire cookie %s securely", c.Name)
+		}
+		deleted[c.Name] = true
+	}
+	if len(response.Cookies()) != 2 || !deleted[sessionCookie] || !deleted[bindingCookie] {
+		t.Fatal("logout must expire both session and binding cookies")
 	}
 	response = request("GET", "/api/session", "", "", "", "", session)
 	if response.StatusCode != 401 {

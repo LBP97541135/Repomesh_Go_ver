@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"repomesh.local/repomesh/internal/access"
+	"repomesh.local/repomesh/internal/projects"
 )
 
 // RepositoryAnalysisCapability reports what the platform can currently do for
@@ -76,8 +77,17 @@ func (s *Service) Options(ctx context.Context, principal access.ProjectPrincipal
 	if err != nil {
 		return CreationOptions{}, err
 	}
-	_ = hasFixed
-	_ = fixedRevision
+	configurationReady := false
+	if hasFixed {
+		checked, checkErr := s.projects.InspectFixedForCreation(ctx, tx, principal, projectID, projects.ConfigurationRevision(fixedRevision), time.Now().UTC())
+		if checkErr != nil {
+			return CreationOptions{}, checkErr
+		}
+		configurationReady = checked.Status == "ready"
+		if !configurationReady {
+			options.BlockingReasons = append(options.BlockingReasons, "CONFIGURATION_NOT_READY")
+		}
+	}
 	repositories, err := readAllProjectRepositories(ctx, tx, projectID)
 	if err != nil {
 		return CreationOptions{}, err
@@ -98,7 +108,8 @@ func (s *Service) Options(ctx context.Context, principal access.ProjectPrincipal
 	if end > len(observed) {
 		end = len(observed)
 	}
-	for _, item := range observed[start:end] {
+	available := 0
+	for index, item := range observed {
 		if item.ParticipationStatus == "unknown" {
 			return CreationOptions{}, failure(503, "AUTHORIZATION_UNCONFIRMED")
 		}
@@ -108,18 +119,60 @@ func (s *Service) Options(ctx context.Context, principal access.ProjectPrincipal
 		entry := CreationRepository{RepositoryID: item.Locator.ID, Selectable: true, Reasons: []string{}}
 		if item.Item != nil {
 			entry.DisplayName = item.Item.DisplayName
+			entry.Selectable = item.Item.AppCapability.Status == "allowed"
+			if !entry.Selectable {
+				entry.Reasons = append(entry.Reasons, item.Item.AppCapability.ReasonCodes...)
+				if len(entry.Reasons) == 0 {
+					entry.Reasons = append(entry.Reasons, "APP_AUTHORIZATION_UNCONFIRMED")
+				}
+			}
+		} else {
+			entry.Selectable = false
+			entry.Reasons = append(entry.Reasons, "AUTHORIZATION_UNCONFIRMED")
+		}
+		if entry.Selectable {
+			available++
 		}
 		if item.ObservedAt != nil {
 			entry.ObservedAt = item.ObservedAt.UTC().Format(time.RFC3339Nano)
 		}
-		options.Repositories = append(options.Repositories, entry)
+		if index >= start && index < end {
+			options.Repositories = append(options.Repositories, entry)
+		}
 	}
 	if end < len(observed) {
 		options.NextCursor = observed[end-1].Locator.ID
 	}
-	options.CanSubmit = len(options.Repositories) > 0
-	if !options.CanSubmit {
-		options.BlockingReasons = []string{"NO_AVAILABLE_REPOSITORIES"}
+	options.CanSubmit = configurationReady && available > 0
+	if available == 0 {
+		options.BlockingReasons = append(options.BlockingReasons, "NO_AVAILABLE_REPOSITORIES")
+	}
+	// Network observations cannot outlive their session or project revision.
+	tx, err = s.beginCreate(ctx)
+	if err != nil {
+		return CreationOptions{}, err
+	}
+	defer rollbackTx(tx)
+	if err = s.authorization.LockProjectPrincipal(ctx, tx, principal); err != nil {
+		return CreationOptions{}, err
+	}
+	current, err := s.projects.LockForConfiguration(ctx, tx, principal, projectID)
+	if err != nil {
+		return CreationOptions{}, err
+	}
+	if current.CreationContextRevision() != options.CreationContextRevision {
+		return CreationOptions{}, failure(409, "CREATION_CONTEXT_CHANGED")
+	}
+	if err = s.authorization.CheckProjectObservation(ctx, tx, principal, observation); err != nil {
+		return CreationOptions{}, err
+	}
+	appReady, err := s.authorization.IssueAppCredentialReady(ctx, tx)
+	if err != nil {
+		return CreationOptions{}, err
+	}
+	if !appReady {
+		options.CanSubmit = false
+		options.BlockingReasons = append(options.BlockingReasons, "APP_AUTHORIZATION_UNCONFIRMED")
 	}
 	return options, nil
 }

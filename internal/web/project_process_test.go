@@ -448,7 +448,7 @@ func seedRestartOperations(t *testing.T, server *browserTestServer, client *http
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		status, _ = request(http.MethodGet, "/api/repositories/candidates?limit=50", "", "", "", "")
+		status, _ = request(http.MethodGet, "/api/repositories?limit=50", "", "", "", "")
 		if status == 200 {
 			break
 		}

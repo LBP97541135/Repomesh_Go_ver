@@ -68,7 +68,7 @@ func TestPostgresImportReplayAndPinnedDefault(t *testing.T) {
 	if _, err := importer.Import(ctx, conflicting); err == nil {
 		t.Fatal("conflicting import accepted")
 	}
-	got, err := importer.Get(ctx, command.value.ImportID)
+	got, err := importer.Get(ctx, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
 	if err != nil || got.ImportID != first.Receipt.ImportID {
 		t.Fatalf("get: %+v %v", got, err)
 	}

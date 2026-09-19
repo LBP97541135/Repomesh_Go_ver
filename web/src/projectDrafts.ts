@@ -57,7 +57,6 @@ export function createInput(draft: CreateDraft, now: number): DraftValidation<Pr
   const current = expireSelection(draft.selection, now);
   const repositoryIds = ids(current);
   if (repositoryIds === null) return { kind: "authorization-unconfirmed" };
-  if (repositoryIds.length === 0) fields.push({ field: "repositoryIds", code: "REQUIRED" });
   if (repositoryIds.length > 100) fields.push({ field: "repositoryIds", code: "TOO_MANY" });
   if (fields.length > 0) return { kind: "invalid", fields };
   return { kind: "valid", input: { name: draft.name, purpose: draft.purpose, repositoryIds, configuration: draft.configuration } };

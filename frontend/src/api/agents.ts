@@ -14,6 +14,8 @@ export interface AgentRosterRow {
   resourceRef: Record<string, unknown>;
   singletonKey: string | null;
   status: string;
+  prompt: string;
+  cliKind: string;
 }
 
 export function listAgents(filter?: {

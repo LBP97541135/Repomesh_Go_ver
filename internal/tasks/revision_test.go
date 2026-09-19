@@ -19,43 +19,13 @@ import (
 // which since 0030 is repomesh_projects.projects (0010 外键语义).
 func seedOrgProject(t *testing.T, pool *pgxpool.Pool) (string, string) {
 	t.Helper()
-	org, project := newUUIDv4(), newUUIDv4()
-	owner := "acct-" + newUUIDv4()
-	// projects.owner FK → accounts; github_id UNIQUE so every seed needs a
-	// fresh value.
-	if _, err := pool.Exec(context.Background(),
-		`INSERT INTO repomesh_access.accounts (id, github_id, display_name)
-		 VALUES ($1, floor(random()*900000000000)::bigint + 1000, '冒烟账号')`, owner); err != nil {
-		t.Fatal(err)
+	repos := []string{"gateway", "sdk", "third", "common", "repo-a", "repo-other", "known-repo", "isolated-repo"}
+	for i := 0; i < 30; i++ {
+		repos = append(repos, fmt.Sprintf("extra-%d", i))
 	}
-	if _, err := pool.Exec(context.Background(),
-		`INSERT INTO public.organizations (id, name) VALUES ($1, '冒烟组织')`, org); err != nil {
-		t.Fatal(err)
-	}
-	// project_current_configuration_fk is deferred, so the project and its
-	// configuration revision must share one transaction.
-	configRevision := newUUIDv4()
-	tx, err := pool.Begin(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := tx.Exec(context.Background(),
-		`INSERT INTO repomesh_projects.projects (id, owner, organization_id, name, purpose, revision, creation_context_revision, current_configuration_revision)
-		 VALUES ($1, $2, $3, '冒烟项目', 'revision 流程冒烟用项目', $4, $5, $6)`,
-		project, owner, org, newUUIDv4(), newUUIDv4(), configRevision); err != nil {
-		_ = tx.Rollback(context.Background())
-		t.Fatal(err)
-	}
-	if _, err := tx.Exec(context.Background(),
-		`INSERT INTO repomesh_projects.configuration_revisions (project_id, revision, fixed, created_by, created_at)
-		 VALUES ($1, $2, '{"smoke":true}'::jsonb, $3, clock_timestamp())`,
-		project, configRevision, owner); err != nil {
-		_ = tx.Rollback(context.Background())
-		t.Fatal(err)
-	}
-	if err := tx.Commit(context.Background()); err != nil {
-		t.Fatal(err)
-	}
+	f := testdb.SeedProject(t, pool, "", "", repos...)
+	org, project := f.OrganizationID, f.ID
+
 	return org, project
 }
 

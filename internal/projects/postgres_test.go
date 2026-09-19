@@ -151,6 +151,28 @@ func TestPostgresProjectTransactionsAndAuthorizationInterleaving(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// A project can exist before any repository is selected. Later explicit
+	// joining uses the same revision/idempotency boundary as other updates.
+	emptyRaw, err := ParseRawInput([]byte(`{"name":"Scope draft","purpose":"Join later","repositoryIds":[]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	emptyCommand, err := PrepareCreate(emptyRaw, newUUID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	empty, err := service.Create(ctx, principal, emptyCommand)
+	if err != nil {
+		t.Fatalf("create empty draft: %v", err)
+	}
+	draft, err := service.Get(ctx, principal, empty.Receipt.ProjectID)
+	if err != nil || draft.Actions.CanCreateIssue || draft.CreationReadiness.Status == "ready" {
+		t.Fatalf("empty project readiness: %+v err=%v", draft, err)
+	}
+	joined, err := service.Repositories(ctx, principal, draft.ID, PageQuery{Limit: 100})
+	if err != nil || len(joined.Items) != 0 {
+		t.Fatalf("empty membership: %+v %v", joined, err)
+	}
 	for attempt := 0; attempt < 10; attempt++ {
 		_, repositoryErr := authorization.Repositories(ctx, sessionCookie, access.RepositoryQuery{Limit: 50})
 		if repositoryErr == nil {
@@ -162,6 +184,22 @@ func TestPostgresProjectTransactionsAndAuthorizationInterleaving(t *testing.T) {
 		if attempt == 9 {
 			t.Fatal(repositoryErr)
 		}
+	}
+
+	addRaw, err := ParseRawInput([]byte(`{"expectedProjectRevision":"` + draft.ProjectRevision + `","repositoryIdsToAdd":["repo_00000000000000007311"]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	addCommand, err := PrepareUpdate(addRaw, draft.ID, newUUID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.Update(ctx, principal, addCommand); err != nil {
+		t.Fatalf("join draft: %v", err)
+	}
+	joined, err = service.Repositories(ctx, principal, draft.ID, PageQuery{Limit: 100})
+	if err != nil || len(joined.Items) != 1 {
+		t.Fatalf("joined membership: %+v %v", joined, err)
 	}
 
 	createCommand := func(key, name string) CreateCommand {
@@ -219,7 +257,7 @@ func TestPostgresProjectTransactionsAndAuthorizationInterleaving(t *testing.T) {
 		if err = pool.QueryRow(ctx, `SELECT count(*) FROM repomesh_projects.creation_operations WHERE actor=$1 AND key=$2`, principal.ActorID(), key).Scan(&operations); err != nil {
 			t.Fatal(err)
 		}
-		if err = pool.QueryRow(ctx, `SELECT count(*) FROM repomesh_projects.projects WHERE owner=$1`, principal.ActorID()).Scan(&projects); err != nil || operations != 0 || projects != 0 {
+		if err = pool.QueryRow(ctx, `SELECT count(*) FROM repomesh_projects.projects WHERE owner=$1`, principal.ActorID()).Scan(&projects); err != nil || operations != 0 || projects != 1 {
 			t.Fatalf("create rollback phase=%s operations=%d projects=%d err=%v", target, operations, projects, err)
 		}
 	}

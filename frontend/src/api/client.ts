@@ -30,7 +30,6 @@ import type {
   DiscoveryView,
   GovernanceDecisionRequest,
   GovernanceDecisionView,
-  IssueDetailView,
   IssueListResponse,
   IssueLogGroupsResponse,
   LogEntriesResponse,
@@ -137,6 +136,17 @@ async function request<T>(config: ApiClientConfig, method: string, path: string,
 /** 环境默认配置的 client：同源（Vite 代理或 Go 服务托管）。各数据源模块共用
  *  这一处。认证走会话 cookie——先经 api/auth.ts 的 fetchSession 登录并注入
  *  CSRF 令牌，写请求才会带上 X-CSRF-Token。 */
+/** Go 详情原始形状（json tag 与 internal/issues IssueDetail 一致）。 */
+export type GoIssueDetail = {
+  id: string;
+  number: number;
+  title: string;
+  createdAt: string;
+  description: string;
+  repositoryIds: string[];
+  source: { kind: string; conversationId: string };
+};
+
 /** Go `GET /api/projects/{id}/issues` 的响应（as-built；2026-09-19 方案 A 起含派生字段）。 */
 interface GoIssuePage {
   items?: Array<Record<string, unknown>>;
@@ -473,7 +483,7 @@ export function createApiClient(config: ApiClientConfig) {
       ),
 
     getIssueDetail: (issueId: string, projectId: string) =>
-      request<IssueDetailView>(config, "GET", `/issues/${issueId}?projectId=${encodeURIComponent(projectId)}`),
+      request<GoIssueDetail>(config, "GET", `/issues/${issueId}?projectId=${encodeURIComponent(projectId)}`),
 
     getDatabaseTestHandoff: (taskId: string) =>
       request<DatabaseTestHandoffView>(

@@ -207,11 +207,13 @@ func (s *Service) Candidates(ctx context.Context, issueID, agentID, idempotencyK
 		limit = 50
 	}
 
-	// ① 候选池：**本空间已登记的全部仓库**（含扫描生成的 AutoCard），
-	//    不再只是"本项目已挂的那几个"——那正是死胡同的来源。
-	cards, err := s.loadRepoPool(ctx, tx, st.ProjectID)
+	// Candidate discovery cannot expand the issue's confirmed work scope.
+	cards, err := s.loadRepoPool(ctx, tx, st.ProjectID, issueID)
 	if err != nil {
 		return nil, err
+	}
+	if len(cards) == 0 {
+		return nil, ErrNoRepositories
 	}
 
 	// ② 语义召回：优先用部署配置的模型做"需求 → 仓库"的语义判断
@@ -223,7 +225,7 @@ func (s *Service) Candidates(ctx context.Context, issueID, agentID, idempotencyK
 	}
 	rawKeywords, _ := st.Analysis["extracted_keywords"].([]any)
 	keywords := toStrings(rawKeywords)
-	verdicts, llmErr := s.semanticRecall(ctx, tx, requirement, cards)
+	verdicts, llmErr := s.semanticRecall(ctx, tx, st.ProjectID, requirement, cards)
 	llmUsed := llmErr == nil
 	llmError := ""
 	if !llmUsed {

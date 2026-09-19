@@ -152,6 +152,13 @@ func (p *PostgresStore) ApplyRevision(ctx context.Context, cmd RevisionCommand) 
 	if err != nil {
 		return PlanRevision{}, err
 	}
+	names := batchRepositories(cmd.NewBatches)
+	for _, task := range cmd.NewTasks {
+		names = append(names, task.RepositoryID)
+	}
+	if err := validatePlanScope(ctx, tx, plan.ProjectID, plan.ID, names); err != nil {
+		return PlanRevision{}, err
+	}
 
 	// 任务轴迁移（T2.5）：uid 相同 = 同一任务原位更新；缺 uid 回退仓库名+标题；
 	// 未被 v2 认领的任务 SUPERSEDED，其 active attempt 一并关闭（投影闸生效）。

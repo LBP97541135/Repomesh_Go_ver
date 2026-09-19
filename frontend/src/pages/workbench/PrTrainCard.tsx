@@ -72,7 +72,7 @@ export function PrTrainCard({
   className?: string;
 }) {
   const live = cars !== undefined;
-  const list: Array<{ repo: string; changeSetId?: string; pr?: string; state?: CarState; by?: string }> =
+  const list: Array<TrainCarSpec & { state?: CarState }> =
     cars ?? FIXTURE_CARS.map((c) => ({ ...c }));
   const [gates, setGates] = useState<Record<string, MergeGate>>({});
 

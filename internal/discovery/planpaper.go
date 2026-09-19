@@ -34,8 +34,8 @@ func (s *Service) RepositoryPlan(ctx context.Context, issueID, repositoryID stri
 	var versionText string
 	var batchesRaw, dagRaw []byte
 	err = s.pool.QueryRow(ctx,
-		`SELECT plan_version, execution_batches, task_dag FROM public.plans WHERE id=$1::uuid`,
-		*receipt.PlanID).Scan(&versionText, &batchesRaw, &dagRaw)
+		`SELECT plan_version, execution_batches, task_dag FROM public.plans WHERE id=$1::uuid AND issue_id=$2`,
+		*receipt.PlanID, issueID).Scan(&versionText, &batchesRaw, &dagRaw)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,10 @@ func (s *Service) RepositoryPlan(ctx context.Context, issueID, repositoryID stri
 
 	// 批次里存的是仓库名;名字对目录(id)的解析尽力而为,解析不到节点保留 id=null
 	nameToID := map[string]string{}
-	rows, err := s.pool.Query(ctx, `SELECT id::text, name FROM repomesh_projects.repositories`)
+	rows, err := s.pool.Query(ctx, `SELECT r.id, r.owner || '/' || r.name
+		FROM repomesh_issues.issue_repository_scope scope
+		JOIN repomesh_projects.repositories r ON r.id=scope.repository_id
+		WHERE scope.issue_id=$1`, issueID)
 	if err != nil {
 		return nil, err
 	}
@@ -62,12 +65,22 @@ func (s *Service) RepositoryPlan(ctx context.Context, issueID, repositoryID stri
 	if rows.Err() != nil {
 		return nil, rows.Err()
 	}
+	found := false
+	for _, id := range nameToID {
+		found = found || id == repositoryID
+	}
+	if !found {
+		return nil, pgx.ErrNoRows
+	}
 
 	nodes := []map[string]any{}
 	edges := []map[string]any{}
 	for batchIndex, batch := range batches {
 		for _, name := range batch {
 			id, resolved := nameToID[name]
+			if !resolved {
+				return nil, ErrConflict
+			}
 			nodes = append(nodes, map[string]any{
 				"repository_id": idOrNull(resolved, id),
 				"name":          name,

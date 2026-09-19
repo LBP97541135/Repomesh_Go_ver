@@ -12,7 +12,7 @@ import type {
   RoomStreamPage,
 } from "./contract";
 import type { RepositoryEnv } from "../types";
-import { defaultClient } from "./client";
+import { defaultClient, type GoIssueDetail } from "./client";
 import { resolveDataSourceMode } from "./source";
 import { resolveProjectId } from "./issues";
 import { shortId } from "../display";
@@ -71,17 +71,6 @@ export async function fetchIssueDetail(issueId: string, projectId?: string): Pro
   return goIssueDetailToView(raw);
 }
 
-/** Go 详情原始形状（json tag 与 internal/issues IssueDetail 一致）。 */
-type GoIssueDetail = {
-  id: string;
-  number: number;
-  title: string;
-  createdAt: string;
-  description: string;
-  repositoryIds: string[];
-  source: { kind: string; conversationId: string };
-};
-
 /** Go 最小快照 → 契约视图。缺读模型的字段一律取「无轮次、未建团」的基线，
  *  不编造进度；阶段推进（物化后进执行段）由 WorkbenchPage 按发现链收据推导。 */
 function goIssueDetailToView(d: GoIssueDetail): IssueDetailView {
@@ -102,6 +91,7 @@ function goIssueDetailToView(d: GoIssueDetail): IssueDetailView {
     pending_planning: true,
     repository_count: d.repositoryIds.length,
     team_count: 0,
+    plan_version: "",
     operational_status: "active",
     execution_mode: null,
     opened_by_agent_id: null,
@@ -202,7 +192,7 @@ export async function fetchRepositoryPlan(issueId: string, repositoryId: string)
   return defaultClient().getRepositoryPlan(issueId, repositoryId);
 }
 
-/** 迁移 4：取该 issue 某版计划快照的边语义（issue_id 即 project_id，§0 语义等式）。
+/** 迁移 4：取该 issue 某版计划快照的边语义（使用物化收据给出的 plan_id）。
  *
  *  **取不到一律当没有，不当错误**：这一层是给既有连线**加注**的，DAG 面本身
  *  只靠 §5.4 就能画完整。老快照的 `graph_edges` 可能为空（单图方案之前落的行），
@@ -210,12 +200,12 @@ export async function fetchRepositoryPlan(issueId: string, repositoryId: string)
  *
  *  回放模式没有这份夹具：返回 null，面板按「无语义」渲染。 */
 export async function fetchPlanGraphEdges(
-  issueId: string,
+  planId: string,
   planVersion: number,
 ): Promise<PlanGraphEdgeView[] | null> {
   if (resolveDataSourceMode() === "replay") return null;
   try {
-    const snapshot = await defaultClient().getPlanSnapshot(issueId, planVersion);
+    const snapshot = await defaultClient().getPlanSnapshot(planId, planVersion);
     return snapshot.graph_edges;
   } catch {
     return null;
@@ -232,7 +222,7 @@ export async function fetchRoundId(issueId: string, projectId?: string): Promise
   }
   const pid = projectId ?? (await resolveProjectId());
   if (!pid) return null;
-  const detail = await defaultClient().getIssueDetail(issueId, pid);
+  const detail = await fetchIssueDetail(issueId, pid);
   return detail.active_round_id ?? detail.latest_round_id;
 }
 

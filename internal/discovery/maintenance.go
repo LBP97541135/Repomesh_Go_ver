@@ -56,13 +56,21 @@ func (m *Maintenance) Purge(ctx context.Context, issueID string) (PurgeResult, e
 	var projectID string
 	var archivedAt *time.Time
 	err = tx.QueryRow(ctx,
-		"SELECT project_id, archived_at FROM repomesh_issues.issues WHERE id=$1", issueID).
+		"SELECT project_id, archived_at FROM repomesh_issues.issues WHERE id=$1 FOR UPDATE", issueID).
 		Scan(&projectID, &archivedAt)
 	if err != nil {
 		return PurgeResult{}, err
 	}
 	if archivedAt == nil {
 		return PurgeResult{}, fmt.Errorf("issues: purge requires the issue to be archived first")
+	}
+	var linked bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM public.plans WHERE issue_id=$1)
+		OR EXISTS(SELECT 1 FROM public.task_repository_scopes WHERE issue_id=$1)`, issueID).Scan(&linked); err != nil {
+		return PurgeResult{}, err
+	}
+	if linked {
+		return PurgeResult{}, fmt.Errorf("%w: Issue 已关联执行计划或任务，仅支持归档，不能清除执行范围", ErrConflict)
 	}
 	result := PurgeResult{}
 	_ = tx.QueryRow(ctx, "SELECT count(*) FROM repomesh_issues.issue_content_scope WHERE issue_id=$1", issueID).Scan(&result.Snapshots)

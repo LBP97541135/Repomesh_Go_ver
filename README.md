@@ -75,6 +75,14 @@ curl -i http://127.0.0.1:8080/readyz
 
 `/healthz` 返回 200，只表示进程存活；`/readyz` 仍返回 503，`businessReady=false`。即使完成认证配置，当前完整业务就绪条件也尚未满足。
 
+## 项目、仓库和 Issue 的操作顺序
+
+登录后从左上角「管理 / 新建项目」进入项目管理：先保存项目名称和用途，再进入该项目的仓库页，明确勾选并接入仓库。项目可以暂时没有仓库；仓库和执行配置未就绪时不能创建 Issue。
+
+新建 Issue 时再次勾选本次工作的仓库范围。候选只来自当前项目，项目后续增仓不会扩张已有 Issue。控制台不会自动取第一个项目、默认全选仓库或为了创建 Issue 隐式建项目。项目选择按账号保存，切换项目会重新读取列表和工作台。
+
+迁移 `0042_task_repository_scope.sql` 为任务补充可约束的项目／Issue／仓库绑定；历史越界或缺少 Issue 的任务保留，但调度不再消费。升级后可用只读查询 `SELECT * FROM public.task_repository_scope_violations` 查看待核实记录，不能用自动增仓来消除这些记录。关联计划或任务的 Issue 可归档，清除会返回冲突。实施与本地验证见[范围修复记录](docs/development/2026-09-19-project-scope/README.md)。
+
 ## 启用认证与持久业务
 
 ### 准备配置
@@ -105,7 +113,7 @@ npm --prefix web run build
 go run ./cmd/repomesh-web --addr 127.0.0.1:8080 --assets ./web/dist
 ```
 
-空库第一次 `db check` 报缺少迁移并退出 1 是预期结果；其他错误按[数据库开发说明](docs/current/database-development.md)处理。当前源码含 6 条迁移，迁移后应输出 `schema status=current current=6 target=6 pending=0`。以后新增迁移时，以所用源码或配套二进制的 `target` 为准。Web 和 coordinator 只核查迁移，不自动迁移；配置、秘密或迁移不匹配会使启动失败。
+空库第一次 `db check` 报缺少迁移并退出 1 是预期结果；其他错误按[数据库开发说明](docs/current/database-development.md)处理。当前源码含 42 条迁移，迁移后应输出 `schema status=current current=42 target=42 pending=0`。以后新增迁移时，以所用源码或配套二进制的 `target` 为准。Web 和 coordinator 只核查迁移，不自动迁移；配置、秘密或迁移不匹配会使启动失败。
 
 数据库子命令不需要前端资源，也不启动 HTTP。迁移仅支持前进；待应用 SQL 与历史记录在同一事务提交。优先通过环境变量提供连接串，避免将凭据放进 `--database-url` 命令参数。
 

@@ -54,7 +54,7 @@ type providerEndpoint struct {
 // discovery 没有"项目级模型档案"（那是智能体运行面的概念），所以用部署默认：
 // 与"总 Manager 用部署配置的模型做全局召回"语义一致。取不到就返回 error，
 // 调用方回退关键词路径。
-func (s *Service) resolveProvider(ctx context.Context, tx pgx.Tx) (*providerEndpoint, error) {
+func (s *Service) resolveProvider(ctx context.Context, tx pgx.Tx, projectID string) (*providerEndpoint, error) {
 	const query = `
 		SELECT p.id, pr.base_url, pr.api_format, ms.model_id, pr.secret_version_id
 		FROM repomesh_models.providers p
@@ -62,11 +62,11 @@ func (s *Service) resolveProvider(ctx context.Context, tx pgx.Tx) (*providerEndp
 		  ON pr.provider_id = p.id AND pr.revision = p.head_revision
 		JOIN repomesh_models.model_snapshots ms
 		  ON ms.provider_id = pr.provider_id AND ms.provider_revision = pr.revision
-		WHERE p.enabled
+		WHERE p.enabled AND p.owner=(SELECT owner FROM repomesh_projects.projects WHERE id=$1)
 		ORDER BY p.id, ms.row_id
 		LIMIT 1`
 	endpoint := &providerEndpoint{}
-	err := tx.QueryRow(ctx, query).Scan(&endpoint.ProviderID, &endpoint.BaseURL, &endpoint.APIFormat, &endpoint.ModelID, &endpoint.SecretRef)
+	err := tx.QueryRow(ctx, query, projectID).Scan(&endpoint.ProviderID, &endpoint.BaseURL, &endpoint.APIFormat, &endpoint.ModelID, &endpoint.SecretRef)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, errors.New("discovery: 未配置可用的模型供应商（请先在「模型」页保存一个中转站）")
 	}
@@ -79,7 +79,7 @@ func (s *Service) resolveProvider(ctx context.Context, tx pgx.Tx) (*providerEndp
 	return endpoint, nil
 }
 
-const recallSystemPrompt = `你是仓库发现器。给定一条需求，判断组织里哪些仓库需要改动。
+const recallSystemPrompt = `你是仓库发现器。给定一条需求，判断此 Issue 已确认范围内哪些仓库需要改动。
 
 规则：
 1. 只依据给出的仓库名片判断，**不要臆造仓库**；仓库名必须逐字来自输入。
@@ -92,14 +92,14 @@ const recallSystemPrompt = `你是仓库发现器。给定一条需求，判断�
 
 // semanticRecall 调模型做语义召回。任何一步失败都返回 error —— 由调用方回退到
 // 关键词路径并如实标注 llm_used=false，绝不假装模型给过分。
-func (s *Service) semanticRecall(ctx context.Context, tx pgx.Tx, requirement string, cards []repoCard) ([]llmVerdict, error) {
+func (s *Service) semanticRecall(ctx context.Context, tx pgx.Tx, projectID, requirement string, cards []repoCard) ([]llmVerdict, error) {
 	if s.secrets == nil {
 		return nil, errors.New("discovery: 未接入密钥存储，无法调用模型")
 	}
 	if len(cards) == 0 {
 		return nil, errors.New("discovery: 候选池为空")
 	}
-	endpoint, err := s.resolveProvider(ctx, tx)
+	endpoint, err := s.resolveProvider(ctx, tx, projectID)
 	if err != nil {
 		return nil, err
 	}

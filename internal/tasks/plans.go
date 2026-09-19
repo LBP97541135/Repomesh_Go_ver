@@ -209,13 +209,24 @@ func (p *PostgresStore) CreatePlan(ctx context.Context, w PlanWrite) (ExecutionP
 		return ExecutionPlan{}, err
 	}
 	id := newUUIDv4()
-	_, err = p.pool.Exec(ctx, `
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return ExecutionPlan{}, err
+	}
+	defer rollbackTx(tx)
+	if err := validatePlanScope(ctx, tx, w.ProjectID, "", batchRepositories(w.Batches)); err != nil {
+		return ExecutionPlan{}, err
+	}
+	_, err = tx.Exec(ctx, `
 		INSERT INTO public.plans
 		  (id, project_id, plan_version, requirement_text, requirement_key,
 		   replan_state, execution_batches, task_dag)
 		VALUES ($1, $2, 'v1', $3, $4, '', $5::jsonb, $6::jsonb)`,
 		id, w.ProjectID, w.RequirementText, w.RequirementKey, batchesJSON, dagJSON)
 	if err != nil {
+		return ExecutionPlan{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return ExecutionPlan{}, err
 	}
 	return scanPlan(p.pool.QueryRow(ctx,

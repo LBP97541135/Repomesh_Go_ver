@@ -28,15 +28,9 @@ type repoCard struct {
 	InProject bool
 }
 
-// loadRepoPool 读取候选池。
-//
-// 2026-09-19 扩大范围：此前只取"本项目已挂的仓库"（本部署里是 2 个 e2e 测试仓），
-// 需求与它们毫无交集时必然 0 分 → 全被排除 → 计划里没有仓库 → ④⑤ 全卡死。
-// 现在取**本空间已登记的全部仓库**（一部署一空间，等价于"组织内的仓库"），
-// 并把项目已挂的排在前面。
-//
-// AutoCard 来自 repomesh_scan.repositories.metadata（扫描器写入的原样 JSONB）。
-func (s *Service) loadRepoPool(ctx context.Context, tx pgx.Tx, projectID string) ([]repoCard, error) {
+// loadRepoPool only reads repositories explicitly selected for this issue.
+// Scan metadata must match the exact repository URL and the owner's space.
+func (s *Service) loadRepoPool(ctx context.Context, tx pgx.Tx, projectID, issueID string) ([]repoCard, error) {
 	const query = `
 		SELECT r.id,
 		       r.owner || '/' || r.name,
@@ -44,12 +38,25 @@ func (s *Service) loadRepoPool(ctx context.Context, tx pgx.Tx, projectID string)
 		       COALESCE(s.topics::text, '[]'),
 		       COALESCE(s.languages::text, '[]'),
 		       COALESCE(s.metadata::text, '{}'),
-		       (r.id IN (SELECT repository_id FROM repomesh_projects.project_repositories WHERE project_id = $1)) AS in_project
-		FROM repomesh_projects.repositories r
-		LEFT JOIN repomesh_scan.repositories s
-		       ON s.url LIKE '%' || r.owner || '/' || r.name || '%'
-		ORDER BY in_project DESC, r.id`
-	rows, err := tx.Query(ctx, query, projectID)
+		       true AS in_project
+		FROM repomesh_issues.issue_repository_scope scope
+		JOIN repomesh_projects.project_repositories pr
+		  ON pr.project_id=scope.project_id AND pr.repository_id=scope.repository_id
+		JOIN repomesh_projects.repositories r ON r.id=pr.repository_id
+		JOIN repomesh_projects.projects p ON p.id=pr.project_id
+		JOIN repomesh_access.accounts a ON a.id=p.owner
+		LEFT JOIN LATERAL (
+		  SELECT scan.* FROM repomesh_scan.repositories scan
+		  WHERE scan.organization_id=a.organization_id
+		    AND lower(regexp_replace(rtrim(scan.url, '/'), '\.git$', '')) IN
+		      (lower('https://' || r.host || '/' || r.owner || '/' || r.name),
+		       lower('http://' || r.host || '/' || r.owner || '/' || r.name),
+		       lower('git@' || r.host || ':' || r.owner || '/' || r.name))
+		  ORDER BY scan.profiled_at DESC, scan.id LIMIT 1
+		) s ON true
+		WHERE scope.project_id=$1 AND scope.issue_id=$2
+		ORDER BY r.id`
+	rows, err := tx.Query(ctx, query, projectID, issueID)
 	if err != nil {
 		return nil, err
 	}

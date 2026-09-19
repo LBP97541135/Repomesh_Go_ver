@@ -102,7 +102,7 @@ export interface RepositoryCapability {
   observedAt: string | null;
 }
 
-/** GET /api/repositories/candidates 候选行（access.RepositoryItem）。
+/** GET /api/repositories 候选行（access.RepositoryItem）。
  *
  *  2026-09-19 修正：userParticipation / appCapability 是 github.Capability
  *  **对象**（{status, reasonCodes, observedAt}），不是字符串——原声明按实现粗读
@@ -120,14 +120,14 @@ export interface RepositoryCandidatePage {
   coverage: { status: string; reasonCodes: string[]; observedAt: string | null };
 }
 
-/** GET /api/repositories/candidates — B02 可参与仓库候选（会话必需；q/cursor/limit）。 */
+/** GET /api/repositories — B02 可参与仓库候选（会话必需；q/cursor/limit）。 */
 export function listRepositoryCandidates(query?: { q?: string; cursor?: string; limit?: number }): Promise<RepositoryCandidatePage> {
   const params = new URLSearchParams();
   if (query?.q) params.set("q", query.q);
   if (query?.cursor) params.set("cursor", query.cursor);
   if (query?.limit !== undefined) params.set("limit", String(query.limit));
   const qs = params.toString();
-  return apiRequest<RepositoryCandidatePage>("GET", `/repositories/candidates${qs ? `?${qs}` : ""}`);
+  return apiRequest<RepositoryCandidatePage>("GET", `/repositories${qs ? `?${qs}` : ""}`);
 }
 
 /**

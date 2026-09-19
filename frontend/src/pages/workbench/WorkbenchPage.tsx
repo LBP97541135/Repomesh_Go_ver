@@ -7,7 +7,7 @@ import { deriveStepStates } from "./treeModel";
 import type { FocusEntry } from "./treeModel";
 import { IconBolt, IconUser } from "./treeIcons";
 import type { DiscoveryView, IssueDetailView } from "../../api/contract";
-import { parseRequirementDocument, resolveProjectId } from "../../api/issues";
+import { parseRequirementDocument, type CreateIssueRequest } from "../../api/issues";
 import { fetchIssueDetail } from "../../api/rooms";
 import { listConversationMessages, submitMessage, type ConversationMessage } from "../../api/conversations";
 import { listPlanTasks, type PlanTaskItem } from "../../api/taskTree";
@@ -24,7 +24,8 @@ import {
 import { resolveGovernanceAgent, type GovernanceAgent } from "../../api/decisions";
 import { listChangeSets } from "../../api/scm";
 import { resolveDataSourceMode } from "../../api/source";
-import { fetchConsoleRepositories } from "../../api/grid";
+import { allProjectRepositories } from "../../api/projects";
+import { allCreationOptions, type CreationOptions } from "../../api/projectIssues";
 import { autoTrigger } from "./autoTrigger";
 import { useIssueFlowState } from "./useIssueFlowState";
 import { PlanDagCapsule } from "../../components/PlanDagCapsule";
@@ -74,17 +75,20 @@ function entryConvIdOf(
 }
 
 export function WorkbenchPage({
+  projectId,
+  projectName,
   issueId,
   onCreateIssue,
   onBack,
   onToast,
 }: {
+  projectId: string;
+  projectName: string;
   /** null = 新会话；否则为既有 issue 的 id */
   issueId: string | null;
   onCreateIssue: (
-    text: string,
+    input: CreateIssueRequest,
     idempotencyKey: string,
-    documentFilename: string | null,
   ) => Promise<{ issue_id: string }>;
   /** 顶栏「‹ 议题列表」：回 issue 列表（外壳负责路由）。新会话态不渲染。 */
   onBack?: () => void;
@@ -117,7 +121,7 @@ export function WorkbenchPage({
       setLoading(true);
       setError(null);
     }
-    fetchIssueDetail(issueId)
+    fetchIssueDetail(issueId, projectId)
       .then((d) => {
         if (cancelled) return;
         setDetail(d);
@@ -131,7 +135,7 @@ export function WorkbenchPage({
     return () => {
       cancelled = true;
     };
-  }, [issueId, isNew, reload]);
+  }, [projectId, issueId, isNew, reload]);
 
   useEffect(() => {
     if (isNew) return;
@@ -237,7 +241,7 @@ export function WorkbenchPage({
       return;
     }
     let cancelled = false;
-    resolveProjectId()
+    Promise.resolve(projectId)
       .then((pid) => (pid ? listPlanTasks(pid, planId) : null))
       .then((items) => !cancelled && setTasks(items))
       .catch(() => {
@@ -246,7 +250,7 @@ export function WorkbenchPage({
     return () => {
       cancelled = true;
     };
-  }, [planId, materialized, reload]);
+  }, [projectId, planId, materialized, reload]);
 
   // ── 仓库显示名（详情卡与步骤卡用） ──
   const [repoNameById, setRepoNameById] = useState<Record<string, string>>({});
@@ -254,18 +258,18 @@ export function WorkbenchPage({
   useEffect(() => {
     if (repoListKey === null) return;
     let cancelled = false;
-    fetchConsoleRepositories()
+    allProjectRepositories(projectId)
       .then((repos) => {
         if (cancelled) return;
         const names: Record<string, string> = {};
-        for (const r of repos) names[r.repository_id] = r.name;
+        for (const r of repos.items) names[r.id] = r.displayName;
         setRepoNameById(names);
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [repoListKey]);
+  }, [projectId, repoListKey]);
   void repoNameById;
 
   // ── 右栏焦点与会话消息 ──
@@ -278,7 +282,7 @@ export function WorkbenchPage({
       return;
     }
     let cancelled = false;
-    resolveProjectId()
+    Promise.resolve(projectId)
       .then((pid) => (pid ? listConversationMessages(pid, entryConvId, { limit: 50 }) : null))
       .then((page) => {
         if (cancelled || !page) return;
@@ -290,7 +294,7 @@ export function WorkbenchPage({
     return () => {
       cancelled = true;
     };
-  }, [entryConvId, reload]);
+  }, [projectId, entryConvId, reload]);
 
   const clarifyPending =
     !!discovery &&
@@ -329,7 +333,7 @@ export function WorkbenchPage({
       settle();
       return;
     }
-    resolveProjectId().then((pid) => {
+    Promise.resolve(projectId).then((pid) => {
       if (!pid) {
         settle();
         return;
@@ -359,6 +363,11 @@ export function WorkbenchPage({
     setGateBusy(action);
     setGateError(null);
     if (action === "approveTiers") {
+      if (discovery.classification_evidence_version === null) {
+        setGateBusy(null);
+        setGateError("分档证据尚未生成，无法批准。");
+        return;
+      }
       submitDiscoveryApproval(detail.issue_id, {
         decided_by_agent_id: principal.agentId,
         idempotency_key: newIdempotencyKey("approval"),
@@ -417,7 +426,7 @@ export function WorkbenchPage({
       handleGate("approveTiers");
       return;
     }
-    if ((discovery.plan !== null || discovery.integration !== null) && discovery.materialization === null) {
+    if (discovery.integration !== null && discovery.materialization === null) {
       handleGate("materialize");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -495,22 +504,35 @@ export function WorkbenchPage({
   const [attachment, setAttachment] = useState<{ filename: string; text: string } | null>(null);
   const [docDragging, setDocDragging] = useState(false);
   const [creating, setCreating] = useState(false);
-  const idempotencyKey = useRef(crypto.randomUUID());
+  const [parsingDocument, setParsingDocument] = useState(false);
+  const attempt = useRef<{ input: CreateIssueRequest; key: string } | null>(null);
+  const [options, setOptions] = useState<CreationOptions | null>(null);
+  const [optionsError, setOptionsError] = useState<string | null>(null);
+  const [optionsReload, setOptionsReload] = useState(0);
+  const [selectedRepos, setSelectedRepos] = useState<string[]>([]);
+  useEffect(() => {
+    if (!isNew || resolveDataSourceMode() === "replay") return;
+    let cancelled = false;
+    setOptions(null); setOptionsError(null); setSelectedRepos([]);
+    allCreationOptions(projectId).then(value => { if (!cancelled) setOptions(value); }).catch(e => { if (!cancelled) setOptionsError(errText(e)); });
+    return () => { cancelled = true; };
+  }, [projectId, isNew, optionsReload]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragDepth = useRef(0);
 
   const handleDraftChange = (text: string) => {
+    if (attempt.current || creating) return;
     setDraft(text);
-    idempotencyKey.current = crypto.randomUUID();
   };
 
   const handleCreateSend = () => {
     const typed = draft.trim();
-    if (creating) return;
+    if (creating || parsingDocument || !options?.canSubmit || !selectedRepos.length || selectedRepos.length > 100) return;
     if (!typed && !attachment) return;
     const text = attachment ? composeRequirementText(typed, attachment.text) : typed;
     setCreating(true);
-    onCreateIssue(text, idempotencyKey.current, attachment?.filename ?? null)
+    attempt.current ??= { key: crypto.randomUUID(), input: { projectId, requirementText: text, repositoryIds: [...selectedRepos].sort(), expectedCreationContextRevision: options.creationContextRevision } };
+    onCreateIssue(attempt.current.input, attempt.current.key)
       .then((created) => {
         try {
           window.sessionStorage.setItem(hitlKey(created.issue_id), hitlMode);
@@ -519,22 +541,31 @@ export function WorkbenchPage({
         }
         setDraft("");
         setAttachment(null);
-        idempotencyKey.current = crypto.randomUUID();
+        attempt.current = null;
       })
-      .catch((err: unknown) => onToast(`创建失败：${errText(err)}`))
+       .catch((err: unknown) => {
+        onToast(`创建失败：${errText(err)}。重试将沿用原提交内容。`);
+        const status = (err as { status?: number }).status;
+        if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) {
+          attempt.current = null;
+          setOptionsReload(n => n + 1);
+        }
+      })
       .finally(() => setCreating(false));
   };
 
   const handlePickDocument = (file: File | undefined) => {
-    if (!file) return;
+    if (!file || creating || attempt.current) return;
+    setParsingDocument(true);
     parseRequirementDocument(file)
       .then((parsed) => {
         setAttachment({ filename: parsed.filename, text: parsed.text });
-        idempotencyKey.current = crypto.randomUUID();
+        attempt.current = null;
         if (parsed.truncated) onToast(`文档较长，已截断为前 ${parsed.chars} 字`);
       })
       .catch((err: unknown) => onToast(`文档解析失败：${errText(err)}`))
       .finally(() => {
+        setParsingDocument(false);
         if (fileInputRef.current) fileInputRef.current.value = "";
       });
   };
@@ -543,7 +574,7 @@ export function WorkbenchPage({
   const greeting = hour < 12 ? "上午好" : hour < 18 ? "下午好" : "晚上好";
 
   // ── 四点链路条（唯一进度条，数据驱动）+ DAG 胶囊/执行面板的数据 ──
-  const flow = useIssueFlowState(issueId ?? "", detail, reload);
+  const flow = useIssueFlowState(projectId, issueId ?? "", planId, detail, reload);
   const stepStates = deriveStepStates(discovery);
   const doneSteps = stepStates.filter((s) => s === "done").length;
   const allTasksDone = !!tasks && tasks.length > 0 && tasks.every((t) => t.status === "done");
@@ -568,7 +599,7 @@ export function WorkbenchPage({
       return;
     }
     let cancelled = false;
-    resolveProjectId().then((pid) => {
+    Promise.resolve(projectId).then((pid) => {
       if (!pid) return null;
       return listChangeSets(pid, trainKey.split(",")).then((items) => ({ pid, items }));
     }).then((res) => {
@@ -597,7 +628,7 @@ export function WorkbenchPage({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trainKey, reload]);
+  }, [projectId, trainKey, reload]);
 
   const train: ReactNode =
     allTasksDone && trainCars !== null ? (
@@ -638,8 +669,17 @@ export function WorkbenchPage({
         )}
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="text-[19px] font-medium text-cream">{greeting}，要规划什么需求？</h1>
-          <p className="text-[12px] text-tx2">发送即创建 issue 并开始规划</p>
+          <p className="text-[12px] text-tx2">项目：{projectName} · 选择本次 Issue 的工作仓库后提交</p>
         </div>
+        <section className="w-full max-w-[720px] rounded-hard border border-line bg-panel p-4 text-sm">
+          <h2>本次 Issue 的仓库范围（已选 {selectedRepos.length} 个）</h2>
+          {optionsError && <p role="alert" className="text-salmon-hi">{optionsError} <button onClick={() => setOptionsReload(n => n + 1)}>重试</button></p>}
+          {!options && !optionsError && <p className="mt-2 text-tx2">{resolveDataSourceMode() === "replay" ? "回放模式不能创建 Issue" : "正在读取创建条件…"}</p>}
+          {options && !options.canSubmit && <p className="mt-2 text-salmon-hi">暂不能创建：{options.blockingReasons?.join("、")}。请先完成项目仓库接入、工作授权和执行配置。</p>}
+          <div className="mt-3 max-h-48 space-y-2 overflow-auto">{options?.repositories.map(r => <label key={r.repositoryId} className="flex items-center gap-2"><input type="checkbox" disabled={!r.selectable || creating || attempt.current !== null} checked={selectedRepos.includes(r.repositoryId)} onChange={e => setSelectedRepos(prev => e.target.checked ? [...prev, r.repositoryId] : prev.filter(id => id !== r.repositoryId))} />{r.displayName}<span className="text-xs text-tx3">{r.reasons.join("、")}</span></label>)}</div>
+          <a className="mt-3 inline-block text-xs text-amber-hi" href="#/repositories">管理当前项目仓库</a>
+          {attempt.current && <p className="mt-2 text-xs text-tx2">提交内容已固定，重试会查询或完成同一次创建。</p>}
+        </section>
         {/* HITL 入口选择（2026-09-17 用户裁定:从建项处选,不再等物化）:
             自动托管 = 处理员代行人审门; 人工参与 = 分档审批/物化确认/PR 合并等真人。 */}
         <div className="flex flex-col items-center gap-1.5">
@@ -678,7 +718,8 @@ export function WorkbenchPage({
             placeholder="输入需求 —— 发送即创建 issue 并开始规划（Ctrl ⏎ 发送）"
             onAttach={() => fileInputRef.current?.click()}
             attachTitle="上传需求文档 · 支持 .txt / .md / .docx / .pdf / .odt / .rtf"
-            sendDisabled={draft.trim() === "" && attachment === null}
+            attachDisabled={creating || parsingDocument || attempt.current !== null}
+            sendDisabled={parsingDocument || selectedRepos.length > 100 || !options?.canSubmit || selectedRepos.length === 0 || (draft.trim() === "" && attachment === null)}
             attachment={
               attachment ? (
                 <div className="flex items-center gap-2 border-t border-line px-3 py-1.5">
@@ -690,6 +731,7 @@ export function WorkbenchPage({
                     type="button"
                     className="ml-auto flex-none text-[11px] text-tx3 hover:text-salmon"
                     title="移除附件"
+                    disabled={creating || attempt.current !== null}
                     onClick={() => setAttachment(null)}
                   >
                     <X size={12} />
@@ -862,7 +904,7 @@ export function WorkbenchPage({
       {detail && (
         <SupervisionPolicyDialog
           open={policyOpen}
-          projectId={detail.issue_id}
+          projectId={projectId}
           issueTitle={detail.title}
           effectiveTiers={discovery?.effective_tiers ?? []}
           taskCount={discovery?.integration?.task_dag_count ?? null}

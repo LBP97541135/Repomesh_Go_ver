@@ -258,3 +258,16 @@ func (s *Service) setIssueAppCredential(appID string, version secrets.VersionID)
 	s.appID = appID
 	s.issueAppKeyVersion = version
 }
+
+// IssueAppCredentialReady reports whether the exact runtime App key can still
+// be used. Options call this locally before advertising a submittable scope.
+func (s *Service) IssueAppCredentialReady(ctx context.Context, tx pgx.Tx) (bool, error) {
+	if s.issueAppKeyVersion == "" || s.appID == "" {
+		return false, nil
+	}
+	inspection, err := s.secrets.InspectVersion(ctx, tx, s.issueAppKeyVersion, secrets.Owner{Kind: "github-app", ID: s.appID}, secrets.GitHubAppPrivateKey)
+	if err != nil {
+		return false, unavailable()
+	}
+	return inspection.Found && inspection.Enabled && !inspection.Destroyed && inspection.RootAvailable, nil
+}

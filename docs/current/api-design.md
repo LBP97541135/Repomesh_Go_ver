@@ -2,6 +2,8 @@
 
 状态：设计。更新日期：2026-09-16。2026-09-16 用户裁定五项并结案（附录 E 第 8、9、10、16 条与写作发现 24 的裁定行）：路径前缀定为 `/api`（无版本段，全文已更正）、登录保留 GitHub OAuth、决策链 `similar` 与 `semantic-search` 保持两条独立端点、`public.feature_settings` 补入方案表清单、模型供应商三 schema 保留；技能治理 22 条端点（20 条 `/api/skills` + 2 条开关）与 Issue 创建/读面（B06/B07，7 条）、模型测试与应用（B05/B04，6 条）已实现并登记（附录 C）。来源：[Go 版数据库重构方案](../RepoMesh_Go版数据库重构方案.html)的 44 张目标表、[ADR 索引](../adr/README.md)与 ADR-0001 至 ADR-0023、[B11 重规划协议](../plan/B11-REPLAN-PROTOCOL.md)、[领域语言](../../CONTEXT.md)、已采用的[创建契约](issue-page-create-api-contract.md)、[首批浏览器契约](first-batch-browser-api-contract.md)和[消息契约](conversation-message-clarification-api-contract.md)；制作与校验记录见[本轮记录](../development/2026-09-15-api-redesign-01/README.md)。除附录 C 标“已实现”的端点外，本文端点均未实现。
 
+2026-09-19 已实现范围修正：项目创建 `repositoryIds` 允许 `[]`，操作顺序改为先保存项目、再通过 PATCH 明确接入仓库、最后在项目内创建 Issue。账号仓库目录不是项目工作范围。发现、审批、计划、物化与重规划限定到 Issue 已确认的项目仓库；迁移 0042 增加计划 Issue 关联和任务仓库规范绑定，拒绝新越界写入并隔离未确认的历史任务。创建条件与分页按[Issue 创建契约](issue-page-create-api-contract.md)；数据库兼容和验证见[本轮记录](../development/2026-09-19-project-scope/README.md)。本文较早的目标表设计不替代这一已实施约束。
+
 ## 1. 范围与阅读方式
 
 本文按方案的 7 个功能方向定义 RepoMesh Web 进程的浏览器 HTTP 接口，并维护 44 张表到资源的映射。每张表一个资源小节，顺序固定：一句话职责、端点表、字段表、状态机或关键规则、示例。示例只给 `tasks`、`task_assignments`、`change_sets`、`review_requests`、`messages`、`skill_approvals`、`events` 七个资源。

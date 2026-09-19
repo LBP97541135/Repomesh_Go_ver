@@ -10,7 +10,6 @@ import type { CreateIdentity, OperationState, PreparedOperation } from "./projec
 import { useRequestGate } from "./projectRequests";
 import { ProjectOperationResult } from "./ProjectOperationResult";
 import { ProjectShell } from "./ProjectShell";
-import { RepositoryPicker } from "./RepositoryPicker";
 
 const inheritedConfiguration: ConfigurationSelection = { modelProfile: { mode: "inherit" }, executionProfile: { mode: "inherit" } };
 
@@ -21,7 +20,6 @@ function fieldMessage(field: ProjectFieldError): string {
 }
 
 export function CreateProjectPage(props: AuthenticatedPageProps) {
-  const [step, setStep] = useState<"repositories" | "details">("repositories");
   const [selection, setSelection] = useState<RepositorySelection>(new Map());
   const [name, setName] = useState("");
   const [purpose, setPurpose] = useState("");
@@ -80,11 +78,9 @@ export function CreateProjectPage(props: AuthenticatedPageProps) {
   if (operation.kind === "committed") return <ProjectShell {...props} title="项目已保存" projectId={operation.result.receipt.projectId}><ProjectOperationResult {...props} result={operation.result} /></ProjectShell>;
 
   return <ProjectShell {...props} title="新建项目">
-    <div className="page-heading"><div><p className="eyebrow">两步创建</p><h1>保存新项目</h1><p className="muted">先明确选择仓库，再填写项目资料和配置引用。保存不会创建 Issue 或启动运行。</p></div><span className="pill">{step === "repositories" ? "第 1 步，共 2 步" : "第 2 步，共 2 步"}</span></div>
-    {step === "repositories" && !operationLocked && <RepositoryPicker {...props} selection={selection} onChange={(value) => { if (!operationLockedRef.current) setSelection(value); }} onDone={() => { if (operationLockedRef.current) return; if (selection.size > 0) setStep("details"); else setFields([{ field: "repositoryIds", code: "REQUIRED" }]); }} maximumSelection={100} />}
-    {step === "repositories" && fields.map((field, index) => <p className="notice" role="alert" key={`${field.field}:${index}`}>{fieldMessage(field)}</p>)}
-    {step === "details" && <section className="panel project-form" aria-labelledby="project-details-title">
-      <div className="section-heading"><div><h2 id="project-details-title">项目资料</h2><p className="small muted">已选择 {selection.size} 个仓库。</p></div><button disabled={operationLocked} onClick={() => { if (!operationLockedRef.current) setStep("repositories"); }}>返回修改仓库</button></div>
+    <div className="page-heading"><div><p className="eyebrow">第一步：创建项目</p><h1>保存新项目</h1><p className="muted">先保存项目资料，再在项目设置中接入仓库，最后创建 Issue。</p></div></div>
+    <section className="panel project-form" aria-labelledby="project-details-title">
+      <div className="section-heading"><h2 id="project-details-title">项目资料</h2></div>
       <label>项目名称<input disabled={operationLocked} value={name} onChange={(event) => { if (operationLockedRef.current) return; setName(event.target.value); setOperation({ kind: "idle" }); }} /></label>
       <label>项目用途<textarea disabled={operationLocked} value={purpose} rows={6} onChange={(event) => { if (operationLockedRef.current) return; setPurpose(event.target.value); setOperation({ kind: "idle" }); }} /></label>
       <section className="configuration-section"><h2>配置引用</h2><p className="small muted">模型和执行配置可以继承当前默认。缺少候选时仍可保存待配置项目。</p><ConfigurationFields {...props} value={configuration} onChange={(value) => { if (operationLockedRef.current) return; setConfiguration(value); setOperation({ kind: "idle" }); }} disabled={operationLocked} /></section>
@@ -95,6 +91,6 @@ export function CreateProjectPage(props: AuthenticatedPageProps) {
       {operation.kind === "unknown" && operation.operation.kind === "project_create" && <div className="notice"><p>{operation.error ? projectErrorMessage(operation.error) : "提交结果仍待确认。"}</p><a href={projectRecoveryPath(operation.operation.identity)} onClick={(event) => { event.preventDefault(); props.navigate(projectRecoveryPath(operation.operation.identity)); }}>查询原创建结果</a><p className="small">不会生成新键或自动创建另一项目。</p></div>}
       {operation.kind === "rejected" && <div className="notice"><p>{projectErrorMessage(operation.error)}</p><button onClick={() => setOperation({ kind: "idle" })}>修改后重新核对</button></div>}
       {operation.kind === "inaccessible" && <p className="notice">当前身份已失效，项目输入已清理。</p>}
-    </section>}
+    </section>
   </ProjectShell>;
 }

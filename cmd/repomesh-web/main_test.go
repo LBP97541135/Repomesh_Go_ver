@@ -66,6 +66,7 @@ func TestDatabaseCommandCanceledConnection(t *testing.T) {
 }
 
 func TestScaffoldCommandCompatibility(t *testing.T) {
+	t.Setenv("REPOMESH_AUTH_CONFIG", "")
 	t.Setenv("REPOMESH_DATABASE_URL", "invalid and must not be parsed")
 	t.Setenv("REPOMESH_WEB_ASSETS", t.TempDir())
 	t.Setenv("REPOMESH_WEB_ADDR", "invalid-address")

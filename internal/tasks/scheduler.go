@@ -130,9 +130,10 @@ func (p *PostgresStore) DispatchOne(ctx context.Context, execution ExecutionFaca
 	err = tx.QueryRow(ctx, `SELECT s.id, t.id, COALESCE(t.instruction,''), t.title
 		FROM public.plan_steps s
 		JOIN public.tasks t ON t.plan_id = s.plan_id AND t.title = s.content
+		JOIN public.task_repository_scopes scope ON scope.task_id=t.id AND scope.project_id=t.project_id::text
 		WHERE s.status = 'ready' AND t.status IN ('pending','ready')
 		  AND EXISTS (SELECT 1 FROM repomesh_issues.issues i
-		              WHERE i.project_id = t.project_id::text AND i.id = t.source_ref->>'issueId')
+		              WHERE i.project_id = scope.project_id AND i.id = scope.issue_id)
 		ORDER BY s.step_no LIMIT 1 FOR UPDATE OF s SKIP LOCKED`).
 		Scan(&stepID, &taskID, &instruction, &title)
 	if errors.Is(err, pgx.ErrNoRows) {

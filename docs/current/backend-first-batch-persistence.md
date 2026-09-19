@@ -104,7 +104,7 @@ schemaVersion 与规范化算法版本持久保存。规则严格复用创建契
 
 配置输入只接受modelProfile和executionProfile引用；省略整个配置等价首次创建两项inherit，更新省略则保持原固定配置，两种操作比较器不得混用。更新的name／purpose保留确切文本，增仓集合排序比较，重复ID先拒绝；已经存在的仓库ID可作为集合幂等输入保留，不重新变成待新增范围。最多100仓，长度和错误由浏览器契约约束。
 
-新建项目先整体核所有所选仓库的用户读权；已知不足或未知不落项目。App能力、模型／环境缺失可以受限保存。project_create回执只返回当次固定结果及项目外壳链接，不带仓库敏感正文；原项目外壳owner资格决定重放可见性，不能要求所有当前仓库读权才能修复配置。
+2026-09-19 补充：项目可先以空仓库数组保存，之后通过明确增仓更新接入；此规则替代早期页面要求先选仓库的顺序。新建项目对非空选择先整体核所有所选仓库的用户读权；已知不足或未知不落项目。App能力、模型／环境缺失可以受限保存。project_create回执只返回当次固定结果及项目外壳链接，不带仓库敏感正文；原项目外壳owner资格决定重放可见性，不能要求所有当前仓库读权才能修复配置。
 
 更新先锁user访问版本和project，查同键操作。新操作再比较expectedProjectRevision，读取数据库原范围，只计算明确增量；不把客户端可见列表当全集。只改资料／配置，不要求恢复旧受限仓读权；新增集合任一核查失败整个更新回滚，原集合保持。更新与创建不触发运行准备、扩大在途Issue范围或给旧计划新授权。
 
@@ -291,3 +291,9 @@ access.OpenRuntime将已导入且PrivateKey回调确切使用的privateRef记录
 
 
 B06清理的持久待办只允许 `blocked/INTEGRATION_NOT_AVAILABLE → cancelled/CONTENT_REMOVED`，同事务写cancelled_at，保留cause/Issue与其pin可追溯关系；不删除责任身份，不允许回到blocked。它只处理本批尚无外发记录的工作；发现external事实则拒绝本清理入口，留后续协议处理。
+
+## 2026-09-19 任务仓库绑定实施补充
+
+原项目成员关系与 Issue 非空子集不变量保留。迁移 0042 增加 `public.plans.issue_id` 与 `public.task_repository_scopes`，后者以 task_id 关联任务，以规范 repository_id 复合引用 `(project_id, repository_id)` 和 `(issue_id, repository_id)`；旧任务的名称字段为兼容消费方保留。写任务触发器解析唯一成员、核项目组织及计划归属，绑定表不能成为独立授予范围的入口。
+
+已有数据只回填可确定、已合法的绑定。越界、歧义和未确认 Issue 的记录保留，由只读视图列出，调度不消费。项目新增仓库不会回填或扩张旧 Issue。带执行计划／任务的 Issue 不允许清除范围，可归档。对应验证见[范围修复记录](../development/2026-09-19-project-scope/README.md)。

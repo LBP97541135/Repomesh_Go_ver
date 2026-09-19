@@ -5,7 +5,7 @@ import { LoginPage } from "./components/LoginPage";
 import { SidebarV2, type NavKey } from "./components/SidebarV2";
 import { CommandPalette } from "./components/CommandPalette";
 import type { IssueListItemView, IssueListResponse } from "./api/contract";
-import { archiveIssue, createIssue, fetchIssues, issuesSourceMode, purgeIssue } from "./api/issues";
+import { archiveIssue, createIssue, fetchIssues, issuesSourceMode, purgeIssue, type CreateIssueRequest } from "./api/issues";
 import { errText, shortId } from "./display";
 import type { HumanReviewRequestView } from "./api/reviewDesk";
 import { fetchReviewRequests, subscribeReviewRequests } from "./api/reviewDesk";
@@ -21,8 +21,8 @@ import { RepositoriesPage } from "./pages/RepositoriesPage";
 import { ProjectSelectPage } from "./pages/ProjectSelectPage";
 import { SkillsPage } from "./pages/SkillsPage";
 import { ModelProvidersPage } from "./pages/ModelProvidersPage";
-import { readActiveProject, setActiveProject } from "./api/activeProject";
-import { listProjects, type ProjectListItem } from "./api/projects";
+import { beginProjectSession, clearActiveProject, setActiveProject } from "./api/activeProject";
+import { listAllProjects, type ProjectListItem } from "./api/projects";
 import { ReviewDeskPage } from "./pages/ReviewDeskPage";
 import { RoomViewContainer } from "./pages/RoomViewContainer";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -53,6 +53,31 @@ export default function ConsoleShell() {
   const [authNote, setAuthNote] = useState<string | null>(null);
   const [setupReady, setSetupReady] = useState<boolean | null>(null);
   const [setupRequested, setSetupRequested] = useState(false);
+  const [projects, setProjects] = useState<ProjectListItem[] | null>(null);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
+  const [projectsReload, setProjectsReload] = useState(0);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const selectionRef = useRef<string | null>(null);
+  const projectListEpoch = useRef(0);
+  useEffect(() => {
+    if (!account) return;
+    const epoch = ++projectListEpoch.current;
+    const saved = beginProjectSession(account.id);
+    selectionRef.current = null;
+    setActiveProjectId(null); setProjects(null);
+    let cancelled = false;
+    setProjectsError(null);
+    listAllProjects().then(items => {
+      if (cancelled || epoch !== projectListEpoch.current) return;
+      setProjects(items);
+      const id = saved && items.some(p => p.id === saved) ? saved : null;
+      if (id) setActiveProject(id); else clearActiveProject();
+      selectionRef.current = id;
+      setActiveProjectId(id);
+    }).catch(e => { if (!cancelled) setProjectsError(errText(e)); });
+    return () => { cancelled = true; };
+  }, [account, projectsReload]);
+
   const [route, setRoute] = useState<Route>(readRoute);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
@@ -139,30 +164,36 @@ export default function ConsoleShell() {
   }, []);
 
   useEffect(() => {
-    if (authState !== "authenticated") return;
+    // Both initial and paginated responses belong to this project/filter generation.
+    const epoch = ++issuesEpoch.current;
+    setIssues(null);
+    setIssuesMore(false);
+    if (authState !== "authenticated" || !activeProjectId) {
+      setIssuesLoading(false);
+      return;
+    }
     let cancelled = false;
-    // A3：换 tab 即换代——在途「加载更多」响应按代际丢弃，不污染新列表
-    issuesEpoch.current += 1;
     setIssuesLoading(true);
     setIssuesError(null);
     fetchIssues({
+      projectId: activeProjectId,
       state: issueTab,
       includeArchived: showArchived,
     })
       .then((page) => {
-        if (cancelled) return;
+        if (cancelled || epoch !== issuesEpoch.current) return;
         setIssues(page);
         setIssuesLoading(false);
       })
       .catch((err: unknown) => {
-        if (cancelled) return;
+        if (cancelled || epoch !== issuesEpoch.current) return;
         setIssuesError(errText(err));
         setIssuesLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [authState, issueTab, issuesReload, showArchived]);
+  }, [authState, activeProjectId, issueTab, issuesReload, showArchived]);
 
   useEffect(() => {
     if (authState !== "authenticated") return;
@@ -193,10 +224,11 @@ export default function ConsoleShell() {
 
   const loadMoreIssues = () => {
     const cursor = issues?.next_cursor;
-    if (!cursor || issuesMore) return;
+    if (!cursor || issuesMore || !activeProjectId) return;
     const epoch = issuesEpoch.current;
     setIssuesMore(true);
     fetchIssues({
+      projectId: activeProjectId,
       state: issueTab,
       cursor,
       includeArchived: showArchived,
@@ -206,8 +238,8 @@ export default function ConsoleShell() {
         // 续读只追加条目；计数是全量值，以最新一页为准即可
         setIssues((prev) => (prev ? { ...page, issues: [...prev.issues, ...page.issues] } : page));
       })
-      .catch((err: unknown) => showToast(`加载更多失败：${errText(err)}`))
-      .finally(() => setIssuesMore(false));
+      .catch((err: unknown) => { if (epoch === issuesEpoch.current) showToast(`加载更多失败：${errText(err)}`); })
+      .finally(() => { if (epoch === issuesEpoch.current) setIssuesMore(false); });
   };
 
   const navigate = (nav: NavKey) => {
@@ -220,16 +252,17 @@ export default function ConsoleShell() {
     setRoute({ nav: "issues", issueId, roomId: null, observeSection: null, settingsSection: null });
   };
 
-  // 主界面流程（2026-09-19 用户裁定）：登录后若还没选过项目，先落到「项目」页。
-  // issue 必须挂在项目上、由该项目的团队处理，所以「建立/选择项目」是进 issues
-  // 工作台之前的必经一步，不能像旧行为那样由前端盲取列表第一项。
-  useEffect(() => {
-    if (authState !== "authenticated") return;
-    if (readActiveProject() !== null) return;
-    const hash = window.location.hash;
-    if (hash !== "" && hash !== "#/" && hash !== "#/issues" && hash !== "#/issues/new") return;
-    navigate("projects");
-  }, [authState]);
+  const handleSelectProject = (projectId: string, destination: "repositories" | "issues" = "issues") => {
+    issuesEpoch.current += 1;
+    setIssues(null);
+    selectionRef.current = projectId;
+    setActiveProject(projectId);
+    setActiveProjectId(projectId);
+    navigate(destination);
+    // Includes freshly created projects; the side bar and manager share one list.
+    const epoch = ++projectListEpoch.current;
+    listAllProjects().then(items => { if (epoch === projectListEpoch.current) setProjects(items); }).catch(e => { if (epoch === projectListEpoch.current) setProjectsError(errText(e)); });
+  };
 
   /** 新建 issue = 主页对话框：#/issues/new 就是「空流 + 可用输入框」的新会话态，
    *  发送即建 issue 并进入其对话视图（原 NewIssueModal 弹窗已按用户裁决退役）。 */
@@ -246,15 +279,13 @@ export default function ConsoleShell() {
   /** B-1 创建回路：POST /projects/{projectId}/issue-creations（B06 契约）→
    *  刷新列表 → 跳新 issue 详情。幂等键由弹窗/主页聊天框持有（A2：每次逻辑
    *  创建换键，重试沿用同键）。返回只承诺 issue_id，读模型字段由列表刷新提供。 */
-  const handleCreateIssue = async (
-    text: string,
-    idempotencyKey: string,
-    documentFilename: string | null,
-  ) => {
-    const issue = await createIssue(text, idempotencyKey, documentFilename);
-    showToast(`issue 已创建：#${shortId(issue.issue_id)}（虚拟草稿，等待规划）`);
-    setIssuesReload((n) => n + 1);
-    openIssue(issue.issue_id);
+  const handleCreateIssue = async (input: CreateIssueRequest, idempotencyKey: string) => {
+    const issue = await createIssue(input, idempotencyKey);
+    if (selectionRef.current === input.projectId) {
+      showToast(`Issue 已创建：#${shortId(issue.issue_id)}`);
+      setIssuesReload(n => n + 1);
+      openIssue(issue.issue_id);
+    }
     return issue;
   };
 
@@ -299,6 +330,12 @@ export default function ConsoleShell() {
       .logout()
       .catch(() => undefined)
       .finally(() => {
+        projectListEpoch.current += 1;
+        clearActiveProject();
+        selectionRef.current = null;
+        setActiveProjectId(null);
+        setProjects(null);
+        setIssues(null);
         setAccount(null);
         setAuthState("anonymous");
       });
@@ -308,33 +345,10 @@ export default function ConsoleShell() {
    *  后端允许带活跃会话发起，回调成功后会作废本浏览器绑定上的旧会话再种新会话，
    *  所以这里只需整页跳转 GitHub 授权；失败（如 CSRF 过期）时回落到登录页。 */
   const handleSwitchAccount = () => {
+    clearActiveProject();
     authApi.switchGithubAccount().catch((err: unknown) => {
       showToast(`切换账号失败：${errText(err)}`);
     });
-  };
-
-  // ── 左上角项目切换器（2026-09-19 用户裁定）──
-  // 左上角从「REPOMESH」改为当前项目名并承载项目切换；账号管理在左下角。
-  // 切换项目后所有按项目取数的面（issue 列表、工作台）都要重取，所以顺手
-  // 递增 issuesReload 并回到 issues 工作台。
-  const [projects, setProjects] = useState<ProjectListItem[] | null>(null);
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(() => readActiveProject());
-  useEffect(() => {
-    if (authState !== "authenticated") return;
-    let cancelled = false;
-    listProjects({ limit: 100 })
-      .then((page) => !cancelled && setProjects(page.items))
-      .catch(() => !cancelled && setProjects([]));
-    return () => {
-      cancelled = true;
-    };
-  }, [authState]);
-
-  const handleSelectProject = (projectId: string) => {
-    setActiveProject(projectId);
-    setActiveProjectId(projectId);
-    setIssuesReload((n) => n + 1);
-    navigate("issues");
   };
 
   if (authState === "checking") {
@@ -426,7 +440,7 @@ export default function ConsoleShell() {
             : "min-w-0 flex-1 overflow-y-auto px-8 pt-5 pb-10"
         }
       >
-        {route.nav === "issues" &&
+        {route.nav === "issues" && activeProjectId !== null &&
           (route.issueId === null ? (
             <IssueListPage
               data={issues}
@@ -446,12 +460,16 @@ export default function ConsoleShell() {
             />
           ) : route.issueId === "new" ? (
             <WorkbenchPage
+              key={`${activeProjectId}:new`}
+              projectId={activeProjectId}
+              projectName={projects?.find(p => p.id === activeProjectId)?.name ?? activeProjectId}
               issueId={null}
               onCreateIssue={handleCreateIssue}
               onToast={showToast}
             />
           ) : route.roomId !== null ? (
             <RoomViewContainer
+              key={`${activeProjectId}:${route.issueId}:${route.roomId}`}
               issueId={route.issueId}
               roomId={route.roomId}
               onBack={() => openIssue(route.issueId!)}
@@ -459,6 +477,9 @@ export default function ConsoleShell() {
             />
           ) : (
             <WorkbenchPage
+              key={`${activeProjectId}:${route.issueId}`}
+              projectId={activeProjectId}
+              projectName={projects?.find(p => p.id === activeProjectId)?.name ?? activeProjectId}
               issueId={route.issueId}
               onCreateIssue={handleCreateIssue}
               onBack={() => navigate("issues")}
@@ -475,11 +496,11 @@ export default function ConsoleShell() {
             onOpenIssue={openIssue}
           />
         )}
-      {route.nav === "repositories" && (
-        <RepositoriesPage onOpenIssue={openIssue} />
+      {route.nav === "repositories" && activeProjectId !== null && (
+        <RepositoriesPage key={activeProjectId} projectId={activeProjectId} projectName={projects?.find(p => p.id === activeProjectId)?.name ?? activeProjectId} onNewIssue={openNewSession} />
       )}
-        {route.nav === "projects" && (
-          <ProjectSelectPage onEnterIssues={() => navigate("issues")} />
+        {(route.nav === "projects" || (activeProjectId === null && ["issues", "repositories"].includes(route.nav))) && (
+          <ProjectSelectPage key={account.id} projects={projects} activeProjectId={activeProjectId} error={projectsError} onRetry={() => setProjectsReload(n => n + 1)} onSelect={handleSelectProject} />
         )}
         {route.nav === "skills" && <SkillsPage onToast={showToast} />}
         {route.nav === "models" && <ModelProvidersPage />}

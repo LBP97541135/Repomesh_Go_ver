@@ -6,9 +6,9 @@
 
 ## 使用范围
 
-认证后从首页进入“项目”。创建页先明确选择可读仓库，再填写名称、用途和配置引用；缺少模型或环境配置仍可保存。项目详情提供设置入口，资料、已有范围及配置按采用的页面顺序展示。增加仓库是明确增量，受限已有仓库只显示数量，不能用当前可见列表替换完整范围。
+2026-09-19 采用顺序修正：认证后从左上角进入“项目管理”，先保存名称、用途和配置引用，再在项目仓库页明确接入仓库，最后创建 Issue。创建请求的 `repositoryIds` 必须提供，可以为 `[]`；缺少仓库、模型或环境配置仍可保存项目。项目详情提供设置入口，资料、已有范围及配置按采用的页面顺序展示。增加仓库是明确增量，受限已有仓库只显示数量，不能用当前可见列表替换完整范围。
 
-配置只有显式勾选本次更新时才重新绑定。省略配置保留原固定版本；默认或 secret 版本随后变化不会暗换已保存项目。B03 批次只实现内部固定版本消费与候选读取。后续 B04 已提供模型供应商保存和部署来源导入，采用范围见本文顶部链接；新库不会自动生成 profile/default。测试 fixture 不能替代真实模型调用或运行准备验收。项目的 `canCreateIssue` 保持 false。
+配置只有显式勾选本次更新时才重新绑定。省略配置保留原固定版本；默认或 secret 版本随后变化不会暗换已保存项目。B03 批次只实现内部固定版本消费与候选读取。后续 B04 已提供模型供应商保存和部署来源导入，采用范围见本文顶部链接；新库不会自动生成 profile/default。测试 fixture 不能替代真实模型调用或运行准备验收。项目详情的 `canCreateIssue` 保持 false，创建入口以 Issue 专用 `issue-creation-options` 判断。项目无仓库时 `creationReadiness` 为 `restricted / NO_AVAILABLE_REPOSITORIES`；只有配置已解析而尚未核实实时工作授权时为 `unknown / ISSUE_CREATION_OPTIONS_REQUIRED`，不宣称业务就绪。
 
 创建和更新的未知结果保留原操作键与原输入，沿创建恢复页或更新恢复页查询。404 只表示当前无可见提交；成功回执的 revision 与时间固定，当前项目另读。输入丢失只允许查询；存储不可用时发送前展示可复制的浏览器恢复链接。注销、401、身份变化及失权清理敏感输入，晚到响应不能写回旧页面或存储。
 
@@ -53,3 +53,11 @@ pwsh -NoProfile -File scripts/verify-batch.ps1 -Batch B03 -PostgresBin /usr/lib/
 规划、架构与接口由 GPT-6 Astra 完成，实现由 gpt-5.6-sol 执行，未主要实现的模型复核。证据中的两轮私有 helper 事后声明偏差保留，不声称全程满足前置声明流程。B02.6 外部验收与 B03 主目录验证按各自真实结果判定。
 
 09-12 历史检查点：当时 B04 为 `DESIGN_PREPARED_NOT_ADOPTED`，只准备[交接](../development/2026-09-12-b04-handoff-01/HANDOFF.md)和[下一会话 Prompt](../archive/2026-09-13-plan-organization/NEXT-TASK-B04-PROMPT.md)。该准备阶段已由 B04 采用与验收替代，当前以本文顶部链接为准。
+
+## 2026-09-19 项目范围执行约束
+
+新控制台 `frontend/src/ConsoleShell.tsx` 统一持有项目列表与选中项目，账号隔离的本地偏好仅在当前可读项目列表验证后恢复。项目、仓库候选和 Issue 创建选项都续读分页；加载失败展示错误。新建项目与 Issue 的一次提交保存确切输入及幂等键，未知结果重试不换键。
+
+账号仓库目录仅用于明确接入。仓库页读取 `GET /api/projects/{projectId}/repositories`，增加成员复用带 `expectedProjectRevision` 的 PATCH。Issue 创建显式提交项目内仓库子集和创建上下文修订，不自动创建项目或扩张工作范围。
+
+发现候选、分档审批、计划和物化按 `issue_repository_scope` 限制；重规划同时检查项目与计划关联的 Issue。迁移 0040 的 `task_repository_scopes` 保存规范仓库 ID，并以复合外键指向项目成员关系和 Issue 工作范围。历史任务仅回填可确定的合法绑定；未确认项可从 `task_repository_scope_violations` 查询，调度要求有效 Issue 绑定。源码、条件与测试见[本次记录](../development/2026-09-19-project-scope/README.md)。

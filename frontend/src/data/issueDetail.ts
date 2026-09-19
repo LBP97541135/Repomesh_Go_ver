@@ -42,6 +42,7 @@ export const issueDetailFixture: IssueDetailView = {
   pending_planning: false,
   repository_count: 3,
   team_count: 3,
+  plan_version: "v2",
   // 与 data/issues.ts 列表夹具同一派生同一结论（§3 详情 = §2 全字段之上追加）
   operational_status: "paused",
   execution_mode: "supervised",

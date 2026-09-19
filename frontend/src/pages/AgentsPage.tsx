@@ -341,7 +341,7 @@ export function AgentsPage({ onOpenIssue }: { onOpenIssue: (issueId: string) => 
               </button>
               <span className="text-[13.5px] font-semibold text-cream">{displayName}</span>
               <span className="rounded-full bg-amber/20 px-2 py-[1px] text-[10.5px] text-amber-hi">
-                {ROLE_LABEL[agent.role] ?? agent.role}
+                {agent.role === "leader" ? "组织 leader" : agent.role === "manager" ? "仓库 leader" : agent.role}
               </span>
             </div>
             <p className="mt-2 text-[11.5px] text-tx2">

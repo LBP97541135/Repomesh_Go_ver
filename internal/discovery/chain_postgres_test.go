@@ -21,8 +21,7 @@ const agentID = "44444444-4444-4444-8444-444444444444"
 //
 // 锁住 2026-09-19 这一轮修的五个点：
 //  1. 候选读的是**扫描产出的 AutoCard**，不再只有仓库名/描述可比；
-//  2. 候选池是**本空间全部已登记仓库**，不再只有项目已挂的那几个
-//     （fixture 刻意不建 project_repositories，就是为了证明这一点）；
+//  2. 候选池只包含本 Issue 明确选择的项目仓库；
 //  3. 没有模型供应商时**如实回退关键词**并标 llm_used=false；
 //  4. 图推理把依赖补进"可能"档；
 //  5. 全部排除时**拒绝生成空计划**（ErrNoRepositories）。
@@ -119,12 +118,7 @@ func TestPostgresDiscoveryChainRefusesEmptyPlan(t *testing.T) {
 
 // ---- fixture ----
 
-// seedRecallFixture 只播三类行：仓库目录、扫描名片、发现链状态。
-//
-// 刻意**不建** project_repositories：候选池必须靠"本空间全部已登记仓库"覆盖到，
-// 这正是修复前那条"只看项目已挂仓库"的死胡同。
-//
-// 需求文本里不含任何仓库名——召回只能靠名片里的目录/依赖/提交。
+// seedRecallFixture includes real project, issue, scope and scan rows.
 func seedRecallFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool, issueID, requirement string, keywords []string) {
 	t.Helper()
 	exec := func(sql string, args ...any) {
@@ -133,11 +127,9 @@ func seedRecallFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool, is
 			t.Fatalf("fixture 播种失败: %v\nSQL: %s", err, sql)
 		}
 	}
-	// 仓库目录：两个相关（checkout 依赖 shared-lib）+ 一个无关。
-	exec(`INSERT INTO repomesh_projects.repositories (id, host, github_id, owner, name) VALUES
-		('repo_00000000000000000901','github.com',9901,'acme','checkout'),
-		('repo_00000000000000000902','github.com',9902,'acme','shared-lib'),
-		('repo_00000000000000000903','github.com',9903,'acme','docs-site')`)
+	f := testdb.SeedProject(t, pool, "99999999-9999-4999-8999-999999999999", "", "acme/checkout", "acme/shared-lib", "acme/docs-site")
+	testdb.SeedIssue(t, pool, f, issueID, "acme/checkout", "acme/shared-lib")
+	testdb.SeedProject(t, pool, "", "", "outside/checkout-secret")
 	// 扫描名片：checkout 的名片里写着结算目录、依赖 shared-lib、最近的满减提交。
 	exec(`INSERT INTO repomesh_scan.repositories
 		(id, name, url, description, topics, languages, fingerprint, profiled_at, metadata, test_commands, test_paths, poll_failures)
@@ -151,6 +143,7 @@ func seedRecallFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool, is
 		'[]'::jsonb,'["Go"]'::jsonb,'fp-shared', now(),
 		'{"topDirs":["pkg"],"deps":[],"depEvidence":[],"identities":["acme/shared-lib"],"deployIdentities":[],"recentCommits":[],"exposedApis":[],"lowSignal":false}'::jsonb,
 		'[]'::jsonb,'[]'::jsonb,0)`)
+	exec(`UPDATE repomesh_scan.repositories SET organization_id=$1::uuid`, f.OrganizationID)
 	// 发现链状态：分析步已经跑过，关键词直接给足（跳过需求分析，只测召回之后的部分）。
 	analysis, err := json.Marshal(map[string]any{
 		"sufficient":           true,

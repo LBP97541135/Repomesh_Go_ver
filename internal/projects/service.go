@@ -145,7 +145,8 @@ func (s *Service) Create(ctx context.Context, principal access.ProjectPrincipal,
 	if err = tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&committedAt); err != nil {
 		return CreateResult{}, unavailable()
 	}
-	organizationID, err := resolveDefaultOrganization(ctx, tx)
+	var organizationID string
+	err = tx.QueryRow(ctx, `SELECT organization_id::text FROM repomesh_access.accounts WHERE id=$1`, principal.ActorID()).Scan(&organizationID)
 	if err != nil {
 		return CreateResult{}, err
 	}
@@ -197,25 +198,6 @@ func (s *Service) Create(ctx context.Context, principal access.ProjectPrincipal,
 		return CreateResult{}, unavailable()
 	}
 	return CreateResult{Receipt: creationReceipt(operation), FirstCommit: true}, nil
-}
-
-// resolveDefaultOrganization lazily binds every new project to the default
-// organization (accounts have no organization binding since 0003; 0030 made
-// projects.organization_id NOT NULL). Mirrors discovery's resolveOrgID.
-func resolveDefaultOrganization(ctx context.Context, tx pgx.Tx) (string, error) {
-	var orgID string
-	err := tx.QueryRow(ctx,
-		`SELECT id::text FROM public.organizations ORDER BY created_at LIMIT 1`).Scan(&orgID)
-	if err == nil {
-		return orgID, nil
-	}
-	if err != pgx.ErrNoRows {
-		return "", err
-	}
-	err = tx.QueryRow(ctx,
-		`INSERT INTO public.organizations (id, name) VALUES (gen_random_uuid(), '默认组织') RETURNING id::text`).
-		Scan(&orgID)
-	return orgID, err
 }
 
 func (s *Service) prepareUpdate(ctx context.Context, principal access.ProjectPrincipal, command UpdateCommand, input UpdateInput, normalized normalizedInput) (updatePlan, error) {
@@ -531,6 +513,20 @@ func (s *Service) Get(ctx context.Context, principal access.ProjectPrincipal, pr
 		Configuration: configurationView(fixed.snap.record, checks), Actions: Actions{CanEdit: true, CanCreateIssue: false}, CreationReadiness: creationReadiness(checks)}
 	view.Configuration.FixedSummary = summary
 	view.Configuration.QuotaObservation = quota
+	var hasRepositories bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM repomesh_projects.project_repositories WHERE project_id=$1)`, project.id).Scan(&hasRepositories); err != nil {
+		return ProjectView{}, unavailable()
+	}
+	if !hasRepositories {
+		view.CreationReadiness.Status = "restricted"
+		view.CreationReadiness.ReasonCodes = append(view.CreationReadiness.ReasonCodes, "NO_AVAILABLE_REPOSITORIES")
+	}
+	// Live work authorization is evaluated by issue-creation-options, not this
+	// configuration summary. Do not advertise a definitive readiness here.
+	if view.CreationReadiness.Status == "ready" {
+		view.CreationReadiness.Status = "unknown"
+		view.CreationReadiness.ReasonCodes = append(view.CreationReadiness.ReasonCodes, "ISSUE_CREATION_OPTIONS_REQUIRED")
+	}
 	return view, nil
 }
 

@@ -9,6 +9,7 @@ export interface PlanTaskItem {
   id: string;
   taskUid?: string;
   title: string;
+  repositoryId?: string;
   status: string;
   batchNo?: number;
   conversationId?: string;

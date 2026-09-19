@@ -7,6 +7,7 @@
  *  幂等键走 `Idempotency-Key` **请求头**（恰好一个，400 否则）；
  *  字段契约唯一来源：docs/current/issue-page-create-api-contract.md（§3 请求、
  *  §4 创建响应、§7 详情与房间）。 */
+import { allPages } from "./pagination";
 import { apiRequest } from "./http";
 
 /** 创建请求体（契约 §3,2026-09-17 后端 parseNewInput as-built）:
@@ -74,8 +75,8 @@ function pageQuery(query: PageQuery): string {
 }
 
 /** GET /api/projects/{projectId}/issue-creation-options — 创建条件（谁能建、缺什么）。 */
-export function creationOptions(projectId: string, query?: PageQuery): Promise<unknown> {
-  return apiRequest<unknown>(
+export function creationOptions(projectId: string, query?: PageQuery): Promise<CreationOptions> {
+  return apiRequest<CreationOptions>(
     "GET",
     `/projects/${encodeURIComponent(projectId)}/issue-creation-options${pageQuery(query ?? {})}`,
   );
@@ -105,4 +106,31 @@ export function getIssue(issueId: string): Promise<unknown> {
 /** GET /api/issues/{issueId}/rooms — 房间列表（§7；消息流本身未实现）。 */
 export function issueRooms(issueId: string): Promise<unknown> {
   return apiRequest<unknown>("GET", `/issues/${encodeURIComponent(issueId)}/rooms`);
+}
+
+export interface CreationRepository {
+  repositoryId: string;
+  displayName: string;
+  selectable: boolean;
+  reasons: string[];
+}
+export interface CreationOptions {
+  projectId: string;
+  creationContextRevision: string;
+  canSubmit: boolean;
+  blockingReasons: string[] | null;
+  repositories: CreationRepository[];
+  nextCursor: string | null;
+}
+export async function allCreationOptions(projectId: string): Promise<CreationOptions> {
+  let first: CreationOptions | undefined;
+  const repositories = await allPages(async (cursor) => {
+    const page = await creationOptions(projectId, { cursor, limit: 100 });
+    if (first && first.creationContextRevision !== page.creationContextRevision) {
+      throw new Error("项目创建条件已变化，请刷新后重新选择。");
+    }
+    first ??= page;
+    return { items: page.repositories, nextCursor: page.nextCursor };
+  });
+  return { ...first!, repositories, nextCursor: null };
 }

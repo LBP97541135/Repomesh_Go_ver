@@ -38,38 +38,12 @@ func (s *Service) Plan(ctx context.Context, issueID, agentID, idempotencyKey str
 		tx.Rollback(ctx)
 		return receipt, nil
 	}
-	required := []map[string]any{}
-	maybe := []map[string]any{}
-	if raw, _ := st.Classification["required"].([]any); raw != nil {
-		for _, entry := range raw {
-			if m, ok := entry.(map[string]any); ok {
-				required = append(required, m)
-			}
-		}
+	repos, err := selectedTierNames(st.EffectiveTiers)
+	if err != nil {
+		return nil, err
 	}
-	if raw, _ := st.Classification["maybe"].([]any); raw != nil {
-		for _, entry := range raw {
-			if m, ok := entry.(map[string]any); ok {
-				maybe = append(maybe, m)
-			}
-		}
-	}
-	repos := []string{}
-	for _, entry := range required {
-		if name, ok := entry["repository"].(string); ok {
-			repos = append(repos, name)
-		}
-	}
-	for _, entry := range maybe {
-		if name, ok := entry["repository"].(string); ok {
-			repos = append(repos, name)
-		}
-	}
-	// 2026-09-19：候选全被排除时**不要生成空计划**——那会把错误推迟到物化确认，
-	// 以"服务端暂时不可用 500"的样子爆出来，用户完全无法自救。这里直接拒，
-	// 并告诉他怎么改。
-	if len(repos) == 0 {
-		return nil, fmt.Errorf("%w：本次没有任何仓库被纳入改动（候选全部为「排除」）。请回到第 3 步把目标仓库调成「必需」或「可能」，或在需求里写明涉及的仓库/模块名", ErrNoRepositories)
+	if err := validateRepositories(ctx, tx, st, repos); err != nil {
+		return nil, err
 	}
 	nodes := []any{}
 	for _, name := range repos {
@@ -88,9 +62,9 @@ func (s *Service) Plan(ctx context.Context, issueID, agentID, idempotencyKey str
 	}
 	var planID string
 	err = tx.QueryRow(ctx,
-		"INSERT INTO public.plans (id, project_id, plan_version, requirement_text, specs, task_dag, execution_batches, revisions, created_by_agent_id)"+
-			" VALUES (gen_random_uuid(), $1, 'v1', $2, '{}'::jsonb, $3::jsonb, '[]'::jsonb, '[]'::jsonb, $4) RETURNING id::text",
-		st.ProjectID, st.RequirementText, string(planJSON), createdByAgent).Scan(&planID)
+		"INSERT INTO public.plans (id, project_id, plan_version, requirement_text, specs, task_dag, execution_batches, revisions, created_by_agent_id, issue_id)"+
+			" VALUES (gen_random_uuid(), $1, 'v1', $2, '{}'::jsonb, $3::jsonb, '[]'::jsonb, '[]'::jsonb, $4, $5) RETURNING id::text",
+		st.ProjectID, st.RequirementText, string(planJSON), createdByAgent, issueID).Scan(&planID)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +115,16 @@ func (s *Service) Approval(ctx context.Context, issueID, agentID, idempotencyKey
 	}
 	if decision == "approved" {
 		for _, adjustment := range adjustments {
+			if adjustment.Tier != "required" && adjustment.Tier != "maybe" && adjustment.Tier != "excluded" {
+				return nil, ErrConflict
+			}
+			if err := validateRepositories(ctx, tx, st, []string{adjustment.Repository}); err != nil {
+				return nil, err
+			}
 			st.EffectiveTiers = applyAdjustment(st.EffectiveTiers, adjustment)
+		}
+		if err := validateRepositories(ctx, tx, st, tierNames(st.EffectiveTiers)); err != nil {
+			return nil, err
 		}
 		if !tiersHaveSelection(st.EffectiveTiers) {
 			return nil, fmt.Errorf("%w：本次没有任何仓库被纳入改动（全部为「排除」）。请把至少一个仓库调整为「必需」或「可能」后再确认", ErrNoRepositories)
@@ -308,12 +291,31 @@ func (s *Service) Materialize(ctx context.Context, issueID, agentID, idempotency
 		tx.Commit(ctx)
 		return nil, fmt.Errorf("%w: plan is empty or missing plan_id", ErrConflict)
 	}
+	if err := validateRepositories(ctx, tx, st, repositories); err != nil {
+		return nil, err
+	}
+	approved, err := selectedTierNames(st.EffectiveTiers)
+	if err != nil {
+		return nil, err
+	}
+	approvedSet := map[string]bool{}
+	for _, name := range approved {
+		approvedSet[name] = true
+	}
+	if st.Approval["state"] != "approved" || len(approvedSet) != len(repositories) {
+		return nil, fmt.Errorf("%w: 审批范围已变化，请重新生成计划", ErrConflict)
+	}
+	for _, name := range repositories {
+		if !approvedSet[name] {
+			return nil, fmt.Errorf("%w: 审批范围已变化，请重新生成计划", ErrConflict)
+		}
+	}
+	var orgID string
+	if err := tx.QueryRow(ctx, `SELECT organization_id::text FROM repomesh_projects.projects WHERE id=$1`, st.ProjectID).Scan(&orgID); err != nil {
+		return nil, err
+	}
 	taskIDs := []string{}
 	for _, repo := range repositories {
-		orgID, err := s.resolveOrgID(ctx, tx)
-		if err != nil {
-			return nil, err
-		}
 		title := "Implement changes for " + repo
 		instruction := "针对需求「" + st.RequirementText + "」在仓库 " + repo +
 			" 上实现所需改动，完成后提交变更说明。"
@@ -371,28 +373,6 @@ func (s *Service) Materialize(ctx context.Context, issueID, agentID, idempotency
 	return receipt, nil
 }
 
-// resolveOrgID returns the first organization's id, lazily creating the
-// default organization when the table is empty (no production writer seeds
-// it; tasks.organization_id is NOT NULL).
-func (s *Service) resolveOrgID(ctx context.Context, tx pgx.Tx) (string, error) {
-	var orgID string
-	err := tx.QueryRow(ctx,
-		"SELECT id::text FROM public.organizations ORDER BY created_at LIMIT 1").Scan(&orgID)
-	if err == nil {
-		return orgID, nil
-	}
-	if err != pgx.ErrNoRows {
-		return "", err
-	}
-	err = tx.QueryRow(ctx,
-		"INSERT INTO public.organizations (id, name) VALUES (gen_random_uuid(), '默认组织') RETURNING id::text").
-		Scan(&orgID)
-	return orgID, err
-}
-
-// TaskView is the GET /issues/{id}/discovery/tasks/{taskId} polling view.
-// The Go implementation executes steps synchronously, so a task id resolves
-// immediately to its terminal state (contract 4.5 shape preserved).
 func (s *Service) TaskView(ctx context.Context, issueID, taskID string) (map[string]any, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

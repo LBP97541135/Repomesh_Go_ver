@@ -160,16 +160,18 @@ func (l *coordinatorLedger) ReserveForTask(ctx context.Context, workerID, taskID
 	}
 	defer tx.Rollback(ctx)
 	var projectID, issueID, revision, repoFullName, issueTitle, configuredKind, configuredModel string
-	err = tx.QueryRow(ctx, `SELECT t.project_id::text, t.source_ref->>'issueId', i.initial_configuration_revision,
-		       t.repository_id, i.title
+	err = tx.QueryRow(ctx, `SELECT t.project_id::text, scope.issue_id, i.initial_configuration_revision,
+		       r.owner || '/' || r.name, i.title
 		       , COALESCE(a.agent_kind, ''), COALESCE(a.model, '')
 		FROM public.tasks t
-		JOIN repomesh_issues.issues i ON i.project_id = t.project_id::text AND i.id = t.source_ref->>'issueId'
+		JOIN public.task_repository_scopes scope ON scope.task_id=t.id AND scope.project_id=t.project_id::text
+		JOIN repomesh_projects.repositories r ON r.id=scope.repository_id
+		JOIN repomesh_issues.issues i ON i.project_id = scope.project_id AND i.id = scope.issue_id
 		LEFT JOIN repomesh_projects.agent_settings a ON a.project_id = t.project_id::text
 		WHERE t.id::text=$1 LIMIT 1`, taskID).
 		Scan(&projectID, &issueID, &revision, &repoFullName, &issueTitle, &configuredKind, &configuredModel)
 	if err != nil {
-		return "", fmt.Errorf("coordinator: task %s is not linked to an issue (missing source_ref?)", taskID)
+		return "", fmt.Errorf("coordinator: task %s has no confirmed Issue repository binding", taskID)
 	}
 	// 项目级智能体配置（/app/ 项目页保存）覆盖部署默认：CLI 种类与模型。
 	if configuredKind == "codex_cli" || configuredKind == "claude_cli" {

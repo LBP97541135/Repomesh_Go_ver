@@ -4,6 +4,8 @@
  *  json 字段为 Go json tag 原样（internal/projects/types.go）。写操作要求
  *  **恰好一个** `Idempotency-Key` 头（缺失/重复即 400 INVALID_IDEMPOTENCY_KEY），
  *  且 Content-Type 必须是 application/json（415 否则）。 */
+import type { RepositoryCandidate } from "./repositories";
+import { allPages } from "./pagination";
 import { apiRequest } from "./http";
 
 const KEY_HEADER = (key: string) => ({ "Idempotency-Key": key });
@@ -173,15 +175,31 @@ export function getProjectUpdate(projectId: string, updateId: string): Promise<P
   );
 }
 
-/** GET /api/projects/{projectId}/repositories — 项目仓库（一项目一仓 as-built）。 */
+/** GET /api/projects/{projectId}/repositories — 项目已接入仓库。 */
 export function listProjectRepositories(
   projectId: string,
   query?: PageQuery,
-): Promise<{ items: unknown[]; nextCursor: string | null; projectRevision: string; restrictedRepositoryCount: number }> {
+): Promise<{ items: RepositoryCandidate[]; nextCursor: string | null; projectRevision: string; restrictedRepositoryCount: number }> {
   return apiRequest("GET", `/projects/${encodeURIComponent(projectId)}/repositories${pageQuery(query)}`);
 }
 
 /** GET /api/configuration-profiles — 执行配置档案目录。 */
 export function listConfigurationProfiles(query?: PageQuery): Promise<ConfigurationProfilePage> {
   return apiRequest<ConfigurationProfilePage>("GET", `/configuration-profiles${pageQuery(query)}`);
+}
+
+export function listAllProjects(): Promise<ProjectListItem[]> {
+  return allPages((cursor) => listProjects({ cursor, limit: 100 }));
+}
+export async function allProjectRepositories(projectId: string) {
+  let revision: string | undefined;
+  let restricted = 0;
+  const items = await allPages(async (cursor) => {
+    const page = await listProjectRepositories(projectId, { cursor, limit: 100 });
+    if (revision && revision !== page.projectRevision) throw new Error("项目已更新，请重新加载仓库。");
+    revision = page.projectRevision;
+    restricted = page.restrictedRepositoryCount;
+    return page;
+  });
+  return { items, projectRevision: revision!, restrictedRepositoryCount: restricted };
 }

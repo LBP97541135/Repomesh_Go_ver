@@ -71,7 +71,7 @@ func parseCreate(input RawInput, schemaVersion int) (CreateInput, normalizedInpu
 	if _, ok := input.fields["repositoryIds"]; !ok {
 		return CreateInput{}, normalizedInput{}, &Failure{Status: 422, Code: "VALIDATION_FAILED", FieldErrors: []FieldError{{Field: "repositoryIds", Code: "REQUIRED"}}}
 	}
-	if result.RepositoryIDs, err = parseRepositoryIDs(input.fields["repositoryIds"], true); err != nil {
+	if result.RepositoryIDs, err = parseRepositoryIDs(input.fields["repositoryIds"], false); err != nil {
 		return CreateInput{}, normalizedInput{}, err
 	}
 	if raw, ok := input.fields["configuration"]; ok {

@@ -29,6 +29,7 @@ function issue(over: Partial<IssueListItemView> & Pick<IssueListItemView, "issue
     pending_planning: false,
     repository_count: 1,
     team_count: 0,
+    plan_version: "",
     operational_status: null,
     execution_mode: null,
     opened_by_agent_id: null,

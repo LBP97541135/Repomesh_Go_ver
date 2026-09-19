@@ -226,6 +226,17 @@ func seedBrowserFixtures(ctx context.Context, pool *pgxpool.Pool, store *secrets
 		return browserFixtureIDs{}, err
 	}
 	if !options.EmptyCatalog {
+		if _, err = tx.Exec(ctx, `INSERT INTO repomesh_projects.request_policy_versions
+			(id,version,scope,daily_limit,max_unresolved,enabled) VALUES('budget_fixture','v1','project_model_runtime',100,10,true);
+			INSERT INTO repomesh_projects.time_policy_versions
+			(id,version,scope,model_request_seconds,worker_attempt_seconds) VALUES('time_fixture','v1','project_model_runtime',30,600)`); err != nil {
+			return browserFixtureIDs{}, err
+		}
+		if _, err = tx.Exec(ctx, `INSERT INTO repomesh_sources.environment_templates
+			(id,version,executor_pool_id,approved_template_digest,network_policy_ref,resource_class_id,enabled)
+			VALUES('fixture','v1','fixture-pool','sha256:' || repeat('a',64),'fixture-net','fixture-class',true)`); err != nil {
+			return browserFixtureIDs{}, err
+		}
 		for _, actor := range []string{result.ActorA, result.ActorB} {
 			suffix := "a"
 			if actor == result.ActorB {
@@ -237,6 +248,11 @@ func seedBrowserFixtures(ctx context.Context, pool *pgxpool.Pool, store *secrets
 			}
 			if _, err = tx.Exec(ctx, `INSERT INTO repomesh_projects.profile_versions(kind,profile_id,version,parameters_complete,worker_concurrency,budget_policy_id,time_limit_policy_id,verification_group_enabled) VALUES
 			('model',$1,'v1',true,NULL,'budget_fixture','time_fixture',NULL),('execution',$2,'v1',true,1,'budget_fixture','time_fixture',false)`, "model_fixture_"+suffix, "execution_fixture_"+suffix); err != nil {
+				return browserFixtureIDs{}, err
+			}
+			if _, err = tx.Exec(ctx, `INSERT INTO repomesh_sources.execution_versions
+				(profile_id,version,owner,name,template_id,template_version,worker_concurrency,verification_group_enabled,complete,budget_policy_id,budget_policy_version,time_limit_policy_id,time_limit_policy_version)
+				VALUES($1,'v1',$2,'Fixture execution','fixture','v1',1,false,true,'budget_fixture','v1','time_fixture','v1')`, "execution_fixture_"+suffix, actor); err != nil {
 				return browserFixtureIDs{}, err
 			}
 			if _, err = tx.Exec(ctx, `INSERT INTO repomesh_projects.defaults(actor,kind,profile_id,default_revision) VALUES
@@ -697,6 +713,14 @@ func (s *browserTestServer) advanceProfile(ctx context.Context, actor, kind stri
 		VALUES($1,$2,$3,$4,$5,$6,$7,true,CASE WHEN $1='execution' THEN 1 ELSE NULL END,'budget_fixture','time_fixture',CASE WHEN $1='execution' THEN false ELSE NULL END)`, kind, profileID, version, secretID, ownerKind, ownerID, purpose); err != nil {
 		return err
 	}
+	if kind == "execution" {
+		if _, err = tx.Exec(ctx, `INSERT INTO repomesh_sources.execution_versions
+			(profile_id,version,owner,name,template_id,template_version,worker_concurrency,verification_group_enabled,complete,budget_policy_id,budget_policy_version,time_limit_policy_id,time_limit_policy_version)
+			SELECT profile_id,$3,owner,name,template_id,template_version,worker_concurrency,verification_group_enabled,complete,budget_policy_id,budget_policy_version,time_limit_policy_id,time_limit_policy_version
+			FROM repomesh_sources.execution_versions WHERE profile_id=$1 AND version=$2`, profileID, current, version); err != nil {
+			return err
+		}
+	}
 	if _, err = tx.Exec(ctx, `UPDATE repomesh_projects.profiles SET current_version=$3 WHERE kind=$1 AND id=$2`, kind, profileID, version); err != nil {
 		return err
 	}
@@ -993,7 +1017,7 @@ func TestPostgresProjectHTTPContract(t *testing.T) {
 	origin, csrf := server.server.URL, session.CSRFToken
 	discoveryDeadline := time.Now().Add(5 * time.Second)
 	for {
-		status, data, _ = request("GET", "/api/repositories/candidates?limit=50", "", "", "", "")
+		status, data, _ = request("GET", "/api/repositories?limit=50", "", "", "", "")
 		if status == 200 && strings.Contains(string(data), server.fixtures.RepositoryA) && strings.Contains(string(data), server.fixtures.RepositoryB) {
 			break
 		}

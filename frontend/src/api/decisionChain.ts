@@ -1,3 +1,4 @@
+import { readActiveProject } from "./activeProject";
 /** 历史决策数据源：live | replay，开关沿用 `resolveDataSourceMode()`
  *  （URL `?source=live|replay` > `VITE_DATA_SOURCE` > 默认 live）。
  *
@@ -220,9 +221,11 @@ export async function locateProjectCandidates(
       note: null,
     }));
   }
+  const projectId = readActiveProject();
+  if (!projectId) return [];
   const [open, closed] = await Promise.all([
-    fetchIssues({ state: "open", organizationId: organizationId ?? undefined }),
-    fetchIssues({ state: "closed", organizationId: organizationId ?? undefined }),
+    fetchIssues({ projectId, state: "open", organizationId: organizationId ?? undefined }),
+    fetchIssues({ projectId, state: "closed", organizationId: organizationId ?? undefined }),
   ]);
   const needle = kw.toLowerCase();
   return [...open.issues, ...closed.issues]

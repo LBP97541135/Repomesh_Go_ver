@@ -148,6 +148,9 @@ func (s *Service) ResolveSelectedRepositories(ctx context.Context, principal Pro
 
 func (s *Service) ObserveProjectRepositories(ctx context.Context, principal ProjectPrincipal, repositories []RepositoryLocator) (ProjectObservation, error) {
 	result := ProjectObservation{actor: principal.actor, repositories: make([]RepositoryObservation, 0, len(repositories))}
+	if len(repositories) == 0 {
+		return result, nil
+	}
 	credential, err := s.credential(ctx, principal.actor, false)
 	if err != nil {
 		var denied *Failure

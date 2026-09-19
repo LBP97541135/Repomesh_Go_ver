@@ -43,7 +43,7 @@ export function policyGateOf(state: SupervisionState): PolicyGate {
   }
 }
 
-export function useIssueFlowState(issueId: string, detail: IssueDetailView | null, reload: number) {
+export function useIssueFlowState(projectId: string, issueId: string, planId: string | null, detail: IssueDetailView | null, reload: number) {
   // ── 监督策略（迁移 5-1a）：物化会顺手建出拓扑，跟着 reload 重取 ──
   const [supervision, setSupervision] = useState<SupervisionState>({ status: "loading" });
   const [supervisionReload, setSupervisionReload] = useState(0);
@@ -57,7 +57,7 @@ export function useIssueFlowState(issueId: string, detail: IssueDetailView | nul
     }
     let cancelled = false;
     setSupervision({ status: "loading" });
-    fetchProjectTopology(issueId)
+    fetchProjectTopology(projectId)
       .then((topology) => !cancelled && setSupervision({ status: "ready", topology }))
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -79,7 +79,7 @@ export function useIssueFlowState(issueId: string, detail: IssueDetailView | nul
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [issueId, detail?.issue_id, reload, supervisionReload]);
+  }, [projectId, issueId, detail?.issue_id, reload, supervisionReload]);
   const reloadSupervision = useCallback(() => setSupervisionReload((n) => n + 1), []);
 
   // ── 监管策略草稿（§3.2/§3.4）：与拓扑读面同一个 reload 拍子 ──
@@ -101,7 +101,7 @@ export function useIssueFlowState(issueId: string, detail: IssueDetailView | nul
     }
     let cancelled = false;
     setPolicyDraft({ kind: "loading" });
-    fetchPolicyDraft(issueId)
+    fetchPolicyDraft(projectId)
       .then((draft) => !cancelled && setPolicyDraft({ kind: "set", draft }))
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -126,7 +126,7 @@ export function useIssueFlowState(issueId: string, detail: IssueDetailView | nul
     };
     // 与拓扑同一取舍：依赖 issue 标识与刷新计数，不依赖 detail 整体身份。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [issueId, detail?.issue_id, reload, policyReload]);
+  }, [projectId, issueId, detail?.issue_id, reload, policyReload]);
 
   // ── 锚点回退中转：发现面板报上来的候选仓（undefined = 还没问过发现读投影） ──
   const [candidateAnchor, setCandidateAnchor] = useState<PlanAnchor | null | undefined>(undefined);
@@ -177,7 +177,7 @@ export function useIssueFlowState(issueId: string, detail: IssueDetailView | nul
         }));
         // 边语义是给既有连线**加注**的（粗线 + hover），不是画图的前提：
         // 取不到（老快照 / 404 / 回放）就按 null 渲染，连线照画。
-        const graphEdges = await fetchPlanGraphEdges(issueId, plan.plan_version);
+        const graphEdges = planId ? await fetchPlanGraphEdges(planId, plan.plan_version) : null;
         if (cancelled || graphEdges === null) return;
         setPlanState((prev) =>
           prev.status === "ready" && prev.plan.plan_version === plan.plan_version
@@ -209,6 +209,7 @@ export function useIssueFlowState(issueId: string, detail: IssueDetailView | nul
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     issueId,
+    planId,
     hasDetail,
     anchorRepositoryId,
     anchorRepositoryName,
