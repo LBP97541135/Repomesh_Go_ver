@@ -3,6 +3,8 @@ package discovery
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -283,7 +285,7 @@ func (s *Service) ApplyPlanningArtifact(ctx context.Context, tx pgx.Tx, st *Stat
 				}
 			}
 		}
-		planID := st.IssueID + ":plan:v1"
+		planID := newPlanID(st.IssueID, "v1")
 		st.Plan = map[string]any{
 			"plan_id":      planID,
 			"plan_version": "v1",
@@ -457,6 +459,40 @@ func newPlanningID() string {
 	buffer[6] = buffer[6]&15 | 64
 	buffer[8] = buffer[8]&63 | 128
 	return fmt.Sprintf("%x-%x-%x-%x-%x", buffer[:4], buffer[4:6], buffer[6:8], buffer[8:10], buffer[10:])
+}
+
+// newPlanID 给一版计划一个**合法的 uuid**（同一 issue 同一版本永远同一个）。
+//
+// 2026-09-20 线上实测：这里此前是 st.IssueID + ":plan:v1"，而 public.tasks.plan_id
+// 与 public.plan_steps.plan_id 都是 uuid 列 —— 点「确认物化并开工」必然
+// 22P02（invalid input syntax for type uuid: "iss_…:plan:v1"），界面只看到
+// 「服务端暂时不可用（HTTP 500）」。哈希成确定的 uuid 而不是每次随机：物化失败
+// 重试必须落回同一把 plan_id，否则任务树会挂到一版并不存在的计划上。
+func newPlanID(issueID, version string) string {
+	sum := sha256.Sum256([]byte(issueID + ":plan:" + version))
+	hexSum := hex.EncodeToString(sum[:])
+	return fmt.Sprintf("%s-%s-4%s-8%s-%s",
+		hexSum[0:8], hexSum[8:12], hexSum[13:16], hexSum[17:20], hexSum[20:32])
+}
+
+// isUUID 粗判一个字符串能不能直接进 uuid 列（只认标准 8-4-4-4-12 形状）。
+func isUUID(value string) bool {
+	if len(value) != 36 {
+		return false
+	}
+	for index, char := range value {
+		switch index {
+		case 8, 13, 18, 23:
+			if char != '-' {
+				return false
+			}
+		default:
+			if !strings.ContainsRune("0123456789abcdefABCDEF", char) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // AppendAnalysisAnswers 把追问的回答并进需求文本，并把旧分析清掉（该重算了）。

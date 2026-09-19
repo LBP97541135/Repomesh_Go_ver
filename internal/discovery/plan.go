@@ -304,6 +304,17 @@ func (s *Service) Materialize(ctx context.Context, issueID, agentID, idempotency
 		return receipt, nil
 	}
 	planID, _ := st.Plan["plan_id"].(string)
+	// 老快照里的 plan_id 是 "iss_…:plan:v1" 这种非 uuid 字符串（见 newPlanID 的
+	// 注释）。tasks/plan_steps 的 plan_id 是 uuid 列，所以这里**确定性地**折算成
+	// 合法 uuid 并写回快照 —— 界面上的「计划 v1」与任务树此后指同一把 id。
+	if !isUUID(planID) {
+		version, _ := st.Plan["plan_version"].(string)
+		if strings.TrimSpace(version) == "" {
+			version = "v1"
+		}
+		planID = newPlanID(issueID, version)
+		st.Plan["plan_id"] = planID
+	}
 	reposAny, _ := st.Plan["repositories"].([]any)
 	repositories := []string{}
 	for _, repoAny := range reposAny {
