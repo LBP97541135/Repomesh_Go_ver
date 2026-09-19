@@ -16,6 +16,24 @@ func registerIssueRoutes(mux *http.ServeMux, auth Auth, issueAPI Issues) {
 	registerProjectRoute(mux, "GET /api/projects/{projectId}/issues", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {
 		return listIssues(w, r, issueAPI.Service, claims)
 	})
+
+	// ③ 执行中人工打断的落点：把**人确认过**的新仓库追加进 issue 的仓库范围。
+	// 2026-09-20 之前范围只在建 issue 时写入（insertWorkScope），没有任何追加路径 ——
+	// "动态引入新仓库"因此整条接不上。这里只做追加，不做"替调用方挂仓库"
+	// （挂仓库是另一个动作，服务层会以 409 REPOSITORY_NOT_IN_PROJECT 明确拒绝）。
+	registerProjectRoute(mux, "POST /api/projects/{projectId}/issues/{issueId}/scope/repositories", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {
+		var body struct {
+			RepositoryID string "json:\"repositoryId\""
+		}
+		if err := decodeBody(w, r, &body); err != nil {
+			return err
+		}
+		if err := issueAPI.Service.AppendRepository(r.Context(), claims, r.PathValue("projectId"), r.PathValue("issueId"), body.RepositoryID); err != nil {
+			return err
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "appended"})
+		return nil
+	})
 	mux.HandleFunc("GET /api/issues/{issueId}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Referrer-Policy", "no-referrer")
