@@ -689,7 +689,10 @@ export function WorkbenchPage({
         <PrTrainCard
           cars={trainCars}
           projectId={trainPid ?? undefined}
-          onConfirm={() => onToast("已确认合并：按仓库依赖顺序执行（演示）")}
+          // 2026-09-20 线上实测：这里此前还挂着「（演示）」那条 toast —— 上面
+          // handleConfirmMerge 已经改成真调合并端点，但按钮接的是这一行，于是
+          // 点「确认合并」只弹一句话、一个 PR 都不会合。改成真合并。
+          onConfirm={() => void handleConfirmMerge()}
         />
       </div>
     ) : null;
