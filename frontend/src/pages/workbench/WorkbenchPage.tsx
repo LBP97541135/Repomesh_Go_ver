@@ -1110,7 +1110,7 @@ export function WorkbenchPage({
             testEvidence={testEvidence}
             tasks={tasks}
             trainCars={trainCars}
-            scopeRepoIds={detail.repositoryIds ?? []}
+            scopeRepoIds={(detail.repositories ?? []).map((r) => r.repository_id)}
             repoOptions={Object.entries(repoNameById).map(([id, name]) => ({ id, name }))}
             onAppendRepository={handleAppendRepository}
             stepStates={stepStates}
