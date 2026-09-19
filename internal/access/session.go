@@ -34,6 +34,21 @@ func (s *Service) Session(ctx context.Context, cookie string) (Session, error) {
 	return view, nil
 }
 
+// IsAdmin reports whether the authenticated actor's own account is an
+// administrator. Mutating surfaces still call this on every request — the
+// browser-side session fact is only for hiding controls, never authority.
+func (s *Service) IsAdmin(ctx context.Context, actor string) (bool, error) {
+	var isAdmin bool
+	err := s.pool.QueryRow(ctx, `SELECT is_admin FROM repomesh_access.accounts WHERE id=$1 AND NOT disabled`, actor).Scan(&isAdmin)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, failure(401, "AUTHENTICATION_REQUIRED")
+	}
+	if err != nil {
+		return false, unavailable()
+	}
+	return isAdmin, nil
+}
+
 func requireCSRF(session Session, csrf string) error {
 	if subtle.ConstantTimeCompare([]byte(session.CSRFToken), []byte(csrf)) != 1 {
 		return failure(403, "CSRF_REJECTED")

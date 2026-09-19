@@ -90,3 +90,36 @@ func (c *Client) write(ctx context.Context, method, path string, payload any) ([
 func (c *Client) read(ctx context.Context, method, path string) ([]byte, int, error) {
 	return c.write(ctx, method, path, nil)
 }
+
+// ---- 团队管理（仓库作用域 Team，2026-09-20 从计划分支并入）----
+
+// TeamMember is one worker's role in an AgentTeams team.
+type TeamMember struct {
+	Name string `json:"name"`
+	Role string `json:"role"`
+}
+
+// TeamSpec is the creation payload for one AgentTeams team.
+type TeamSpec struct {
+	Name          string       `json:"name"`
+	TeamName      string       `json:"teamName,omitempty"`
+	WorkerMembers []TeamMember `json:"workerMembers"`
+}
+
+// DeleteWorker removes one worker (DELETE /api/v1/workers/{name}).
+func (c *Client) DeleteWorker(ctx context.Context, name string) ([]byte, int, error) {
+	return c.write(ctx, http.MethodDelete, "/api/v1/workers/"+url.PathEscape(name), nil)
+}
+
+// CreateTeam creates one team (POST /api/v1/teams).
+func (c *Client) CreateTeam(ctx context.Context, spec TeamSpec) ([]byte, int, error) {
+	return c.write(ctx, http.MethodPost, "/api/v1/teams", spec)
+}
+
+// UpdateTeam replaces only a team's membership (PUT /api/v1/teams/{name}).
+func (c *Client) UpdateTeam(ctx context.Context, name string, members []TeamMember) ([]byte, int, error) {
+	payload := struct {
+		WorkerMembers []TeamMember `json:"workerMembers"`
+	}{WorkerMembers: members}
+	return c.write(ctx, http.MethodPut, "/api/v1/teams/"+url.PathEscape(name), payload)
+}

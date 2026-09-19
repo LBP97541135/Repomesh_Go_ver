@@ -37,6 +37,7 @@ import (
 	"repomesh.local/repomesh/internal/models"
 	"repomesh.local/repomesh/internal/observability"
 	"repomesh.local/repomesh/internal/projects"
+	"repomesh.local/repomesh/internal/repositoryteams"
 	"repomesh.local/repomesh/internal/reposcan"
 	"repomesh.local/repomesh/internal/scan"
 	"repomesh.local/repomesh/internal/scm"
@@ -506,7 +507,13 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		discoveryAPI = web.Discovery{Service: discoveryService, Maintenance: discovery.NewMaintenance(pipelinePool), Reviews: humanControlAPI.Service}
 		consoleAPI = web.Console{Service: console.New(pipelinePool)}
 	}
-	if err := web.RunConfigured(ctx, *addr, *assets, auth, projectAPI, modelAPI, scanAPI, decisionAPI, skillsAPI, issuesAPI, messagesAPI, web.AgentTeams{Client: atClient}, pipelineAPI, humanControlAPI, observeV1, discoveryAPI, consoleAPI, certFile, keyFile); err != nil {
+	// 仓库作用域的团队管理（2026-09-20 并入）：只有拿到库池才建服务；
+	// 服务缺席时路由如实回 503 service_not_configured，不假装能用。
+	agentTeamsAPI := web.AgentTeams{Client: atClient}
+	if pipelinePool != nil {
+		agentTeamsAPI.RepositoryTeams = repositoryteams.New(pipelinePool, atClient)
+	}
+	if err := web.RunConfigured(ctx, *addr, *assets, auth, projectAPI, modelAPI, scanAPI, decisionAPI, skillsAPI, issuesAPI, messagesAPI, agentTeamsAPI, pipelineAPI, humanControlAPI, observeV1, discoveryAPI, consoleAPI, certFile, keyFile); err != nil {
 		fmt.Fprintln(stderr, "web stopped:", err)
 		return 1
 	}
