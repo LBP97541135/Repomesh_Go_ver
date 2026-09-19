@@ -333,11 +333,44 @@ export function errText(err: unknown): string {
     if (err.status === 401) return "登录会话已过期或未登录——请先在登录页完成 GitHub 授权";
     if (err.status === 404) return "该功能在当前服务端版本尚未就绪（404）——请稍后重试或联系部署者升级";
     if (err.status === 0) return `无法连接服务：${err.message}`;
-    if (err.status >= 500) return `服务端暂时不可用（HTTP ${err.status}），可点击重试`;
-    if (err.status === 409) return "操作与当前状态冲突：请刷新页面取最新数据后再试";
+    // 2026-09-19：后端现在会带 `{"error": code, "message": "人能看懂的那句话"}`。
+    // 有 message 就原样用它——"计划里没有仓库，请回第 3 步指定"这类业务前提说明，
+    // 比"服务端暂时不可用"有用得多；没有才退回按状态码的通用文案。
+    const detail = serverMessage(err);
+    if (err.status >= 500) {
+      return detail ? `${detail}（HTTP ${err.status}，可点击重试）` : `服务端暂时不可用（HTTP ${err.status}），可点击重试`;
+    }
+    if (err.status === 409) return detail ?? "操作与当前状态冲突：请刷新页面取最新数据后再试";
     return err.message;
   }
   return err instanceof Error ? err.message : String(err);
+}
+
+/** 从后端错误体里取出"人能看懂的那句话"。
+ *  兼容三种形状：`{"message": "..."}`、裸字符串、以及 http 层已解析过的 detail。 */
+function serverMessage(err: ApiError): string | null {
+  const parsed: unknown[] = [];
+  if (typeof err.detail === "string") {
+    try {
+      parsed.push(JSON.parse(err.detail));
+    } catch {
+      parsed.push(err.detail);
+    }
+  } else {
+    parsed.push(err.detail);
+  }
+  for (const candidate of parsed) {
+    if (typeof candidate === "string") {
+      const text = candidate.trim();
+      if (text !== "" && !text.startsWith("{")) return text;
+      continue;
+    }
+    if (candidate && typeof candidate === "object" && "message" in candidate) {
+      const message = (candidate as { message?: unknown }).message;
+      if (typeof message === "string" && message.trim() !== "") return message.trim();
+    }
+  }
+  return null;
 }
 
 /** agent 展示名：资源名有值直用，否则 AGENT + id 短版（与 §4.2 sender_name

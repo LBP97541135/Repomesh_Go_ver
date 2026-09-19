@@ -37,35 +37,45 @@ func (s *Service) Classification(ctx context.Context, issueID, agentID, idempote
 		if !ok {
 			continue
 		}
+		// score 的语义已从"关键词命中个数"改成**置信度 0..1**（模型语义分，
+		// 或模型不可用时的关键词回退分）。阈值与 GOAI-infra-repomesh 的最终
+		// 设计一致：≥0.7 必改、≥0.4 可能、其余排除。
 		score, _ := item["score"].(float64)
 		lowSignal, _ := item["low_signal"].(bool)
+		fromGraph, _ := item["from_graph"].(bool)
+		excludedByGraph, _ := item["excluded_by_graph"].(bool)
+		conflictsWithGraph, _ := item["graph_conflict"].(bool)
 		name, _ := item["repository_name"].(string)
-		id, _ := item["repository_id"].(string)
-		terms, _ := item["matched_terms"].([]any)
-		termStrings := []string{}
-		for _, termAny := range terms {
-			if term, ok := termAny.(string); ok {
-				termStrings = append(termStrings, term)
-			}
+		rationale, _ := item["rationale"].(string)
+		if rationale == "" {
+			rationale = "无判断依据"
 		}
-		reason := "关键词信号不足以纳入"
 		status := "EXCLUDED"
-		confidence := 0.2
-		if score >= 2 && !lowSignal {
-			status = "REQUIRED"
-			confidence = 0.9
-			reason = fmt.Sprintf("命中 %d 个关键词且信号充分", len(termStrings))
-		} else if score >= 1 {
+		reason := rationale
+		switch {
+		case excludedByGraph:
+			reason = rationale + "；依赖图上与任何必改仓库都不相邻，且置信度不足"
+		case fromGraph:
+			// 图推理补进来的（依赖/被依赖），按"可能"档纳入。
 			status = "MAYBE"
-			confidence = 0.5
-			reason = fmt.Sprintf("命中 %d 个关键词", len(termStrings))
+		case score >= requiredBar:
+			status = "REQUIRED"
+		case score >= maybeBar:
+			status = "MAYBE"
+		default:
+			reason = rationale + "；置信度低于纳入门槛"
+		}
+		if conflictsWithGraph {
+			reason += "（注意：依赖图上孤立，与其它必改仓库没有依赖关系，建议复核）"
+		}
+		if lowSignal {
+			reason += "（扫描信号不足）"
 		}
 		entry := map[string]any{
-			"repository": name, "status": status, "confidence": confidence, "reason": reason,
+			"repository": name, "status": status, "confidence": score, "reason": reason,
 			"plan_summary": "", "plan": nil, "missing_dependencies": []string{},
-			"is_supplemented": false, "graph_conflict": false,
+			"is_supplemented": fromGraph, "graph_conflict": conflictsWithGraph,
 		}
-		_ = id
 		switch status {
 		case "REQUIRED":
 			required = append(required, entry)

@@ -65,6 +65,12 @@ func (s *Service) Plan(ctx context.Context, issueID, agentID, idempotencyKey str
 			repos = append(repos, name)
 		}
 	}
+	// 2026-09-19：候选全被排除时**不要生成空计划**——那会把错误推迟到物化确认，
+	// 以"服务端暂时不可用 500"的样子爆出来，用户完全无法自救。这里直接拒，
+	// 并告诉他怎么改。
+	if len(repos) == 0 {
+		return nil, fmt.Errorf("%w：本次没有任何仓库被纳入改动（候选全部为「排除」）。请回到第 3 步把目标仓库调成「必需」或「可能」，或在需求里写明涉及的仓库/模块名", ErrNoRepositories)
+	}
 	nodes := []any{}
 	for _, name := range repos {
 		nodes = append(nodes, map[string]any{"repository": name, "task_count": 1})
@@ -137,6 +143,9 @@ func (s *Service) Approval(ctx context.Context, issueID, agentID, idempotencyKey
 		for _, adjustment := range adjustments {
 			st.EffectiveTiers = applyAdjustment(st.EffectiveTiers, adjustment)
 		}
+		if !tiersHaveSelection(st.EffectiveTiers) {
+			return nil, fmt.Errorf("%w：本次没有任何仓库被纳入改动（全部为「排除」）。请把至少一个仓库调整为「必需」或「可能」后再确认", ErrNoRepositories)
+		}
 	}
 	st.Approval = approval
 	receipt := map[string]any{"task_id": nil, "step": 3, "status": "accepted"}
@@ -175,6 +184,22 @@ func tierNames(tiers []any) []string {
 		}
 	}
 	return names
+}
+
+// tiersHaveSelection reports whether the effective tiers leave anything to do.
+// "excluded" everywhere means an empty plan would follow — refuse it upstream.
+func tiersHaveSelection(tiers []any) bool {
+	for _, tierAny := range tiers {
+		tier, ok := tierAny.(map[string]any)
+		if !ok {
+			continue
+		}
+		switch tier["tier"] {
+		case "required", "maybe":
+			return true
+		}
+	}
+	return false
 }
 
 // recordDecision writes one decision node, fail-open (方案清单 F3, same as

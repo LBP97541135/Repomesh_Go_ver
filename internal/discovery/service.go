@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"repomesh.local/repomesh/internal/decisionchain"
+	"repomesh.local/repomesh/internal/secrets"
 )
 
 // ErrConflict is a 409: a step precondition is not met.
@@ -29,6 +31,13 @@ var ErrConflict = errors.New("discovery: precondition not met")
 // ErrDrifted is a 409: the approval evidence fingerprint does not match.
 var ErrDrifted = errors.New("discovery: evidence version drifted")
 
+// ErrNoRepositories is a 409: the tier decision left nothing to change.
+//
+// 2026-09-19 事故：候选全部被排除时，系统照样生成了一个 repositories 为空的
+// 计划，把错误推迟到"物化确认"才以 500 的样子爆出来（用户只看到"服务端暂时
+// 不可用"）。现在在**审批**和**生成计划**两处都拦住，并说清怎么自救。
+var ErrNoRepositories = errors.New("discovery: no repositories selected")
+
 // Service reads and advances the discovery chain.
 type Service struct {
 	pool *pgxpool.Pool
@@ -36,10 +45,29 @@ type Service struct {
 	// decisions is the optional 历史决策 writer: approval and materialize
 	// record decision nodes through it, fail-open. Nil = no audit writes.
 	decisions *decisionchain.Service
+
+	// secrets 用来解封模型供应商密钥——语义召回要出站调模型。
+	// Nil 表示没有出站能力：候选阶段如实回退到关键词路径并标注 llm_used=false。
+	secrets *secrets.Store
+
+	// httpClient 可注入（测试用）；nil 时用带超时的默认客户端。
+	httpClient *http.Client
 }
 
 // New builds the service over the issue schema pool.
 func New(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
+
+// WithSecrets attaches the deployment secret store (composition root).
+func (s *Service) WithSecrets(store *secrets.Store) *Service {
+	s.secrets = store
+	return s
+}
+
+// WithHTTPClient overrides the outbound client (tests).
+func (s *Service) WithHTTPClient(client *http.Client) *Service {
+	s.httpClient = client
+	return s
+}
 
 // WithDecisions attaches the decision chain writer (composition root).
 func (s *Service) WithDecisions(d *decisionchain.Service) *Service {

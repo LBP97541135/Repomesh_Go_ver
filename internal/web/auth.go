@@ -144,6 +144,23 @@ func registerAuth(mux *http.ServeMux, auth Auth) {
 		}
 		return err
 	})
+	// 2026-09-19：`/api/repositories/candidates`（B02"可参与仓库候选"）此前
+	// **只在注释里被提到，从未注册**——实测返回 404 not_implemented，而
+	// internal/web/auth_test.go 一直期望它在未配置认证时回 503。前端也曾经打
+	// 这个路径（已改为 /api/repositories）。这里按同一份发现读模型注册，
+	// 形状与 /api/repositories 一致（items/nextCursor/coverage），
+	// 让"文档里存在的路径"真的存在。
+	route("GET /api/repositories/candidates", func(w http.ResponseWriter, r *http.Request) error {
+		query, err := parseRepositoryQuery(r)
+		if err != nil {
+			return err
+		}
+		result, err := auth.Service.Repositories(r.Context(), cookie(r, sessionCookie), query)
+		if err == nil {
+			writeJSON(w, 200, result)
+		}
+		return err
+	})
 }
 
 func parseRepositoryQuery(r *http.Request) (access.RepositoryQuery, error) {

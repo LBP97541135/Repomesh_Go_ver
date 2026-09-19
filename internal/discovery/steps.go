@@ -188,74 +188,70 @@ func (s *Service) Candidates(ctx context.Context, issueID, agentID, idempotencyK
 	if limit > 50 {
 		limit = 50
 	}
-	keywords, _ := st.Analysis["extracted_keywords"].([]any)
-	query := "SELECT r.id, r.owner || '/' || r.name," +
-		" COALESCE(s.description, ''), COALESCE(s.topics::text, ''), COALESCE(s.languages::text, '')" +
-		" FROM repomesh_projects.repositories r" +
-		" LEFT JOIN repomesh_scan.repositories s ON s.url LIKE '%' || r.owner || '/' || r.name || '%'" +
-		" WHERE r.id IN (SELECT repository_id FROM repomesh_projects.project_repositories WHERE project_id=$1)"
-	rows, err := tx.Query(ctx, query, st.ProjectID)
+
+	// ① 候选池：**本空间已登记的全部仓库**（含扫描生成的 AutoCard），
+	//    不再只是"本项目已挂的那几个"——那正是死胡同的来源。
+	cards, err := s.loadRepoPool(ctx, tx, st.ProjectID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	type scored struct {
-		id, name, rationale string
-		score               float64
-		terms               []string
-		signals             bool
+
+	// ② 语义召回：优先用部署配置的模型做"需求 → 仓库"的语义判断
+	//    （GOAI-infra-repomesh 设计里的"总 Manager 全局扫描"）。
+	//    模型不可用时回退关键词，并**如实标注 llm_used=false**，不冒充模型打分。
+	requirement := st.RequirementText
+	if st.AnalyzedText != nil && strings.TrimSpace(*st.AnalyzedText) != "" {
+		requirement = *st.AnalyzedText
 	}
-	items := []scored{}
-	prefix := ""
-	if len(st.RequirementText) > 0 {
-		prefix = strings.ToLower(st.RequirementText[:minInt(40, len(st.RequirementText))])
+	rawKeywords, _ := st.Analysis["extracted_keywords"].([]any)
+	keywords := toStrings(rawKeywords)
+	verdicts, llmErr := s.semanticRecall(ctx, tx, requirement, cards)
+	llmUsed := llmErr == nil
+	llmError := ""
+	if !llmUsed {
+		llmError = llmErr.Error()
+		verdicts = keywordVerdicts(cards, keywords, requirement)
 	}
-	for rows.Next() {
-		var id, full, description, topics, languages string
-		if err := rows.Scan(&id, &full, &description, &topics, &languages); err != nil {
-			return nil, err
-		}
-		haystack := strings.ToLower(full + " " + description + " " + topics + " " + languages)
-		signals := strings.TrimSpace(description+topics+languages) != ""
-		sc := scored{id: id, name: full, signals: signals}
-		matched := map[string]bool{}
-		for _, keywordAny := range keywords {
-			keyword, _ := keywordAny.(string)
-			if keyword != "" && strings.Contains(haystack, strings.ToLower(keyword)) {
-				sc.score += 1
-				matched[keyword] = true
-			}
-		}
-		for term := range matched {
-			sc.terms = append(sc.terms, term)
-		}
-		if prefix != "" && strings.Contains(haystack, prefix) {
-			sc.score += 0.5
-		}
-		parts := strings.Join(sc.terms, ", ")
-		signalWord := "来自扫描档案"
-		if !signals {
-			signalWord = "缺失，分数为低信任猜测"
-		}
-		sc.rationale = fmt.Sprintf("关键词命中 [%s]，信号%s", parts, signalWord)
-		items = append(items, sc)
+
+	// ③ 图推理（第二层）：用确定性依赖证据补漏报、压误报。
+	verdicts, supplements, conflicts := graphAdjust(cards, verdicts)
+
+	// ④ 组装读面。score 的语义从"关键词命中个数"改成**置信度 0..1**，
+	//    分档阈值（0.7 / 0.4）与设计文档一致。
+	byName := map[string]repoCard{}
+	for _, card := range cards {
+		byName[card.Name] = card
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].score > items[j].score })
-	if len(items) > limit {
-		items = items[:limit]
+	sort.SliceStable(verdicts, func(i, j int) bool {
+		if verdicts[i].Confidence != verdicts[j].Confidence {
+			return verdicts[i].Confidence > verdicts[j].Confidence
+		}
+		return byName[verdicts[i].Repository].InProject && !byName[verdicts[j].Repository].InProject
+	})
+	if len(verdicts) > limit {
+		verdicts = verdicts[:limit]
 	}
 	blocks := []map[string]any{}
-	for _, item := range items {
-		isEntry := entryPoint != nil && *entryPoint == item.name
+	for _, verdict := range verdicts {
+		card := byName[verdict.Repository]
+		isEntry := entryPoint != nil && *entryPoint == card.Name
 		blocks = append(blocks, map[string]any{
-			"repository_id": item.id, "repository_name": item.name,
-			"score": item.score, "matched_terms": item.terms, "rationale": item.rationale,
-			"is_entry_point": isEntry, "low_signal": !item.signals,
+			"repository_id": card.ID, "repository_name": card.Name,
+			"score": verdict.Confidence, "matched_terms": verdict.Matched,
+			"rationale":      verdict.Rationale,
+			"is_entry_point": isEntry,
+			"low_signal":     card.AutoCard == nil || card.AutoCard.LowSignal,
+			"in_project":     card.InProject,
+			"auto_card":      card.AutoCard != nil,
+			"from_graph":     verdict.FromGraph,
+			"excluded_by_graph": verdict.ExcludedByGraph,
+			"graph_conflict":    verdict.ConflictsWithGraph,
 		})
 	}
 	block := map[string]any{
-		"items": blocks, "llm_used": false, "limit": limit, "entry_point": entryPoint,
-		"ran_at": time.Now().UTC(), "by_agent_id": agentID, "error": nil,
+		"items": blocks, "llm_used": llmUsed, "limit": limit, "entry_point": entryPoint,
+		"pool_size": len(cards), "supplements": supplements, "conflicts": conflicts,
+		"ran_at": time.Now().UTC(), "by_agent_id": agentID, "error": errorOrNil(llmError),
 	}
 	st.Candidates = block
 	receipt := map[string]any{"task_id": nil, "step": 2, "status": "accepted"}

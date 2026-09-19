@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"repomesh.local/repomesh/internal/access"
+	"repomesh.local/repomesh/internal/secrets"
 	"repomesh.local/repomesh/internal/agentteams"
 	"repomesh.local/repomesh/internal/assembly"
 	"repomesh.local/repomesh/internal/branchvalidation"
@@ -143,6 +144,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	// M1-M9 pipeline services run on their own pool so the routes exist in
 	// every deployment mode; handlers surface DB errors as 503 honestly.
 	var pipelinePool *pgxpool.Pool
+	// secretStore 由认证运行时提供；候选召回（语义匹配）要解封模型供应商密钥。
+	// 未启用认证时保持 nil —— discovery 会如实回退到关键词路径。
+	var secretStore *secrets.Store
 	if dsn := os.Getenv("REPOMESH_DATABASE_URL"); dsn != "" {
 		if pool, poolErr := pgxpool.New(ctx, dsn); poolErr == nil {
 			pipelinePool = pool
@@ -160,6 +164,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		defer runtime.Close()
+		secretStore = runtime.SecretStore()
 		// 认证域后台 worker:发现批次上游抓取、凭据轮换与过期清理。
 		// web 部署形态此前没接这条循环,候选仓库(发现仓库段)永远为空。
 		// RunOne 内部有租约/SKIP LOCKED,与 coordinator 并发安全。
@@ -415,7 +420,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		// The discovery chain audits approval + materialize decisions into
 		// the same decision chain as the scan scope seam (B3 wiring); its
 		// embedding config mirrors the main decision service.
-		discoveryService := discovery.New(pipelinePool).WithDecisions(decisionchain.New(decisionchain.Config{
+	// WithSecrets：候选召回要出站调模型做语义判断，需要解封供应商密钥。
+	// 没有它时 discovery 会如实回退到关键词路径并标注 llm_used=false。
+	discoveryService := discovery.New(pipelinePool).
+		WithSecrets(secretStore).
+		WithDecisions(decisionchain.New(decisionchain.Config{
 			EmbeddingBaseURL: os.Getenv("REPOMESH_EMBEDDING_BASE_URL"),
 			EmbeddingAPIKey:  os.Getenv("REPOMESH_EMBEDDING_API_KEY"),
 			EmbeddingModel:   os.Getenv("REPOMESH_EMBEDDING_MODEL"),

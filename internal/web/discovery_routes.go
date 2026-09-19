@@ -2,11 +2,56 @@ package web
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"repomesh.local/repomesh/internal/access"
 	"repomesh.local/repomesh/internal/discovery"
 )
+
+// writeDiscoveryError 把发现链的错误翻译成**如实的 HTTP 状态 + 人能看懂的话**。
+//
+// 2026-09-19 事故：发现链此前复用 humancontrol 的错误写出器，而那个写出器
+// 只认 access.Failure / pgx.ErrNoRows，discovery 自己的 ErrConflict /
+// ErrNoRepositories 全部落到兜底的 **500 {"error":"internal"}**——于是
+// "计划里没有仓库"这种纯业务前提问题，在界面上显示成"服务端暂时不可用"，
+// 用户完全无法自救。这里逐类映射，并带上 message 让前端能原样展示。
+func writeDiscoveryError(w http.ResponseWriter, err error) {
+	slog.Warn("discovery request failed", "error", err.Error())
+	var failure *access.Failure
+	if errors.As(err, &failure) {
+		writeJSON(w, failure.Status, map[string]string{"error": strings.ToLower(failure.Code)})
+		return
+	}
+	var local *accessFailure
+	if errors.As(err, &local) {
+		writeJSON(w, local.status, map[string]string{"error": local.code})
+		return
+	}
+	switch {
+	case errors.Is(err, discovery.ErrNoRepositories):
+		writeJSON(w, http.StatusConflict, map[string]string{
+			"error":   "no_repositories_selected",
+			"message": strings.TrimPrefix(err.Error(), discovery.ErrNoRepositories.Error()+"："),
+		})
+	case errors.Is(err, discovery.ErrDrifted):
+		writeJSON(w, http.StatusConflict, map[string]string{
+			"error":   "evidence_drifted",
+			"message": "候选证据已变化：请刷新页面，重新确认第 3 步的分档后再继续",
+		})
+	case errors.Is(err, discovery.ErrConflict):
+		writeJSON(w, http.StatusConflict, map[string]string{
+			"error":   "precondition_not_met",
+			"message": strings.TrimPrefix(err.Error(), discovery.ErrConflict.Error()+": "),
+		})
+	case errors.Is(err, pgx.ErrNoRows):
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "resource_not_found"})
+	default:
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal"})
+	}
+}
 
 // Discovery carries the discovery-chain service and the maintenance facade
 // into the web layer; zero values skip every route.
@@ -31,7 +76,7 @@ func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discove
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Cache-Control", "no-store")
 			if err := guard(w, r); err != nil {
-				writeHumanControlError(w, err)
+				writeDiscoveryError(w, err)
 				return
 			}
 			handler(w, r)
@@ -46,7 +91,7 @@ func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discove
 	register("GET /api/issues/{issueId}/repositories/{repositoryId}/plan", func(w http.ResponseWriter, r *http.Request) {
 		view, err := discoveryAPI.Service.RepositoryPlan(r.Context(), r.PathValue("issueId"), r.PathValue("repositoryId"))
 		if err != nil {
-			writeHumanControlError(w, err)
+			writeDiscoveryError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, view)
@@ -54,17 +99,17 @@ func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discove
 	register("GET /api/issues/{issueId}/discovery", func(w http.ResponseWriter, r *http.Request) {
 		tx, err := discoveryAPI.Service.BeginRead(r.Context())
 		if err != nil {
-			writeHumanControlError(w, err)
+			writeDiscoveryError(w, err)
 			return
 		}
 		defer tx.Rollback(r.Context())
 		if _, err := discoveryAPI.Service.EnsureIssueRead(r.Context(), tx, r.PathValue("issueId")); err != nil {
-			writeHumanControlError(w, err)
+			writeDiscoveryError(w, err)
 			return
 		}
 		state, err := discoveryAPI.Service.LoadRead(r.Context(), tx, r.PathValue("issueId"))
 		if err != nil {
-			writeHumanControlError(w, err)
+			writeDiscoveryError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, state.View())
@@ -72,7 +117,7 @@ func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discove
 	register("GET /api/issues/{issueId}/discovery/tasks/{taskId}", func(w http.ResponseWriter, r *http.Request) {
 		view, err := discoveryAPI.Service.TaskView(r.Context(), r.PathValue("issueId"), r.PathValue("taskId"))
 		if err != nil {
-			writeHumanControlError(w, err)
+			writeDiscoveryError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, view)
@@ -150,7 +195,7 @@ func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discove
 		}
 		receipt, err := discoveryAPI.Service.Materialize(r.Context(), r.PathValue("issueId"), body.CreatedByAgentID, body.IdempotencyKey)
 		if err != nil {
-			writeHumanControlError(w, err)
+			writeDiscoveryError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, receipt)
@@ -162,7 +207,7 @@ func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discove
 	register("POST /api/issues/{issueId}/archive", func(w http.ResponseWriter, r *http.Request) {
 		archivedAt, err := discoveryAPI.Maintenance.Archive(r.Context(), r.PathValue("issueId"))
 		if err != nil {
-			writeHumanControlError(w, err)
+			writeDiscoveryError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"issue_id": r.PathValue("issueId"), "archived_at": archivedAt})
@@ -170,7 +215,7 @@ func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discove
 	register("POST /api/issues/{issueId}/purge", func(w http.ResponseWriter, r *http.Request) {
 		result, err := discoveryAPI.Maintenance.Purge(r.Context(), r.PathValue("issueId"))
 		if err != nil {
-			writeHumanControlError(w, err)
+			writeDiscoveryError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, result)
@@ -179,7 +224,7 @@ func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discove
 
 func writeDiscoveryReceipt(w http.ResponseWriter, receipt map[string]any, err error) {
 	if err != nil {
-		writeHumanControlError(w, err)
+		writeDiscoveryError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusAccepted, receipt)
