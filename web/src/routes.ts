@@ -39,7 +39,14 @@ function exactSegments(path: string): string[] | null {
   return segments.some((segment) => segment.length === 0) ? null : segments;
 }
 
-export function parseRoute(path: string): AppRoute {
+const APP_BASE = "/app";
+
+function stripAppBase(path: string): string {
+  return path.startsWith(APP_BASE) && (path.length === APP_BASE.length || path[APP_BASE.length] === "/") ? path.slice(APP_BASE.length) || "/" : path;
+}
+
+export function parseRoute(rawPath: string): AppRoute {
+  const path = stripAppBase(rawPath);
   if (path === "/") return { kind: "home" };
   if (path === "/login") return { kind: "login" };
   if (path === "/projects") return { kind: "projects" };

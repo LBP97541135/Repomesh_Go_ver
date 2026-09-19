@@ -110,6 +110,10 @@ func registerAuth(mux *http.ServeMux, auth Auth) {
 		}
 		return err
 	})
+	// 退出 = 彻底登出：同时清除设备绑定 cookie，否则下次登录会被 binding 自动关联回上一个账号（用户无法切换账号）。
+	clearCookie := func(w http.ResponseWriter, name string) {
+		http.SetCookie(w, &http.Cookie{Name: name, Value: "", Path: "/", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: -1})
+	}
 	route("POST /api/auth/logout", func(w http.ResponseWriter, r *http.Request) error {
 		var body struct{}
 		if err := readJSON(w, r, &body); err != nil {
@@ -118,6 +122,8 @@ func registerAuth(mux *http.ServeMux, auth Auth) {
 		if err := auth.Service.Logout(r.Context(), cookie(r, sessionCookie), r.Header.Get("X-CSRF-Token")); err != nil {
 			return err
 		}
+		clearCookie(w, sessionCookie)
+		clearCookie(w, bindingCookie)
 		w.WriteHeader(http.StatusNoContent)
 		return nil
 	})

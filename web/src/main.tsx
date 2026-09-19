@@ -25,7 +25,7 @@ function App() {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
   const navigate = useCallback((path: string) => {
-    window.history.pushState(null, "", path);
+    window.history.pushState(null, "", "/app" + path);
     setRoute(parseRoute(path));
     window.scrollTo(0, 0);
   }, []);
