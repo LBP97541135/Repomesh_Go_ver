@@ -109,7 +109,7 @@ func handlerConfigured(assets fs.FS, auth Auth, projectAPI Projects, modelAPI Mo
 	registerJointValidation(mux, auth, pipeline.JointValidation)
 	registerSCMRoutes(mux, auth, pipeline.SCMRoutes)
 	registerHandoffRoutes(mux, auth, pipeline.HandoffDocs)
-	registerTopologyRoutes(mux, auth, pipeline.Assembly)
+	registerTopologyRoutes(mux, auth, pipeline.Assembly, humanControlAPI.Service)
 	registerProjects(mux, auth, projectAPI)
 	registerAgentTeams(mux, auth, agentTeams)
 	registerModels(mux, auth, modelAPI)

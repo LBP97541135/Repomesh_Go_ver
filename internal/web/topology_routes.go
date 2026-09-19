@@ -7,11 +7,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"repomesh.local/repomesh/internal/access"
 	"repomesh.local/repomesh/internal/assembly"
+	"repomesh.local/repomesh/internal/humancontrol"
 )
 
 // registerTopologyRoutes exposes the M4 assembly as the project topology API
 // (Py: human_control.py /projects/topologies + automatic-topologies + {id}/topology).
-func registerTopologyRoutes(mux *http.ServeMux, auth Auth, assemblySvc *assembly.Service) {
+func registerTopologyRoutes(mux *http.ServeMux, auth Auth, assemblySvc *assembly.Service, humanControlSvc *humancontrol.Service) {
 	if assemblySvc == nil {
 		return
 	}
@@ -83,9 +84,9 @@ func registerTopologyRoutes(mux *http.ServeMux, auth Auth, assemblySvc *assembly
 			return
 		}
 		var body struct {
-			Role           string `json:"role"`
-			RepositoryID   string `json:"repositoryId"`
-			Name           string `json:"name"`
+			Role         string `json:"role"`
+			RepositoryID string `json:"repositoryId"`
+			Name         string `json:"name"`
 		}
 		if err := decodeBody(w, r, &body); err != nil {
 			return
@@ -180,12 +181,39 @@ func registerTopologyRoutes(mux *http.ServeMux, auth Auth, assemblySvc *assembly
 		writeJSON(w, http.StatusCreated, result)
 		return nil
 	})
+	// GET /api/projects/{projectId}/topology —— 项目拓扑读面（前端
+	// ProjectAgentTopologyView 逐字对应）。
+	//
+	// 2026-09-19 修：此前这里回的是 `{"items":[agents]}`（assembly.ListTopology 的
+	// agent 行），**恒 200 且字段全对不上**。而前端拿它的有无判定监管策略草稿窗口
+	// 开不开（§3.4：拓扑一落地，草稿就定死了）—— 于是永远判成「档案已锁死」，
+	// 策略卡片只剩一个标题、连「配置」按钮都不出现：用户根本没有地方设卡点。
+	//
+	// 现在的语义与契约一致：
+	//   404 = 还没有拓扑（监管策略尚未设定，不是错误，正是"来得及设"的窗口）；
+	//   200 = 拓扑在场，execution_mode / required_checkpoints / human_grants 取自
+	//         监管策略草稿（那三件事在这套实现里的唯一来源）。
+	// 作用域收 issue id 与项目 id 两种（契约 §0 说 project_id 就是 issue_id），
+	// 且只认调用者名下的项目，其余 404。
 	registerProjectRoute(mux, "GET /api/projects/{projectId}/topology", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {
-		rows, err := assemblySvc.ListTopology(r.Context(), r.PathValue("projectId"))
+		if humanControlSvc == nil {
+			return &access.Failure{Status: 503, Code: "HUMANCONTROL_NOT_CONFIGURED"}
+		}
+		projectID, err := humanControlSvc.ResolveProjectScope(r.Context(), claims.ActorID(), r.PathValue("projectId"))
+		if errors.Is(err, pgx.ErrNoRows) {
+			return &access.Failure{Status: 404, Code: "NOT_FOUND"}
+		}
 		if err != nil {
 			return err
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"items": rows})
+		view, err := assemblySvc.ProjectTopology(r.Context(), projectID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return &access.Failure{Status: 404, Code: "NOT_FOUND"}
+		}
+		if err != nil {
+			return err
+		}
+		writeJSON(w, http.StatusOK, view)
 		return nil
 	})
 }
