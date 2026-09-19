@@ -2,6 +2,7 @@ package web
 
 import (
 	"net/http"
+	"strings"
 
 	"repomesh.local/repomesh/internal/access"
 	"repomesh.local/repomesh/internal/assembly"
@@ -101,6 +102,13 @@ func registerPipelineRoutes(mux *http.ServeMux, auth Auth, pipeline Pipeline) {
 		}
 		if err := decodeBody(w, r, &body); err != nil {
 			return err
+		}
+		// 2026-09-20：经理门通过时若没填小结，此前 result_summary 就留空 ——
+		// 于是阶段历史里的「审核」永远是空的，而"谁在什么时候批了这条任务"这个
+		// **事实**是真实发生过的，不该丢。这里如实补一句决策留痕（不编内容，
+		// 只记事实本身）。
+		if strings.TrimSpace(body.Summary) == "" {
+			body.Summary = "经理通过（未填写小结）"
 		}
 		if err := pipeline.Tasks.ApproveStep(r.Context(), r.PathValue("taskId"), claims.ActorID(), body.Summary); err != nil {
 			return err
