@@ -59,6 +59,8 @@ func (d *integrationDispatcher) tick(ctx context.Context) bool {
 	for _, repo := range repos {
 		if d.dispatch(ctx, planID, issueID, projectID, repo, "repo_integration", repos) {
 			dispatched = true
+		} else {
+			d.recordExhausted(ctx, planID, issueID, projectID, repo, "repo_integration")
 		}
 	}
 	// 跨仓库联调只在真的跨仓库时有意义：单仓库计划派它等于自己跟自己联调。
@@ -67,10 +69,42 @@ func (d *integrationDispatcher) tick(ctx context.Context) bool {
 		for _, repo := range repos {
 			if d.dispatch(ctx, planID, issueID, projectID, repo, "cross_repo_regression", repos) {
 				dispatched = true
+			} else {
+				d.recordExhausted(ctx, planID, issueID, projectID, repo, "cross_repo_regression")
 			}
 		}
 	}
 	return dispatched
+}
+
+// recordExhausted 在"重派额度用满、却仍然没有证据"时**如实记一行不通过**。
+//
+// 不这么做的话，这条计划会永远停在"没有集成记录"的状态：界面上什么都不显示，
+// 而实际上集成验证已经失败过两次了。记下这一行之后 tick 的准入条件不再成立，
+// 循环也就此打住 —— 停下来并说清，而不是安静地转下去。
+func (d *integrationDispatcher) recordExhausted(ctx context.Context, planID, issueID, projectID, repository, kind string) {
+	ref := fmt.Sprintf("plan:%s:kind:%s:repo:%s", planID, kind, repository)
+	var inFlight, total int
+	if err := d.pool.QueryRow(ctx, `SELECT
+		   count(*) FILTER (WHERE state IN ('pending','running')), count(*)
+		FROM repomesh_execution.agent_runs WHERE task_package_ref=$1`, ref).Scan(&inFlight, &total); err != nil {
+		return
+	}
+	if inFlight > 0 || total < 2 {
+		return
+	}
+	var existing int
+	if err := d.pool.QueryRow(ctx, `SELECT count(*) FROM public.test_evidence
+		WHERE plan_id=$1::uuid AND kind=$2 AND repository_id=$3`, planID, kind, repository).Scan(&existing); err != nil || existing > 0 {
+		return
+	}
+	_, _ = d.pool.Exec(ctx, `INSERT INTO public.test_evidence
+		(id, project_id, issue_id, plan_id, repository_id, kind,
+		 script, command, exit_code, passed, summary, run_id, producer)
+		VALUES (gen_random_uuid(), $1::uuid, $2, $3::uuid, $4, $5,
+		 '', '', NULL, false, $6, '', 'coordinator')`,
+		projectID, issueID, planID, repository, kind,
+		fmt.Sprintf("集成验证已自动重派 %d 次仍未产出证据（agent 没有写下 %s），需要人工介入", total, execution.TestEvidenceFile))
 }
 
 func (d *integrationDispatcher) planRepositories(ctx context.Context, planID string) ([]string, error) {
