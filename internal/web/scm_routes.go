@@ -12,7 +12,10 @@ import (
 
 // PipelineSCM bundles the P1 SCM services and usage queries.
 type PipelineSCM struct {
-	SCM         *scm.Service
+	SCM *scm.Service
+	// Merger 是"能合并的手"（GitHub App 客户端）。nil = 部署没配 App 凭据，
+	// 合并端点会如实回"服务端没有可用的 GitHub 凭据"，不假装成功。
+	Merger      scm.PullMerger
 	Observation *observability.Service
 }
 
@@ -71,6 +74,17 @@ func registerSCMRoutes(mux *http.ServeMux, auth Auth, scmAPI PipelineSCM) {
 			return err
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "recorded"})
+		return nil
+	})
+	// 交付段收口：真的把 PR 合掉（闸门 fail-closed，见 scm.Merge 的三道门）。
+	// 这是整条链上唯一的**外部副作用**，所以错误一律如实上抛、不吞不重试。
+	registerProjectRoute(mux, "POST /api/projects/{projectId}/change-sets/{changeSetId}/merge", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {
+		outcome, err := scmAPI.SCM.Merge(r.Context(), r.PathValue("projectId"), r.PathValue("changeSetId"),
+			claims.ActorID(), scmAPI.Merger)
+		if err != nil {
+			return err
+		}
+		writeJSON(w, http.StatusOK, outcome)
 		return nil
 	})
 	registerProjectRoute(mux, "GET /api/projects/{projectId}/change-sets/{changeSetId}/merge-gate", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {

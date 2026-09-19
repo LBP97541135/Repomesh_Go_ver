@@ -164,3 +164,16 @@ func (s *Service) importAppCredential(ctx context.Context, config Deployment, pu
 	}
 	return selected, nil
 }
+
+// GitHubAppClient 返回底层 GitHub 客户端（交付段合并要用它铸令牌并调合并接口）。
+//
+// 用**类型断言**而不是往 Provider 接口上加方法：接口一改，测试里的假 provider
+// 全都要补实现；而这里只需要"生产上确实是真客户端"这一件事 —— 不是就返回 nil，
+// 调用方如实降级（"服务端没有可用的 GitHub 凭据"），不假装能合并。
+func (s *Service) GitHubAppClient() *github.Client {
+	if s.provider == nil {
+		return nil
+	}
+	client, _ := s.provider.(*github.Client)
+	return client
+}

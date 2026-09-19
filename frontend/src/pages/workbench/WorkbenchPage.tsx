@@ -23,7 +23,7 @@ import {
   triggerPlan,
 } from "../../api/discovery";
 import { resolveGovernanceAgent, type GovernanceAgent } from "../../api/decisions";
-import { listChangeSets } from "../../api/scm";
+import { listChangeSets, mergeChangeSet } from "../../api/scm";
 import { resolveDataSourceMode } from "../../api/source";
 import { allProjectRepositories } from "../../api/projects";
 import { allCreationOptions, type CreationOptions } from "../../api/projectIssues";
@@ -477,6 +477,41 @@ export function WorkbenchPage({
     setReload((n) => n + 1);
   };
 
+  /** 交付段收口：按列车顺序（= 任务顺序）逐个合并 PR。
+   *
+   *  此前这里是 `onToast("已确认合并：…（演示）")` —— 点下去什么都没发生，
+   *  而界面上写着"已确认合并"。现在真的调合并端点，失败逐条如实报（哪个仓库、
+   *  什么原因），不静默跳过。 */
+  const handleConfirmMerge = async () => {
+    if (!trainCars) return;
+    const cars = trainCars.filter((car) => car.changeSetId && !car.merged);
+    if (cars.length === 0) {
+      onToast("没有可合并的车厢：要么还没开 PR，要么都已经合并过");
+      return;
+    }
+    const projectId = await resolveProjectId();
+    if (!projectId) {
+      onToast("没有可用项目，无法合并");
+      return;
+    }
+    let merged = 0;
+    const failures: string[] = [];
+    for (const car of cars) {
+      try {
+        await mergeChangeSet(projectId, car.changeSetId!);
+        merged += 1;
+      } catch (err) {
+        failures.push(`${car.repo}：${errText(err)}`);
+      }
+    }
+    setReload((n) => n + 1);
+    onToast(
+      failures.length === 0
+        ? `已按顺序合并 ${merged} 个 PR`
+        : `合并 ${merged} 个；${failures.length} 个失败：${failures.join("；")}`,
+    );
+  };
+
   const handleRetryStep = (step: 1 | 2 | 3 | 4) => {
     if (!detail || !principal) {
       onToast("决策主体未接入，无法重试。");
@@ -898,7 +933,7 @@ export function WorkbenchPage({
             onConfigurePolicy={() => setPolicyOpen(true)}
             onRetryPolicy={flow.reloadPolicy}
             mergePending={allTasksDone && trainCars !== null && issueHitl === "hitl"}
-            onConfirmMerge={() => onToast("已确认合并：按仓库依赖顺序执行（演示）")}
+            onConfirmMerge={handleConfirmMerge}
             input={
               activeEntry === null
                 ? null

@@ -17,7 +17,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"repomesh.local/repomesh/internal/access"
-	"repomesh.local/repomesh/internal/secrets"
 	"repomesh.local/repomesh/internal/agentteams"
 	"repomesh.local/repomesh/internal/assembly"
 	"repomesh.local/repomesh/internal/branchvalidation"
@@ -41,6 +40,7 @@ import (
 	"repomesh.local/repomesh/internal/reposcan"
 	"repomesh.local/repomesh/internal/scan"
 	"repomesh.local/repomesh/internal/scm"
+	"repomesh.local/repomesh/internal/secrets"
 	skills "repomesh.local/repomesh/internal/skills"
 	"repomesh.local/repomesh/internal/spec"
 	"repomesh.local/repomesh/internal/tasks"
@@ -155,6 +155,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "pipeline pool unavailable (routes will 503):", poolErr)
 		}
 	}
+	// 交付段的"能合并的手"：auth 块里才有 access.Service（GitHub App 客户端），
+	// 而它要在下面的 pipeline 装配里用到，所以在函数顶层先占个位。
+	// 没配 auth-config（或没配 App 凭据）时保持 nil —— 合并端点会如实回
+	// "服务端没有可用的 GitHub 凭据"，不假装能合。
+	var scmMerger scm.PullMerger
 	if *authConfig != "" {
 		startup, cancel := context.WithTimeout(ctx, 30*time.Second)
 		runtime, err := access.OpenRuntime(startup, *authConfig, os.Getenv("REPOMESH_DATABASE_URL"))
@@ -165,6 +170,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 		defer runtime.Close()
 		secretStore = runtime.SecretStore()
+		// 注意别把 typed-nil 装进接口：那样 scm.Merge 的 nil 检查会失效。
+		if client := runtime.Service.GitHubAppClient(); client != nil {
+			scmMerger = client
+		}
 		// 认证域后台 worker:发现批次上游抓取、凭据轮换与过期清理。
 		// web 部署形态此前没接这条循环,候选仓库(发现仓库段)永远为空。
 		// RunOne 内部有租约/SKIP LOCKED,与 coordinator 并发安全。
@@ -230,6 +239,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		pipelineAPI.JointValidation = web.JointValidation{Service: jointvalidation.New(runtime.Pool())}
 		pipelineAPI.SCMRoutes = web.PipelineSCM{
 			SCM:         scm.New(runtime.Pool(), os.Getenv("REPOMESH_WEBHOOK_SECRET")),
+			Merger:      scmMerger,
 			Observation: observability.New(runtime.Pool()),
 		}
 		certFile, keyFile = runtime.Deployment.TLSCertificateFile, runtime.Deployment.TLSKeyFile
@@ -268,10 +278,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			if runtime.Deployment.Origin == "" || r.Header.Get("Origin") != runtime.Deployment.Origin {
 				return errors.New("origin rejected")
 			}
-		_, err := runtime.Service.AuthenticateProjectRequest(
-			r.Context(), web.SessionCookie(r), r.Header.Get("X-CSRF-Token"), true)
-		return err
-	}
+			_, err := runtime.Service.AuthenticateProjectRequest(
+				r.Context(), web.SessionCookie(r), r.Header.Get("X-CSRF-Token"), true)
+			return err
+		}
 
 		decisionService.ActorName = func(r *http.Request) string {
 			if principal, err := runtime.Service.AuthenticateProjectRequest(
@@ -293,20 +303,20 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "seed skills (non-blocking): %v\n", err)
 		}
 		skillService := skills.NewService(skillStore)
-	// 2026-09-19 账号隔离：技能库按**调用者自己的空间**裁剪（迁移 0039）。
-	// 解析失败一律返回空串 —— 那时只认全局种子技能，宁可少给，也不越权多给。
-	skillService.ActorOrganization = func(r *http.Request) string {
-		principal, err := runtime.Service.AuthenticateProjectRequest(
-			r.Context(), web.SessionCookie(r), r.Header.Get("X-CSRF-Token"), false)
-		if err != nil {
-			return ""
-		}
-		organization, err := runtime.Service.OrganizationOf(r.Context(), principal.ActorID())
-		if err != nil {
-			return ""
-		}
-		return organization
-	}		// Same guard convention as the decision block: writes require Origin +
+		// 2026-09-19 账号隔离：技能库按**调用者自己的空间**裁剪（迁移 0039）。
+		// 解析失败一律返回空串 —— 那时只认全局种子技能，宁可少给，也不越权多给。
+		skillService.ActorOrganization = func(r *http.Request) string {
+			principal, err := runtime.Service.AuthenticateProjectRequest(
+				r.Context(), web.SessionCookie(r), r.Header.Get("X-CSRF-Token"), false)
+			if err != nil {
+				return ""
+			}
+			organization, err := runtime.Service.OrganizationOf(r.Context(), principal.ActorID())
+			if err != nil {
+				return ""
+			}
+			return organization
+		} // Same guard convention as the decision block: writes require Origin +
 		// session + CSRF; GET reads stay open.
 		skillService.Authenticate = func(r *http.Request) error {
 			if r.Method == http.MethodGet {
@@ -420,6 +430,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			JointValidation: web.JointValidation{Service: jointvalidation.New(pipelinePool)},
 			SCMRoutes: web.PipelineSCM{
 				SCM:         scm.New(pipelinePool, os.Getenv("REPOMESH_WEBHOOK_SECRET")),
+				Merger:      scmMerger,
 				Observation: observability.New(pipelinePool),
 			},
 			HandoffDocs: web.HandoffDocs{Service: handoff.New(pipelinePool)},
@@ -447,15 +458,15 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		// The discovery chain audits approval + materialize decisions into
 		// the same decision chain as the scan scope seam (B3 wiring); its
 		// embedding config mirrors the main decision service.
-	// WithSecrets：候选召回要出站调模型做语义判断，需要解封供应商密钥。
-	// 没有它时 discovery 会如实回退到关键词路径并标注 llm_used=false。
-	discoveryService := discovery.New(pipelinePool).
-		WithSecrets(secretStore).
-		WithDecisions(decisionchain.New(decisionchain.Config{
-			EmbeddingBaseURL: os.Getenv("REPOMESH_EMBEDDING_BASE_URL"),
-			EmbeddingAPIKey:  os.Getenv("REPOMESH_EMBEDDING_API_KEY"),
-			EmbeddingModel:   os.Getenv("REPOMESH_EMBEDDING_MODEL"),
-		}, pipelinePool))
+		// WithSecrets：候选召回要出站调模型做语义判断，需要解封供应商密钥。
+		// 没有它时 discovery 会如实回退到关键词路径并标注 llm_used=false。
+		discoveryService := discovery.New(pipelinePool).
+			WithSecrets(secretStore).
+			WithDecisions(decisionchain.New(decisionchain.Config{
+				EmbeddingBaseURL: os.Getenv("REPOMESH_EMBEDDING_BASE_URL"),
+				EmbeddingAPIKey:  os.Getenv("REPOMESH_EMBEDDING_API_KEY"),
+				EmbeddingModel:   os.Getenv("REPOMESH_EMBEDDING_MODEL"),
+			}, pipelinePool))
 		// Reviews：发现链的人工步骤（③ 分档审批 / ⑤ 物化确认）镜像成审核台的待审项，
 		// 否则审核台读的 review_requests 恒空（它此前全仓没有生产者）。
 		discoveryAPI = web.Discovery{Service: discoveryService, Maintenance: discovery.NewMaintenance(pipelinePool), Reviews: humanControlAPI.Service}

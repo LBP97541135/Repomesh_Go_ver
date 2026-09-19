@@ -70,3 +70,18 @@ export function listChangeSets(
     `/projects/${encodeURIComponent(projectId)}/change-sets?taskIds=${encodeURIComponent(taskIds.join(","))}`,
   ).then((page) => page.items);
 }
+
+/** POST /projects/{projectId}/change-sets/{changeSetId}/merge —— **真合并**。
+ *
+ *  这是整条链上唯一会真动用户仓库的动作。后端三道门（属于本项目 / 有 PR /
+ *  合并闸门开着）一道都不省，闸门未开时**如实回缺哪几项**，不假装成功。
+ *  幂等：已合并的直接返回成功，不重复调 GitHub。 */
+export function mergeChangeSet(
+  projectId: string,
+  changeSetId: string,
+): Promise<{ merged: boolean; pr: string; message: string }> {
+  return apiRequest<{ merged: boolean; pr: string; message: string }>(
+    "POST",
+    `/projects/${encodeURIComponent(projectId)}/change-sets/${encodeURIComponent(changeSetId)}/merge`,
+  );
+}
