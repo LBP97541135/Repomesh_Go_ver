@@ -441,6 +441,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 				Store:   tasks.NewPostgresStore(pipelinePool),
 				Sink:    escalationSink{store: decisionchain.NewPostgresStore(pipelinePool)},
 				Catalog: escalationCatalog{pool: pipelinePool},
+				// 判定步骤的依赖邻接：接扫描域的依赖图（边来自观测到的运行时调用）。
+				// 不接的话判定按"无邻接"处理，新增仓库永远不会被判为影响当前计划。
+				Adjacency: escalationAdjacency{pool: pipelinePool},
 				Window:  30 * time.Second,
 				// 人工打断要等 X 就绪（未扫描则先 onboarding，见 §3 触发特例）。
 				// 等太久会把 HTTP 请求拖死，所以给 60s：超时按 ready=false 如实返回

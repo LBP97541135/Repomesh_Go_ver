@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"repomesh.local/repomesh/internal/decisionchain"
+	"repomesh.local/repomesh/internal/scan"
 	"repomesh.local/repomesh/internal/tasks"
 )
 
@@ -124,4 +125,46 @@ func (c escalationCatalog) Ready(ctx context.Context, name string) (bool, error)
 		"         lower('git@github.com:'     || $1 || '/' || $2)))"
 	err := c.pool.QueryRow(ctx, query, owner, repo).Scan(&ready)
 	return ready, err
+}
+
+// escalationAdjacency 是升级梯**判定步骤**的依赖邻接视图。
+//
+// 2026-09-20：此前 Adjacency 为 nil，而 nil 的语义是"判定按无邻接处理（仅 X 本身）"
+// —— 于是新增仓库**永远不会被判为影响当前计划**，这条能力等于空转。这里接上扫描域
+// 的依赖图：BuildAliasRegistry + BuildGraph，边来自各仓库名片里**观测到的运行时调用**
+// （ObservedCalls）。证据认不出的名字不产生边 —— "未知"是诚实数据，不猜。
+type escalationAdjacency struct {
+	pool *pgxpool.Pool
+}
+
+func (a escalationAdjacency) Neighbors(ctx context.Context, name string) ([]string, []string, error) {
+	catalog := scan.NewPostgresCatalog(a.pool)
+	cards, err := catalog.List(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	registry := scan.BuildAliasRegistry(cards)
+	target, ok := registry.Resolve(name)
+	if !ok {
+		// 认不出这个仓库：不编邻接，如实返回空（调用方按"无邻接"处理）。
+		return nil, nil, nil
+	}
+	byID := map[string]string{}
+	for _, card := range cards {
+		byID[card.ID] = card.Name
+	}
+	graph := scan.BuildGraph(cards, registry)
+	dependsOn := []string{}
+	dependedBy := []string{}
+	for _, edge := range graph.Edges {
+		if edge.FromID == target.ID {
+			dependsOn = append(dependsOn, edge.ToName)
+		}
+		if edge.ToID == target.ID {
+			if from, found := byID[edge.FromID]; found {
+				dependedBy = append(dependedBy, from)
+			}
+		}
+	}
+	return dependsOn, dependedBy, nil
 }
