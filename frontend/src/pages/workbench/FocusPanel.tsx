@@ -19,6 +19,7 @@ import type { ConversationMessage } from "../../api/conversations";
 import { STEP_LABELS, type FocusEntry, type StepState } from "./treeModel";
 import type { TestEvidenceItem, TestEvidenceView } from "../../api/testEvidence";
 import type { TrainCarSpec } from "./PrTrainCard";
+import type { InterruptOutcomeView } from "../../api/plans";
 import { SupervisionPolicyCard, type PolicyDraftState } from "../../components/SupervisionPolicyCard";
 
 /** 消息作者 → 角色显示。先看 authorKind（user 是人），服务侧 agent 再按
@@ -286,6 +287,91 @@ function IssueScopeCard({
     </div>
   );
 }
+/** 计划换代 + ③ 执行中人工打断（动态引入新仓库）。
+ *
+ *  这条能力此前在界面上**完全没有入口**：/plans/{id}/interrupt 是个空壳，前端那句
+ *  interruptPlan() 也是死代码（入参还写错成 { reason }）。用户裁定：新仓库必须人工
+ *  确认才生效 —— 所以这里是人点名一个仓库 X，后端落打断决策单、触发 onboarding、
+ *  判定 X 是否影响当前计划；判定"影响"时收集窗开启，重排 v2 的意图同时登记。
+ *
+ *  结果如实显示：ready=false（扫描还没就绪，判定没做）、affectsPlan=false（与当前
+ *  计划无耦合，暂定备用）、affectsPlan=true + replanQueued（已登记重排，等 Leader 产 v2）。 */
+function PlanReplanCard({
+  planState,
+  onInterrupt,
+}: {
+  planState: { planVersion: string; replanState: string } | null;
+  onInterrupt: (repository: string, note: string) => Promise<InterruptOutcomeView>;
+}) {
+  const [repo, setRepo] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<InterruptOutcomeView | null>(null);
+  const submit = () => {
+    if (busy || repo.trim() === "") return;
+    setBusy(true);
+    setErr(null);
+    onInterrupt(repo.trim(), note.trim())
+      .then((out) => { setOutcome(out); setNote(""); })
+      .catch((e: unknown) => setErr(e instanceof Error ? e.message : String(e)))
+      .finally(() => setBusy(false));
+  };
+  const windowOpen = planState?.replanState === "deprecated";
+  return (
+    <div className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+      <p className="text-[11.5px] text-[var(--tree-ink)]">
+        计划换代{planState ? `（${planState.planVersion}${windowOpen ? " · 收集窗已开" : ""}）` : ""}
+      </p>
+      {!planState && (
+        <p className="mt-1 text-[10.5px] text-[var(--tree-faint)]">还没有计划 —— 物化之后才有可打断的计划。</p>
+      )}
+      {planState && (
+        <>
+          <p className="mt-1 text-[10.5px] leading-[1.7] text-[var(--tree-faint)]">
+            执行中要引入一个计划外的仓库？点名它，后端会判定它是否与当前计划耦合。
+          </p>
+          <input
+            className="mt-1.5 w-full rounded-[6px] border border-[var(--tree-hairline)] bg-[var(--tree-bg)] px-1.5 py-1 font-mono text-[11px] text-[var(--tree-ink)]"
+            placeholder="owner/name"
+            value={repo}
+            onChange={(e) => setRepo(e.target.value)}
+          />
+          <input
+            className="mt-1 w-full rounded-[6px] border border-[var(--tree-hairline)] bg-[var(--tree-bg)] px-1.5 py-1 text-[11px] text-[var(--tree-ink)]"
+            placeholder="为什么引入（写进决策链）"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <button
+            className="mt-1.5 rounded-[6px] border border-[var(--tree-acc)] px-2 py-1 text-[11px] text-[var(--tree-acc)] disabled:opacity-50"
+            disabled={busy || repo.trim() === ""}
+            onClick={submit}
+          >
+            {busy ? "判定中…" : "打断并判定"}
+          </button>
+        </>
+      )}
+      {outcome && (
+        <div className="mt-1.5 border-t border-[var(--tree-hairline)] pt-1.5 text-[10.5px] leading-[1.7] text-[var(--tree-sub)]">
+          <p>决策单 {outcome.nodeId}</p>
+          <p>{outcome.onboarded ? "本次新注册并触发了扫描" : "仓库此前已在册"}</p>
+          {!outcome.ready && <p>扫描尚未就绪：本次**没有判定**，就绪后可再来一次。</p>}
+          {outcome.ready && !outcome.affectsPlan && <p>判定：与当前计划无耦合 —— 暂定，未重排。</p>}
+          {outcome.ready && outcome.affectsPlan && (
+            <>
+              <p>判定：影响当前计划，收集窗已开。</p>
+              <p className="break-all">受影响集合：{(outcome.affectedSet ?? []).join("、") || "—"}</p>
+              <p>{outcome.replanQueued ? "重排 v2 已登记（等 Leader 产出）" : "重排未登记：后端没有接上重排端口"}</p>
+            </>
+          )}
+        </div>
+      )}
+      {err !== null && <p className="mt-1 text-[10.5px] text-salmon">{err}</p>}
+    </div>
+  );
+}
+
 function StageHistory({
   stage,
   discovery,
@@ -296,6 +382,8 @@ function StageHistory({
   scopeRepoIds,
   repoOptions,
   onAppendRepository,
+  planState,
+  onInterruptPlan,
 }: {
   stage: 0 | 1 | 2 | 3;
   discovery: DiscoveryView | null;
@@ -309,6 +397,10 @@ function StageHistory({
   repoOptions: Array<{ id: string; name: string }>;
   /** 人确认追加一个仓库 */
   onAppendRepository: (repositoryId: string) => Promise<void>;
+  /** 计划换代状态（GET /plans/{id}）：当前版本号与收集窗状态。null = 还没有计划。 */
+  planState: { planVersion: string; replanState: string } | null;
+  /** ③ 执行中人工打断：提交一个**人点名**的仓库，后端判定它是否影响当前计划。 */
+  onInterruptPlan: (repository: string, note: string) => Promise<InterruptOutcomeView>;
 }) {
   // A1 提交带进来的范围追加 props：本组件暂未消费（构建阻塞项），先显式忽略。
   void scopeRepoIds;
@@ -354,6 +446,7 @@ function StageHistory({
           </div>
         ))}
         <IssueScopeCard scopeRepoIds={scopeRepoIds} repoOptions={repoOptions} onAppend={onAppendRepository} />
+        <PlanReplanCard planState={planState} onInterrupt={onInterruptPlan} />
       </div>
     );
   }
@@ -533,6 +626,8 @@ export function FocusPanel({
           scopeRepoIds={scopeRepoIds}
           repoOptions={repoOptions}
           onAppendRepository={onAppendRepository}
+          planState={planState}
+          onInterruptPlan={onInterruptPlan}
         />
       );
     }

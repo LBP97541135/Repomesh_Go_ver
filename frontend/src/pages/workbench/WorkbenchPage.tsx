@@ -13,6 +13,7 @@ import { listConversationMessages, submitMessage, type ConversationMessage } fro
 import { listPlanTasks, type PlanTaskItem } from "../../api/taskTree";
 import { fetchTestEvidence, type TestEvidenceView } from "../../api/testEvidence";
 import { appendIssueRepository } from "../../api/issueScope";
+import { getPlan, interruptPlan, type InterruptOutcomeView } from "../../api/plans";
 import { approveTask, rejectTask } from "../../api/tasks";
 import {
   fetchDiscovery,
@@ -308,6 +309,33 @@ export function WorkbenchPage({
       cancelled = true;
     };
   }, [projectId, planId, materialized, reload]);
+
+  // ── 计划换代状态：plans/{planId}（planVersion + replanState） ──
+  //
+  //  收集窗（replanState=deprecated）是**人工打断判定"影响计划"之后**开的，
+  //  界面必须能看见它：否则用户点了打断、看到"已受理"，却不知道计划是否真的在动。
+  const [planState, setPlanState] = useState<{ planVersion: string; replanState: string } | null>(null);
+  useEffect(() => {
+    if (!planId) {
+      setPlanState(null);
+      return;
+    }
+    let cancelled = false;
+    Promise.resolve(projectId)
+      .then((pid) => (pid ? getPlan(pid, planId) : null))
+      .then((plan) => {
+        if (cancelled || !plan) return;
+        const version = typeof plan.planVersion === "string" ? plan.planVersion : "";
+        const state = typeof plan.replanState === "string" ? plan.replanState : "";
+        setPlanState({ planVersion: version || "—", replanState: state });
+      })
+      .catch(() => {
+        if (!cancelled) setPlanState(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, planId, reload]);
 
   // ── 仓库显示名（详情卡与步骤卡用） ──
   const [repoNameById, setRepoNameById] = useState<Record<string, string>>({});
@@ -628,6 +656,27 @@ export function WorkbenchPage({
     await appendIssueRepository(pid, detail.issue_id, repositoryId);
     onToast("已追加进本次 Issue 的仓库范围");
     setReload((n) => n + 1);
+  };
+
+  /** ③ 执行中人工打断：提交一个人点名的仓库，由后端判定它是否影响当前计划。
+   *
+   *  判定结果**原样回给界面**（ready / affectsPlan / affectedSet / replanQueued），
+   *  不粉饰：ready=false 就是"还没就绪、这次没判定"，affectsPlan=true 就是
+   *  "收集窗已开、重排 v2 已登记"。前端不替后端猜结论。 */
+  const handleInterruptPlan = async (repository: string, note: string): Promise<InterruptOutcomeView> => {
+    if (!planId) throw new Error("还没有计划可打断（物化之后才有）");
+    const pid = await resolveProjectId();
+    if (!pid) throw new Error("没有可用项目，无法打断");
+    const outcome = await interruptPlan(pid, planId, { repository, note });
+    onToast(
+      outcome.affectsPlan
+        ? `判定影响当前计划：收集窗已开${outcome.replanQueued ? "，重排 v2 已登记" : "（重排未登记）"}`
+        : outcome.ready
+          ? "判定：与当前计划无耦合，暂定未重排"
+          : "仓库扫描尚未就绪：本次没有判定，稍后可再来一次",
+    );
+    setReload((n) => n + 1);
+    return outcome;
   };
   /** 经理门：blocked 任务的通过/驳回（审核段唯一的写动作）。 */
   const handleDecideTask = async (taskId: string, decision: "approve" | "reject", reason: string) => {
@@ -1196,6 +1245,8 @@ export function WorkbenchPage({
               scopeRepoIds={(detail.repositories ?? []).map((r) => r.repository_id)}
               repoOptions={Object.entries(repoNameById).map(([id, name]) => ({ id, name }))}
               onAppendRepository={handleAppendRepository}
+              planState={planState}
+              onInterruptPlan={handleInterruptPlan}
               stepStates={stepStates}
               task={taskEntry}
               messages={entryMessages}

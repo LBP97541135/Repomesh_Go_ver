@@ -34,16 +34,31 @@ export function getPlan(projectId: string, planId: string): Promise<PlanView> {
   );
 }
 
-/** POST /api/projects/{projectId}/plans/{planId}/interrupt — 中断执行。 */
+/** 执行中人工打断的判定结果(tasks.InterruptOutcome,pipeline_routes.go as-built)。
+ *  ready=false:新仓库的扫描还没就绪,判定未做(可稍后再来);affectsPlan=true:
+ *  该仓库与当前计划有耦合 —— 收集窗已开,重排 v2 的派发意图已登记(replanQueued)。 */
+export interface InterruptOutcomeView {
+  nodeId: string;
+  onboarded: boolean;
+  ready: boolean;
+  affectsPlan: boolean;
+  affectedSet?: string[];
+  replanQueued: boolean;
+}
+
+/** POST /api/projects/{projectId}/plans/{planId}/interrupt — 执行中人工打断:
+ *  提交一个**人点名**的仓库 X,后端据此落打断决策单、触发 onboarding、判定它是否
+ *  影响当前计划。入参必须是 { repository, note } —— 此前这里是 { reason },与后端
+ *  对不上(会以 422 REPOSITORY_REQUIRED 拒绝),而且全仓没有调用方,是死代码。 */
 export function interruptPlan(
   projectId: string,
   planId: string,
-  reason: string,
-): Promise<{ status: string }> {
-  return apiRequest<{ status: string }>(
+  input: { repository: string; note: string },
+): Promise<InterruptOutcomeView> {
+  return apiRequest<InterruptOutcomeView>(
     "POST",
     `/projects/${encodeURIComponent(projectId)}/plans/${encodeURIComponent(planId)}/interrupt`,
-    { reason },
+    input,
   );
 }
 
