@@ -120,6 +120,13 @@ func registerAuth(mux *http.ServeMux, auth Auth) {
 		if err := auth.Service.Logout(r.Context(), cookie(r, sessionCookie), r.Header.Get("X-CSRF-Token")); err != nil {
 			return err
 		}
+		// 2026-09-19 修（用户实测报障「退出后 cookie 还在 / 再登录像没退干净」）：
+		// 注销必须把**两个 cookie 从浏览器里删掉**，而不只是把服务端会话置 revoked。
+		// 此前只置 revoked，浏览器继续带着死 cookie 发请求——刷新虽被 401 挡住
+		//（所以能看到登录页），但下次登录会复用旧 binding 的代际，语义上没退干净。
+		// MaxAge<0 即让浏览器删除该 cookie。
+		setCookie(w, sessionCookie, "", -1)
+		setCookie(w, bindingCookie, "", -1)
 		w.WriteHeader(http.StatusNoContent)
 		return nil
 	})

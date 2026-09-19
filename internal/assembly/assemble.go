@@ -132,7 +132,10 @@ func (s *Service) ensureTeam(ctx context.Context, tx pgxTx, projectID, repositor
 func (s *Service) ensureAgent(ctx context.Context, tx pgxTx, organizationID, role, repositoryID, name string) (string, error) {
 	singleton := organizationID + ":" + role + ":" + repositoryID + ":" + name
 	var id string
-	err := tx.QueryRow(ctx, `SELECT id FROM public.agents WHERE singleton_key=$1`, singleton).Scan(&id)
+	// 2026-09-19 账号隔离（迁移 0037）：singleton_key 的唯一性已从"全局"改成
+	// "按组织"（organization_id, singleton_key），查找也必须按组织裁剪——
+	// 否则 A 组织的编制会被 B 组织复用（跨租户串人）。
+	err := tx.QueryRow(ctx, `SELECT id FROM public.agents WHERE organization_id=$2::uuid AND singleton_key=$1`, singleton, organizationID).Scan(&id)
 	if err == nil {
 		return id, nil
 	}

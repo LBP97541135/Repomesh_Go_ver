@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { createProject, listProjects, type ProjectListItem } from "../api/projects";
-import { listRepositories } from "../api/repositories";
-import type { RepositoryCard } from "../api/contract";
+import { listDiscoveredRepositories, type RepositoryCandidate } from "../api/repositories";
 import { readActiveProject, setActiveProject } from "../api/activeProject";
 import { errText } from "../display";
 
@@ -24,7 +23,7 @@ export function ProjectSelectPage({ onEnterIssues }: { onEnterIssues: () => void
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [purpose, setPurpose] = useState("");
-  const [repositories, setRepositories] = useState<RepositoryCard[] | null>(null);
+  const [repositories, setRepositories] = useState<RepositoryCandidate[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -42,8 +41,13 @@ export function ProjectSelectPage({ onEnterIssues }: { onEnterIssues: () => void
 
   useEffect(() => {
     if (!creating || repositories !== null) return;
-    listRepositories()
-      .then(setRepositories)
+    // 2026-09-19 修正：数据源从 `repomesh_scan.repositories`（已扫描仓库目录，
+    // 本部署只有 1 行）换成 `GET /api/repositories/candidates`——它是**这个 GitHub
+    // 账号下已发现的全部仓库**（当前 27 个），id 形如 repo_<20 位 github_id>，
+    // 正是 POST /api/projects 的 repositoryIds 需要的形状。用户裁定：建项目时应当
+    // 从「个人账号下的全部仓库」里勾选，而不是先手填仓库。
+    listDiscoveredRepositories({ limit: 100 })
+      .then((page) => setRepositories(page.items))
       .catch(() => setRepositories([]));
   }, [creating, repositories]);
 
@@ -132,20 +136,20 @@ export function ProjectSelectPage({ onEnterIssues }: { onEnterIssues: () => void
             <p className="text-[12.5px] text-tx2">
               选择仓库 <span className="text-tx3">（已选 {selected.size} 个；团队按仓库建立）</span>
             </p>
+            <p className="mt-1 text-[11.5px] text-tx3">
+              下列是当前 GitHub 账号下已发现的全部仓库（本页最多 100 个）。标「App 工作授权不足」的仓库，需要先在 GitHub 把它加入这个 App 的仓库范围，否则交付阶段无法推送。
+            </p>
             {repositories === null && <p className="mt-2 text-[12px] text-tx3">正在读取仓库…</p>}
             {repositories !== null && repositories.length === 0 && (
               <p className="mt-2 text-[12px] text-salmon-hi">
                 没有可用仓库——请先到「仓库」页添加仓库并完成授权。
               </p>
             )}
-            <div className="mt-2 max-h-[220px] space-y-1 overflow-y-auto">
+            <div className="mt-2 max-h-[260px] space-y-1 overflow-y-auto">
               {(repositories ?? []).map((repo) => {
-                const id = String((repo as { id?: unknown }).id ?? "");
-                const label =
-                  String((repo as { fullName?: unknown }).fullName ?? "") ||
-                  String((repo as { name?: unknown }).name ?? "") ||
-                  id;
+                const id = repo.id;
                 const checked = selected.has(id);
+                const appReady = repo.appCapability?.status === "allowed";
                 return (
                   <label
                     key={id}
@@ -163,7 +167,16 @@ export function ProjectSelectPage({ onEnterIssues }: { onEnterIssues: () => void
                         })
                       }
                     />
-                    <span className="truncate">{label}</span>
+                    <span className="truncate">{repo.displayName || id}</span>
+                    <span
+                      className={
+                        appReady
+                          ? "ml-auto flex-none rounded-full bg-amber/20 px-2 py-[1px] text-[10.5px] text-amber-hi"
+                          : "ml-auto flex-none rounded-full bg-salmon-well px-2 py-[1px] text-[10.5px] text-salmon-hi"
+                      }
+                    >
+                      {appReady ? "App 能力已核实" : "App 工作授权不足"}
+                    </span>
                   </label>
                 );
               })}

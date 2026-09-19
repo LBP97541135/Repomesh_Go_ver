@@ -71,7 +71,19 @@ func (e *executor) RunOne(ctx context.Context) error {
 			_ = e.execution.MarkAgentLaunchFailed(ctx, runID)
 			return err
 		}
-		return e.launchAgentRun(ctx, parts, command.Workspace, runID)
+		// C 修复（2026-09-19）：installation token **按仓库现场铸**，不再读部署级
+		// 缓存文件 .gh-token（那个文件由 timer 写死单个仓库刷新，别人把 App 装到
+		// 自己账号上也推不动）。令牌只进子进程环境变量：不落盘、不进命令台账。
+		ghToken := ""
+		if command.RepoFullName != "" {
+			token, mintErr := mintInstallationToken(ctx, command.RepoFullName)
+			if mintErr != nil {
+				_ = e.execution.MarkAgentLaunchFailed(ctx, runID)
+				return fmt.Errorf("installation token for %s: %w", command.RepoFullName, mintErr)
+			}
+			ghToken = token
+		}
+		return e.launchAgentRun(ctx, parts, command.Workspace, runID, ghToken)
 	}
 	var attemptID string
 	err = e.pool.QueryRow(ctx, `SELECT a.id FROM repomesh_execution.attempts a

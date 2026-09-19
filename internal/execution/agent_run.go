@@ -12,6 +12,9 @@ type AgentRunCommand struct {
 	Command        string
 	Workspace      string
 	TaskPackageRef string
+	// RepoFullName 是本次要交付的仓库（owner/name），executor 据此**现场铸**
+	// 该仓库的 installation token（C 修复）。测试 run 为空。
+	RepoFullName string
 }
 
 // AgentRun records one agent process lifecycle.
@@ -138,17 +141,17 @@ func (s *Service) ClaimAgentLaunch(ctx context.Context, workerID string) (AgentR
 		return AgentRunCommand{}, "", unavailable()
 	}
 	defer rollback(tx)
-	var runID, attemptID, kind, command, workspace, packageRef string
+	var runID, attemptID, kind, command, workspace, packageRef, repoFullName string
 	// 双派工后同一 attempt 上挂着开发 run 与 test_agent run，二者在同一事务插入，
 	// created_at（now() = 事务开始时刻）完全相同，只按 created_at 排序时先后是不确定的
 	// ——测试可能在开发产出之前就被认领。加 (agent_kind='test_agent') 作 tiebreaker：
 	// 同一时间戳内开发 run 恒排在测试 run 之前，跨 attempt 仍按插入顺序。
-	err = tx.QueryRow(ctx, `SELECT r.id, r.attempt_id, r.agent_kind, r.command, r.workspace, r.task_package_ref
+	err = tx.QueryRow(ctx, `SELECT r.id, r.attempt_id, r.agent_kind, r.command, r.workspace, r.task_package_ref, r.repo_full_name
 		FROM repomesh_execution.agent_runs r
 		JOIN repomesh_execution.attempts a ON a.id = r.attempt_id
 		WHERE a.worker_id=$1 AND r.state='pending' AND a.state IN ('launch_verified','running')
 		ORDER BY r.created_at, (r.agent_kind = 'test_agent') LIMIT 1 FOR UPDATE OF r`, workerID).
-		Scan(&runID, &attemptID, &kind, &command, &workspace, &packageRef)
+		Scan(&runID, &attemptID, &kind, &command, &workspace, &packageRef, &repoFullName)
 	if err != nil {
 		if err.Error() == "no rows in result set" {
 			return AgentRunCommand{}, "", nil
@@ -162,5 +165,5 @@ func (s *Service) ClaimAgentLaunch(ctx context.Context, workerID string) (AgentR
 	if err := tx.Commit(ctx); err != nil {
 		return AgentRunCommand{}, "", unavailable()
 	}
-	return AgentRunCommand{AttemptID: attemptID, AgentKind: kind, Command: command, Workspace: workspace, TaskPackageRef: packageRef}, runID, nil
+	return AgentRunCommand{AttemptID: attemptID, AgentKind: kind, Command: command, Workspace: workspace, TaskPackageRef: packageRef, RepoFullName: repoFullName}, runID, nil
 }

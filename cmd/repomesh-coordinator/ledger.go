@@ -71,7 +71,7 @@ func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, i
 	// executor's quote-aware splitter restores it intact. Inside the script
 	// only double quotes appear, so no shell quoting escapes the single pair.
 	script := "set -e\n" +
-		"T=$(cat /opt/repomesh/workspaces/.gh-token)\n" +
+		"T=${REPOMESH_GH_TOKEN:?missing installation token}\n" +
 		"R=" + repoFullName + "\n" +
 		"B=repomesh/auto-" + attemptID + "\n" +
 		"git clone --depth 5 https://x-access-token:$T@github.com/$R.git repo\n" +
@@ -202,10 +202,10 @@ func (l *coordinatorLedger) ReserveForTask(ctx context.Context, workerID, taskID
 		return "", err
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO repomesh_execution.agent_runs
-		(id, attempt_id, agent_kind, command, workspace, task_package_ref, state)
-		VALUES ($1,$2,$3,$4,$5,$6,'pending')`,
+		(id, attempt_id, agent_kind, command, workspace, task_package_ref, state, repo_full_name)
+		VALUES ($1,$2,$3,$4,$5,$6,'pending',$7)`,
 		runID, attemptID, agentKind, command,
-		"/opt/repomesh/workspaces/"+attemptID, taskID); err != nil {
+		"/opt/repomesh/workspaces/"+attemptID, taskID, repoFullName); err != nil {
 		return "", fmt.Errorf("coordinator: agent run insert failed: %w", err)
 	}
 	// 双派工：测试 run 挂在**独立的 attempt** 上。

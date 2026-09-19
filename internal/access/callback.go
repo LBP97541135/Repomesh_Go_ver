@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -123,8 +124,18 @@ func (s *Service) confirmIdentity(ctx context.Context, binding, id string, token
 		return result, nil
 	}
 	var actor string
-	err = s.pool.QueryRow(ctx, `INSERT INTO repomesh_access.accounts(id,github_id,display_name) VALUES($1,$2,$3)
-		ON CONFLICT(github_id) DO UPDATE SET display_name=EXCLUDED.display_name RETURNING id`, newID(), external.ID, external.DisplayName).Scan(&actor)
+	// 2026-09-19 账号隔离（迁移 0037）：**新账号开自己的私有组织**，不再并入
+	// 「默认组织」——那等于所有人共享一个租户，项目/issue/智能体互相可见。
+	// 已归属的账号不动（重放不搬家），没归属的补一个。
+	organizationID, err := s.organizationFor(ctx, external.ID, external.DisplayName)
+	if err != nil {
+		return result, unavailable()
+	}
+	err = s.pool.QueryRow(ctx, `INSERT INTO repomesh_access.accounts(id,github_id,display_name,organization_id)
+		VALUES($1,$2,$3,$4::uuid)
+		ON CONFLICT(github_id) DO UPDATE SET display_name=EXCLUDED.display_name,
+			organization_id=COALESCE(repomesh_access.accounts.organization_id, EXCLUDED.organization_id)
+		RETURNING id`, newID(), external.ID, external.DisplayName, organizationID).Scan(&actor)
 	if err != nil {
 		return result, unavailable()
 	}
@@ -293,4 +304,27 @@ func (s *Service) Attempt(ctx context.Context, bindingCookie, sessionCookie, id 
 		}
 	}
 	return result, nil
+}
+
+// organizationFor 返回该 GitHub 账号所属的租户（organization）。
+// 2026-09-19 账号隔离：已归属的沿用，新账号**当场开一个私有组织**——
+// 这是"每人一个租户"的唯一入口，注册即分家。将来要多人协作，只需把多个
+// 账号的 organization_id 指向同一个 organization（租户原语保留，不新增概念）。
+func (s *Service) organizationFor(ctx context.Context, githubID int64, displayName string) (string, error) {
+	var organizationID *string
+	if err := s.pool.QueryRow(ctx, `SELECT organization_id::text FROM repomesh_access.accounts WHERE github_id=$1`, githubID).Scan(&organizationID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return "", err
+	}
+	if organizationID != nil && *organizationID != "" {
+		return *organizationID, nil
+	}
+	name := strings.TrimSpace(displayName)
+	if name == "" {
+		name = "用户"
+	}
+	var created string
+	if err := s.pool.QueryRow(ctx, `INSERT INTO public.organizations(id,name) VALUES(gen_random_uuid(),$1) RETURNING id::text`, name+" 的个人空间").Scan(&created); err != nil {
+		return "", err
+	}
+	return created, nil
 }

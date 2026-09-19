@@ -36,12 +36,15 @@ func (s *Service) Roster(ctx context.Context, actor, role, repositoryID, status 
 	// 当前部署只有一个组织（6cc2057e-…），这里如实返回全部智能体；
 	// 多组织上线前必须先给账号补组织归属，再恢复裁剪——不留一个永远为空的假守卫。
 	// actor 仍作为参数保留在签名里（调用方按会话主体传），供后续裁剪使用。
-	where := []string{"TRUE"}
-	// 注意：where 已不含任何占位符，**args 必须为空**——留着 actor 会让 pgx 报
-	// "bind message supplies 1 parameters, but prepared statement requires 0"（500）。
-	// 这是我上一版改 where 时的疏漏，实测踩到。
-	args := []any{}
-	_ = actor
+	// 2026-09-19 多账户（迁移 0036）：按**账号自己的组织**裁剪，而不是按空表
+	// public.users。账号还没归属组织时（organization_id 为 null）如实退化为"全部"
+	// ——不因为一个没回填的账号就让名册整个空掉（那正是今天踩过的坑）。
+	where := []string{`(a.organization_id = (SELECT organization_id FROM repomesh_access.accounts WHERE id=$1)
+		OR (SELECT organization_id FROM repomesh_access.accounts WHERE id=$1) IS NULL)`}
+	// args 与 where 的占位符必须一一对应：上一版把 where 改成 TRUE 却留着 actor，
+	// pgx 直接报 "bind message supplies 1 parameters, but prepared statement requires 0"
+	//（500）——实测踩到，这里保持"where 里有几个 $n，args 就有几个"。
+	args := []any{actor}
 	if role != "" {
 		args = append(args, role)
 		where = append(where, "a.role=$"+strconv.Itoa(len(args)))

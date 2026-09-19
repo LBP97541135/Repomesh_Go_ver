@@ -17,11 +17,11 @@ import (
 // attempt workspace, record the pid, wait, record the exit. The agent command
 // runs headless; stdout/stderr land in per-run files inside the workspace so
 // a failed run leaves a readable cause instead of a bare exit code.
-func (e *executor) launchAgentRun(ctx context.Context, command []string, workspace, runID string) error {
+func (e *executor) launchAgentRun(ctx context.Context, command []string, workspace, runID, ghToken string) error {
 	cmd := exec.CommandContext(ctx, command[0], command[1:]...)
 	cmd.Dir = workspace
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Env = sanitizedEnv()
+	cmd.Env = sanitizedEnv(ghToken)
 	// C6 fix: capture agent output next to the run instead of /dev/null.
 	if stdout, err := os.OpenFile(filepath.Join(workspace, "agent-stdout.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
 		defer stdout.Close()
@@ -85,7 +85,7 @@ func killedBySignal(exitErr *exec.ExitError) bool {
 // holds except the agent-scoped MINIMAX_API_KEY: codex reads its model-provider
 // key from that env var (model_providers.minimax.env_key), and it never equals
 // a platform secret.
-func sanitizedEnv() []string {
+func sanitizedEnv(ghToken string) []string {
 	keep := map[string]bool{"PATH": true, "HOME": true, "LANG": true, "LC_ALL": true, "TERM": true,
 		"TMPDIR": true, "USER": true, "SHELL": true, "MINIMAX_API_KEY": true}
 	var result []string
@@ -94,6 +94,11 @@ func sanitizedEnv() []string {
 		if found && keep[name] {
 			result = append(result, entry)
 		}
+	}
+	// 2026-09-19 C 修复：本次运行的仓库级 installation token 只以环境变量形式
+	// 交给子进程（交付脚本里的 $T），既不在磁盘留缓存文件，也不进命令台账。
+	if ghToken != "" {
+		result = append(result, "REPOMESH_GH_TOKEN="+ghToken)
 	}
 	return result
 }

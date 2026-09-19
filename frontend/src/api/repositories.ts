@@ -95,12 +95,23 @@ export function putScopeAssist(enabled: boolean): Promise<ScopeAssistSetting> {
   return apiRequest<ScopeAssistSetting>("PUT", "/settings/scope-assist", { enabled });
 }
 
-/** GET /api/repositories/candidates 候选行（access.RepositoryItem）。 */
+/** 能力观测（internal/github Capability 的 json tag 原样）。 */
+export interface RepositoryCapability {
+  status: string;
+  reasonCodes: string[];
+  observedAt: string | null;
+}
+
+/** GET /api/repositories/candidates 候选行（access.RepositoryItem）。
+ *
+ *  2026-09-19 修正：userParticipation / appCapability 是 github.Capability
+ *  **对象**（{status, reasonCodes, observedAt}），不是字符串——原声明按实现粗读
+ *  写成了 string，页面拿它当真值判断会永远为真。 */
 export interface RepositoryCandidate {
   id: string;
   displayName: string;
-  userParticipation: string;
-  appCapability: string;
+  userParticipation: RepositoryCapability;
+  appCapability: RepositoryCapability;
 }
 
 export interface RepositoryCandidatePage {
@@ -117,6 +128,39 @@ export function listRepositoryCandidates(query?: { q?: string; cursor?: string; 
   if (query?.limit !== undefined) params.set("limit", String(query.limit));
   const qs = params.toString();
   return apiRequest<RepositoryCandidatePage>("GET", `/repositories/candidates${qs ? `?${qs}` : ""}`);
+}
+
+/**
+ * GET /api/repositories — **发现读模型**（access.RepositoryPage）：
+ * 这个 GitHub 账号下**已发现的全部仓库**（本部署当前 27 个），每行带
+ * userParticipation / appCapability，id 形如 `repo_<20 位 github_id>`，
+ * 正是 `POST /api/projects` 的 repositoryIds 需要的形状。
+ *
+ * 与 `/scan/repositories`（已扫描登记目录，本部署只有 1 行）**不是一回事**：
+ * 建项目要「从自己账号下的全部仓库里勾选」，必须用这个。
+ *
+ * 2026-09-19：此前指向 `/repositories/candidates`，但那个路径**后端从未注册**
+ * （只在 auth.go 的注释里被提到过），实测返回
+ * `404 {"error":"not_implemented"}`——选择器因此恒显示「没有可用仓库」，
+ * 用户报障「建项目时勾不到自己的仓库」。
+ */
+export interface DiscoveredRepositoryPage {
+  items: RepositoryCandidate[];
+  nextCursor: string | null;
+  coverage: { status: string; reasonCodes: string[]; observedAt: string | null };
+}
+
+export function listDiscoveredRepositories(query?: {
+  q?: string;
+  cursor?: string;
+  limit?: number;
+}): Promise<DiscoveredRepositoryPage> {
+  const params = new URLSearchParams();
+  if (query?.q) params.set("q", query.q);
+  if (query?.cursor) params.set("cursor", query.cursor);
+  if (query?.limit !== undefined) params.set("limit", String(query.limit));
+  const qs = params.toString();
+  return apiRequest<DiscoveredRepositoryPage>("GET", `/repositories${qs ? `?${qs}` : ""}`);
 }
 
 /** GET /api/repositories/dependents 行：依赖 X 的仓库边（B11 重规划 Step 4b 输入）。 */
