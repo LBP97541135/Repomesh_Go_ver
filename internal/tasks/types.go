@@ -66,6 +66,10 @@ type Task struct {
 	ConversationID string    `json:"conversationId,omitempty"`
 	LeaderLabel    string    `json:"leaderLabel,omitempty"`
 	WorkerLabel    string    `json:"workerLabel,omitempty"`
+	// Assignee 是**真实执行者**（最近一条开发 run 的 agent_kind），只在任务树
+	// 读面（ListPlanTasks）带出。WorkerLabel 是装配期写下的显示名快照，物化写入端
+	// 不填它；界面因此优先显示 WorkerLabel，没有就显示这里，再没有才写「待指派」。
+	Assignee  string    `json:"assignee,omitempty"`
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`
 }

@@ -15,6 +15,10 @@ export interface PlanTaskItem {
   conversationId?: string;
   leaderLabel?: string;
   workerLabel?: string;
+  /** 真实执行者（最近一条开发 run 的 agent_kind），由后端任务树读面带出。
+   *  workerLabel 是装配期的显示名快照、物化写入端不填；没有它时显示这个，
+   *  两个都没有才写「待指派」。 */
+  assignee?: string;
 }
 
 export interface PlanTasksPage {

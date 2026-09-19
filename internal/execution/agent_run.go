@@ -3,7 +3,15 @@ package execution
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 )
+
+// maxDevAttempts 是一条任务允许被自动重派的开发 run 总数（含首次）。
+//
+// 取 3 的来由：执行面失败大多是**一次性的**（部署重启把在跑的 agent 杀掉、
+// 上游仓库瞬时不可用），重来一次通常就过；连撞三次还没产出，再自动重试只会
+// 白烧额度与模型调用，该停下来让人看。到顶后任务停在 'failed' 并带上原因。
+const maxDevAttempts = 3
 
 // AgentRunCommand launches one coding agent process inside an attempt.
 type AgentRunCommand struct {
@@ -111,11 +119,55 @@ func (s *Service) MarkAgentExited(ctx context.Context, runID string, exitCode in
 	// C5 fix: an exited agent ends the running phase — the bound task must
 	// reach the manager gate (blocked) or Approve/Reject can never act on it.
 	// task_package_ref carries the public.tasks id for dispatch-created runs.
-	_, err = s.pool.Exec(ctx, `UPDATE public.tasks SET status='blocked'
-		WHERE id::text = (SELECT task_package_ref FROM repomesh_execution.agent_runs WHERE id=$1)
-		  AND status='running'`, runID)
-	if err != nil {
+	//
+	// 2026-09-20 线上实测：这里此前**不看退出码**——任何 run 一退出就把任务置成
+	// blocked，界面于是写着「执行者已跑完并把任务交回」。而实测那批里 4 条开发
+	// run 有 3 条是 exit 22 / 被部署重启杀掉的 killed -1，它们根本没产出、没开 PR，
+	// 交付列车上只剩一节有 PR 的车厢。现在按 run 的真实结局分流：
+	//   · 开发 run 成功退出（exit 0 且非被杀）→ blocked（经理门）；
+	//   · 开发 run 失败/被杀 → 有重派额度就回 pending 并放回 plan_steps='ready'
+	//     （否则调度器只挑 ready 的步，任务永远没人派），额度用完停在 failed；
+	//   · 测试 run 是观察者，绝不改任务状态。
+	var agentKind, taskRef string
+	if err := s.pool.QueryRow(ctx, `SELECT agent_kind, COALESCE(task_package_ref,'')
+		FROM repomesh_execution.agent_runs WHERE id=$1`, runID).Scan(&agentKind, &taskRef); err != nil {
 		return unavailable()
+	}
+	if taskRef != "" && agentKind != "test_agent" {
+		if exitCode == 0 && !killed {
+			if _, err := s.pool.Exec(ctx, `UPDATE public.tasks SET status='blocked'
+				WHERE id::text=$1 AND status='running'`, taskRef); err != nil {
+				return unavailable()
+			}
+		} else {
+			var prior int
+			if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM repomesh_execution.agent_runs
+				WHERE task_package_ref=$1 AND agent_kind <> 'test_agent'`, taskRef).Scan(&prior); err != nil {
+				return unavailable()
+			}
+			next := "failed"
+			if prior < maxDevAttempts {
+				next = "pending"
+			}
+			reason := fmt.Sprintf("执行未成功（exit=%d killed=%t），未产出可交付的改动", exitCode, killed)
+			if next == "pending" {
+				reason += "；已自动重派（第 " + fmt.Sprint(prior+1) + " / " + fmt.Sprint(maxDevAttempts) + " 次）"
+			} else {
+				reason += "；自动重派已用满 " + fmt.Sprint(maxDevAttempts) + " 次，需要人工介入"
+			}
+			if _, err := s.pool.Exec(ctx, `UPDATE public.tasks SET status=$2, result_summary=$3
+				WHERE id::text=$1 AND status='running'`, taskRef, next, reason); err != nil {
+				return unavailable()
+			}
+			if next == "pending" {
+				if _, err := s.pool.Exec(ctx, `UPDATE public.plan_steps s SET status='ready'
+					FROM public.tasks t
+					WHERE s.plan_id = t.plan_id AND s.content = t.title
+					  AND t.id::text=$1 AND s.status='dispatched'`, taskRef); err != nil {
+					return unavailable()
+				}
+			}
+		}
 	}
 	// 派发台账收尾：agent 退出即这条 attempt 结束。
 	//

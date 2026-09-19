@@ -349,6 +349,13 @@ export function WorkbenchPage({
   // ── 人工门（分档审批 / 物化确认）──
   const [gateBusy, setGateBusy] = useState<"approveTiers" | "materialize" | null>(null);
   const [gateError, setGateError] = useState<string | null>(null);
+  /** 每个门的连续失败次数：自动托管代行人工门时，失败够 3 次就停手并上屏。
+   *
+   *  2026-09-20 线上实测：此前没有这道闸 —— 自动托管在 discovery 每次 2.5s 轮询后
+   *  重新开火，一条**永远过不去**的门（线上是"全部仓库都被排除"的分档审批，每次
+   *  必 409）把 `POST /discovery/approval` 打成了 26632 次。与步进器的
+   *  driverFailures 同一套规矩：连撞三次就把原因摆出来，不再静默重发。 */
+  const gateFailures = useRef(0);
   /** 监管策略弹窗（迁移 5-1b）：草稿卡片上的「配置 / 修改」。 */
   const [policyOpen, setPolicyOpen] = useState(false);
   const handleGate = (action: "approveTiers" | "materialize") => {
@@ -379,11 +386,13 @@ export function WorkbenchPage({
       })
         .then(() => {
           setGateBusy(null);
+          gateFailures.current = 0;
           onToast("分档已批准；处理员继续生成计划");
           setReload((n) => n + 1);
         })
         .catch((err: unknown) => {
           setGateBusy(null);
+          gateFailures.current += 1;
           setGateError(errText(err));
         });
       return;
@@ -394,12 +403,14 @@ export function WorkbenchPage({
     })
       .then(() => {
         setGateBusy(null);
+        gateFailures.current = 0;
         onToast("物化完成：编制已组装、批次已下发——左侧树已换代");
         setActiveEntry(null);
         setReload((n) => n + 1);
       })
       .catch((err: unknown) => {
         setGateBusy(null);
+        gateFailures.current += 1;
         setGateError(errText(err));
       });
   };
@@ -423,6 +434,9 @@ export function WorkbenchPage({
   useEffect(() => {
     if (resolveDataSourceMode() === "replay") return;
     if (issueHitl !== "ai" || !detail || !discovery || !principal || gateBusy) return;
+    // 连撞三次就停手：门一直过不去（例如分档把全部仓库都排除了），再自动重发
+    // 只是把同一个 409 打成上万次，原因早已摆在右栏。改完点「重试」再继续。
+    if (gateFailures.current >= 3) return;
     if (discovery.classification !== null && discovery.approval?.state !== "approved") {
       handleGate("approveTiers");
       return;

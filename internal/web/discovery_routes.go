@@ -21,7 +21,17 @@ import (
 // "计划里没有仓库"这种纯业务前提问题，在界面上显示成"服务端暂时不可用"，
 // 用户完全无法自救。这里逐类映射，并带上 message 让前端能原样展示。
 func writeDiscoveryError(w http.ResponseWriter, err error) {
-	slog.Warn("discovery request failed", "error", err.Error())
+	// 2026-09-20 线上实测：这里对**每一种**错误都打 WARN，于是「计划还没生成」
+	// （前端 5s 轮询计划纸，404 是设计里的正常态）每 5 秒刷一条
+	// 「discovery request failed error="no rows in result set"」，把真正的故障
+	// 淹掉。预期内的读面空缺与业务前提问题降到 Debug，只有真·意外才 Warn。
+	switch {
+	case errors.Is(err, pgx.ErrNoRows), errors.Is(err, discovery.ErrConflict),
+		errors.Is(err, discovery.ErrNoRepositories), errors.Is(err, discovery.ErrDrifted):
+		slog.Debug("discovery request declined", "error", err.Error())
+	default:
+		slog.Warn("discovery request failed", "error", err.Error())
+	}
 	var failure *access.Failure
 	if errors.As(err, &failure) {
 		writeJSON(w, failure.Status, map[string]string{"error": strings.ToLower(failure.Code)})

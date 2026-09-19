@@ -490,9 +490,11 @@ func (s *Service) Materialize(ctx context.Context, issueID, agentID, idempotency
 		// (repomesh_execution.attempts) has an FK to (project_id, issue_id);
 		// without this ref the coordinator cannot resolve the real issue and
 		// every dispatch aborts with a placeholder foreign key.
+		// batch_no 填 1：物化实际做的事就是"下发批次 1"（同一批全部任务），
+		// 这里此前留空，界面上的任务行只能显示「批次—」——而它明明就在批次 1 里。
 		err = tx.QueryRow(ctx,
-			"INSERT INTO public.tasks (id, organization_id, project_id, plan_id, task_uid, repository_id, title, instruction, acceptance, source_ref, idempotency_key)"+
-				" VALUES (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9::jsonb, $10)"+
+			"INSERT INTO public.tasks (id, organization_id, project_id, plan_id, task_uid, repository_id, title, instruction, acceptance, source_ref, idempotency_key, batch_no)"+
+				" VALUES (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9::jsonb, $10, 1)"+
 				" ON CONFLICT (idempotency_key) DO UPDATE SET title = public.tasks.title RETURNING id::text",
 			orgID, st.ProjectID, planID, planID+":"+repo+":"+strconv.Itoa(index), repo, title, instruction, acceptance,
 			fmt.Sprintf(`{"issueId":%q}`, issueID), planID+":"+repo+":"+strconv.Itoa(index)).Scan(&taskID)

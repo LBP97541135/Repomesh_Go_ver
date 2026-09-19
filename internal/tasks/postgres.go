@@ -40,6 +40,19 @@ func scanTask(row pgx.Row) (Task, error) {
 	return t, err
 }
 
+// scanTaskWithAssignee 是 ListPlanTasks 的扫描器：在 taskColumns 之后多读一列
+// 真实执行者（见 ListPlanTasks 的注释）。
+func scanTaskWithAssignee(row pgx.Row) (Task, error) {
+	var t Task
+	var batchNo *int
+	err := row.Scan(&t.ID, &t.OrganizationID, &t.ProjectID, &t.PlanID, &t.TaskUID,
+		&t.RepositoryID, &t.Title, &t.Instruction, &t.Acceptance, &t.Status,
+		&t.AssigneeAgentID, &t.Version, &t.IdempotencyKey,
+		&batchNo, &t.ConversationID, &t.LeaderLabel, &t.WorkerLabel, &t.Assignee)
+	t.BatchNo = batchNo
+	return t, err
+}
+
 func scanAttempt(row pgx.Row) (Attempt, error) {
 	var (
 		a          Attempt
@@ -105,16 +118,28 @@ func (p *PostgresStore) GetTask(ctx context.Context, id string) (*Task, error) {
 }
 
 // ListPlanTasks returns the plan's live tasks (protocol migration input).
+//
+// 2026-09-20 线上实测：任务树的行数据此前只读 worker_label，而物化写入端从不填它
+// ——界面上每条**已经跑完**的任务都写着「待指派」。执行者不该是编出来的名字：
+// 这里把它换成真的跑过这条任务的那个 agent（agent_runs 里 task_package_ref =
+// 任务 id 的最近一条开发 run；测试 run 是观察者，不算执行者）。
 func (p *PostgresStore) ListPlanTasks(ctx context.Context, planID string) ([]Task, error) {
-	rows, err := p.pool.Query(ctx, `SELECT `+taskColumns+` FROM public.tasks
-		WHERE plan_id = $1 AND status <> 'superseded'`, planID)
+	rows, err := p.pool.Query(ctx, `SELECT `+taskColumns+`,
+		       COALESCE(run.agent_kind, '')
+		FROM public.tasks t
+		LEFT JOIN LATERAL (
+		  SELECT r.agent_kind FROM repomesh_execution.agent_runs r
+		  WHERE r.task_package_ref = t.id::text AND r.agent_kind <> 'test_agent'
+		  ORDER BY r.created_at DESC LIMIT 1
+		) run ON true
+		WHERE t.plan_id = $1 AND t.status <> 'superseded'`, planID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := []Task{}
 	for rows.Next() {
-		task, err := scanTask(rows)
+		task, err := scanTaskWithAssignee(rows)
 		if err != nil {
 			return nil, err
 		}

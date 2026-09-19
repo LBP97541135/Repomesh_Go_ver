@@ -198,6 +198,16 @@ func (p *PostgresStore) RejectStep(ctx context.Context, taskID, managerID, reaso
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("%w: task %s not blocked", ErrConflict, taskID)
 	}
+	// 2026-09-20 线上实测：驳回只把任务置回 pending，**没有**把这一步从
+	// dispatched 放回 ready —— 而 DispatchOne 只挑 plan_steps.status='ready' 的任务，
+	// 于是"驳回会带原因退回，可再次派发"这句界面文案是假的：任务永远没人派。
+	// 重派意图落回台账，调度器下一 tick 就能真的再派一次。
+	if _, err := p.pool.Exec(ctx, `UPDATE public.plan_steps s SET status='ready'
+		FROM public.tasks t
+		WHERE s.plan_id = t.plan_id AND s.content = t.title
+		  AND t.id=$1 AND s.status='dispatched'`, taskID); err != nil {
+		return unavailable()
+	}
 	return nil
 }
 

@@ -261,7 +261,10 @@ function TaskRow({
       <span className="flex-none font-mono text-[10.5px] text-[var(--tree-faint)]">{task.taskUid ?? "—"}</span>
       <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-[var(--tree-ink)]">{task.title}</span>
       <span className="flex-none rounded-[5px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-1.5 py-px text-[10px] text-[var(--tree-faint)]">
-        {task.workerLabel ?? "待指派"}
+        {/* 执行者：优先装配期写下的显示名；没有就显示**真的跑过这条任务的 agent**
+            （后端任务树读面带出的 assignee）；两个都没有才写「待指派」——
+            此前物化写入端不填 workerLabel，于是每条跑完的任务都显示「待指派」。 */}
+        {task.workerLabel || task.assignee || "待指派"}
       </span>
       <span className="flex-none rounded-[5px] border border-[var(--tree-hairline)] bg-[var(--tree-zone)] px-1.5 py-px text-[10px] text-[var(--tree-sub)]">
         批次{task.batchNo ?? "—"}
