@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -314,12 +316,60 @@ func (s *Service) Materialize(ctx context.Context, issueID, agentID, idempotency
 	if err := tx.QueryRow(ctx, `SELECT organization_id::text FROM repomesh_projects.projects WHERE id=$1`, st.ProjectID).Scan(&orgID); err != nil {
 		return nil, err
 	}
+	// 2026-09-20：物化采用 **agent 拆出来的任务 DAG**（plan.tasks），不再按仓库
+	// 模板拼一句"Implement changes for X"。任务的标题/指令/验收标准都是 Repository
+	// Leader 写的 —— 执行面拿到的才是它真正规划的东西。
+	// agent 没给 tasks 的老快照（或仓库清单为空）仍按仓库回退，不假装有 DAG。
+	type plannedTask struct {
+		Repository  string
+		Title       string
+		Instruction string
+		Acceptance  string
+	}
+	planned := []plannedTask{}
+	if raw, ok := st.Plan["tasks"].([]any); ok && len(raw) > 0 {
+		for _, entry := range raw {
+			task, ok := entry.(map[string]any)
+			if !ok {
+				continue
+			}
+			repo, _ := task["repository"].(string)
+			title, _ := task["title"].(string)
+			if strings.TrimSpace(repo) == "" || strings.TrimSpace(title) == "" {
+				continue
+			}
+			instruction, _ := task["instruction"].(string)
+			acceptance, _ := task["acceptance"].(string)
+			planned = append(planned, plannedTask{
+				Repository: repo, Title: title, Instruction: instruction, Acceptance: acceptance,
+			})
+		}
+	}
+	if len(planned) == 0 {
+		for _, repo := range repositories {
+			planned = append(planned, plannedTask{
+				Repository: repo,
+				Title:      "Implement changes for " + repo,
+				Instruction: "针对需求「" + st.RequirementText + "」在仓库 " + repo +
+					" 上实现所需改动，完成后提交变更说明。",
+				Acceptance: "改动已提交并通过该仓库既有检查，附变更说明。",
+			})
+		}
+	}
+	// agent 的任务同样受**审批范围**约束：它只能改人批过的那些仓库。
+	// 少了这一条，agent 就能在计划里塞一个没被审过的仓库，把范围审批架空。
+	for _, planTask := range planned {
+		if !approvedSet[planTask.Repository] {
+			return nil, fmt.Errorf("%w: 计划里出现未经审批的仓库 %s，请重新生成计划",
+				ErrConflict, planTask.Repository)
+		}
+	}
 	taskIDs := []string{}
-	for _, repo := range repositories {
-		title := "Implement changes for " + repo
-		instruction := "针对需求「" + st.RequirementText + "」在仓库 " + repo +
-			" 上实现所需改动，完成后提交变更说明。"
-		acceptance := "改动已提交并通过该仓库既有检查，附变更说明。"
+	for index, planTask := range planned {
+		repo := planTask.Repository
+		title := planTask.Title
+		instruction := planTask.Instruction
+		acceptance := planTask.Acceptance
 		var taskID string
 		// tasks 真实列（0010/0021）：organization_id/project_id NOT NULL；
 		// idempotency_key 与 task_uid 都用 planID:repo——前者保证重放幂等，
@@ -333,8 +383,8 @@ func (s *Service) Materialize(ctx context.Context, issueID, agentID, idempotency
 			"INSERT INTO public.tasks (id, organization_id, project_id, plan_id, task_uid, repository_id, title, instruction, acceptance, source_ref, idempotency_key)"+
 				" VALUES (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9::jsonb, $10)"+
 				" ON CONFLICT (idempotency_key) DO UPDATE SET title = public.tasks.title RETURNING id::text",
-			orgID, st.ProjectID, planID, planID+":"+repo, repo, title, instruction, acceptance,
-			fmt.Sprintf(`{"issueId":%q}`, issueID), planID+":"+repo).Scan(&taskID)
+			orgID, st.ProjectID, planID, planID+":"+repo+":"+strconv.Itoa(index), repo, title, instruction, acceptance,
+			fmt.Sprintf(`{"issueId":%q}`, issueID), planID+":"+repo+":"+strconv.Itoa(index)).Scan(&taskID)
 		if err != nil {
 			return nil, err
 		}

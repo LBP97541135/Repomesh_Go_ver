@@ -227,11 +227,40 @@ func (s *Service) ApplyPlanningArtifact(ctx context.Context, tx pgx.Tx, st *Stat
 		text := analyzed
 		st.AnalyzedText = &text
 	case PlanningCandidates:
-		items, _ := artifact["candidates"].([]any)
+		// 把 agent 的分档结论映射成界面既有形状（items[] 带 score/rationale）。
+		// `agent_tier` 原样保留：③ 分档审批据此**直接采用 agent 的判断**，
+		// 不再用分数阈值二次推断 —— 那等于把 agent 的结论又算了一遍。
+		raw, _ := artifact["candidates"].([]any)
+		items := make([]any, 0, len(raw))
+		for _, entry := range raw {
+			candidate, ok := entry.(map[string]any)
+			if !ok {
+				continue
+			}
+			name, _ := candidate["repository"].(string)
+			if strings.TrimSpace(name) == "" {
+				continue
+			}
+			score, _ := candidate["score"].(float64)
+			reason, _ := candidate["reason"].(string)
+			tier, _ := candidate["tier"].(string)
+			item := map[string]any{
+				"repository_name": name,
+				"score":           score,
+				"rationale":       reason,
+				"agent_tier":      strings.ToLower(strings.TrimSpace(tier)),
+				"auto_card":       true,
+			}
+			if repositoryID := s.repositoryIDByName(ctx, tx, name); repositoryID != "" {
+				item["repository_id"] = repositoryID
+			}
+			items = append(items, item)
+		}
 		st.Candidates = map[string]any{
-			"items":    items,
-			"llm_used": true,
-			"ran_at":   time.Now().UTC(),
+			"items":     items,
+			"llm_used":  true,
+			"pool_size": len(items),
+			"ran_at":    time.Now().UTC(),
 			"producer": map[string]any{
 				"role": prov.Role, "skill_id": prov.SkillID,
 				"run_id": prov.RunID, "agent_kind": prov.AgentKind,
@@ -240,6 +269,20 @@ func (s *Service) ApplyPlanningArtifact(ctx context.Context, tx pgx.Tx, st *Stat
 	case PlanningPlan:
 		tasks, _ := artifact["tasks"].([]any)
 		repositories, _ := artifact["repositories"].([]any)
+		if len(repositories) == 0 {
+			// 仓库清单缺失时从任务里反推（agent 偶尔只给 tasks）。
+			seen := map[string]bool{}
+			for _, entry := range tasks {
+				task, ok := entry.(map[string]any)
+				if !ok {
+					continue
+				}
+				if name, _ := task["repository"].(string); name != "" && !seen[name] {
+					seen[name] = true
+					repositories = append(repositories, name)
+				}
+			}
+		}
 		planID := st.IssueID + ":plan:v1"
 		st.Plan = map[string]any{
 			"plan_id":      planID,
@@ -454,4 +497,62 @@ func (s *Service) AppendAnalysisAnswers(ctx context.Context, issueID string, ans
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// repositoryIDByName 把 "owner/name" 映射到仓库目录里的 id（拿不到就返回空串，
+// 界面按名字回退 —— 不编一个假 id）。
+func (s *Service) repositoryIDByName(ctx context.Context, tx pgx.Tx, name string) string {
+	owner, repo, found := strings.Cut(name, "/")
+	if !found {
+		return ""
+	}
+	var id string
+	if err := tx.QueryRow(ctx, `SELECT id FROM repomesh_projects.repositories
+		WHERE lower(owner)=lower($1) AND lower(name)=lower($2) LIMIT 1`, owner, repo).Scan(&id); err != nil {
+		return ""
+	}
+	return id
+}
+
+// RepoSummaries 返回本空间已登记仓库的**名片**（扫描产出的目录/依赖/近期提交），
+// 作为规划 agent 的输入。
+//
+// 为什么必须有：agent 看不到证据就只能凭仓库名猜相关性 —— 那正是"找仓库不准"
+// 的老问题（线上实测的候选评分里，两个仓库的关键词命中都是 []）。取不到就返回空
+// 切片，调用方如实降级（prompt 里就没有名片段），不编造内容。
+func (s *Service) RepoSummaries(ctx context.Context, projectID string) ([]byte, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT r.owner || '/' || r.name,
+		       COALESCE(s.description, ''),
+		       COALESCE(s.metadata->'topDirs', '[]'::jsonb),
+		       COALESCE(s.metadata->'deps', '[]'::jsonb),
+		       COALESCE(s.metadata->'recentCommits', '[]'::jsonb)
+		FROM repomesh_projects.repositories r
+		LEFT JOIN repomesh_scan.repositories s
+		       ON s.url LIKE '%' || r.owner || '/' || r.name || '%'
+		ORDER BY r.id`)
+	if err != nil {
+		return nil, fmt.Errorf("discovery: repo summaries: %w", err)
+	}
+	defer rows.Close()
+	summaries := []map[string]any{}
+	for rows.Next() {
+		var name, description string
+		var topDirs, deps, commits []byte
+		if err := rows.Scan(&name, &description, &topDirs, &deps, &commits); err != nil {
+			return nil, fmt.Errorf("discovery: repo summaries scan: %w", err)
+		}
+		summary := map[string]any{"repository": name, "description": description}
+		for key, raw := range map[string][]byte{"top_dirs": topDirs, "deps": deps, "recent_commits": commits} {
+			var decoded any
+			if json.Unmarshal(raw, &decoded) == nil {
+				summary[key] = decoded
+			}
+		}
+		summaries = append(summaries, summary)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("discovery: repo summaries: %w", err)
+	}
+	return json.Marshal(summaries)
 }

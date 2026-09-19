@@ -19,6 +19,7 @@ import (
 	"repomesh.local/repomesh/internal/database"
 	"repomesh.local/repomesh/internal/decisionchain"
 	"repomesh.local/repomesh/internal/discovery"
+	"repomesh.local/repomesh/internal/humancontrol"
 	"repomesh.local/repomesh/internal/modelbudget"
 	"repomesh.local/repomesh/internal/models"
 	"repomesh.local/repomesh/internal/tasks"
@@ -104,7 +105,7 @@ func runWorker(args []string) int {
 	automator := newDiscoveryAutomator(discoveryService, runtime.Pool())
 	// 规划期的真实 agent 派发（需求分析/候选评分/生成计划由角色 agent 产出）：
 	// 与发现链状态机同一拍子 —— 先派发/收产物，再让状态机往下走。
-	planner := newPlanningDispatcher(runtime.Pool(), discoveryService)
+	planner := newPlanningDispatcher(runtime.Pool(), discoveryService, humancontrol.New(runtime.Pool()))
 	transport, err := models.NewSingleRequestTransport(protocolVersion)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "model test transport:", err)

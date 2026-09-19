@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"repomesh.local/repomesh/internal/discovery"
+	"repomesh.local/repomesh/internal/humancontrol"
 	"repomesh.local/repomesh/internal/skills"
 )
 
@@ -27,12 +28,48 @@ import (
 type planningDispatcher struct {
 	pool    *pgxpool.Pool
 	service *discovery.Service
+	// reviews 是审核台（humancontrol）。产物落地后在这里落一张待审单 ——
+	// agent 产出之后才真的需要人看，落单点因此从"端点返回"搬到"产物入库"。
+	reviews *humancontrol.Service
 	// workspaceRoot 与执行期同一约定（executor 的 prepareWorkspace 用的也是它）。
 	workspaceRoot string
 }
 
-func newPlanningDispatcher(pool *pgxpool.Pool, service *discovery.Service) *planningDispatcher {
-	return &planningDispatcher{pool: pool, service: service, workspaceRoot: "/opt/repomesh/workspaces"}
+func newPlanningDispatcher(pool *pgxpool.Pool, service *discovery.Service, reviews *humancontrol.Service) *planningDispatcher {
+	return &planningDispatcher{pool: pool, service: service, reviews: reviews, workspaceRoot: "/opt/repomesh/workspaces"}
+}
+
+// raiseReview 在**产物入库之后**落一张待审单。
+//
+// ② 落「分档待审批」（卡点 repository_scope：③ 决定的正是哪些仓库在范围内）；
+// ④ 落「物化待确认」（卡点 execution：物化确认是放行执行的那道门）。
+// fail-open：审核台写失败不能反过来打断发现链。
+func (d *planningDispatcher) raiseReview(ctx context.Context, issueID string, step int) {
+	if d.reviews == nil {
+		return
+	}
+	checkpoint, label := "", ""
+	switch step {
+	case discovery.PlanningCandidates:
+		checkpoint, label = "repository_scope", "分档待审批"
+	case discovery.PlanningPlan:
+		checkpoint, label = "execution", "物化待确认"
+	default:
+		return
+	}
+	projectID, title, owner, err := d.service.IssueContext(ctx, issueID)
+	if err != nil || projectID == "" {
+		return
+	}
+	_, _ = d.reviews.Request(ctx, humancontrol.RequestCommand{
+		ProjectID:  projectID,
+		Checkpoint: checkpoint,
+		Title:      label + "：" + title,
+		Summary:    "由发现链自动登记：这一步在 issue 页面完成（不是审核台上按按钮），审核台只做登记与回看。",
+		Assignee:   owner,
+		IssueID:    issueID,
+		Origin:     "discovery",
+	})
 }
 
 // activeExecutorWorker 找一个**活跃的 host_executor worker**。
@@ -153,7 +190,15 @@ func (d *planningDispatcher) dispatch(ctx context.Context, row planningRow) (boo
 	if err := os.MkdirAll(workspace, 0o755); err != nil {
 		return false, fmt.Errorf("coordinator: planning workspace prepare failed: %w", err)
 	}
-	prompt := discovery.PlanningPrompt(row.step, requirement, nil, skill.SeedDoc(row.skillID))
+	// ② 候选评分与 ④ 生成计划必须看到仓库名片（扫描产出的目录/依赖/近期提交），
+	// 否则 agent 只能凭仓库名猜相关性 —— 那正是"找仓库不准"的老问题。
+	summaries := []byte(nil)
+	if row.step == discovery.PlanningCandidates || row.step == discovery.PlanningPlan {
+		if encoded, err := d.service.RepoSummaries(ctx, projectID); err == nil {
+			summaries = encoded
+		}
+	}
+	prompt := discovery.PlanningPrompt(row.step, requirement, summaries, skill.SeedDoc(row.skillID))
 	if err := os.WriteFile(filepath.Join(workspace, "prompt.txt"), []byte(prompt), 0o644); err != nil {
 		return false, fmt.Errorf("coordinator: planning prompt write failed: %w", err)
 	}
@@ -253,6 +298,8 @@ func (d *planningDispatcher) collectFinished(ctx context.Context) (bool, error) 
 				}
 				if err := d.service.ApplyPlanningRun(ctx, one.issueID, one.step, artifact, prov); err != nil {
 					reason = fmt.Sprintf("产物入库失败：%v", err)
+				} else {
+					d.raiseReview(ctx, one.issueID, one.step)
 				}
 			}
 		}

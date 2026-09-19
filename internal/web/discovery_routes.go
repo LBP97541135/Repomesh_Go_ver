@@ -256,18 +256,14 @@ func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discove
 		if err := decodeBody(w, r, &body); err != nil {
 			return
 		}
-		receipt, err := discoveryAPI.Service.Candidates(r.Context(), r.PathValue("issueId"), body.CreatedByAgentID, body.IdempotencyKey, body.Limit, body.EntryPoint)
-		if err == nil {
-			// 候选评分跑完 = ③ 分档审批待人工（镜像成审核台的一张待审单）。
-			//
-			// 卡点取 `repository_scope` 而不是 `specification`：③ 决定的正是
-			// **哪些仓库在范围内**，这就是 repository_scope 的定义；而
-			// `specification` 在前端被明确标注为「当前没有可达触发点」的卡点
-			//（SupervisionPolicyDialog 的 INERT_CHECKPOINTS），拿它当一道真会停的
-			// 门，等于让界面上一句话与库里的数据互相打架。
-			discoveryAPI.raiseReview(r.Context(), r.PathValue("issueId"), "repository_scope", "分档待审批")
+		// 2026-09-20：② 改由 Organization Leader agent 产出（这里只登记意图）。
+		if err := discoveryAPI.Service.EnqueuePlanningRun(r.Context(), r.PathValue("issueId"), discovery.PlanningCandidates); err != nil {
+			writeDiscoveryError(w, err)
+			return
 		}
-		writeDiscoveryReceipt(w, receipt, err)
+		// 审核单不在这里落：产物是**异步**回来的，落单要等 agent 真的产出
+		//（见 coordinator 的 planningDispatcher.collectFinished）。
+		writeJSON(w, http.StatusAccepted, map[string]any{"task_id": nil, "step": 2, "status": "accepted"})
 	})
 	register("POST /api/issues/{issueId}/discovery/classification", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
@@ -288,16 +284,12 @@ func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discove
 		if err := decodeBody(w, r, &body); err != nil {
 			return
 		}
-		receipt, err := discoveryAPI.Service.Plan(r.Context(), r.PathValue("issueId"), body.CreatedByAgentID, body.IdempotencyKey)
-		if err == nil {
-			// 计划生成完 = ⑤ 物化确认待人工。
-			//
-			// 卡点取 `execution`：物化确认是**放行执行**的那道门（确认后编制组装、
-			// 批次下发）。③ 用的是 repository_scope（决定范围），⑤ 用 execution
-			//（放行开工）——两个门两件事，各归其名。
-			discoveryAPI.raiseReview(r.Context(), r.PathValue("issueId"), "execution", "物化待确认")
+		// 2026-09-20：④ 改由 Repository Leader agent 产出（这里只登记意图）。
+		if err := discoveryAPI.Service.EnqueuePlanningRun(r.Context(), r.PathValue("issueId"), discovery.PlanningPlan); err != nil {
+			writeDiscoveryError(w, err)
+			return
 		}
-		writeDiscoveryReceipt(w, receipt, err)
+		writeJSON(w, http.StatusAccepted, map[string]any{"task_id": nil, "step": 4, "status": "accepted"})
 	})
 	register("POST /api/issues/{issueId}/discovery/approval", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {

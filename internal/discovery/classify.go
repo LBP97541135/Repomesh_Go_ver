@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -43,6 +44,7 @@ func (s *Service) Classification(ctx context.Context, issueID, agentID, idempote
 		score, _ := item["score"].(float64)
 		lowSignal, _ := item["low_signal"].(bool)
 		fromGraph, _ := item["from_graph"].(bool)
+		agentTier, _ := item["agent_tier"].(string)
 		excludedByGraph, _ := item["excluded_by_graph"].(bool)
 		conflictsWithGraph, _ := item["graph_conflict"].(bool)
 		name, _ := item["repository_name"].(string)
@@ -50,20 +52,33 @@ func (s *Service) Classification(ctx context.Context, issueID, agentID, idempote
 		if rationale == "" {
 			rationale = "无判断依据"
 		}
-		status := "EXCLUDED"
+		// 2026-09-20：候选分档现在**由 agent 给出**（artifact 的 tier →
+		// item.agent_tier）。这里直接采用它的判断，不再用分数阈值二次推断 ——
+		// 二次推断等于把 agent 的结论又算一遍，还会悄悄把它改掉。
+		// 阈值只在 agent 没给档位时作为回退（老数据 / 回退路径）。
+		status := ""
+		switch strings.ToUpper(strings.TrimSpace(agentTier)) {
+		case "REQUIRED", "MAYBE", "EXCLUDED":
+			status = strings.ToUpper(strings.TrimSpace(agentTier))
+		}
 		reason := rationale
-		switch {
-		case excludedByGraph:
-			reason = rationale + "；依赖图上与任何必改仓库都不相邻，且置信度不足"
-		case fromGraph:
-			// 图推理补进来的（依赖/被依赖），按"可能"档纳入。
-			status = "MAYBE"
-		case score >= requiredBar:
-			status = "REQUIRED"
-		case score >= maybeBar:
-			status = "MAYBE"
-		default:
-			reason = rationale + "；置信度低于纳入门槛"
+		if status == "" {
+			status = "EXCLUDED"
+			switch {
+			case excludedByGraph:
+				reason = rationale + "；依赖图上与任何必改仓库都不相邻，且置信度不足"
+			case fromGraph:
+				// 图推理补进来的（依赖/被依赖），按"可能"档纳入。
+				status = "MAYBE"
+			case score >= requiredBar:
+				status = "REQUIRED"
+			case score >= maybeBar:
+				status = "MAYBE"
+			default:
+				reason = rationale + "；置信度低于纳入门槛"
+			}
+		} else if reason == "" {
+			reason = "由组织 Leader 分档"
 		}
 		if conflictsWithGraph {
 			reason += "（注意：依赖图上孤立，与其它必改仓库没有依赖关系，建议复核）"

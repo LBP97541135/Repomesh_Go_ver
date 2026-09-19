@@ -113,9 +113,9 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 		_, err = a.service.Analysis(ctx, p.issueID, autohostAgent, forceKey, nil, true)
 		return done(err)
 	case !p.hasCandidates:
-		slog.Info("autohost: scoring candidates", "issue", p.issueID)
-		_, err = a.service.Candidates(ctx, p.issueID, autohostAgent, idem+":candidates", 20, nil)
-		return done(err)
+		// 2026-09-20：② 候选评分也交给 Organization Leader agent（带仓库名片）。
+		slog.Info("autohost: enqueue planning candidates", "issue", p.issueID)
+		return done(a.service.EnqueuePlanningRun(ctx, p.issueID, discovery.PlanningCandidates))
 	case !p.hasClassification:
 		slog.Info("autohost: classifying tiers", "issue", p.issueID)
 		_, err = a.service.Classification(ctx, p.issueID, autohostAgent, idem+":classification")
@@ -129,9 +129,9 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 			"approved", "自动托管：分档审批自动通过", nil, p.evidenceVersion)
 		return done(err)
 	case !p.hasPlan:
-		slog.Info("autohost: generating plan", "issue", p.issueID)
-		_, err = a.service.Plan(ctx, p.issueID, autohostAgent, idem+":plan")
-		return done(err)
+		// 2026-09-20：④ 生成计划交给 Repository Leader agent（任务 DAG 由它拆）。
+		slog.Info("autohost: enqueue planning plan", "issue", p.issueID)
+		return done(a.service.EnqueuePlanningRun(ctx, p.issueID, discovery.PlanningPlan))
 	case !p.hasMaterialization:
 		slog.Info("autohost: materializing tasks", "issue", p.issueID)
 		_, err = a.service.Materialize(ctx, p.issueID, autohostAgent, idem+":materialize")
