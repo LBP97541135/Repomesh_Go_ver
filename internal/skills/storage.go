@@ -80,13 +80,38 @@ func ContentHash(content string) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-func (s *Store) RegisterSkill(ctx context.Context, name, scenario, targetRole, createdBy string) (*Skill, error) {
+// nullableUUID 把空串落成 SQL NULL：organization_id 为 NULL 表示**全局种子技能**。
+func nullableUUID(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
+}
+
+// RegisterSkill 在指定空间里登记/更新一把技能；organizationID 为空表示
+// **全局种子技能**（系统自带，所有人可见）。
+//
+// 2026-09-19 账号隔离：此前是全局 `ON CONFLICT (name) DO UPDATE` —— 公有部署
+// （一账号一空间）下任何人都能按名字覆盖别人的技能。现在按 (空间, 名字) 定位；
+// 名字唯一性改成两级部分唯一索引（见迁移 0039），所以这里不用 ON CONFLICT
+// （部分索引的谓词与 NULL 比较纠缠），改成"先精确更新、没有再插入"。
+func (s *Store) RegisterSkill(ctx context.Context, organizationID, name, scenario, targetRole, createdBy string) (*Skill, error) {
+	org := nullableUUID(organizationID)
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE public.skills SET scenario=$3, target_agent_role=$4
+		 WHERE name=$1 AND organization_id IS NOT DISTINCT FROM $2`,
+		name, org, scenario, targetRole)
+	if err != nil {
+		return nil, err
+	}
+	if tag.RowsAffected() > 0 {
+		return s.GetSkillByName(ctx, organizationID, name)
+	}
 	row := s.Pool.QueryRow(ctx, `
-		INSERT INTO public.skills (name, scenario, target_agent_role, created_by)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (name) DO UPDATE SET scenario = EXCLUDED.scenario, target_agent_role = EXCLUDED.target_agent_role
+		INSERT INTO public.skills (name, scenario, target_agent_role, created_by, organization_id)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, name, scenario, target_agent_role, created_by, created_at`,
-		name, scenario, targetRole, createdBy)
+		name, scenario, targetRole, createdBy, org)
 	sk := &Skill{}
 	if err := row.Scan(&sk.ID, &sk.Name, &sk.Scenario, &sk.TargetAgentRole, &sk.CreatedBy, &sk.CreatedAt); err != nil {
 		return nil, err
@@ -94,10 +119,14 @@ func (s *Store) RegisterSkill(ctx context.Context, name, scenario, targetRole, c
 	return sk, nil
 }
 
-func (s *Store) GetSkillByName(ctx context.Context, name string) (*Skill, error) {
+// GetSkillByName 只认「全局种子」或「调用者自己空间」里的技能，优先自己空间的同名项。
+func (s *Store) GetSkillByName(ctx context.Context, organizationID, name string) (*Skill, error) {
 	row := s.Pool.QueryRow(ctx,
 		`SELECT id, name, scenario, target_agent_role, created_by, created_at
-		 FROM public.skills WHERE name = $1`, name)
+		 FROM public.skills
+		 WHERE name = $1 AND (organization_id IS NULL OR organization_id = $2::uuid)
+		 ORDER BY (organization_id IS NULL)
+		 LIMIT 1`, name, nullableUUID(organizationID))
 	sk := &Skill{}
 	if err := row.Scan(&sk.ID, &sk.Name, &sk.Scenario, &sk.TargetAgentRole, &sk.CreatedBy, &sk.CreatedAt); err != nil {
 		return nil, err
@@ -105,10 +134,13 @@ func (s *Store) GetSkillByName(ctx context.Context, name string) (*Skill, error)
 	return sk, nil
 }
 
-func (s *Store) ListSkills(ctx context.Context) ([]Skill, error) {
+// ListSkills 返回「全局种子 + 调用者自己空间」的技能（此前是全库一份）。
+func (s *Store) ListSkills(ctx context.Context, organizationID string) ([]Skill, error) {
 	rows, err := s.Pool.Query(ctx,
 		`SELECT id, name, scenario, target_agent_role, created_by, created_at
-		 FROM public.skills ORDER BY name`)
+		 FROM public.skills
+		 WHERE organization_id IS NULL OR organization_id = $1::uuid
+		 ORDER BY name`, nullableUUID(organizationID))
 	if err != nil {
 		return nil, err
 	}

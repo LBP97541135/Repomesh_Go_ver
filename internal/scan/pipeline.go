@@ -40,6 +40,9 @@ type Runner struct {
 	// OnProgress receives (done, total, repository name) after each
 	// repository finishes or is gate-skipped.
 	OnProgress func(done, total int, name string)
+	// OrganizationID 是发起这次扫描的空间：登记卡片时盖章，读面才能按空间裁剪。
+	// 空串 = 没有空间（只写不盖，读面看不见——宁可少给，也不越权多给）。
+	OrganizationID string
 }
 
 // ScanSingle scans one repository by URL and registers it.
@@ -64,7 +67,7 @@ func (r *Runner) ScanSingle(ctx context.Context, repoURL string) (RegistrationCo
 	if err != nil {
 		return counts, err // a single-repo scan asked for by URL fails loudly
 	}
-	registered, err := RegisterScanned(ctx, r.Store, []RepositoryCard{card})
+	registered, err := RegisterScannedInOrganization(ctx, r.Store, r.OrganizationID, []RepositoryCard{card})
 	if err != nil {
 		return counts, err
 	}
@@ -145,7 +148,7 @@ func (r *Runner) ScanOrganization(ctx context.Context, groupURL string) (Registr
 		}
 	}
 
-	counts, err := RegisterScanned(ctx, r.Store, scanned)
+	counts, err := RegisterScannedInOrganization(ctx, r.Store, r.OrganizationID, scanned)
 	if err != nil {
 		return counts, err
 	}

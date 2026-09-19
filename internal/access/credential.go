@@ -121,6 +121,29 @@ func (s *Service) UserGitHubToken(ctx context.Context, actor string) (string, er
 	return c.token, nil
 }
 
+// OrganizationOf 返回该账号所属空间（organization）的 id；没有归属时返回空串。
+//
+// 2026-09-19 账号隔离：技能库、扫描目录这类"共享目录"要按调用者的空间裁剪，
+// 需要一个把 actor 解析成空间的统一入口。空串表示"没有空间"——调用方据此
+// 只认全局共享内容，而不是退化成"看到全部"。
+func (s *Service) OrganizationOf(ctx context.Context, actor string) (string, error) {
+	if actor == "" {
+		return "", nil
+	}
+	var organization *string
+	err := s.pool.QueryRow(ctx, `SELECT organization_id::text FROM repomesh_access.accounts WHERE id=$1`, actor).Scan(&organization)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", unavailable()
+	}
+	if organization == nil {
+		return "", nil
+	}
+	return *organization, nil
+}
+
 func (s *Service) rejectCredential(ctx context.Context, c credential) {
 	_, _ = s.pool.Exec(ctx, `UPDATE repomesh_access.connections SET status='missing',access_epoch=access_epoch+1,observed_at=now() WHERE actor=$1 AND revision=$2 AND access_epoch=$3`, c.actor, c.revision, c.epoch)
 }

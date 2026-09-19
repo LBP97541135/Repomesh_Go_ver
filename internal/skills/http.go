@@ -121,7 +121,7 @@ func (s *Service) handleListSkills(w http.ResponseWriter, r *http.Request) {
 	if !s.requireEnabled(w, r) {
 		return
 	}
-	skills, err := s.Store.ListSkills(r.Context())
+	skills, err := s.Store.ListSkills(r.Context(), s.organization(r))
 	if err != nil {
 		s.fail(w, err)
 		return
@@ -138,7 +138,7 @@ func (s *Service) handleListVersions(w http.ResponseWriter, r *http.Request) {
 	}
 	var skillID string
 	if name := strings.TrimSpace(r.URL.Query().Get("skill")); name != "" {
-		sk, err := s.Store.GetSkillByName(r.Context(), name)
+		sk, err := s.Store.GetSkillByName(r.Context(), s.organization(r), name)
 		if errors.Is(err, pgx.ErrNoRows) {
 			writeError(w, http.StatusNotFound, "no such skill")
 			return
@@ -193,7 +193,7 @@ func (s *Service) handleRegisterSkill(w http.ResponseWriter, r *http.Request) {
 	if createdBy == "" {
 		createdBy = s.actor(r)
 	}
-	sk, err := s.Store.RegisterSkill(r.Context(), body.Name, body.Scenario, body.TargetAgentRole, createdBy)
+	sk, err := s.Store.RegisterSkill(r.Context(), s.organization(r), body.Name, body.Scenario, body.TargetAgentRole, createdBy)
 	if err != nil {
 		s.fail(w, err)
 		return
@@ -218,7 +218,7 @@ func (s *Service) handleRegisterVersion(w http.ResponseWriter, r *http.Request) 
 	if createdBy == "" {
 		createdBy = s.actor(r)
 	}
-	v, err := s.RegisterVersion(r.Context(), body.SkillID, body.Version, body.Content, createdBy)
+	v, err := s.RegisterVersion(r.Context(), s.organization(r), body.SkillID, body.Version, body.Content, createdBy)
 	if err != nil {
 		s.fail(w, err)
 		return

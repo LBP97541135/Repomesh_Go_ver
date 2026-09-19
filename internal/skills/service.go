@@ -14,15 +14,30 @@ type Service struct {
 	Authenticate func(r *http.Request) error
 	// ActorName resolves the acting principal for audit fields.
 	ActorName func(r *http.Request) string
+	// ActorOrganization resolves the acting principal's space (organization id).
+	//
+	// 2026-09-19 账号隔离：技能库此前是**全局一份**（迁移 0039 前 skills 表没有
+	// 空间归属），公有部署（一账号一空间）下任何登录账号都能看到、并按名字覆盖
+	// 别人的技能。未注入该 seam 时返回空串 —— 那时只认「全局种子技能」，
+	// 宁可少给，也不越权多给。
+	ActorOrganization func(r *http.Request) string
 }
 
 func NewService(store *Store) *Service { return &Service{Store: store} }
 
-func (svc *Service) RegisterVersion(ctx context.Context, skillName, version, content, createdBy string) (*SkillVersion, error) {
+// organization 取调用者的空间标识；未注入 seam 时为空串（只认全局种子技能）。
+func (s *Service) organization(r *http.Request) string {
+	if s.ActorOrganization != nil {
+		return s.ActorOrganization(r)
+	}
+	return ""
+}
+
+func (svc *Service) RegisterVersion(ctx context.Context, organizationID, skillName, version, content, createdBy string) (*SkillVersion, error) {
 	if !ValidSemver(version) {
 		return nil, Refused("skill_version_invalid", "version %q is not semantic (MAJOR.MINOR.PATCH)", version)
 	}
-	sk, err := svc.Store.GetSkillByName(ctx, skillName)
+	sk, err := svc.Store.GetSkillByName(ctx, organizationID, skillName)
 	if err != nil {
 		return nil, Refused("skill_not_found", "skill %q is not registered", skillName)
 	}
@@ -80,8 +95,8 @@ func (svc *Service) Rollback(ctx context.Context, versionID string) (*SkillVersi
 	return svc.Transition(ctx, versionID, StatusRolledBack)
 }
 
-func (svc *Service) ResolveCurrent(ctx context.Context, skillName string) (*SkillVersion, error) {
-	sk, err := svc.Store.GetSkillByName(ctx, skillName)
+func (svc *Service) ResolveCurrent(ctx context.Context, organizationID, skillName string) (*SkillVersion, error) {
+	sk, err := svc.Store.GetSkillByName(ctx, organizationID, skillName)
 	if err != nil {
 		return nil, Refused("skill_not_found", "skill %q is not registered", skillName)
 	}

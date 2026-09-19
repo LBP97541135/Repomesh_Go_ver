@@ -139,7 +139,7 @@ var seedFS embed.FS
 // rolled-back seed and never duplicates rows. Seed failure does not block startup.
 func SeedSkills(ctx context.Context, store *Store, createdBy string) error {
 	for _, preset := range SkillPresets {
-		sk, err := store.RegisterSkill(ctx, preset.ID, preset.Title, preset.Role, createdBy)
+		sk, err := store.RegisterSkill(ctx, "", preset.ID, preset.Title, preset.Role, createdBy)
 		if err != nil {
 			return fmt.Errorf("seed skill %s: %w", preset.ID, err)
 		}

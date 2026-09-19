@@ -44,6 +44,14 @@ type HTTP struct {
 	// Nil means "no per-user credential available" — the shared Fetcher is used.
 	ActorToken func(r *http.Request) (string, error)
 
+	// ActorOrganization resolves the requesting user's space, so the catalog read
+	// and every registration are scoped to it.
+	//
+	// 2026-09-19 账号隔离：repomesh_scan.repositories.organization_id 一直存在却
+	// 从没写过 —— 扫描目录对所有人可见。读面按空间裁剪、写入盖章才闭合。
+	// Nil 或空串 = 没有空间：读面返回空集（宁可少给，也不越权多给）。
+	ActorOrganization func(r *http.Request) string
+
 	// OnScopeDecided is the 历史决策 producer seam (方案清单 §3 写路径①):
 	// fired once per accepted submission with the raw request, so the
 	// composition root can resolve the actor from the session. Nil keeps
@@ -141,12 +149,36 @@ func writeError(w http.ResponseWriter, status int, detail string) {
 // handleRepositoryList implements D-1: the catalog, the manual-selection
 // checkbox source.
 func (h *HTTP) handleRepositoryList(w http.ResponseWriter, r *http.Request) {
+	// 按调用者的空间裁剪；调用者没有空间时返回空集，而不是全库。
+	if lister, ok := h.Store.(organizationScopedLister); ok {
+		cards, err := lister.ListInOrganization(r.Context(), h.organization(r))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, cards)
+		return
+	}
 	cards, err := h.Store.List(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, cards)
+}
+
+// organizationScopedLister 是可选能力：按空间列出卡片（PostgresCatalog 实现；
+// 测试用的内存目录不实现，那时退回全局 List）。
+type organizationScopedLister interface {
+	ListInOrganization(ctx context.Context, organizationID string) ([]RepositoryCard, error)
+}
+
+// organization 取调用者的空间标识；未注入 seam 时为空串。
+func (h *HTTP) organization(r *http.Request) string {
+	if h.ActorOrganization != nil {
+		return h.ActorOrganization(r)
+	}
+	return ""
 }
 
 // handleURLType implements D-2: the offline URL badge.
@@ -214,14 +246,17 @@ func (h *HTTP) handleScanJobCreate(w http.ResponseWriter, r *http.Request) {
 	// 用户令牌 → 部署级令牌（启动时 Fetcher 上配的）→ 匿名。
 	// tokenSource 会写进任务记录，用户看到"N 个失败"时能知道用的是哪种凭据。
 	fetcher, tokenSource := h.fetcherForRequest(r)
+	// 空间在**进入闭包之前**解析：作业跑在后台 goroutine 里，那时请求早已结束。
+	organizationID := h.organization(r)
 	jobID := h.Jobs.StartWithTokenSource(kind, body.URL, tokenSource, func(ctx context.Context, progress func(done, total int, name string)) (RegistrationCounts, error) {
 		runner := &Runner{
-			Fetcher:      fetcher,
-			Channels:     h.Service.Channels(),
-			Store:        h.Store,
-			MaxWorkers:   maxWorkers,
-			IncludeForks: h.IncludeForks,
-			OnProgress:   progress,
+			Fetcher:        fetcher,
+			Channels:       h.Service.Channels(),
+			Store:          h.Store,
+			MaxWorkers:     maxWorkers,
+			IncludeForks:   h.IncludeForks,
+			OnProgress:     progress,
+			OrganizationID: organizationID,
 		}
 		if kind == "organization" {
 			return runner.ScanOrganization(ctx, body.URL)

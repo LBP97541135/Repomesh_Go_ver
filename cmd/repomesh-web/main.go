@@ -268,10 +268,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			if runtime.Deployment.Origin == "" || r.Header.Get("Origin") != runtime.Deployment.Origin {
 				return errors.New("origin rejected")
 			}
-			_, err := runtime.Service.AuthenticateProjectRequest(
-				r.Context(), web.SessionCookie(r), r.Header.Get("X-CSRF-Token"), true)
-			return err
-		}
+		_, err := runtime.Service.AuthenticateProjectRequest(
+			r.Context(), web.SessionCookie(r), r.Header.Get("X-CSRF-Token"), true)
+		return err
+	}
+
 		decisionService.ActorName = func(r *http.Request) string {
 			if principal, err := runtime.Service.AuthenticateProjectRequest(
 				r.Context(), web.SessionCookie(r), r.Header.Get("X-CSRF-Token"), false); err == nil {
@@ -292,7 +293,20 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "seed skills (non-blocking): %v\n", err)
 		}
 		skillService := skills.NewService(skillStore)
-		// Same guard convention as the decision block: writes require Origin +
+	// 2026-09-19 账号隔离：技能库按**调用者自己的空间**裁剪（迁移 0039）。
+	// 解析失败一律返回空串 —— 那时只认全局种子技能，宁可少给，也不越权多给。
+	skillService.ActorOrganization = func(r *http.Request) string {
+		principal, err := runtime.Service.AuthenticateProjectRequest(
+			r.Context(), web.SessionCookie(r), r.Header.Get("X-CSRF-Token"), false)
+		if err != nil {
+			return ""
+		}
+		organization, err := runtime.Service.OrganizationOf(r.Context(), principal.ActorID())
+		if err != nil {
+			return ""
+		}
+		return organization
+	}		// Same guard convention as the decision block: writes require Origin +
 		// session + CSRF; GET reads stay open.
 		skillService.Authenticate = func(r *http.Request) error {
 			if r.Method == http.MethodGet {
@@ -338,6 +352,19 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 					return "", err
 				}
 				return runtime.Service.UserGitHubToken(r.Context(), principal.ActorID())
+			},
+			// 2026-09-19 账号隔离：扫描目录按调用者的空间裁剪（读）与盖章（写）。
+			ActorOrganization: func(r *http.Request) string {
+				principal, err := runtime.Service.AuthenticateProjectRequest(
+					r.Context(), web.SessionCookie(r), r.Header.Get("X-CSRF-Token"), false)
+				if err != nil {
+					return ""
+				}
+				organization, err := runtime.Service.OrganizationOf(r.Context(), principal.ActorID())
+				if err != nil {
+					return ""
+				}
+				return organization
 			},
 			Authenticate: func(r *http.Request) error {
 				if r.Method == http.MethodGet {

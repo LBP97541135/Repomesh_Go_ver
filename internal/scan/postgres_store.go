@@ -59,6 +59,74 @@ func (c *PostgresCatalog) List(ctx context.Context) ([]RepositoryCard, error) {
 	return cards, rows.Err()
 }
 
+// nullableOrg 把空串落成 SQL NULL（NULL 表示"没有空间归属"）。
+func nullableOrg(organizationID string) any {
+	if organizationID == "" {
+		return nil
+	}
+	return organizationID
+}
+
+// AddInOrganization 登记一张卡片并**盖上空间归属**。
+//
+// 2026-09-19 账号隔离：repomesh_scan.repositories.organization_id 这一列一直
+// 存在，但从来没人写过 —— 于是扫描目录对所有人可见（公有部署下就是泄漏）。
+// 写入路径必须盖章，读取路径才能裁剪。
+func (c *PostgresCatalog) AddInOrganization(ctx context.Context, organizationID string, card RepositoryCard) error {
+	payload, err := json.Marshal(metadataPayload(card.AutoCard, card.ObservedCalls))
+	if err != nil {
+		return err
+	}
+	_, err = c.pool.Exec(ctx, `
+		INSERT INTO repomesh_scan.repositories
+		    (id, name, url, description, topics, languages,
+		     fingerprint, profiled_at, metadata, test_commands, test_paths, organization_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, now(), $8, $9, $10, $11::uuid)`,
+		card.ID, card.Name, card.URL, card.Description,
+		jsonSlice(card.Topics), jsonSlice(card.Languages),
+		card.Fingerprint, payload, jsonSlice(card.TestCommands), jsonSlice(card.TestPaths),
+		nullableOrg(organizationID))
+	return err
+}
+
+// StampOrganization 给既有行补章（刷新路径：老行可能没有空间归属）。
+// 只补 NULL，不覆盖已有归属——同一仓库被两个空间各自扫描时，先到先得。
+func (c *PostgresCatalog) StampOrganization(ctx context.Context, id, organizationID string) error {
+	if organizationID == "" {
+		return nil
+	}
+	_, err := c.pool.Exec(ctx,
+		`UPDATE repomesh_scan.repositories SET organization_id=$2::uuid WHERE id=$1 AND organization_id IS NULL`,
+		id, organizationID)
+	return err
+}
+
+// ListInOrganization 只返回属于该空间的卡片。
+//
+// 调用者**没有空间**时返回空集，而不是退化成"全部"——与名册的处理一致：
+// 宁可少给，也不越权多给。
+func (c *PostgresCatalog) ListInOrganization(ctx context.Context, organizationID string) ([]RepositoryCard, error) {
+	if organizationID == "" {
+		return []RepositoryCard{}, nil
+	}
+	rows, err := c.pool.Query(ctx,
+		`SELECT `+cardColumns+` FROM repomesh_scan.repositories WHERE organization_id=$1::uuid ORDER BY name`,
+		organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	cards := []RepositoryCard{}
+	for rows.Next() {
+		card, err := scanCard(rows)
+		if err != nil {
+			return nil, err
+		}
+		cards = append(cards, *card)
+	}
+	return cards, rows.Err()
+}
+
 func (c *PostgresCatalog) Get(ctx context.Context, id string) (*RepositoryCard, error) {
 	card, err := c.queryCard(ctx,
 		`SELECT `+cardColumns+` FROM repomesh_scan.repositories WHERE id = $1`, id)
