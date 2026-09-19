@@ -92,6 +92,22 @@ func (d *integrationDispatcher) planRepositories(ctx context.Context, planID str
 // "plan:<planID>:kind:<kind>:repo:<repository>"，executor 据此把证据记到对的位置
 // （集成 run 不属于任何一条任务，所以不能塞 task id）。
 func (d *integrationDispatcher) dispatch(ctx context.Context, planID, issueID, projectID, repository, kind string) bool {
+	// 2026-09-20 线上实测（我自己的第一版就踩了）：tick 的准入条件是"这条计划还
+	// 没有集成证据"，而证据要等 run **跑完**才写 —— run 还在飞的那段时间里条件
+	// 一直成立，于是每 500ms 重派一条，几秒钟堆出几十条待跑 run。这里按**精确引用**
+	// 兜底：同一个 (计划, 种类, 仓库) 在飞时不再派，且总数封顶 2 次（一次失败重试），
+	// 免得证据写不出来时无限重派。
+	ref := fmt.Sprintf("plan:%s:kind:%s:repo:%s", planID, kind, repository)
+	var inFlight, total int
+	if err := d.pool.QueryRow(ctx, `SELECT
+		   count(*) FILTER (WHERE state IN ('pending','running')),
+		   count(*)
+		FROM repomesh_execution.agent_runs WHERE task_package_ref=$1`, ref).Scan(&inFlight, &total); err != nil {
+		return false
+	}
+	if inFlight > 0 || total >= 2 {
+		return false
+	}
 	var workerID string
 	err := d.pool.QueryRow(ctx, `SELECT id FROM repomesh_execution.workers
 		WHERE kind='host_executor' AND retired_at IS NULL
@@ -144,7 +160,6 @@ func (d *integrationDispatcher) dispatch(ctx context.Context, planID, issueID, p
 		attemptID, projectID, issueID, workerID, revision); err != nil {
 		return false
 	}
-	ref := fmt.Sprintf("plan:%s:kind:%s:repo:%s", planID, kind, repository)
 	if _, err := tx.Exec(ctx, `INSERT INTO repomesh_execution.agent_runs
 		(id, attempt_id, agent_kind, command, workspace, task_package_ref, state)
 		VALUES ($1,$2,'test_agent',$3,$4,$5,'pending')`,
