@@ -30,6 +30,13 @@ jobs:
           mkdir -p "$BK"
           cp -a /opt/repomesh/bin "$BK/bin"
           cp -a /opt/repomesh/dist "$BK/dist"
+          # 主密钥也一并备份。2026-09-20 事故：/etc/repomesh/root-1.key 被替换后，
+          # 库里 191 条已封存密钥永久不可读（43 个用户登录态 + 模型中转站密钥全丢），
+          # 站点崩溃循环，而且**回滚救不了** —— 回滚只回滚 bin/dist。备份目录是
+          # root-only，cp -a 保留 0600 权限。
+          mkdir -p "$BK/secrets"
+          cp -a /etc/repomesh/root-*.key "$BK/secrets/" 2>/dev/null || true
+          cp -a /etc/repomesh/auth.json "$BK/secrets/" 2>/dev/null || true
           echo "path=$BK" >> "$GITHUB_OUTPUT"
           echo "备份完成：$BK"
           # 只保留最近 10 份
@@ -107,7 +114,10 @@ jobs:
         if: failure()
         run: |
           set -euo pipefail
-          BK=$(ls -dt /opt/repomesh/backups/* 2>/dev/null | head -1 || true)
+          # 只认目录：/opt/repomesh/backups/ 下可能混着手工备份的 .tgz 文件
+          # （2026-09-20 实测：dist-bak-*.tgz 就躺在那里）。ls -dt 不带尾斜杠会把
+          # 文件也列进来，一旦它恰好是最新的，回滚就会去找一个不存在的 bin/dist。
+          BK=$(ls -dt /opt/repomesh/backups/*/ 2>/dev/null | head -1 || true)
           if [ -z "$BK" ]; then
             echo "::error::没有可用备份，需人工介入"
             exit 1
@@ -117,6 +127,12 @@ jobs:
           cp -a "$BK/bin/." /opt/repomesh/bin/
           rm -rf /opt/repomesh/dist/assets
           cp -a "$BK/dist/." /opt/repomesh/dist/
+          # 主密钥与它封存的数据是配套的：只回滚代码、不回滚密钥，等于把服务留在一个
+          # 起不来的状态（2026-09-20 事故就是这么发生的）。这里一并恢复。
+          if [ -d "$BK/secrets" ]; then
+            cp -a "$BK/secrets/." /etc/repomesh/
+            echo "::warning::已恢复 /etc/repomesh 下的主密钥与认证配置"
+          fi
           systemctl start repomesh-web repomesh-coordinator repomesh-host-executor || true
           sleep 5
           systemctl is-active repomesh-web repomesh-coordinator repomesh-host-executor || true
