@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 )
 
@@ -22,7 +23,13 @@ func (c *Client) MergePullRequest(ctx context.Context, token, owner, name string
 	if err != nil {
 		return err
 	}
-	target := "/repos/" + owner + "/" + name + "/pulls/" + strconv.Itoa(number) + "/merge"
+	// 2026-09-20 线上实测：这里此前传的是**相对路径**，而 github.Client.request
+	// 要的是完整 URL（其它调用点都是 "https://api.github.com/…"）。相对路径在
+	// http.Client.Do 里直接以 unsupported protocol scheme 失败，落进
+	// request 的 Do 错误分支 = "github: unavailable" —— 于是「确认合并」永远
+	// 报「合并被 GitHub 拒绝：github: unavailable」，而真实原因只是 URL 拼错了。
+	target := "https://api.github.com/repos/" + url.PathEscape(owner) + "/" + url.PathEscape(name) +
+		"/pulls/" + strconv.Itoa(number) + "/merge"
 	body, _, status, err := c.request(ctx, http.MethodPut, target, token, bytes.NewReader(payload))
 	if err != nil {
 		// 2026-09-20 线上实测：这里此前把 err 原样上抛，而 github.Error 对
