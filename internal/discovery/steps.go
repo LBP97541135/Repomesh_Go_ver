@@ -12,6 +12,13 @@ import (
 
 var dimensionNames = []string{"业务场景", "行为描述", "变更类型", "技术约束"}
 
+// minInformativeRunes 是「需求文本算不算说清了」的下限（按字符数，不是字节）。
+//
+// 取 12 的来由：比它短的话，一句话里放不下「对象 + 期望行为」这两件事
+// （「加个功能」6 字、「优化一下」4 字），追问确实有意义；而正常的业务描述
+// （「报价计算增加满 6000 免运费能力」15 字）都过得去。
+const minInformativeRunes = 12
+
 // Analysis runs step 0. Without a live model the deterministic analyzer
 // extracts keywords and reports honestly which dimensions the requirement
 // text covers; insufficient analysis blocks step 1 unless force_continue.
@@ -98,10 +105,21 @@ func (s *Service) Analysis(ctx context.Context, issueID, agentID, idempotencyKey
 		}
 		dimensions = append(dimensions, map[string]any{"name": name, "covered": covered, "note": note})
 	}
-	sufficient := len(missing) == 0
+	// 2026-09-20 修：四维判定是一张**固定关键词表**（业务场景{用户,场景,业务,需求,客户}…），
+	// 而真实需求用的词（「增加」「免运费」「小计」）一个都不在表里 ——
+	// 「报价计算增加「满 6000 免运费」能力：小计达到 6000 时运费为 0」被判成
+	// **四维全缺**、sufficient=false，② 候选评分被 409 挡住，整条链卡在第一步，
+	// 而界面上只有四个 ✕ 和一句话都没有的追问（用户实测）。
+	//
+	// 词表判不出的，不代表用户没说清。所以：**词表只作提示，不作闸门** ——
+	// dimensions/questions 照旧如实返回（缺哪维就提示哪维），闸门改判**文本本身的
+	// 信息量**：只有需求为空或极短（真·信息不足，比如「加个功能」）才阻塞并追问。
+	informative := len([]rune(strings.TrimSpace(text))) >= minInformativeRunes
+	sufficient := informative
 	confidence := float64(len(dimensionNames)-len(missing)) / float64(len(dimensionNames))
 	block := map[string]any{
 		"sufficient":           sufficient,
+		"informative":          informative,
 		"confidence":           confidence,
 		"missing_dimensions":   missing,
 		"dimensions":           dimensions,
@@ -238,12 +256,12 @@ func (s *Service) Candidates(ctx context.Context, issueID, agentID, idempotencyK
 		blocks = append(blocks, map[string]any{
 			"repository_id": card.ID, "repository_name": card.Name,
 			"score": verdict.Confidence, "matched_terms": verdict.Matched,
-			"rationale":      verdict.Rationale,
-			"is_entry_point": isEntry,
-			"low_signal":     card.AutoCard == nil || card.AutoCard.LowSignal,
-			"in_project":     card.InProject,
-			"auto_card":      card.AutoCard != nil,
-			"from_graph":     verdict.FromGraph,
+			"rationale":         verdict.Rationale,
+			"is_entry_point":    isEntry,
+			"low_signal":        card.AutoCard == nil || card.AutoCard.LowSignal,
+			"in_project":        card.InProject,
+			"auto_card":         card.AutoCard != nil,
+			"from_graph":        verdict.FromGraph,
 			"excluded_by_graph": verdict.ExcludedByGraph,
 			"graph_conflict":    verdict.ConflictsWithGraph,
 		})

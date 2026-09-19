@@ -117,6 +117,28 @@ func (s *Service) MarkAgentExited(ctx context.Context, runID string, exitCode in
 	if err != nil {
 		return unavailable()
 	}
+	// 派发台账收尾：agent 退出即这条 attempt 结束。
+	//
+	// 2026-09-20 实测：31 条 attempt **永远停在 running**（stopped_at / fail_reason
+	// 全空，最早的挂在 9-18），而 running→stop_requested→stopped 那条路径**全仓
+	// 没有任何调用方** —— 台账从此不再反映现实，worker 的 active_attempts 也只会
+	// 加不会减（并发额度被永久占住，后续派发只能一直 defer）。
+	// 取消/中止仍走 RequestStop→ConfirmStopped；这里补的是**正常结束**的收尾。
+	tag, err = s.pool.Exec(ctx, `UPDATE repomesh_execution.attempts a
+		SET state='stopped', stopped_at=clock_timestamp()
+		WHERE a.state='running'
+		  AND a.id = (SELECT r.attempt_id FROM repomesh_execution.agent_runs r WHERE r.id=$1)`, runID)
+	if err != nil {
+		return unavailable()
+	}
+	if tag.RowsAffected() == 1 {
+		if _, err := s.pool.Exec(ctx, `UPDATE repomesh_execution.workers w
+			SET active_attempts = GREATEST(w.active_attempts - 1, 0)
+			WHERE w.id = (SELECT a.worker_id FROM repomesh_execution.attempts a
+				JOIN repomesh_execution.agent_runs r ON r.attempt_id = a.id WHERE r.id=$1)`, runID); err != nil {
+			return unavailable()
+		}
+	}
 	return nil
 }
 

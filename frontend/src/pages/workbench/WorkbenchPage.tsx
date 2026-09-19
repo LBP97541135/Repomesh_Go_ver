@@ -207,8 +207,23 @@ export function WorkbenchPage({
             ? triggerClassification(detail.issue_id, payload)
             : triggerPlan(detail.issue_id, payload);
     fire
-      .then(() => setReload((n) => n + 1))
-      .catch(() => autoTrigger.delete(key));
+      .then(() => {
+        driverFailures.current.delete(key);
+        setStepError(null);
+        setReload((n) => n + 1);
+      })
+      .catch((err: unknown) => {
+        // 2026-09-20 修：此前是 `catch(() => autoTrigger.delete(key))` —— 静默吞掉原因，
+        // 下一轮 5s 轮询又开火，用户只看到「卡住」，什么都看不到。
+        // 现在连撞三次就把原因摆到右栏并停止自动重发（改完再点「重试这一步」）。
+        const attempts = (driverFailures.current.get(key) ?? 0) + 1;
+        driverFailures.current.set(key, attempts);
+        if (attempts >= 3) {
+          setStepError({ step: discovery.step, message: errText(err) });
+          return;
+        }
+        autoTrigger.delete(key);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [discovery, principal, detail?.issue_id]);
 
@@ -408,6 +423,38 @@ export function WorkbenchPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [issueHitl, discovery, principal, gateBusy]);
 
+  /** 推进失败的原因（右栏显示）。step 用于只在对应步骤上显示。 */
+  const [stepError, setStepError] = useState<{ step: number; message: string } | null>(null);
+  /** 每个 (issue,step) 的连续失败次数：够了就停手并上屏，不再静默重发。 */
+  const driverFailures = useRef<Map<string, number>>(new Map());
+  // 步骤往前走了就把失败痕迹清掉：那是上一轮的事，留着只会误导。
+  useEffect(() => {
+    setStepError(null);
+    driverFailures.current.clear();
+  }, [detail?.issue_id, discovery?.step]);
+
+  /** 「忽略追问，强制继续」：需求文本偏短时给用户的另一条路（后端记 forced_continue）。 */
+  const handleForceContinue = () => {
+    if (!detail || !principal) {
+      onToast("决策主体未接入，无法继续。");
+      return;
+    }
+    const key = `${detail.issue_id}:1`;
+    autoTrigger.delete(key);
+    driverFailures.current.delete(key);
+    triggerAnalysis(detail.issue_id, {
+      created_by_agent_id: principal.agentId,
+      idempotency_key: newIdempotencyKey("analysis"),
+      force_continue: true,
+    })
+      .then(() => {
+        setStepError(null);
+        onToast("已忽略追问，处理员继续下一步");
+        setReload((n) => n + 1);
+      })
+      .catch((err: unknown) => onToast(`强制继续失败：${errText(err)}`));
+  };
+
   const handleRetryStep = (step: 1 | 2 | 3 | 4) => {
     if (!detail || !principal) {
       onToast("决策主体未接入，无法重试。");
@@ -428,7 +475,11 @@ export function WorkbenchPage({
             ? triggerClassification(detail.issue_id, payload)
             : triggerPlan(detail.issue_id, payload);
     fire
-      .then(() => setReload((n) => n + 1))
+      .then(() => {
+        setStepError(null);
+        driverFailures.current.clear();
+        setReload((n) => n + 1);
+      })
       .catch((err: unknown) => {
         autoTrigger.delete(key);
         onToast(`重试失败：${errText(err)}`);
@@ -772,6 +823,8 @@ export function WorkbenchPage({
             gateBusy={gateBusy}
             gateError={gateError}
             onRetryStep={handleRetryStep}
+            stepError={stepError}
+            onForceContinue={handleForceContinue}
             policyCard={flow.policyCard}
             onConfigurePolicy={() => setPolicyOpen(true)}
             onRetryPolicy={flow.reloadPolicy}

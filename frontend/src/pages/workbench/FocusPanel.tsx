@@ -103,6 +103,10 @@ export interface FocusPanelProps {
   gateError: string | null;
   /** 失败步重试 */
   onRetryStep: (step: 1 | 2 | 3 | 4) => void;
+  /** 这一步推进失败的原因（驱动器不再静默重试，把原因摆到界面上）。 */
+  stepError: { step: number; message: string } | null;
+  /** 「忽略追问，强制继续」：需求信息偏少时给用户的另一条路。 */
+  onForceContinue: () => void;
   /** 监管策略草稿卡片的合成态（由页面的拓扑态 + 草稿态合成，见 useIssueFlowState） */
   policyCard: PolicyDraftState;
   onConfigurePolicy: () => void;
@@ -124,6 +128,8 @@ export function FocusPanel({
   gateBusy,
   gateError,
   onRetryStep,
+  stepError,
+  onForceContinue,
   policyCard,
   onConfigurePolicy,
   onRetryPolicy,
@@ -139,7 +145,7 @@ export function FocusPanel({
         </div>
       );
     }
-    if (entry.kind === "step") return <StepDetail step={entry.step} state={stepStates[entry.step - 1]} discovery={discovery} onGate={onGate} gateBusy={gateBusy} gateError={gateError} onRetryStep={onRetryStep} policyCard={policyCard} onConfigurePolicy={onConfigurePolicy} onRetryPolicy={onRetryPolicy} messages={messages} />;
+    if (entry.kind === "step") return <StepDetail step={entry.step} state={stepStates[entry.step - 1]} discovery={discovery} onGate={onGate} gateBusy={gateBusy} gateError={gateError} onRetryStep={onRetryStep} stepError={stepError} onForceContinue={onForceContinue} policyCard={policyCard} onConfigurePolicy={onConfigurePolicy} onRetryPolicy={onRetryPolicy} messages={messages} />;
     if (entry.kind === "task") {
       return (
         <div className="flex min-h-0 flex-1 flex-col">
@@ -359,6 +365,8 @@ function StepDetail({
   gateBusy,
   gateError,
   onRetryStep,
+  stepError,
+  onForceContinue,
   policyCard,
   onConfigurePolicy,
   onRetryPolicy,
@@ -371,6 +379,8 @@ function StepDetail({
   gateBusy: "approveTiers" | "materialize" | null;
   gateError: string | null;
   onRetryStep: (step: 1 | 2 | 3 | 4) => void;
+  stepError: { step: number; message: string } | null;
+  onForceContinue: () => void;
   policyCard: PolicyDraftState;
   onConfigurePolicy: () => void;
   onRetryPolicy: () => void;
@@ -387,6 +397,13 @@ function StepDetail({
           >
             重试这一步
           </button>
+        </div>
+      )}
+      {/* 驱动器推进失败的原因：此前是静默吞掉 + 每 5s 重发（用户什么都看不到）。 */}
+      {stepError && stepError.step === step && (
+        <div className="rounded-[9px] border border-salmon/40 bg-salmon-well p-3">
+          <p className="text-[11.5px] leading-[1.7] text-salmon">这一步没能推进：{stepError.message}</p>
+          <p className="mt-1 text-[11px] text-[var(--tree-sub)]">改完上面的东西再点「重试这一步」；如果原因写着「分析未通过」，也可以直接忽略追问继续。</p>
         </div>
       )}
       {cards}
@@ -412,13 +429,40 @@ function StepDetail({
           <div className="mt-2">
             {(a.dimensions ?? []).map((d) => (
               <p key={d.name} className="flex gap-1.5 py-px text-[11px] text-[var(--tree-sub)]">
-                <span className={d.covered ? "text-olive" : "text-salmon"}>{d.covered ? "✓" : "✕"}</span>
+                <span className={d.covered ? "text-olive" : "text-tx3"}>{d.covered ? "✓" : "○"}</span>
                 <span>
-                  <span className="text-[var(--tree-ink)]">{d.name}</span>：{d.note || (d.covered ? "已说清" : "缺失")}
+                  <span className="text-[var(--tree-ink)]">{d.name}</span>：{d.note || (d.covered ? "已说清" : "词面上没提到")}
                 </span>
               </p>
             ))}
+            <p className="mt-1 text-[10.5px] leading-[1.7] text-[var(--tree-faint)]">
+              ○ 只表示**这段话里没有出现**该维度的常见说法，不代表你没说清——判定按词面，真实需求常被漏判。
+            </p>
           </div>
+
+          {/* 需求确实太短（真·信息不足）时才追问，并给「忽略追问继续」这条出路。
+              此前界面只有四个 ✕、没有追问列表、也没有继续的按钮 —— 用户走到这里
+              就没有下一步了（实测：整条链卡在第一步）。 */}
+          {!a.sufficient && (
+            <div className="mt-2 rounded-[9px] border border-amber/40 bg-amber-well px-2.5 py-2">
+              <p className="text-[11.5px] text-amber">
+                需求文本偏短，处理员想先问几句 —— 也可以在右栏输入框回答，或直接忽略追问继续。
+              </p>
+              {(a.questions ?? []).length > 0 && (
+                <ul className="mt-1 list-disc pl-4 text-[11px] leading-[1.7] text-[var(--tree-sub)]">
+                  {(a.questions ?? []).map((q) => (
+                    <li key={q}>{q}</li>
+                  ))}
+                </ul>
+              )}
+              <button
+                className="mt-1.5 rounded-[7px] border border-amber/40 bg-amber-well px-2.5 py-[3px] text-[11.5px] font-semibold text-amber hover:bg-amber-well/80"
+                onClick={onForceContinue}
+              >
+                忽略追问，强制继续
+              </button>
+            </div>
+          )}
         </CardShell>
       ) : (
         <CardShell title="正在分析需求">{state === "wait" ? <p className="text-[11px] text-[var(--tree-sub)]">处理员会自动开始分析；也可以稍后手动触发。</p> : <p className="text-[11px] text-[var(--tree-sub)]">分析进行中…</p>}</CardShell>
