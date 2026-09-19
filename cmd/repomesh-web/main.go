@@ -434,6 +434,19 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 				Observation: observability.New(pipelinePool),
 			},
 			HandoffDocs: web.HandoffDocs{Service: handoff.New(pipelinePool)},
+			// 升级梯（执行中人工打断 / 动态引入新仓库）。
+			// 决策链那一侧**已经有落库实现**，这里补的是三个端口适配器
+			// （见 escalation_adapters.go），不重复实现落库逻辑。
+			Escalation: &tasks.EscalationService{
+				Store:   tasks.NewPostgresStore(pipelinePool),
+				Sink:    escalationSink{store: decisionchain.NewPostgresStore(pipelinePool)},
+				Catalog: escalationCatalog{pool: pipelinePool},
+				Window:  30 * time.Second,
+				// 人工打断要等 X 就绪（未扫描则先 onboarding，见 §3 触发特例）。
+				// 等太久会把 HTTP 请求拖死，所以给 60s：超时按 ready=false 如实返回
+				// （决策单已落，用户可在就绪后再次打断判定），不假装成功。
+				InterruptWait: 60 * time.Second,
+			},
 		}
 	}
 	if atClient == nil {

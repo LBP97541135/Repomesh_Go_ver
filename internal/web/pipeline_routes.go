@@ -139,19 +139,41 @@ func registerPipelineRoutes(mux *http.ServeMux, auth Auth, pipeline Pipeline) {
 	})
 	registerProjectRoute(mux, "POST /api/projects/{projectId}/plans/{planId}/interrupt", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {
 		var body struct {
-			Reason string `json:"reason"`
+			Repository string `json:"repository"`
+			Note       string `json:"note"`
 		}
 		if err := decodeBody(w, r, &body); err != nil {
 			return err
 		}
-		// 2026-09-20 线上实测：这条端点此前**什么都没做**就返回
-		// {"status":"interrupt_accepted"} —— 解出 body 随即 `_ = body` 丢掉，一个动作
-		// 都没执行。它对外宣称"打断已受理"，而实际执行中动态加仓库的能力
-		// （tasks.EscalationService.InterruptPlanRepo，代码是写好的）从未被接上。
+		// 2026-09-20：这条端点此前**什么都没做**就返回 {"status":"interrupt_accepted"}
+		// —— 解出 body 随即 `_ = body` 丢掉，而它背后那套
+		// tasks.EscalationService.InterruptPlanRepo（打断决策单 → onboarding →
+		// 等待就绪 → 判定是否影响计划 → 有改动则开收集窗供重排 v2）除测试外
+		// 没有任何调用方。这种"报成功但无动作"比能力缺失更坏：人会以为已经生效。
 		//
-		// 这种"报成功但无动作"比能力缺失更坏：人会以为已经生效，继续往下走。
-		// 在真正接线之前，这里如实回 501 并把原因说清 —— 宁可让人知道没做，
-		// 也不能让人以为做了。
-		return &access.Failure{Status: http.StatusNotImplemented, Code: "INTERRUPT_NOT_WIRED"}
+		// 现在真接：真落决策单、真判就绪、真判是否影响计划，把 InterruptOutcome
+		// 原样回给前端（含 ready / affectsPlan / affectedSet），**不粉饰**。
+		if pipeline.Escalation == nil {
+			return &access.Failure{Status: http.StatusNotImplemented, Code: "INTERRUPT_NOT_WIRED"}
+		}
+		if strings.TrimSpace(body.Repository) == "" {
+			return &access.Failure{Status: http.StatusUnprocessableEntity, Code: "REPOSITORY_REQUIRED"}
+		}
+		key, err := projectIdempotencyKey(r)
+		if err != nil {
+			return err
+		}
+		outcome, err := pipeline.Escalation.InterruptPlanRepo(r.Context(), tasks.HumanInterrupt{
+			PlanID:         r.PathValue("planId"),
+			UserID:         claims.ActorID(),
+			RepoName:       strings.TrimSpace(body.Repository),
+			Note:           body.Note,
+			IdempotencyKey: key,
+		})
+		if err != nil {
+			return err
+		}
+		writeJSON(w, http.StatusOK, outcome)
+		return nil
 	})
 }
