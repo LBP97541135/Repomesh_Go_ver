@@ -388,11 +388,15 @@ func (s *Service) inspectConfiguration(ctx context.Context, tx pgx.Tx, actor str
 	if err != nil {
 		return github.Capability{}, err
 	}
-	status := "denied"
+	// 合成：任一 unknown → unknown；任一 denied → denied（带两边的原因码）；
+	// 两个都 allowed 才是 allowed——读面 creationReadiness 靠它点亮「就绪」。
+	status := "allowed"
 	reasons := append([]string{}, model.ReasonCodes...)
 	reasons = append(reasons, execution.ReasonCodes...)
 	if model.Status == "unknown" || execution.Status == "unknown" {
 		status = "unknown"
+	} else if model.Status != "allowed" || execution.Status != "allowed" {
+		status = "denied"
 	}
 	observed := time.Now().UTC()
 	return github.Capability{Status: status, ReasonCodes: reasons, ObservedAt: &observed}, nil
@@ -429,7 +433,11 @@ func (s *Service) inspectProfile(ctx context.Context, tx pgx.Tx, actor, kind str
 	} else if kind == "model" {
 		return github.Capability{Status: "denied", ReasonCodes: []string{"MODEL_CONFIG_MISSING"}, ObservedAt: &observed}, nil
 	}
-	return github.Capability{Status: "denied", ReasonCodes: []string{prefix + "_INTEGRATION_NOT_AVAILABLE"}, ObservedAt: &observed}, nil
+	// 2026-09-20 修：此前这里恒返回 denied（prefix_INTEGRATION_NOT_AVAILABLE），
+	// 于是 profile 启用、参数完整、密钥可用也照样报「集成不可用」，每个项目的
+	// 创建就绪度永远 restricted——「请先完成执行配置」的提示常亮，人无从下手。
+	// 走到这里 = profile 与密钥的检查全部通过。
+	return github.Capability{Status: "allowed", ObservedAt: &observed}, nil
 }
 
 func configurationView(record configurationRecord, checks github.Capability) ConfigurationView {
