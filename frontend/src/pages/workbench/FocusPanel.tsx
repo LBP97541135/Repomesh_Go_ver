@@ -318,7 +318,10 @@ export function FocusPanel({
     if (entry.kind === "task") {
       return {
         title: task ? `${task.taskUid ?? ""} ${task.title}`.trim() : "任务详情",
-        role: task?.leaderLabel ?? "待指派",
+        // 与任务行同一套取值顺序：装配期显示名 → 真实执行者（后端任务树读面带出的
+        // assignee）→ 才写「待指派」。此前这里只看 leaderLabel，而物化写入端不填它，
+        // 于是右栏顶部永远写「待指派」，哪怕这条任务已经跑完。
+        role: task?.leaderLabel || task?.assignee || "待指派",
         batch: `批次${task?.batchNo ?? "—"}`,
         cls: "l",
       };

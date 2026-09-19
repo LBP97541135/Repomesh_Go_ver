@@ -700,7 +700,8 @@ export function WorkbenchPage({
       const cars: TrainCarSpec[] = tasks.map((t) => {
         const cs = byTask.get(t.id);
         const repo = repoNameById[t.repositoryId ?? ""] ?? t.title;
-        const by = t.workerLabel ?? t.leaderLabel ?? "待指派";
+        // 同任务行：装配期显示名 → 真实执行者 → 最后才写「待指派」。
+        const by = t.workerLabel || t.assignee || t.leaderLabel || "待指派";
         return cs?.prUrl
           ? {
               repo,
