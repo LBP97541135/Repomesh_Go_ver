@@ -14,6 +14,7 @@ export const NAV_HASH: Record<NavKey, string> = {
   teams: "#/teams",
   agents: "#/agents",
   observe: "#/observe",
+  specs: "#/specs",
   "decision-chains": "#/decision-chains",
   settings: "#/settings",
 };
