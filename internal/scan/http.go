@@ -275,6 +275,39 @@ func (h *HTTP) handleScanJobCreate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, job)
 }
 
+// StartRepositoryScan 供**平台内部**触发一次单仓扫描 —— 升级梯的 onboarding
+// （动态引入新仓库）用它。与 POST /api/scan-jobs 走同一套作业登记与 runner 构造，
+// 区别只有两点，都不粉饰：
+//   · 不经过 HTTP 会话，因此**没有发起人令牌** —— 用部署级凭据（拿不到就匿名），
+//     与 fetcherForRequest 的降级口径一致，不假装有更强的凭据；
+//   · 调用方给的是仓库名（owner/name），URL 在这里拼。
+func (h *HTTP) StartRepositoryScan(ctx context.Context, repository, organizationID string) (string, error) {
+	if h.Jobs == nil {
+		return "", errors.New("scan: job registry is not configured")
+	}
+	name := strings.TrimSpace(repository)
+	if name == "" {
+		return "", errors.New("scan: repository name is required")
+	}
+	url := name
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+		url = "https://github.com/" + name
+	}
+	jobID := h.Jobs.Start("repository", url,
+		func(ctx context.Context, progress func(done, total int, name string)) (RegistrationCounts, error) {
+			runner := &Runner{
+				Fetcher:        h.Fetcher,
+				Store:          h.Store,
+				MaxWorkers:     h.MaxWorkers,
+				IncludeForks:   h.IncludeForks,
+				OnProgress:     progress,
+				OrganizationID: organizationID,
+			}
+			return runner.ScanSingle(ctx, url)
+		})
+	return jobID, nil
+}
+
 // tokenBoundFetcher is the optional capability of a fetcher that can be
 // re-bound to a credential for one run (today: *reposcan.Router). Keeping it
 // as an interface assertion means the seam stays optional — a bare fetcher in
