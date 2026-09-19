@@ -12,41 +12,23 @@ import { fetchCodingAgents, fetchSetupStatus } from "../api/platformSetup";
 import { LocalAccountsPanel } from "../components/LocalAccountsPanel";
 import { reconnectGithubConnection } from "../api/auth";
 import { LocalCliPage } from "./LocalCliPage";
+import { ModelUsageSettings } from "../components/ModelUsageSettings";
 import { AgentsPage } from "./AgentsPage";
 import { SkillsPage } from "./SkillsPage";
-import { Bot, FileCheck, Info, Server, Settings2, SquareTerminal, Users, type LucideIcon } from "lucide-react";
+import { Bot, FileCheck, Info, KeyRound, Server, Settings2, SquareTerminal, Users, type LucideIcon } from "lucide-react";
 import { errText } from "../display";
 import { applyTheme, readStoredTheme, type ThemeName } from "../theme";
 import { useRuntimeRows } from "./useRuntimeRows";
 
-/** 设置页（CONS-44 · 2026-09-04 Trae 式重设计）。
- *
- *  布局为用户逐项确认的定稿：**左侧分类导航（lucide 图标 + 文字）+ 右侧紧凑 IDE
- *  风内容区**，设置行「左标签+说明小字 / 右控件或状态」，主题用下拉，无搜索框。
- *  六类：通用（主题·数据源）/ 账号与权限（新增账号表单按需展开）/ 平台（就绪+
- *  连接健康）/ 智能体（Runtime+适配器）/ 本地 CLI（原独立子页收编，侧栏入口撤除）/
- *  关于（运行信息；已知缺口清单按用户裁决移除）。
- *
- *  职责与红线沿袭旧版（这些不是样式，是契约）：
- *
- *   1. **诚实数据**：九项就绪检查「服务端判定，本页不重算」；探测原文（detail）
- *      原样贴；「无法判定」不合并进「未授权」；版本号与「N 个 worker 在用」仍无
- *      数据源，故不列。
- *   2. **写路径唯一**：本页唯一的服务端写路径是「账号与权限」里的新增本地账号
- *      （`components/LocalAccountsPanel.tsx`）；主题只写本机 localStorage。
- *   3. **连接健康**是全站唯一能观测 AgentTeams Controller 的地方（由
- *      `/console/agents` 探测结果派生），落在「平台」类。
- *   4. **已知缺口**收进「关于」：它是「诚实数据」文化的一部分，不与可操作设置
- *      混排，但不从控制台里消失。
- *
- *  取数不受分类切换影响：setup / 适配器探测 / 花名册在挂载时各取各的（一个失败
- *  不把另一个也变成空白），切到哪个分类都即时呈现。 */
+/** 模型与 API 按仓库分析、AgentTeams 和观测评估标注用途。
+ * 沿用现有配置与权限，同时保留 GitHub 重连、智能体和技能设置。 */
 
-type CategoryKey = "general" | "account" | "platform" | "agents" | "skills" | "localcli" | "about";
+type CategoryKey = "general" | "models" | "account" | "platform" | "agents" | "skills" | "localcli" | "about";
 
 /** 分类图标（lucide）：Trae 同款「图标 + 文字」导航项。 */
 const CATEGORIES: { key: CategoryKey; label: string; icon: LucideIcon }[] = [
   { key: "general", label: "通用", icon: Settings2 },
+  { key: "models", label: "模型与 API", icon: KeyRound },
   { key: "account", label: "账号与权限", icon: Users },
   { key: "platform", label: "平台", icon: Server },
   { key: "agents", label: "智能体", icon: Bot },
@@ -496,6 +478,7 @@ export function SettingsPage({
             <LocalAccountsPanel account={account} />
           </>
         )}
+        {category === "models" && <ModelUsageSettings />}
         {category === "platform" && (
           <PlatformCategory
             setup={setup}

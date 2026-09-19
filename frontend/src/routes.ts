@@ -18,18 +18,18 @@ export const NAV_HASH: Record<NavKey, string> = {
   settings: "#/settings",
 };
 
-/** 观测中心的板块子页面。null = 门户总览（#/observe）。
+/** 观测中心的板块子页面。null = 本地工作台概览（#/observe），旧板块链接转到工作台。
  *  每个板块对应赛题可观测要求的一个覆盖面：
  *  - trace  推理轨迹（Skill/MCP/Agent 会话——赛题点名覆盖项，路线 1）
  *  - usage  用量大盘（Metrics：LLM token/成本/延迟/成功率）
  *  - logs   统一日志（Log：结构化日志查询，含按 Issue 分组视图）
  *  - alerts 在线告警（阈值规则 + 触发历史） */
 export type ObserveSection = "trace" | "usage" | "logs" | "alerts";
-export type SettingsSection = "local-cli" | "agents" | "skills";
+export type SettingsSection = "local-cli" | "agents" | "skills" | "models";
 
 /** 设置页的分类深链（#/settings/<section>）。agents/skills 2026-09-20 从侧栏
  *  顶级导航收编进设置——它们是配置面，不是日常工作面。 */
-export const SETTINGS_SECTIONS: ReadonlyArray<SettingsSection> = ["local-cli", "agents", "skills"];
+export const SETTINGS_SECTIONS: ReadonlyArray<SettingsSection> = ["local-cli", "agents", "skills", "models"];
 
 export const OBSERVE_SECTIONS: ReadonlyArray<ObserveSection> = [
   "trace",
@@ -47,7 +47,7 @@ export interface Route {
   /** #/issues/{issue_id}/rooms/{room_id} 命中时为该 room_id；否则 null。
    *  room_id 形如 `!room-core-team:local`，含 `!` 与 `:`，写入 hash 前须编码 */
   roomId: string | null;
-  /** nav === "observe" 时的板块子页；null = 门户总览 */
+  /** nav === "observe" 时的板块子页；null = 本地工作台概览 */
   observeSection: ObserveSection | null;
   /** nav === "settings" 时的子页；null = 设置总览 */
   settingsSection: SettingsSection | null;

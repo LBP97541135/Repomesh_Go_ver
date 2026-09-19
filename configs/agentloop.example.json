@@ -1,0 +1,8 @@
+{
+  "destination_id": "local-collector",
+  "endpoint_env": "REPOMESH_OTLP_TRACES_ENDPOINT",
+  "headers_env": "REPOMESH_OTLP_HEADERS",
+  "service_name": "repomesh-observe",
+  "workspace": "",
+  "timeout_seconds": 10
+}

@@ -6,6 +6,7 @@
 
 | 目的 | 文档 | 维护内容 |
 | --- | --- | --- |
+| 建立本地观测与评估 | [观测评估开发计划](agentloop-observability-implementation.md) | 最小本体改动、全本地工作台、OTLP／数据集、折扣验收与可选 DeepSeek 评审。 |
 | 修复项目、仓库、Issue 从属范围 | [范围修复计划](project-repository-scope-repair.md) | 操作顺序、后台范围约束、数据库兼容和验收标准。 |
 | 查批次状态、依赖和验收入口 | [分批施工计划](IMPLEMENTATION-PLAN.md) | B00—B11 的实施表、设计待办及实际证据。 |
 | 确定开发前阅读和行动顺序 | [开发前阅读与行动指南](DEVELOPMENT-START.md) | 按角色选择材料，落实前置条件、失败验收和分阶段接入。 |

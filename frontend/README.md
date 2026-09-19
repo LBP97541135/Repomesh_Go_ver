@@ -125,3 +125,9 @@ replay 数据源默认停在终态（审批合并）；`▶ 回放` 从「契约
   CONS-03 就绪后接入；当前审批仅前端演示。
 - Trace 瀑布留二期（trace_id 非 null 时展示）。
 - Demo 回放模式（场景状态机）见 CONS-13。
+
+## 本地观测入口与模型用途
+
+点击侧栏「观测」直接打开本地工作台，默认 `http://127.0.0.1:18090/#overview`；旧的 `#/observe/trace`／`logs` 深链转到工作台事件页。前端不再请求云 AgentLoop 配置，也不读取旧的云地址或双入口偏好。更换本机端口时，可在构建前设置 `VITE_OBSERVE_WORKBENCH_URL`，或由部署注入公开运行配置 `window.__REPOMESH_CONFIG__.observeWorkbenchUrl`。只接受回环 HTTP(S) 地址，不包含凭据。
+
+「设置 → 模型与 API」（`#/settings/models`）列明三类用途：仓库分析与 AgentTeams 的模型来源由现有供应商目录管理，项目固定配置决定执行模型；观测评估转到本地工作台独立配置 DeepSeek。保存供应商不代表 AgentTeams／DSH 执行已接通，也不会覆盖观测评估 Key。本次是用途标注与入口调整，不新增三套模型绑定协议。

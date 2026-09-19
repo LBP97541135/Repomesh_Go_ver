@@ -1,0 +1,11 @@
+{
+  "variableMapping": {
+    "public_task": "public_task",
+    "subject_manifest": "subject_manifest",
+    "relevant_trajectory": "relevant_trajectory",
+    "verifier_reports": "verifier_reports",
+    "candidate_artifacts": "candidate_artifacts",
+    "rubric": "rubric",
+    "evidence_access": "evidence_access"
+  }
+}

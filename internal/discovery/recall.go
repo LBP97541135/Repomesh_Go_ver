@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -18,14 +19,19 @@ import (
 // 暴露的 API）完全没被使用——而 GOAI-infra-repomesh 的设计里，总 Manager 恰恰是
 // 靠 AutoCard 做全局召回的。少了它，模型/关键词都只剩仓库名可比。
 type repoCard struct {
-	ID          string
-	Name        string
-	Description string
-	Topics      []string
-	Languages   []string
-	AutoCard    *scan.AutoCard
+	// Stable tags are part of the local discovery observation source contract.
+	// A missing scan has null identity/time, rather than invented scan facts.
+	ID              string         `json:"repository_id"`
+	Name            string         `json:"repository_name"`
+	Description     string         `json:"description"`
+	Topics          []string       `json:"topics"`
+	Languages       []string       `json:"languages"`
+	AutoCard        *scan.AutoCard `json:"auto_card"`
+	ScanID          *string        `json:"scan_id"`
+	ScanFingerprint *string        `json:"scan_fingerprint"`
+	ScanProfiledAt  *time.Time     `json:"scan_profiled_at"`
 	// InProject 标记该仓库是否已挂在本项目上：同分时优先。
-	InProject bool
+	InProject bool `json:"in_project"`
 }
 
 // loadRepoPool only reads repositories explicitly selected for this issue.
@@ -38,6 +44,7 @@ func (s *Service) loadRepoPool(ctx context.Context, tx pgx.Tx, projectID, issueI
 		       COALESCE(s.topics::text, '[]'),
 		       COALESCE(s.languages::text, '[]'),
 		       COALESCE(s.metadata::text, '{}'),
+		       s.id, s.fingerprint, s.profiled_at,
 		       true AS in_project
 		FROM repomesh_issues.issue_repository_scope scope
 		JOIN repomesh_projects.project_repositories pr
@@ -65,7 +72,8 @@ func (s *Service) loadRepoPool(ctx context.Context, tx pgx.Tx, projectID, issueI
 	for rows.Next() {
 		var card repoCard
 		var topicsRaw, languagesRaw, metadataRaw string
-		if err := rows.Scan(&card.ID, &card.Name, &card.Description, &topicsRaw, &languagesRaw, &metadataRaw, &card.InProject); err != nil {
+		if err := rows.Scan(&card.ID, &card.Name, &card.Description, &topicsRaw, &languagesRaw, &metadataRaw,
+			&card.ScanID, &card.ScanFingerprint, &card.ScanProfiledAt, &card.InProject); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal([]byte(topicsRaw), &card.Topics)

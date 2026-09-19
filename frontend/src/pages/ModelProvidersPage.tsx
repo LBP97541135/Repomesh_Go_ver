@@ -10,14 +10,8 @@ import {
 } from "../api/modelProvidersAdmin";
 import { errText } from "../display";
 
-/** 模型供应商（中转站）管理页 —— 全局配置，多个中转站并存。
- *
- *  2026-09-19：控制台此前**完全没有模型配置入口**（只有「平台」里的九项健康检查
- *  里那个"模型连接"标签，那是状态不是配置）。本页把后端 B04 的读面接回来：
- *  左列中转站，右侧详情（baseUrl / apiFormat / 模型清单）。
- *
- *  写面（新建 / 编辑 / 连通性测试）走异步保存信封，是下一步；本页先如实展示
- *  已配置的中转站——**不显示任何未接的假按钮**。 */
+/** 共享模型供应商目录：仓库分析读取可用来源，项目执行引用固定模型配置。
+ * 观测评估的模型与 Key 在独立本地工作台配置，不沿此保存路径写入。 */
 
 export function ModelProvidersPage() {
   const [providers, setProviders] = useState<ProviderSummary[] | null>(null);
@@ -135,7 +129,7 @@ export function ModelProvidersPage() {
       <div className="mb-6 flex items-baseline gap-3">
         <h1 className="text-[16px] font-semibold text-cream">模型供应商</h1>
         {providers && <span className="text-[11.5px] text-tx2">{providers.length} 个中转站</span>}
-        <span className="text-[11.5px] text-tx3">全局配置 · 项目里的智能体按需选用</span>
+        <span className="text-[11.5px] text-tx3">仓库分析 / AgentTeams 模型来源</span>
         <button
           className="ml-auto rounded-hard border border-line-strong px-3 py-[5px] text-[12px] text-cream hover:bg-amber/10"
           onClick={() => {
@@ -147,6 +141,12 @@ export function ModelProvidersPage() {
         </button>
       </div>
 
+      <section className="mb-5 rounded-hard border border-line bg-panel px-4 py-3 text-[11.5px] leading-relaxed text-tx2">
+        <p><strong className="text-cream">仓库分析：</strong>用这里的 API 地址、模型和 Key 做需求与仓库的语义匹配。</p>
+        <p className="mt-1"><strong className="text-cream">AgentTeams：</strong>这里管理模型来源，实际运行模型由项目执行配置决定；保存供应商不会自动切换团队模型。</p>
+        <p className="mt-1"><strong className="text-cream">观测评估：</strong>在<a className="text-amber hover:text-amber-hi" href="#/settings/models">设置 → 模型与 API</a>中进入本地工作台单独配置。</p>
+      </section>
+
       {notice && (
         <p className="mb-4 rounded-hard border border-line bg-panel px-3 py-2 text-[12px] text-tx2">
           {notice}
@@ -157,7 +157,7 @@ export function ModelProvidersPage() {
         <section className="mb-6 rounded-hard border border-line bg-panel px-5 py-5">
           <h2 className="text-[14px] font-semibold text-cream">新建中转站</h2>
           <p className="mt-1 text-[11.5px] text-tx2">
-            凭据不落库，走后端加密根（repomesh_secrets）。保存是异步信封：提交 → 若 committed 自动收口。
+            用途：仓库分析与项目执行的模型来源。API Key 加密保存；观测评估的 Key 在本地工作台单独管理。
           </p>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <label className="text-[12.5px] text-tx2">
@@ -170,7 +170,7 @@ export function ModelProvidersPage() {
               />
             </label>
             <label className="text-[12.5px] text-tx2">
-              接入地址
+              模型 API 地址（仓库分析 / 执行来源）
               <input
                 className="mt-1 w-full rounded-hard border border-line bg-well px-2.5 py-[6px] font-mono text-[12.5px] text-tx"
                 value={form.baseUrl}
@@ -189,7 +189,7 @@ export function ModelProvidersPage() {
               </select>
             </label>
             <label className="text-[12.5px] text-tx2">
-              API Key
+              API Key（仓库分析 / 执行来源）
               <input
                 type="password"
                 className="mt-1 w-full rounded-hard border border-line bg-well px-2.5 py-[6px] font-mono text-[12.5px] text-tx"

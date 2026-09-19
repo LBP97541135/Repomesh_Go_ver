@@ -1,0 +1,44 @@
+{
+  "scope": "synthetic fixed-product HTTP acceptance; not Agent performance",
+  "archive": "/home/xubohan/.local/state/repomesh-observe-20260919/acceptance-20260919T214746",
+  "binary_sha256": "e4dcd7180ab270b287e501952ba943a6cb520e2dc67cbdb65b95179d855aae63",
+  "first_export": {
+    "exported": 27,
+    "already_acknowledged": 0,
+    "destination_id": "local-collector",
+    "status": "transport_acknowledged"
+  },
+  "repeat_export": {
+    "exported": 0,
+    "already_acknowledged": 27,
+    "destination_id": "local-collector",
+    "status": "transport_acknowledged"
+  },
+  "csv_rows": 3,
+  "cloud_agentloop": "NOT_CONFIGURED",
+  "dsh": "NOT_CONNECTED",
+  "variants": [
+    {
+      "variant": "baseline",
+      "verdict": "fail",
+      "exit_code": 1,
+      "trial_id": "trial-30599e67c80043b9fb8e41200c4ac6ed",
+      "report_ref": "evidence/d169d20c4bf1ab4b2facf08b25d0f1b7585baef441740f1f341aec5063a894b0.json"
+    },
+    {
+      "variant": "candidate",
+      "verdict": "pass",
+      "exit_code": 0,
+      "trial_id": "trial-82530fb850ee358701bda174dfc2b9e2",
+      "report_ref": "evidence/731e0e1d9c3802870e253007ec1f1a038fdcf62af902919ff213834dadadc766.json"
+    },
+    {
+      "variant": "assembly-mismatch",
+      "verdict": "unknown",
+      "exit_code": 2,
+      "trial_id": "trial-99187ca8e40b1d09da1c88ab64ceb562",
+      "report_ref": "evidence/52cba5b72e18d77600b3b88101f5478052ca7f9a55e516deb74a7a5712703837.json"
+    }
+  ],
+  "collector_matched_trace_count": 27
+}

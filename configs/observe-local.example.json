@@ -1,0 +1,7 @@
+{
+  "destination_id": "local-workbench",
+  "endpoint_env": "REPOMESH_LOCAL_OTLP_TRACES_ENDPOINT",
+  "headers_env": "",
+  "service_name": "repomesh-observe",
+  "timeout_seconds": 10
+}

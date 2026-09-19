@@ -248,9 +248,6 @@ func (s *Service) Candidates(ctx context.Context, issueID, agentID, idempotencyK
 		}
 		return byName[verdicts[i].Repository].InProject && !byName[verdicts[j].Repository].InProject
 	})
-	if len(verdicts) > limit {
-		verdicts = verdicts[:limit]
-	}
 	blocks := []map[string]any{}
 	for _, verdict := range verdicts {
 		card := byName[verdict.Repository]
@@ -268,9 +265,20 @@ func (s *Service) Candidates(ctx context.Context, issueID, agentID, idempotencyK
 			"graph_conflict":    verdict.ConflictsWithGraph,
 		})
 	}
+	// Keep all scored results and the actual pre-selection pool as evidence.
+	// The public candidate list retains the existing limit and ordering.
+	allBlocks := blocks
+	if len(blocks) > limit {
+		blocks = blocks[:limit]
+	}
+	renderedCards := make([]string, 0, len(cards))
+	for _, card := range cards {
+		renderedCards = append(renderedCards, cardText(card))
+	}
 	block := map[string]any{
 		"items": blocks, "llm_used": llmUsed, "limit": limit, "entry_point": entryPoint,
 		"pool_size": len(cards), "supplements": supplements, "conflicts": conflicts,
+		"input_pool": cards, "rendered_cards": renderedCards, "all_scored_items": allBlocks,
 		"ran_at": time.Now().UTC(), "by_agent_id": agentID, "error": errorOrNil(llmError),
 	}
 	st.Candidates = block

@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"repomesh.local/repomesh/internal/decisionchain"
+	"repomesh.local/repomesh/internal/observability"
 	"repomesh.local/repomesh/internal/secrets"
 )
 
@@ -190,6 +191,15 @@ func (s *Service) ensureState(ctx context.Context, tx pgx.Tx, issueID string) (*
 }
 
 func (s *Service) save(ctx context.Context, tx pgx.Tx, st *State) error {
+	// Serialize the history boundary using the canonical Issue identity. This
+	// is the same lock order as archive/purge: Issue before discovery/history.
+	// NO KEY UPDATE is compatible with the FK KEY SHARE locks that Plan and
+	// Materialize may already hold; upgrading those to UPDATE can deadlock.
+	var issueID string
+	if err := tx.QueryRow(ctx, `SELECT id FROM repomesh_issues.issues
+		WHERE project_id=$1 AND id=$2 FOR NO KEY UPDATE`, st.ProjectID, st.IssueID).Scan(&issueID); err != nil {
+		return err
+	}
 	tiers, _ := json.Marshal(st.EffectiveTiers)
 	query := "INSERT INTO repomesh_issues.issue_discoveries" +
 		" (issue_id, project_id, requirement_text, analyzed_requirement, analysis, candidates," +
@@ -209,7 +219,25 @@ func (s *Service) save(ctx context.Context, tx pgx.Tx, st *State) error {
 		jsonb(st.Analysis), jsonb(st.Candidates), jsonb(st.Classification), jsonb(st.Plan),
 		jsonb(st.Approval), st.EvidenceVersion, string(tiers),
 		jsonb(st.Integration), jsonb(st.Materialization), jsonb(st.Idempotency))
-	return err
+	if err != nil {
+		return err
+	}
+	// Read back what was actually saved: ON CONFLICT deliberately preserves
+	// some original fields, and JSONB normalizes values on the business row.
+	// Receipt-ledger-only changes do not become new decision facts.
+	var snapshot json.RawMessage
+	err = tx.QueryRow(ctx, `SELECT jsonb_build_object(
+		'schema_version',$2::text,'event_kind','discovery.state_saved',
+		'issue_id',issue_id,'project_id',project_id,
+		'requirement_text',requirement_text,'analyzed_requirement',analyzed_requirement,
+		'analysis',analysis,'candidates',candidates,'classification',classification,
+		'plan',plan,'approval',approval,'classification_evidence_version',classification_evidence_version,
+		'effective_tiers',effective_tiers,'integration',integration,'materialization',materialization)
+		FROM repomesh_issues.issue_discoveries WHERE issue_id=$1`, st.IssueID, observability.DiscoverySourceVersion).Scan(&snapshot)
+	if err != nil {
+		return err
+	}
+	return observability.AppendDiscoveryFact(ctx, tx, st.ProjectID, st.IssueID, snapshot)
 }
 
 // ensureIssue loads the issue (title and description feed requirement_text)

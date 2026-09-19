@@ -1,0 +1,17 @@
+{
+  "fixture_only": true,
+  "timestamp": 0,
+  "task_id": "fixture-platform-task",
+  "run_id": "fixture-platform-run",
+  "eval_id": "fixture-eval-1",
+  "eval_base_id": "fixture-base-1",
+  "status": "success",
+  "evaluator_name": "repomesh-known-outcome-fixture",
+  "result_type": "binary",
+  "score_name": "acceptance",
+  "score_value": 0,
+  "normalized_score_value": null,
+  "explanation": "本地映射夹具：评估执行 success，但被评结果 fail。不是云端实际评分。",
+  "data_link": {"data_scope": "dataset", "dataset_id": "fixture-dataset", "dataset_item_id": "fixture-item"},
+  "eval_meta": {"evaluator_trace_id": "fixture-evaluator-trace"}
+}

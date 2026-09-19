@@ -1,0 +1,10 @@
+{
+  "grader_id": "contract_handoff",
+  "grader_version": "contract-handoff/1",
+  "evaluator_name": "repomesh-contract-handoff-v1",
+  "required_for_success": false,
+  "result_type": "text",
+  "minimum": 0,
+  "maximum": 0,
+  "pass_threshold": 0
+}

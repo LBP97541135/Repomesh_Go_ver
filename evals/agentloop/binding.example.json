@@ -1,0 +1,9 @@
+{
+  "trial_id": "replace-with-archived-local-trial-id",
+  "grading_attempt_id": "fixture-grading-1",
+  "platform_task_id": "fixture-platform-task",
+  "platform_run_id": "fixture-platform-run",
+  "data_scope": "dataset",
+  "dataset_id": "fixture-dataset",
+  "dataset_item_id": "fixture-item"
+}

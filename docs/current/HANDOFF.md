@@ -1,5 +1,37 @@
 # RepoMesh 当前交接
 
+## 2026-09-19 与最新 main 集成
+
+本地观测及前端用途入口已与 `c0cd44a` 主线整合，保留 GitHub 重连、智能体／技能设置、仓库团队和健康监控更新。主线已使用 0043／0044，观测迁移调整为 **0045_observation_facts.sql**；此前报告中的 0043 指首轮隔离试验版本，不改写其证据或已应用历史。合并树的 Go 构建／vet、589 个测试（另 2 条件跳过）、相关包 race、两套前端及浏览器导航验证通过。整合范围与限制见[合并检查](../development/2026-09-19-local-observation-02/MAIN-INTEGRATION.md)。
+
+## 2026-09-19 控制台入口与模型用途同步
+
+RepoMesh 前端的「观测」现在直接连接本地工作台；旧双入口与云地址偏好不再参与跳转。设置新增「模型与 API」，区分仓库分析、AgentTeams、观测评估，并在供应商表单、平台向导及工作台设置中标注用途。配置来源保持原有归属，不新增模型用途绑定或自动切换团队模型。HTTPS 控制台可导航到本地 HTTP 工作台，跨站 API 访问仍拒绝。前端构建／lint、相关 Go 检查及浏览器跳转验证通过；浏览器中的产品身份和读取接口使用只读夹具，目标工作台为真实进程，未借此宣称 OAuth 或模型保存验收。见[使用说明](../../frontend/README.md#本地观测入口与模型用途)。
+
+## 2026-09-19 全本地观测工作台
+
+用户进一步明确“观测和评测本地，模型可以配 DeepSeek”，采用 [ADR 0024](../adr/0024-local-observation-workbench.md)。默认入口已由云实验 Launcher 改为 `repomesh-observe serve`：本地页面、不可变证据查询、OTLP HTTP 接收、固定用例验收、CSV 和可选逐条 DeepSeek 评审。旧 Launcher 已停止；同一 18090 端口运行新的工作台，既有证据目录按只读来源挂载。
+
+DeepSeek 密钥已保存在本机私有配置，连接测试及一次真实 `deepseek-flash` 契约评审通过，业务验收结论保持独立。当前 Go 数据库全量测试 587 通过、2 按条件跳过、0 失败；构建／vet、相关包 race、真实浏览器操作通过。具体证据与后续限制见[实施记录](../development/2026-09-19-local-observation-02/README.md)，启动和接口见[本地工作台说明](local-observation-workbench.md)。完整 DSH 运行链路仍未接入，不因本地工作台交付而标为通过。
+
+## 2026-09-19 AgentLoop 本地观测与评估首轮实施
+
+按[开发计划](../plan/agentloop-observability-implementation.md)完成本地切片：迁移 0043 与发现链事务历史、同步选仓输入快照、独立 `repomesh-observe` 采集／OTLP 导出／折扣验收／CSV／评分回读。官方 Collector 在 14318、官方 AgentLoop 本地 Launcher 在 18090 运行，使用真实 `agentloop` 模式；目标云空间未配置，未运行 DSH 或云端评估。
+
+三个固定折扣产物分别得到 fail／pass／unknown，27 条 Trace 与真实 Collector 落盘身份逐一核对；独立 PostgreSQL 中实际发现用例保存、采集及导出通过。多 agent 开发后完成独立复核，修复并发锁、错误 OTLP 确认和证据／评分身份关联问题。完整结果及限制见[实施记录](../development/2026-09-19-agentloop-observability-01/README.md)，使用命令见[开发说明](agentloop-observation-development.md)。
+
+最终 Go 全量构建／vet 通过，设置隔离数据库连接的测试为 582 通过、0 失败、2 按条件跳过；观测工具两包 race 检查和本地平台保护检查通过。逐字段验收保留已知失败、空引用不计证据等评估问题也已独立复验。
+
+新增迁移只在独立测试库应用，共享业务服务和数据库未升级。现有 `Maintenance.Purge` 的主会话外键问题被独立确认为既有缺陷，本轮未改动；完整 DSH Trace、实际 Skill／模型计量、生产开销及泛化评测仍待后续验收。
+
+## 2026-09-19 AgentLoop 观测与评估设计
+
+新增 [AgentLoop 观测与评估 Spec](agentloop-observability-evaluation-spec.md)，以评委提出的漏仓、联调失败、返工、耗时和人工审查问题为主线，按用户明确的后续取消 CLI coding agent、转向 AgentTeams 原生 DeepSeekHarness 的方向设计。包含 Trace 身份与字段、版本清单、业务／运行事件、AgentLoop 接入与评估映射、折扣实验及分阶段验收。
+
+Spec v0.2 根据后续维护要求补充：先外部读取，再补必要业务事实；本体集中保留事实、身份绑定和证据登记，运行时及 AgentLoop 格式转换放入适配层。增加契约版本、旧记录重放、故障隔离和升级验收，完整清单为 AC01—AC33；最小改动范围仍需实施时按具体缺口核对。
+
+本次只交付设计和文档检查；未修改产品代码、创建云资源、接通 DSH 或运行评测。该 Spec 为 proposed，不将示例、平台文档能力或历史上游测试记作本项目已验收。其他实现和环境状态仍按下方相应检查点理解。
+
 ## 2026-09-19 项目、仓库与 Issue 范围修复
 
 已按[修复计划](../plan/project-repository-scope-repair.md)完成本地代码改造：控制台统一显式项目上下文，先保存项目、再接入仓库、最后勾选 Issue 工作范围；发现到任务下发均检查项目及 Issue 仓库边界。迁移 0042 为计划关联 Issue、为任务建立规范仓库绑定，已有越界记录保留并隔离，带计划／任务的 Issue 只允许归档。

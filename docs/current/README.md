@@ -85,6 +85,9 @@
 | [WSL2 开发环境建议](wsl-development-recommendation.md) | 保留最初建议；WSL 副本、Linux 工具、专用 SSH 和桌面项目已验证，当前接手及 B02 前置见 HANDOFF。 |
 | [骨架验收记录](scaffold-verification.md) | 既有工程检查的条件与结果，非业务验收。 |
 | [AgentTeams 证据索引](scaffold-agentteams-evidence.md) | 确定源码与历史实测的范围及追溯入口。 |
+| [AgentLoop 观测与评估 Spec](agentloop-observability-evaluation-spec.md) | 面向原生 DeepSeekHarness 的 Trace、AgentLoop 接入、评估指标与折扣实验；含最小本体改动、外部适配及升级兼容规则。本地切片已实施，完整 DSH／云端链路未验收。 |
+| [全本地观测工作台](local-observation-workbench.md) | 当前默认：本机 Trace、证据、确定性验收、CSV 和可选 DeepSeek 评审，无需云空间。 |
+| [观测评估开发说明](agentloop-observation-development.md) | 独立工具、发现历史、OTLP／CSV、折扣验收、官方本地工作台和部署边界。 |
 | [AgentTeams 验证清单](../plan/agentteams-validation-plan.md) | AT01—12 的具体用例；G1—G5 不替代该清单。 |
 | [架构方案](architecture-design-v1.md) | 各章节的已采用方向、候选及未验证能力。 |
 | [技术选型](technology-selection.md) | 已采用技术方向。 |

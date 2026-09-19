@@ -1,0 +1,21 @@
+{
+  "schema_version": "repomesh-case/1",
+  "case_id": "discount-semantics-001",
+  "case_version": "1",
+  "split": "regression",
+  "subject_kind": "synthetic_fixed_product",
+  "public_task": "价格服务折扣字段表示应付比例，8000 基点表示支付原价的 80%。原价 10000 分时，报价、订单返回和订单持久化金额均须为 8000 分。",
+  "contract_version": "payable-ratio/v1",
+  "test_data_version": "discount-data/1",
+  "verifier_version": "discount-http/1.0",
+  "input": {"base_cents": 10000, "payable_basis_points": 8000},
+  "expected": {"price_cents": 8000, "returned_order_cents": 8000, "stored_order_cents": 8000},
+  "required_checks": ["price.identity", "order.identity", "price.contract", "price.amount", "order.contract", "order.price_identity", "order.amount", "order.persisted_amount"],
+  "variants": [
+    {"variant_id": "baseline", "expected_verdict": "fail", "returned_order_cents": 2000, "stored_order_cents": 2000},
+    {"variant_id": "candidate", "expected_verdict": "pass", "returned_order_cents": 8000, "stored_order_cents": 8000},
+    {"variant_id": "assembly-mismatch", "expected_verdict": "unknown", "assembly_responsibility": "verifier", "finding": "actual_order_revision_does_not_match_selected_combination"}
+  ],
+  "reset_policy": "Every run creates new localhost listeners, a fresh order storage directory and new trial/environment identities; servers and temporary order state are removed after report capture.",
+  "limitations": ["No Agent or DSH execution", "No repository selection accuracy measured", "No holdout or generalization claim", "Deployment identity endpoint attestation is not implemented"]
+}

@@ -1,0 +1,14 @@
+{
+  "grader_id": "known_outcome_mapping_fixture",
+  "grader_version": "1",
+  "evaluator_name": "repomesh-known-outcome-fixture",
+  "required_for_success": false,
+  "result_type": "binary",
+  "score_name": "acceptance",
+  "score_field": "score_value",
+  "unit": "binary",
+  "minimum": 0,
+  "maximum": 1,
+  "direction": "higher_is_better",
+  "pass_threshold": 1
+}

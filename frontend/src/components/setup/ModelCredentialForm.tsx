@@ -27,17 +27,18 @@ export function ModelCredentialForm({ status, onSaved }: { status: CredentialSta
 
   return (
     <form onSubmit={submit}>
-      <CredentialField mode="editable" label="API Key" note={status.api_key.set ? `当前已配置 ${status.api_key.masked ?? ""}；填写将覆盖。` : "尚未配置。"}>
+      <p className="mb-3 text-[11.5px] leading-relaxed text-tx2">用途：AgentTeams 平台默认运行模型。仓库分析与观测评估请分别到「设置 → 模型与 API」中的对应入口配置。</p>
+      <CredentialField mode="editable" label="AgentTeams API Key" note={status.api_key.set ? `当前已配置 ${status.api_key.masked ?? ""}；填写将覆盖。` : "尚未配置。"}>
         <input className={credentialInputClass} type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} autoComplete="new-password" required />
       </CredentialField>
-      <CredentialField mode="editable" label="Base URL" note="留空时继续使用启动环境中的默认地址。">
+      <CredentialField mode="editable" label="AgentTeams 模型 API 地址" note="留空时继续使用启动环境中的默认地址。">
         <input className={credentialInputClass} type="url" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.deepseek.com/v1" />
       </CredentialField>
-      <CredentialField mode="editable" label="模型名" note="留空时继续使用当前默认模型。">
+      <CredentialField mode="editable" label="AgentTeams 模型名" note="留空时继续使用当前默认模型。">
         <input className={credentialInputClass} value={model} onChange={(e) => setModel(e.target.value)} placeholder="deepseek-chat" />
       </CredentialField>
       {error ? <p className="mt-3 text-[11.5px] text-salmon">{error}</p> : null}
-      <button className="mt-4 rounded-hard bg-amber px-4 py-2 text-[12px] font-bold text-paper-ink disabled:opacity-50" disabled={busy}>{busy ? "保存中…" : "保存模型配置"}</button>
+      <button className="mt-4 rounded-hard bg-amber px-4 py-2 text-[12px] font-bold text-paper-ink disabled:opacity-50" disabled={busy}>{busy ? "保存中…" : "保存 AgentTeams 模型配置"}</button>
     </form>
   );
 }

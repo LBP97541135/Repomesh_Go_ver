@@ -113,7 +113,7 @@ npm --prefix web run build
 go run ./cmd/repomesh-web --addr 127.0.0.1:8080 --assets ./web/dist
 ```
 
-空库第一次 `db check` 报缺少迁移并退出 1 是预期结果；其他错误按[数据库开发说明](docs/current/database-development.md)处理。当前源码含 42 条迁移，迁移后应输出 `schema status=current current=42 target=42 pending=0`。以后新增迁移时，以所用源码或配套二进制的 `target` 为准。Web 和 coordinator 只核查迁移，不自动迁移；配置、秘密或迁移不匹配会使启动失败。
+空库第一次 `db check` 报缺少迁移并退出 1 是预期结果；其他错误按[数据库开发说明](docs/current/database-development.md)处理。当前源码含 45 条迁移，迁移后应输出 `schema status=current current=45 target=45 pending=0`。以后新增迁移时，以所用源码或配套二进制的 `target` 为准。Web 和 coordinator 只核查迁移，不自动迁移；配置、秘密或迁移不匹配会使启动失败。
 
 数据库子命令不需要前端资源，也不启动 HTTP。迁移仅支持前进；待应用 SQL 与历史记录在同一事务提交。优先通过环境变量提供连接串，避免将凭据放进 `--database-url` 命令参数。
 
@@ -132,6 +132,12 @@ go run ./cmd/repomesh-coordinator
 `repomesh-host-executor` 已实现受限执行循环（B10）：带 `--database` 和 `--worker` 注册后运行，负责心跳、轮询自己名下的停止请求、撤销资源写能力并释放。未注册主机不执行任何动作；容器／卷／网络的主机拆除在当前构建中显式拒绝（仅目录清理可用），正式状态推进由 coordinator 负责。真实 GitHub 验收仍处于暂停状态，已有环境记录不证明服务现在运行或整批验收完成；恢复入口见[当前交接](docs/current/HANDOFF.md#b02-外部暂停与恢复责任)。
 
 执行来源由部署身份通过 `repomesh-web sources import --file PATH` 导入，通过 `sources result --import-id UUID` 查询原结果，不走浏览器。采用范围见[B04 说明](docs/current/b04-model-sources-adoption.md)。
+
+## 本地观测与评估
+
+默认使用[全本地观测工作台](docs/current/local-observation-workbench.md)，监听 `127.0.0.1:18090`，提供 Trace、证据、验收结果、数据集及可选 DeepSeek 评审。运行 `bash scripts/observe-workbench.sh install` 和 `bash scripts/observe-workbench.sh start`；不需要 AgentLoop 云空间或 AccessKey。旧官方 Launcher 使用同一端口时，先运行 `bash scripts/agentloop-local.sh stop`。
+
+迁移 0045 为发现链保存追加历史；采集工具不自动迁移、不启动业务 Worker。当前完成的是本地业务事实／固定产物验收与本地工作台；DeepSeek 为可选模型评审，云端 AgentLoop 已改为可选适配，DSH 运行轨迹仍需接入。共享运行实例没有因本次工具开发自动升级，具体结果见[实施记录](docs/development/2026-09-19-agentloop-observability-01/README.md)。
 
 ## 日常开发与检查
 

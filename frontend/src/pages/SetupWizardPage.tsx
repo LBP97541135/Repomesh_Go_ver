@@ -15,7 +15,7 @@ import { GitHubAppCredentialForm } from "../components/setup/GitHubAppCredential
 import { ModelCredentialForm } from "../components/setup/ModelCredentialForm";
 import { errText } from "../display";
 
-const STEP_NAMES = ["平台检测", "模型连接", "GitHub App", "管理员账号", "仓库与团队"];
+const STEP_NAMES = ["平台检测", "AgentTeams 模型", "GitHub App", "管理员账号", "仓库与团队"];
 
 const DEPENDENCY_LABEL: Record<string, string> = {
   model: "模型连接",
@@ -289,7 +289,7 @@ export function SetupWizardPage({ account, onReady }: { account: Account; onRead
               </section>
             ) : null}
 
-            {step === 1 ? <section><h2 className="mb-3 text-[15px] font-semibold text-cream">模型连接配置</h2>{credentials ? <ModelCredentialForm status={credentials.model} onSaved={saved} /> : <p className="text-tx3">读取中…</p>}</section> : null}
+            {step === 1 ? <section><h2 className="mb-3 text-[15px] font-semibold text-cream">AgentTeams 运行模型配置</h2>{credentials ? <ModelCredentialForm status={credentials.model} onSaved={saved} /> : <p className="text-tx3">读取中…</p>}</section> : null}
             {step === 2 ? <section><h2 className="text-[15px] font-semibold text-cream">GitHub App 配置</h2><p className="mt-1 mb-3 text-[11.5px] text-tx2">可跳过；需要 GitHub 自动交付或 webhook 时再配置。</p>{credentials ? <GitHubAppCredentialForm status={credentials.github_app} onSaved={saved} /> : <p className="text-tx3">读取中…</p>}</section> : null}
             {step === 3 ? <section><h2 className="text-[15px] font-semibold text-cream">管理员账号</h2><div className="mt-4 border border-olive bg-olive/10 px-4 py-3"><span className="text-[12px] text-olive">已完成</span><p className="mt-1 text-[11px] text-tx2">当前管理员：{account.display_name}（{account.username}）</p></div></section> : null}
             {step === 4 ? (

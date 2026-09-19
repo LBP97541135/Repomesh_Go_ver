@@ -20,3 +20,10 @@ docs/current/issue-page-create-api-contract.md -text
 docs/current/model-project-apply-design.md -text
 docs/current/model-settings-browser-api-draft.md -text
 docs/current/project-development.md -text
+
+# Local observation launchers must also run from CRLF-default checkouts.
+scripts/agentloop-local.sh text eol=lf
+scripts/observe-local.sh text eol=lf
+scripts/observe-workbench.sh text eol=lf
+scripts/test-observe-local.py text eol=lf
+scripts/test-observe-workbench.mjs text eol=lf

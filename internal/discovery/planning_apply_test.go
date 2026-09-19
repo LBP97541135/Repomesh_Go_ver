@@ -18,6 +18,9 @@ func TestPostgresApplyPlanningRunPersistsAnalysis(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
+	// Discovery provenance is bound to a real Project/Issue aggregate.
+	fixture := testdb.SeedProject(t, pool, "99999999-9999-4999-8999-999999999999", "", "fixture/quotation")
+	testdb.SeedIssue(t, pool, fixture, "iss_apply_test", "fixture/quotation")
 	if _, err := pool.Exec(ctx, `INSERT INTO repomesh_issues.issue_discoveries
 		(issue_id, project_id, requirement_text, idempotency_ledger)
 		VALUES ('iss_apply_test', '99999999-9999-4999-8999-999999999999', '报价计算增加满 6000 免运费能力', '{}'::jsonb)`); err != nil {

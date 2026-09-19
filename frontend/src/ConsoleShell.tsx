@@ -11,11 +11,7 @@ import type { HumanReviewRequestView } from "./api/reviewDesk";
 import { fetchReviewRequests, subscribeReviewRequests } from "./api/reviewDesk";
 import { DecisionChainPage } from "./pages/DecisionChainPage";
 import { IssueListPage } from "./pages/IssueListPage";
-import { ObserveAlerts } from "./pages/observe/ObserveAlerts";
 import { ObserveHome } from "./pages/observe/ObserveHome";
-import { ObserveLogs } from "./pages/observe/ObserveLogs";
-import { ObserveTrace } from "./pages/observe/ObserveTrace";
-import { ObserveUsage } from "./pages/observe/ObserveUsage";
 import { RepositoriesPage } from "./pages/RepositoriesPage";
 import { RepositoryTeamPage } from "./pages/RepositoryTeamPage";
 import { ProjectSelectPage } from "./pages/ProjectSelectPage";
@@ -522,18 +518,7 @@ export default function ConsoleShell() {
         )}
         {route.nav === "models" && <ModelProvidersPage />}
         {route.nav === "specs" && <SpecPage onToast={showToast} />}
-        {route.nav === "observe" &&
-          (route.observeSection === null ? (
-            <ObserveHome />
-          ) : route.observeSection === "usage" ? (
-            <ObserveUsage />
-          ) : route.observeSection === "logs" ? (
-            <ObserveLogs />
-          ) : route.observeSection === "alerts" ? (
-            <ObserveAlerts />
-          ) : (
-            <ObserveTrace />
-          ))}
+        {route.nav === "observe" && <ObserveHome section={route.observeSection} />}
         {route.nav === "decision-chains" && (
           <DecisionChainPage organizationId={null} onToast={showToast} />
         )}
@@ -545,11 +530,13 @@ export default function ConsoleShell() {
             initialCategory={
               route.settingsSection === "local-cli"
                 ? "localcli"
-                : route.settingsSection === "agents"
-                  ? "agents"
-                  : route.settingsSection === "skills"
-                    ? "skills"
-                    : "general"
+                : route.settingsSection === "models"
+                  ? "models"
+                  : route.settingsSection === "agents"
+                    ? "agents"
+                    : route.settingsSection === "skills"
+                      ? "skills"
+                      : "general"
             }
             onToast={showToast}
             onOpenIssue={openIssue}
