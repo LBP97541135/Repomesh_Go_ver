@@ -53,7 +53,10 @@ export function SpecPage({ onToast }: { onToast: (msg: string) => void }) {
     setDraft(null);
     getCurrentSpec(projectId, repo)
       .then((view) => {
-        if (!cancelled) setSpec(view);
+        // 2026-09-20 实测：后端在没有生效规格时**返回哨兵** SpecView{State:"none",
+        // Version:0, Title:"none"}，而不是 404。那是"还没有"，不是一份叫 none 的
+        // 规格 —— 直接照渲染会显示成「当前生效规格 v0 none」。如实按"没有"处理。
+        if (!cancelled) setSpec(view && view.state !== "none" ? view : null);
       })
       .catch(() => {
         // 404 = 这个仓库还没有生效规格。那不是错误，如实显示"还没有"。
