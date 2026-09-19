@@ -10,6 +10,7 @@ import type {
 import { fetchConsoleAgents, gridSourceMode } from "../api/grid";
 import { fetchCodingAgents, fetchSetupStatus } from "../api/platformSetup";
 import { LocalAccountsPanel } from "../components/LocalAccountsPanel";
+import { reconnectGithubConnection } from "../api/auth";
 import { LocalCliPage } from "./LocalCliPage";
 import { AgentsPage } from "./AgentsPage";
 import { SkillsPage } from "./SkillsPage";
@@ -53,6 +54,35 @@ const CATEGORIES: { key: CategoryKey; label: string; icon: LucideIcon }[] = [
   { key: "localcli", label: "本地 CLI", icon: SquareTerminal },
   { key: "about", label: "关于", icon: Info },
 ];
+
+/** GitHub 连接：凭据失效 / 需要重新授权 / 权限范围变了时的重连入口。
+ *
+ *  后端 reconnect 端点本来就有（与 switch 同级），此前只是前端没接——于是凭据
+ *  一坏就只能"退出登录再登一遍"（2026-09-20 线上实测：那条路还不一定走通）。 */
+function GitHubConnectionRow({ onToast }: { onToast: (text: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <SettingRow
+      title="GitHub 连接"
+      note="凭据失效、需要重新授权或权限范围变了时，从这里重新连接——保持当前登录与账号不变。"
+    >
+      <button
+        type="button"
+        className="rounded-hard border border-line px-3 py-1.5 text-[12px] text-tx2 transition-colors hover:border-amber hover:text-amber-hi disabled:opacity-50"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          reconnectGithubConnection().catch((err: unknown) => {
+            setBusy(false);
+            onToast(`发起重连失败：${errText(err)}`);
+          });
+        }}
+      >
+        {busy ? "跳转中…" : "重新连接 GitHub"}
+      </button>
+    </SettingRow>
+  );
+}
 
 /* ── Trae 式行与控件 ─────────────────────────────────────────────────────── */
 
@@ -462,6 +492,7 @@ export function SettingsPage({
         {category === "account" && (
           <>
             <CategoryTitle>账号与权限</CategoryTitle>
+            <GitHubConnectionRow onToast={onToast} />
             <LocalAccountsPanel account={account} />
           </>
         )}

@@ -127,6 +127,23 @@ export async function switchGithubAccount(): Promise<void> {
   window.location.href = result.authorizationUrl;
 }
 
+/** 重新连接 GitHub：凭据失效、需要重新授权或换了权限范围时用。
+ *
+ *  与 switchGithubAccount 同一形状（CSRF + 幂等键 + destination），差别只在端点：
+ *  reconnect 保持当前登录会话与账号，只把 GitHub 凭据重新授权写回；
+ *  switch 换账号并 revoke 旧会话。 */
+export async function reconnectGithubConnection(): Promise<void> {
+  const result = await goRequest<{ authorizationUrl: string }>("/api/auth/github/reconnect", {
+    method: "POST",
+    headers: {
+      "Idempotency-Key": crypto.randomUUID(),
+      "X-CSRF-Token": getCsrfToken(),
+    },
+    body: JSON.stringify({ destination: { kind: "home" } }),
+  });
+  window.location.href = result.authorizationUrl;
+}
+
 /** Go `GET /api/auth/attempts/{id}` 出参（access.AttemptResult，as-built）：
  *  OAuth 回跳页轮询登录尝试状态的读面。 */
 export interface AuthAttemptResult {
