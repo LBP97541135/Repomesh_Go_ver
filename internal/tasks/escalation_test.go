@@ -212,7 +212,7 @@ func TestWindowTriggersOnboardingForMissing(t *testing.T) {
 	}
 
 	onboarded := make(chan string, 4)
-	svc.OnboardMissing = func(ctx context.Context, name string) { onboarded <- name }
+	svc.OnboardMissing = func(ctx context.Context, planID, name string) { onboarded <- name }
 
 	_, at, err := svc.ReportBlocked(ctx, BlockedReport{
 		PlanID: plan.ID, ReporterID: "worker-1", Role: RoleWorker,
@@ -273,7 +273,7 @@ func TestHumanInterruptOnboardsWaitsAndRecords(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	svc.OnboardMissing = func(ctx context.Context, name string) {
+	svc.OnboardMissing = func(ctx context.Context, planID, name string) {
 		catalog.ready[name] = true // 模拟扫描完成
 	}
 

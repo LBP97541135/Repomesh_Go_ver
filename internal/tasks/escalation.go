@@ -83,7 +83,13 @@ type EscalationService struct {
 	Catalog CatalogPort
 	// OnboardMissing 对缺失（未注册/未扫描）的仓库触发注册+单仓扫描；
 	// 由组合根接线到 scan 域。nil = 不触发。协议 §3 触发特例。
-	OnboardMissing func(ctx context.Context, name string)
+	//
+	// 2026-09-20：签名带 planID。扫描必须盖**组织章**
+	// （repomesh_scan.repositories.organization_id），而扫描目录的读面按组织裁剪
+	// —— 接线处要 planID → project → organization 才解析得出组织。不带 planID 就只能
+	// 空 org 去扫：新仓库会被注册，但**在按组织裁剪的目录里看不见**，onboarding 于是
+	// 变成一次"报成功但没用"的操作。
+	OnboardMissing func(ctx context.Context, planID, repository string)
 	// Adjacency 是第 2 期判定步骤的依赖视图（组合根接线到 scan 证据图：
 	// BuildGraph + 别名解析）。nil = 判定按"无邻接"处理（仅 X 本身）。
 	Adjacency AdjacencyPort
@@ -206,7 +212,7 @@ func (s *EscalationService) MarkDeprecatedAndCollect(ctx context.Context, planID
 	if err != nil {
 		return nil, err
 	}
-	s.triggerOnboarding(ctx, affectedRepos(known))
+	s.triggerOnboarding(ctx, planID, affectedRepos(known))
 
 	window := s.Window
 	if window <= 0 {
@@ -228,7 +234,7 @@ func (s *EscalationService) MarkDeprecatedAndCollect(ctx context.Context, planID
 
 	// 窗口内新到达的反馈可能引入新的缺失仓库：幂等补触发（已就绪者跳过，
 	// goroutine 自带 30 分钟上限；触发失败不阻塞收集，fail-open 与协议一致）。
-	s.triggerOnboarding(ctx, affectedRepos(leaves))
+	s.triggerOnboarding(ctx, planID, affectedRepos(leaves))
 
 	return leaves, nil
 }
@@ -251,7 +257,7 @@ func affectedRepos(feedback []BlockedFeedback) []string {
 // triggerOnboarding 对缺失（未就绪）的仓库并行触发 onboarding（goroutine 自带
 // 30 分钟上限；WithoutCancel 让 onboarding 存活于窗口 ctx 之外——协议：不互等）。
 // 触发失败不阻塞收集（fail-open，与协议一致）。
-func (s *EscalationService) triggerOnboarding(ctx context.Context, repos []string) {
+func (s *EscalationService) triggerOnboarding(ctx context.Context, planID string, repos []string) {
 	if s.OnboardMissing == nil {
 		return
 	}
@@ -266,7 +272,7 @@ func (s *EscalationService) triggerOnboarding(ctx context.Context, repos []strin
 			ctx, cancel := context.WithTimeout(
 				context.WithoutCancel(ctx), 30*time.Minute)
 			defer cancel()
-			s.OnboardMissing(ctx, name)
+			s.OnboardMissing(ctx, planID, name)
 		}(name)
 	}
 }
@@ -355,7 +361,7 @@ func (s *EscalationService) InterruptPlanRepo(ctx context.Context, cmd HumanInte
 	}
 	if !ready && s.OnboardMissing != nil {
 		out.Onboarded = true
-		s.OnboardMissing(ctx, name)
+		s.OnboardMissing(ctx, cmd.PlanID, name)
 		ready = s.waitReady(ctx, name)
 	}
 	out.Ready = ready

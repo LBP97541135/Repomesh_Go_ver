@@ -132,6 +132,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	var projectAPI web.Projects
 	var modelAPI web.Models
 	var scanAPI web.Scan
+	// scanAdapter 是同一个适配器的句柄：升级梯 onboarding 要**内部触发扫描**，
+	// 那条路径不经过 HTTP 会话，拿不到 web.Scan 的 RegisterRoutes 之外的东西。
+	var scanAdapter *scan.HTTP
 	var decisionAPI web.Decision
 	var skillsAPI web.Skills
 	var issuesAPI web.Issues
@@ -343,7 +346,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			GitLab: &reposcan.GitLabFetcher{Token: os.Getenv("REPOMESH_REPOSITORY_SCAN_GITLAB_TOKEN")},
 			Extra:  parsePlatformMap(os.Getenv("REPOMESH_REPOSITORY_SCAN_PLATFORMS")),
 		}
-		scanAPI = web.Scan{API: &scan.HTTP{
+		scanAdapter = &scan.HTTP{
 			Service:       scanService,
 			Store:         scanCatalog,
 			Runner:        &scan.Runner{Fetcher: fetcher, Store: scanCatalog, IncludeForks: envBool("REPOMESH_REPOSITORY_SCAN_INCLUDE_FORKS", false)},
@@ -413,7 +416,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 						err, d.Requirement, d.RepositoryIDs, d.IdempotencyKey, actor)
 				}
 			},
-		}}
+		}
+		scanAPI = web.Scan{API: scanAdapter}
 	}
 	// M1-M9 pipeline assembly (own pool; works with or without auth-config).
 	if pipelinePool != nil {
@@ -444,6 +448,20 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 				// 判定步骤的依赖邻接：接扫描域的依赖图（边来自观测到的运行时调用）。
 				// 不接的话判定按"无邻接"处理，新增仓库永远不会被判为影响当前计划。
 				Adjacency: escalationAdjacency{pool: pipelinePool},
+				// onboarding：未扫描的仓库触发一次单仓扫描。**必须解析出组织** —— 扫描按组织
+				// 盖章（repomesh_scan.repositories.organization_id），而扫描目录的读面按组织
+				// 裁剪；用空 org 扫出来的仓库，用户在自己的目录里**根本看不见**，onboarding
+				// 就成了"报成功但没用"。
+				OnboardMissing: func(ctx context.Context, planID, repository string) {
+					var organization string
+					if err := pipelinePool.QueryRow(ctx, "SELECT p.organization_id::text FROM public.plans pl JOIN repomesh_projects.projects p ON p.id = pl.project_id::text WHERE pl.id = $1::uuid", planID).Scan(&organization); err != nil {
+						fmt.Fprintf(stderr, "escalation: onboarding 解析组织失败 plan=%s repo=%s: %v\n", planID, repository, err)
+						return
+					}
+					if _, err := scanAdapter.StartRepositoryScan(ctx, repository, organization); err != nil {
+						fmt.Fprintf(stderr, "escalation: onboarding 触发扫描失败 repo=%s: %v\n", repository, err)
+					}
+				},
 				Window:  30 * time.Second,
 				// 人工打断要等 X 就绪（未扫描则先 onboarding，见 §3 触发特例）。
 				// 等太久会把 HTTP 请求拖死，所以给 60s：超时按 ready=false 如实返回
