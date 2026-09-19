@@ -22,6 +22,8 @@ const STEP_PILL: Record<StepState, { text: string; cls: string }> = {
   gate: { text: "待人审", cls: "border-amber/40 bg-amber-well text-amber" },
   failed: { text: "失败", cls: "border-salmon/40 bg-salmon-well text-salmon" },
   wait: { text: "等待前序", cls: "border-[var(--tree-hairline)] bg-[var(--tree-zone)] text-[var(--tree-faint)]" },
+  choose: { text: "待人选", cls: "border-amber/40 bg-amber-well text-amber" },
+  confirm: { text: "待人确认", cls: "border-amber/40 bg-amber-well text-amber" },
 };
 
 const TASK_PILL: Record<string, { text: string; cls: string }> = {
@@ -141,8 +143,16 @@ export function DispatchTree({
 
       {/* Manager 组：常驻一生 */}
       <div
-        className={`rounded-[9px] bg-[var(--tree-mgr)] p-2.5 ${activeEntry?.kind === "mgr" ? hl : ""}`}
+        className={`relative rounded-[9px] bg-[var(--tree-mgr)] p-2.5 ${activeEntry?.kind === "mgr" ? hl : ""}`}
       >
+        {materialized && (total > 0 || groups.grouped.length > 0) && (
+          <span
+            className="absolute -bottom-2 right-3 z-[1] rounded-[6px] border border-[color-mix(in_oklab,var(--tree-acc)_45%,transparent)] bg-[var(--tree-bg)] px-2 py-px text-[9.5px] text-[var(--tree-acc)]"
+            title="编制徽章：Manager 麾下的 Leader 与任务数（方案 D 色环徽章继承）"
+          >
+            下辖 {groups.grouped.length} Leader · {total} 任务
+          </span>
+        )}
         <button
           className="flex w-full items-center gap-2 text-left"
           onClick={() => onOpen({ kind: "mgr" })}
@@ -224,7 +234,14 @@ export function DispatchTree({
                 className={`mt-0.5 flex w-full items-center gap-2 rounded-[7px] px-2 py-1.5 text-left hover:bg-[var(--tree-zone)] ${activeHere ? hl : ""}`}
                 onClick={() => setOpenLeader(expanded ? null : leader)}
               >
-                <IconUser size={13} className="flex-none text-[var(--tree-role-l)]" />
+                <span
+                  className={`size-2 flex-none rounded-full border-2 transition-shadow ${
+                    activeHere || expanded
+                      ? "border-[var(--tree-role-l)] shadow-[0_0_0_2px_color-mix(in_oklab,var(--tree-acc)_45%,transparent)]"
+                      : "border-[var(--tree-role-l)]/70 shadow-[0_0_0_2px_color-mix(in_oklab,var(--tree-acc)_22%,transparent)]"
+                  }`}
+                  title="Leader 色环 · Manager 光环：同属 Manager 麾下"
+                />
                 <span className="text-[12.5px] font-medium text-[var(--tree-ink)]">{leader}</span>
                 <span className="ml-auto text-[11px] text-[var(--tree-faint)]">({items.length} 任务)</span>
                 <IconChevron size={11} className={`flex-none text-[var(--tree-faint)] transition-transform ${expanded ? "rotate-90" : ""}`} />

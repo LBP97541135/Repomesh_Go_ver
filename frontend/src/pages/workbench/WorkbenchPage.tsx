@@ -28,6 +28,8 @@ import { listChangeSets, mergeChangeSet } from "../../api/scm";
 import { resolveDataSourceMode } from "../../api/source";
 import { allProjectRepositories } from "../../api/projects";
 import { allCreationOptions, type CreationOptions } from "../../api/projectIssues";
+import { selectCandidates, supplementCheck, confirmSupplements } from "../../api/discoverySelection";
+import { Modal } from "../../components/Modal";
 import { autoTrigger } from "./autoTrigger";
 import { useIssueFlowState } from "./useIssueFlowState";
 import { PlanDagCapsule } from "../../components/PlanDagCapsule";
@@ -220,6 +222,15 @@ export function WorkbenchPage({
     if (discovery.step_state !== "idle" || discovery.running_task_id !== null) return;
     // ④ 的 idle 有两义：分档未过（等人）或分档已过（该跑计划）——只有后者开火
     if (discovery.step === 4 && discovery.approval?.state !== "approved") return;
+    // 人工参与：② 是「待人选择」的门，驱动器不越门（人选完自己会触发链路）
+    if (discovery.step === 2 && issueHitl !== "ai") return;
+    // 空范围不开火：分档把必需+可能全排空时 Plan 端点必 409，白打一轮
+    if (discovery.step === 4) {
+      const picked =
+        (discovery.classification?.required?.length ?? 0) +
+        (discovery.classification?.maybe?.length ?? 0);
+      if (picked === 0) return;
+    }
     const key = `${discovery.issue_id}:${discovery.step}`;
     if (autoTrigger.has(key)) return;
     autoTrigger.set(key, newIdempotencyKey(STEP_KEY_BY_STEP[discovery.step]));
@@ -373,6 +384,11 @@ export function WorkbenchPage({
   // ── 人工门（分档审批 / 物化确认）──
   const [gateBusy, setGateBusy] = useState<"approveTiers" | "materialize" | null>(null);
   const [gateError, setGateError] = useState<string | null>(null);
+  // ── 候选分流（2026-09-18 用户裁定）：②在聊天室里选——人勾选（→③依赖图查漏）
+  //    或 AI 推断（→③走既有分档审批门），人闸与模型闸各一道。
+  const [selectionOpen, setSelectionOpen] = useState(false);
+  const [selectionBusy, setSelectionBusy] = useState(false);
+  const [pickedRepos, setPickedRepos] = useState<Record<string, boolean>>({});
   /** 每个门的连续失败次数：自动托管代行人工门时，失败够 3 次就停手并上屏。
    *
    *  2026-09-20 线上实测：此前没有这道闸 —— 自动托管在 discovery 每次 2.5s 轮询后
@@ -441,6 +457,69 @@ export function WorkbenchPage({
 
   // ── HITL 模式(既有会话):读建项入口存的选择;没存过默认「人工参与」——
   //    门等真人是最保守的缺省,不会替任何人做主。 ──
+  // ── 候选分流写回路 ──
+  const handleChooseManual = () => setSelectionOpen(true);
+  const handleChooseAI = () => {
+    if (!detail || !principal || selectionBusy) return;
+    setSelectionBusy(true);
+    triggerCandidates(detail.issue_id, {
+      created_by_agent_id: principal.agentId,
+      idempotency_key: newIdempotencyKey("candidates"),
+    })
+      .then(() => {
+        onToast("AI 已推断候选，下一步人来审批分档");
+        setReload((n) => n + 1);
+      })
+      .catch((err: unknown) => onToast(`AI 推断失败：${errText(err)}`))
+      .finally(() => setSelectionBusy(false));
+  };
+  const handleSelectionSubmit = () => {
+    if (!detail || !principal || selectionBusy) return;
+    const repositoryIds = Object.keys(repoNameById).filter((id) => pickedRepos[id]);
+    if (repositoryIds.length === 0) {
+      onToast("至少勾选一个仓库");
+      return;
+    }
+    setSelectionBusy(true);
+    selectCandidates(detail.issue_id, {
+      created_by_agent_id: principal.agentId,
+      idempotency_key: newIdempotencyKey("selection"),
+      repositoryIds,
+    })
+      .then((receipt) =>
+        supplementCheck(detail.issue_id, {
+          created_by_agent_id: principal.agentId,
+          idempotency_key: newIdempotencyKey("supplement"),
+        }).then((check) => ({ receipt, check })),
+      )
+      .then(({ check }) => {
+        setSelectionOpen(false);
+        setReload((n) => n + 1);
+        onToast(
+          check.supplement_state === "pending"
+            ? `已按你的勾选定候选；依赖图查出 ${check.supplements.length} 个漏选，待确认`
+            : "已按你的勾选定候选，依赖图核对无漏选",
+        );
+      })
+      .catch((err: unknown) => onToast(`勾选提交失败：${errText(err)}`))
+      .finally(() => setSelectionBusy(false));
+  };
+  const handleConfirmSupplements = (repositories: string[]) => {
+    if (!detail || !principal || selectionBusy) return;
+    setSelectionBusy(true);
+    confirmSupplements(detail.issue_id, {
+      created_by_agent_id: principal.agentId,
+      idempotency_key: newIdempotencyKey("supplement-confirm"),
+      repositories,
+    })
+      .then(() => {
+        onToast(`已补入 ${repositories.length} 个仓库，分档完成`);
+        setReload((n) => n + 1);
+      })
+      .catch((err: unknown) => onToast(`确认补充失败：${errText(err)}`))
+      .finally(() => setSelectionBusy(false));
+  };
+
   const [issueHitl, setIssueHitl] = useState<"ai" | "hitl">("hitl");
   const issueKey = detail?.issue_id ?? null;
   useEffect(() => {
@@ -462,8 +541,13 @@ export function WorkbenchPage({
     // 只是把同一个 409 打成上万次，原因早已摆在右栏。改完点「重试」再继续。
     if (gateFailures.current >= 3) return;
     if (discovery.classification !== null && discovery.approval?.state !== "approved") {
-      handleGate("approveTiers");
-      return;
+      // 必需+可能全空 = 模型没选出任何仓：人必须圈定范围，自动托管不代行
+      const picked =
+        (discovery.classification?.required?.length ?? 0) + (discovery.classification?.maybe?.length ?? 0);
+      if (picked > 0) {
+        handleGate("approveTiers");
+        return;
+      }
     }
     if (discovery.integration !== null && discovery.materialization === null) {
       handleGate("materialize");
@@ -661,7 +745,7 @@ export function WorkbenchPage({
 
   // ── 四点链路条（唯一进度条，数据驱动）+ DAG 胶囊/执行面板的数据 ──
   const flow = useIssueFlowState(projectId, issueId ?? "", planId, detail, reload);
-  const stepStates = deriveStepStates(discovery);
+  const stepStates = deriveStepStates(discovery, issueHitl === "hitl");
   const doneSteps = stepStates.filter((s) => s === "done").length;
   const allTasksDone = !!tasks && tasks.length > 0 && tasks.every((t) => t.status === "done");
   /** 等经理批的任务数（审核段的唯一信号）。 */
@@ -939,6 +1023,44 @@ export function WorkbenchPage({
         </div>
       </div>
 
+      {/* 候选分流：人勾选弹层（项目目录仓库） */}
+      <Modal
+        open={selectionOpen}
+        onClose={() => setSelectionOpen(false)}
+        className="m-auto w-[min(460px,92vw)] rounded-[3px] border border-line-strong bg-panel p-0 text-tx shadow-pop"
+      >
+        <div className="border-b border-line px-4 py-2.5">
+          <p className="text-[12.5px] font-semibold text-tx">勾选需求涉及的仓库</p>
+          <p className="mt-0.5 text-[11px] text-tx2">从项目目录里选；漏了的之后还有依赖图兜底查漏</p>
+        </div>
+        <div className="flex max-h-[50vh] flex-col gap-1 overflow-y-auto px-4 py-3">
+          {Object.entries(repoNameById).map(([id, name]) => (
+            <label key={id} className="flex cursor-pointer items-center gap-2.5 rounded-hard border border-line bg-ink px-3 py-2 text-[12px] hover:border-amber">
+              <input
+                type="checkbox"
+                checked={!!pickedRepos[id]}
+                onChange={() => setPickedRepos((prev) => ({ ...prev, [id]: !prev[id] }))}
+                className="size-4 accent-amber"
+              />
+              <span className="font-mono">{name}</span>
+            </label>
+          ))}
+        </div>
+        <div className="flex justify-end gap-2 border-t border-line px-4 py-2.5">
+          <button type="button" className="rounded-hard border border-line px-3 py-1 text-[11.5px] text-tx2 hover:border-amber" onClick={() => setSelectionOpen(false)}>
+            取消
+          </button>
+          <button
+            type="button"
+            disabled={selectionBusy}
+            onClick={handleSelectionSubmit}
+            className="rounded-hard bg-amber px-3.5 py-1 text-[11.5px] font-bold text-on-amber hover:bg-amber-hi disabled:opacity-50"
+          >
+            {selectionBusy ? "提交中…" : "确认勾选"}
+          </button>
+        </div>
+      </Modal>
+
       {/* 主体：左树右详情 */}
       {loading && <div className="flex-1 bg-[var(--tree-bg)] px-6 py-4 text-[12px] text-[var(--tree-faint)]">会话加载中…</div>}
       {!loading && error && (
@@ -990,6 +1112,10 @@ export function WorkbenchPage({
             onRetryPolicy={flow.reloadPolicy}
             mergePending={allTasksDone && trainCars !== null && issueHitl === "hitl"}
             onConfirmMerge={handleConfirmMerge}
+            onChooseManual={handleChooseManual}
+            onChooseAI={handleChooseAI}
+            onConfirmSupplements={handleConfirmSupplements}
+            selectionBusy={selectionBusy}
             input={
               activeEntry === null
                 ? null

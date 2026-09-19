@@ -10,7 +10,7 @@
  *  actor_id 前缀推导（agent_<role>[_<name>]），推导不出按系统条目样式。 */
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { IconCheck, IconClock, IconRun, IconSend } from "./treeIcons";
+import { IconCheck, IconClock, IconHouse, IconRun, IconSend } from "./treeIcons";
 import type { DiscoveryProducer, DiscoveryView } from "../../api/contract";
 import type { PlanTaskItem } from "../../api/taskTree";
 import type { ConversationMessage } from "../../api/conversations";
@@ -205,7 +205,6 @@ function TestEvidenceRow({ item }: { item: TestEvidenceItem }) {
   );
 }
 
-const STAGE_TITLES = ["规划", "执行", "审核", "交付"] as const;
 
 /** 阶段历史：顶栏「流程」四个阶段点开后的**只读回看**。
  *
@@ -369,6 +368,13 @@ export interface FocusPanelProps {
   /** 交付期到达且人工参与:合并确认也作为一条带按钮的消息出现在 Manager 房间 */
   mergePending?: boolean;
   onConfirmMerge?: () => void;
+  /** 候选分流(2026-09-18 用户裁定):第 2 步聊天室里选——人勾选 / AI 推断 */
+  onChooseManual?: () => void;
+  onChooseAI?: () => void;
+  /** 漏选清单确认(勾中的仓库名) */
+  onConfirmSupplements?: (repositories: string[]) => void;
+  /** 分流动作进行中(选择卡按钮置灰) */
+  selectionBusy?: boolean;
   /** 测试团队的记录（task 单点 / DAG 节点集成 / 跨仓库联调回归）。 */
   testEvidence: TestEvidenceView | null;
   /** 阶段历史（顶栏「流程」点开）要看的东西：任务行与交付列车。 */
@@ -398,6 +404,10 @@ export function FocusPanel({
   testEvidence,
   tasks,
   trainCars,
+  onChooseManual,
+  onChooseAI,
+  onConfirmSupplements,
+  selectionBusy = false,
 }: FocusPanelProps) {
   const body = (() => {
     if (entry === null) {
@@ -459,43 +469,93 @@ export function FocusPanel({
           onConfirmMerge={onConfirmMerge}
           gateBusy={gateBusy}
           gateError={gateError}
+          discovery={discovery}
+          onChooseManual={onChooseManual}
+          onChooseAI={onChooseAI}
+          onConfirmSupplements={onConfirmSupplements}
+          onRetryStep={onRetryStep}
+          selectionBusy={selectionBusy}
         />
       </div>
     );
   })();
 
   const header = (() => {
-    if (entry === null) return { title: "选择条目查看详情", role: "—", batch: "—", cls: "s" };
+    if (entry === null) {
+      return { title: "选择条目查看详情", roomNo: "RM-—", note: "点左侧步骤 / 任务行进入房间", members: [] as RoomMember[] };
+    }
     if (entry.kind === "step") {
       const titles = ["① 需求分析", "② 候选评分", "③ 分档审批", "④ 生成计划", "⑤ 物化确认"];
-      return { title: titles[entry.step - 1], role: "Manager", batch: `规划 · 步骤 ${entry.step}`, cls: "m" };
-    }
-    if (entry.kind === "task") {
       return {
-        title: task ? `${task.taskUid ?? ""} ${task.title}`.trim() : "任务详情",
-        // 与任务行同一套取值顺序：装配期显示名 → 真实执行者（后端任务树读面带出的
-        // assignee）→ 才写「待指派」。此前这里只看 leaderLabel，而物化写入端不填它，
-        // 于是右栏顶部永远写「待指派」，哪怕这条任务已经跑完。
-        role: task?.leaderLabel || task?.assignee || "待指派",
-        batch: `批次${task?.batchNo ?? "—"}`,
-        cls: "l",
+        title: titles[entry.step - 1], roomNo: `RM-S${entry.step}`,
+        note: `规划 · 步骤 ${entry.step}`, members: [{ label: "M", cls: "m" }] as RoomMember[],
       };
     }
-    return { title: "Manager · 主会话时间线", role: "Manager", batch: "主会话", cls: "m" };
+    if (entry.kind === "task") {
+      const members: RoomMember[] = [];
+      if (task?.leaderLabel) members.push({ label: "L", cls: "l", name: task.leaderLabel });
+      if (task?.workerLabel) members.push({ label: "W", cls: "w", name: task.workerLabel });
+      // 与任务行同一套取值顺序：装配期显示名 → 真实执行者（后端任务树读面带出的
+      // assignee）→ 才写「待指派」。此前这里只看 leaderLabel，而物化写入端不填它，
+      // 于是右栏顶部永远写「待指派」，哪怕这条任务已经跑完。
+      return {
+        title: task ? `${task.taskUid ?? ""} ${task.title}`.trim() : "任务详情",
+        roomNo: `RM-${(task?.taskUid ?? task?.id ?? "—").split(":").pop()?.slice(0, 6).toUpperCase() ?? "—"}`,
+        note: `${task?.leaderLabel || task?.assignee || "待指派"} · 批次${task?.batchNo ?? "—"}`,
+        members,
+      };
+    }
+    return {
+      title: "Manager · 主会话时间线", roomNo: "RM-MGR",
+      note: "主会话 · 规划与下发全程回看", members: [{ label: "M", cls: "m" }, { label: "你", cls: "u" }] as RoomMember[],
+    };
   })();
 
   return (
-    <aside className="flex h-full w-[400px] flex-none flex-col border-l border-line bg-[var(--tree-bg)]">
-      <div className="border-b border-[var(--tree-hairline)] px-4 pb-2.5 pt-3.5">
-        <p className="text-[13px] font-semibold leading-[1.45] text-[var(--tree-ink)]">{header.title}</p>
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <span className={`rounded-[5px] px-1.5 py-px text-[9.5px] ${RPILL_CLS[header.cls]}`}>{header.role}</span>
-          <span className="rounded-[5px] bg-[var(--tree-zone)] px-1.5 py-px text-[10px] text-[var(--tree-sub)]">{header.batch}</span>
+    <aside className="flex h-full w-[400px] flex-none flex-col border-l border-line bg-[var(--tree-card)]">
+      {/* 门牌（房间样式提案 E，2026-09-18）：房檐条 = 房间图标 + 房间名 + mono 门牌号，
+          右侧住户头像堆叠 + 在线点——房间有地址、有住户。 */}
+      <div className="flex items-center gap-2.5 border-b border-[var(--tree-hairline)] bg-[var(--tree-zone)] px-4 py-2.5">
+        <IconHouse size={15} className="flex-none text-[var(--tree-acc)]" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] font-semibold leading-[1.4] text-[var(--tree-ink)]">{header.title}</p>
+          <p className="truncate font-mono text-[9.5px] tracking-wide text-[var(--tree-faint)]">
+            {header.roomNo} · {header.note}
+          </p>
         </div>
+        {header.members.length > 0 && (
+          <div className="ml-auto flex flex-none pl-1.5">
+            {header.members.map((m, i) => (
+              <RoomAvatar key={i} member={m} />
+            ))}
+          </div>
+        )}
       </div>
+      {/* 天花板：房檐下一条渐变阴影，「进到屋里」的纵深 */}
+      <div className="h-2.5 flex-none bg-gradient-to-b from-[color-mix(in_oklab,var(--tree-faint)_16%,transparent)] to-transparent" />
       {body}
       {input && <FocusInput {...input} />}
     </aside>
+  );
+}
+
+/** 门牌住户头像：角色色圆 + 在线点（「你」按离线渲染——人在门外看） */
+type RoomMember = { label: string; cls: "m" | "l" | "w" | "u"; name?: string };
+const ROOM_AVA_CLS: Record<string, string> = {
+  m: "bg-[var(--tree-acc)] text-[#16130d]",
+  l: "bg-[var(--tree-role-l)] text-white",
+  w: "bg-olive text-white",
+  u: "bg-amber text-[#16130d]",
+};
+function RoomAvatar({ member }: { member: RoomMember }) {
+  return (
+    <span
+      className={`relative grid size-[22px] place-items-center rounded-full text-[8.5px] font-bold ring-2 ring-[var(--tree-zone)] ${ROOM_AVA_CLS[member.cls]} -ml-1.5 first:ml-0`}
+      title={member.name ? `${member.name}（${member.cls === "m" ? "Manager" : member.cls === "l" ? "Leader" : member.cls === "w" ? "Worker" : "用户"}）` : undefined}
+    >
+      {member.label}
+      <span className={`absolute -right-0.5 -bottom-0.5 size-2 rounded-full border-[1.5px] border-[var(--tree-zone)] ${member.cls === "u" ? "bg-[var(--tree-faint)]" : "bg-[#4caf7d]"}`} />
+    </span>
   );
 }
 
@@ -508,6 +568,12 @@ function GateStack({
   onConfirmMerge,
   gateBusy,
   gateError,
+  discovery,
+  onChooseManual,
+  onChooseAI,
+  onConfirmSupplements,
+  onRetryStep,
+  selectionBusy = false,
 }: {
   stepStates: StepState[];
   mergePending: boolean;
@@ -515,8 +581,33 @@ function GateStack({
   onConfirmMerge?: () => void;
   gateBusy: "approveTiers" | "materialize" | null;
   gateError: string | null;
+  discovery: DiscoveryView | null;
+  onChooseManual?: () => void;
+  onChooseAI?: () => void;
+  onConfirmSupplements?: (repositories: string[]) => void;
+  onRetryStep?: (step: 1 | 2 | 3 | 4) => void;
+  selectionBusy?: boolean;
 }) {
   const cards: Array<{ key: string; title: string; desc: string; label: string; action: () => void; busy: boolean }> = [];
+  // 失败卡点卡：发现链哪步带错误，原因原文就地展示，重试换新幂等键走原触发端点
+  const stepNames = ["需求分析", "候选评分", "分档审批", "生成计划"] as const;
+  const errorOf: Array<string | null> = [
+    discovery?.analysis?.error ? String((discovery.analysis.error as { message?: string }).message ?? "执行失败") : null,
+    discovery?.candidates?.error ? String((discovery.candidates.error as { message?: string }).message ?? "执行失败") : null,
+    discovery?.classification?.error ? String((discovery.classification.error as { message?: string }).message ?? "执行失败") : null,
+    null,
+  ];
+  errorOf.forEach((msg, i) => {
+    if (msg === null) return;
+    cards.push({
+      key: `failed-${i + 1}`,
+      title: `发现链 · ${stepNames[i]} 失败`,
+      desc: msg,
+      label: "重试",
+      action: () => onRetryStep?.((i + 1) as 1 | 2 | 3 | 4),
+      busy: false,
+    });
+  });
   if (stepStates[2] === "gate") {
     cards.push({
       key: "tiers",
@@ -547,9 +638,44 @@ function GateStack({
       busy: false,
     });
   }
-  if (cards.length === 0) return null;
+  const supplementPending = stepStates[2] === "confirm";
+  if (cards.length === 0 && stepStates[1] !== "choose" && !supplementPending) return null;
   return (
     <div className="flex flex-col gap-2.5 border-t border-dashed border-[var(--tree-hairline)] px-4 py-3">
+      {stepStates[1] === "choose" && (
+        <div className="flex gap-2.5">
+          <span className="mt-0.5 grid h-[22px] w-[22px] flex-none place-items-center rounded-full bg-amber-well text-amber">
+            <IconClock size={12} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="mb-0.5 flex items-center gap-1.5">
+              <span className="text-[11px] font-medium text-[var(--tree-ink)]">候选仓库 · 待人选择</span>
+            </div>
+            <div className="rounded-hard border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+              <p className="text-[11px] leading-[1.6] text-[var(--tree-sub)]">这个需求涉及哪些仓库?你来勾选,或让 AI 从项目目录推断。</p>
+              <div className="mt-1.5 flex gap-2">
+                <button
+                  type="button"
+                  disabled={selectionBusy}
+                  onClick={() => onChooseManual?.()}
+                  className="rounded-hard border border-amber/40 bg-amber-well px-3 py-1 text-[11.5px] font-semibold text-amber hover:bg-amber-well/80 disabled:opacity-50"
+                >
+                  我自己勾选
+                </button>
+                <button
+                  type="button"
+                  disabled={selectionBusy}
+                  onClick={() => onChooseAI?.()}
+                  className="rounded-hard border border-[var(--tree-acc)] bg-[var(--tree-acc)]/10 px-3 py-1 text-[11.5px] font-semibold text-[var(--tree-acc)] hover:bg-[var(--tree-acc)]/20 disabled:opacity-50"
+                >
+                  让 AI 推断
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {supplementPending && <SupplementConfirmCard discovery={discovery} onConfirm={onConfirmSupplements} busy={selectionBusy} />}
       {cards.map((c) => (
         <div key={c.key} className="flex gap-2.5">
           <span className="mt-0.5 grid h-[22px] w-[22px] flex-none place-items-center rounded-full bg-amber-well text-amber">
@@ -576,6 +702,61 @@ function GateStack({
       {gateError && (
         <p className="rounded-[7px] border border-salmon/40 bg-salmon-well px-2.5 py-1.5 text-[11px] text-salmon">{gateError}</p>
       )}
+    </div>
+  );
+}
+
+/** 漏选清单确认卡(人工勾选路径的第 3 步)：依赖图查出的漏选仓库，
+ *  逐项勾选(默认全选)后确认并入必需档。 */
+function SupplementConfirmCard({
+  discovery,
+  onConfirm,
+  busy,
+}: {
+  discovery: DiscoveryView | null;
+  onConfirm?: (repositories: string[]) => void;
+  busy: boolean;
+}) {
+  const supplements = discovery?.classification?.supplements ?? [];
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const isChecked = (name: string) => checked[name] !== false; // 默认勾选
+  const chosen = supplements.filter((s) => isChecked(s.repository)).map((s) => s.repository);
+  if (supplements.length === 0) return null;
+  return (
+    <div className="flex gap-2.5">
+      <span className="mt-0.5 grid h-[22px] w-[22px] flex-none place-items-center rounded-full bg-amber-well text-amber">
+        <IconClock size={12} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="mb-0.5 flex items-center gap-1.5">
+          <span className="text-[11px] font-semibold text-[var(--tree-ink)]">漏选清单 · 待人确认</span>
+        </div>
+        <div className="rounded-hard border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+          <p className="text-[11px] leading-[1.6] text-[var(--tree-sub)]">依赖图显示这些仓库可能被漏选(你勾选的仓库依赖它们):</p>
+          <div className="mt-1 flex flex-col gap-0.5">
+            {supplements.map((s) => (
+              <label key={s.repository} className="flex cursor-pointer items-center gap-2 text-[11.5px] text-[var(--tree-ink)]">
+                <input
+                  type="checkbox"
+                  checked={isChecked(s.repository)}
+                  onChange={() => setChecked((prev) => ({ ...prev, [s.repository]: !isChecked(s.repository) }))}
+                  className="size-3.5 accent-[var(--tree-acc)]"
+                />
+                <span className="font-mono text-[11px]">{s.repository}</span>
+                {s.via && <span className="text-[10px] text-[var(--tree-faint)]">via {s.via}</span>}
+              </label>
+            ))}
+          </div>
+          <button
+            type="button"
+            disabled={busy || chosen.length === 0}
+            onClick={() => onConfirm?.(chosen)}
+            className="mt-1.5 rounded-hard border border-amber/40 bg-amber-well px-3 py-1 text-[11.5px] font-semibold text-amber hover:bg-amber-well/80 disabled:opacity-50"
+          >
+            {busy ? "提交中…" : `确认补充${chosen.length > 0 ? `(${chosen.length})` : ""}`}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

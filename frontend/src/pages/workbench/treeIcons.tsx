@@ -97,3 +97,14 @@ export function IconBolt(props: { size?: number; className?: string }) {
     </Ic>
   );
 }
+
+/** 房间:房子轮廓(右栏门牌用,2026-09-18 房间样式提案) */
+export function IconHouse(props: { size?: number; className?: string }) {
+  return (
+    <Ic {...props}>
+      <path d="M3 11.5 12 4l9 7.5" />
+      <path d="M5.5 10.5V20h13v-9.5" />
+      <path d="M10 20v-5.5h4V20" />
+    </Ic>
+  );
+}

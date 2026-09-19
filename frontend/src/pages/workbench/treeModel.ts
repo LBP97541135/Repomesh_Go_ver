@@ -19,13 +19,13 @@ export type FocusEntry =
   // 只能自己翻；现在点哪段就切到哪段的历史。
   | { kind: "stage"; stage: 0 | 1 | 2 | 3 };
 
-export type StepState = "done" | "run" | "gate" | "wait" | "failed";
+export type StepState = "done" | "run" | "gate" | "wait" | "failed" | "choose" | "confirm";
 
 export const STEP_LABELS = ["需求分析", "候选评分", "分档审批", "生成计划", "物化确认"] as const;
 
 /** 规划步骤态：①②④跟 artifact 走（analysis/candidates/plan），③⑤是人工门
  *  （approval.state / materialization.status）。 */
-export function deriveStepStates(d: DiscoveryView | null): StepState[] {
+export function deriveStepStates(d: DiscoveryView | null, hitl = false): StepState[] {
   const states: StepState[] = ["wait", "wait", "wait", "wait", "wait"];
   if (!d) return states;
   const running = d.step_state === "running";
@@ -43,26 +43,32 @@ export function deriveStepStates(d: DiscoveryView | null): StepState[] {
             ? "failed"
             : "wait"
         : "wait";
-  // ② 候选评分
+  // ② 候选评分（分流步，2026-09-18 用户裁定）：人工参与且分析已过 → 停在
+  // 「待人选」，等聊天室里的选择；自动托管 → 照常自动推进。
   states[1] =
     d.candidates !== null
       ? d.candidates?.error
         ? "failed"
         : "done"
       : d.step === 2 && states[0] === "done"
-        ? running
-          ? "run"
-          : failed
-            ? "failed"
-            : "wait"
+        ? hitl
+          ? "choose"
+          : running
+            ? "run"
+            : failed
+              ? "failed"
+              : "wait"
         : "wait";
-  // ③ 分档审批（人工门）
+  // ③ 分档审批：漏选清单待人确认 > 人工审批门
+  const supplementPending = d.classification?.supplement_state === "pending";
   states[2] =
     d.approval?.state === "approved"
       ? "done"
-      : d.classification !== null
-        ? "gate"
-        : d.step === 3 && states[1] === "done"
+      : supplementPending
+        ? "confirm"
+        : d.classification !== null
+          ? "gate"
+          : d.step === 3 && states[1] === "done"
           ? running
             ? "run"
             : failed
