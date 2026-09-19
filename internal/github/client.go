@@ -120,6 +120,11 @@ func (c *Client) request(ctx context.Context, method, target, token string, body
 	if method == http.MethodPost {
 		req.Header.Set("Accept", "application/json")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	} else if body != nil {
+		// PUT/PATCH 带 JSON 体的端点（合并 PR 就是 PUT）必须自己声明
+		// Content-Type —— 少了它 GitHub 会以 415 拒绝，而 415 在 responseError
+		// 里落到 default 分支，界面只看到一句「github: unavailable」。
+		req.Header.Set("Content-Type", "application/json")
 	}
 	httpClient := &http.Client{
 		Transport:     c.transport,
@@ -135,7 +140,10 @@ func (c *Client) request(ctx context.Context, method, target, token string, body
 	if err != nil || len(payload) > maxResponseBytes {
 		return nil, nil, response.StatusCode, &Error{Kind: "unavailable"}
 	}
-	if response.StatusCode != http.StatusOK {
+	// 2026-09-20 线上实测：这里此前只认 200，而合并 PR 成功返回的是 **201
+	// Created** —— 于是「确认合并」明明合成功了也会被当成失败（201 落到
+	// responseError 的 default 分支 = "github: unavailable"）。2xx 一律算成功。
+	if response.StatusCode < 200 || response.StatusCode > 299 {
 		return nil, nil, response.StatusCode, responseError(response.StatusCode, response.Header, payload)
 	}
 	return payload, response.Header, response.StatusCode, nil

@@ -30,5 +30,17 @@ func (c *Client) MergePullRequest(ctx context.Context, token, owner, name string
 	if status < 200 || status > 299 {
 		return fmt.Errorf("github: merge rejected with HTTP %d: %s", status, string(body))
 	}
+	// 2xx 也不等于"合掉了"：GitHub 会在 200 里回 {"merged": false, "message": …}
+	// （例如分支保护拦下）。只有明确看到 merged=false 才算失败，如实把 message 带出去。
+	var result struct {
+		Merged  *bool  `json:"merged"`
+		Message string `json:"message"`
+	}
+	if decode(body, &result) == nil && result.Merged != nil && !*result.Merged {
+		if result.Message == "" {
+			result.Message = "GitHub 没有给出原因"
+		}
+		return fmt.Errorf("github: merge not applied: %s", result.Message)
+	}
 	return nil
 }
