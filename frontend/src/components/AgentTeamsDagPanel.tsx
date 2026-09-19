@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { fetchAgentTeamsWorkflow, type AtTask } from "../api/agentteams";
 import { errText } from "../display";
@@ -25,26 +25,38 @@ const ICON_DIM = '<svg width="8" height="8" viewBox="0 0 16 16" fill="none"><cir
 const iconOf = (status: string) =>
   status === "completed" ? ICON_CHECK : status === "in-progress" || status === "submitted" ? ICON_RUN : ICON_DIM;
 
-export function AgentTeamsDagPanel({ issueId }: { issueId: string }) {
+export function AgentTeamsDagPanel({
+  issueId,
+  defaultProjectId,
+}: {
+  issueId: string;
+  /** 工作台接回来时带的默认 project id（当前 Issue 的项目）。
+   *  给了就自动拉一次，人不用手输；手输框仍在，用于换成别的前缀做对照。
+   *  注意：后端把 projectId 原样转给上游 Controller 的
+   *  `/api/v1/projects/{id}/workflow`，而上游这份部署里 projects 是**空的**
+   *  （只有 teams），所以自动拉的结果很可能就是 404——面板会如实报出来。 */
+  defaultProjectId?: string;
+}) {
   const [open, setOpen] = useState(false);
-  const [projectId, setProjectId] = useState(() => localStorage.getItem("at.project") ?? "");
+  const [projectId, setProjectId] = useState(() => localStorage.getItem("at.project") ?? defaultProjectId ?? "");
   const [team, setTeam] = useState(() => localStorage.getItem("at.team") ?? "");
   const [tasks, setTasks] = useState<AtTask[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
-  const load = async () => {
-    if (!projectId.trim()) {
+  const load = async (overrideId?: string) => {
+    const id = (overrideId ?? projectId).trim();
+    if (!id) {
       setError("先填 AgentTeams 的 project id。");
       return;
     }
     setBusy(true);
     setError(null);
-    localStorage.setItem("at.project", projectId.trim());
+    localStorage.setItem("at.project", id);
     localStorage.setItem("at.team", team.trim());
     try {
-      setTasks(await fetchAgentTeamsWorkflow(projectId.trim(), team.trim() || undefined));
+      setTasks(await fetchAgentTeamsWorkflow(id, team.trim() || undefined));
     } catch (err: unknown) {
       setTasks(null);
       setError(errText(err));
@@ -52,6 +64,16 @@ export function AgentTeamsDagPanel({ issueId }: { issueId: string }) {
       setBusy(false);
     }
   };
+
+  // 自动拉一次（只一次）：没有默认 id 就不动，保持"不空转"的既定行为。
+  const autoLoaded = useRef(false);
+  useEffect(() => {
+    const id = (defaultProjectId ?? "").trim();
+    if (autoLoaded.current || id === "") return;
+    autoLoaded.current = true;
+    void load(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultProjectId]);
 
   return (
     <div className="mt-2 rounded-hard border border-line bg-panel">
@@ -79,7 +101,7 @@ export function AgentTeamsDagPanel({ issueId }: { issueId: string }) {
               onChange={(e) => setTeam(e.target.value)}
               className="w-40 rounded-md border border-line bg-base px-2 py-1 text-cream"
             />
-            <button onClick={load} disabled={busy} className="rounded-md border border-line px-3 py-1 text-cream disabled:opacity-50">
+            <button onClick={() => load()} disabled={busy} className="rounded-md border border-line px-3 py-1 text-cream disabled:opacity-50">
               {busy ? "加载中…" : "加载"}
             </button>
           </div>
