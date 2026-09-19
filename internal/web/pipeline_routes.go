@@ -173,6 +173,15 @@ func registerPipelineRoutes(mux *http.ServeMux, auth Auth, pipeline Pipeline) {
 		if err != nil {
 			return err
 		}
+		// 判定"影响当前计划"= 收集窗已开、需要重排 v2。这里把**重排派发意图**
+		// 登记进发现链（第 6 步），由 coordinator 派给 Leader agent 产出 v2。
+		// 登记失败**不能吞**：判定了要重排却没人产 v2，返回 200 会让人以为计划已经动了。
+		if outcome.AffectsPlan && pipeline.ReplanHook != nil {
+			if err := pipeline.ReplanHook(r.Context(), r.PathValue("planId"), outcome.NodeID, outcome.AffectedSet); err != nil {
+				return err
+			}
+			outcome.ReplanQueued = true
+		}
 		writeJSON(w, http.StatusOK, outcome)
 		return nil
 	})

@@ -231,7 +231,7 @@ func (p *PostgresStore) ApplyRevision(ctx context.Context, cmd RevisionCommand) 
 	if _, err := tx.Exec(ctx, `
 		UPDATE public.plans
 		SET plan_version = $2, execution_batches = $3::jsonb, task_dag = $4::jsonb,
-		    revisions = revisions || $5::jsonb
+		    revisions = revisions || $5::jsonb, replan_state = ''
 		WHERE id = $1 AND plan_version = $6`,
 		cmd.PlanID, resultVersion, newBatchesJSON, dagJSON, entryJSON, cmd.ExpectedVersion); err != nil {
 		return PlanRevision{}, err
@@ -347,10 +347,10 @@ func migrateTasksTx(ctx context.Context, tx pgx.Tx, organizationID, projectID, p
 		if match == nil || claimed[match.ID] {
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO public.tasks
-				  (id, organization_id, project_id, plan_id, task_uid, repository_id, title, status)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued')`,
+				  (id, organization_id, project_id, plan_id, task_uid, repository_id, title, instruction, acceptance, status)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'queued')`,
 				newUUIDv4(), organizationID, projectID, planID, in.TaskUID,
-				in.RepositoryID, in.Title); err != nil {
+				in.RepositoryID, in.Title, in.Instruction, in.Acceptance); err != nil {
 				return 0, 0, err
 			}
 			created++
@@ -359,8 +359,8 @@ func migrateTasksTx(ctx context.Context, tx pgx.Tx, organizationID, projectID, p
 		claimed[match.ID] = true
 		if _, err := tx.Exec(ctx, `
 			UPDATE public.tasks
-			SET task_uid = $2, repository_id = $3, title = $4
-			WHERE id = $1`, match.ID, in.TaskUID, in.RepositoryID, in.Title); err != nil {
+			SET task_uid = $2, repository_id = $3, title = $4, instruction = $5, acceptance = $6
+			WHERE id = $1`, match.ID, in.TaskUID, in.RepositoryID, in.Title, in.Instruction, in.Acceptance); err != nil {
 			return 0, 0, err
 		}
 	}

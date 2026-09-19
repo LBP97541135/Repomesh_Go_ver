@@ -53,6 +53,10 @@ type Service struct {
 
 	// httpClient 可注入（测试用）；nil 时用带超时的默认客户端。
 	httpClient *http.Client
+
+	// replanner 是重排 v2 的落库端口（组合根接 tasks.PostgresStore.Replan）。
+	// Nil = 未接线：第 6 步（重排）会**如实失败**，而不是报一个"已重排"的假成功。
+	replanner PlanReplanner
 }
 
 // New builds the service over the issue schema pool.
@@ -73,6 +77,12 @@ func (s *Service) WithHTTPClient(client *http.Client) *Service {
 // WithDecisions attaches the decision chain writer (composition root).
 func (s *Service) WithDecisions(d *decisionchain.Service) *Service {
 	s.decisions = d
+	return s
+}
+
+// WithReplanner attaches the v2 replan port (composition root).
+func (s *Service) WithReplanner(r PlanReplanner) *Service {
+	s.replanner = r
 	return s
 }
 

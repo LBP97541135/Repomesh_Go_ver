@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -95,6 +96,8 @@ func (d *planningDispatcher) activeExecutorWorker(ctx context.Context) (string, 
 }
 
 type planningRow struct {
+	// context 是入队时随意图落库的派发上下文（重排步用它带上一版计划与受影响集合）。
+	context   []byte
 	id        string
 	issueID   string
 	step      int
@@ -122,7 +125,7 @@ func (d *planningDispatcher) tick(ctx context.Context) bool {
 
 // reservePending 给每条还没派发的意图建 attempt + agent_run，并把 prompt 写进工作区。
 func (d *planningDispatcher) reservePending(ctx context.Context) (bool, error) {
-	rows, err := d.pool.Query(ctx, `SELECT id::text, issue_id, step, role, skill_id
+	rows, err := d.pool.Query(ctx, `SELECT id::text, issue_id, step, role, skill_id, COALESCE(context, '{}'::jsonb)
 		FROM repomesh_issues.planning_runs
 		WHERE state='pending' AND run_id IS NULL
 		ORDER BY created_at LIMIT 1`)
@@ -133,7 +136,7 @@ func (d *planningDispatcher) reservePending(ctx context.Context) (bool, error) {
 	var pending *planningRow
 	for rows.Next() {
 		row := planningRow{}
-		if err := rows.Scan(&row.id, &row.issueID, &row.step, &row.role, &row.skillID); err != nil {
+		if err := rows.Scan(&row.id, &row.issueID, &row.step, &row.role, &row.skillID, &row.context); err != nil {
 			return false, err
 		}
 		pending = &row
@@ -193,12 +196,32 @@ func (d *planningDispatcher) dispatch(ctx context.Context, row planningRow) (boo
 	// ② 候选评分与 ④ 生成计划必须看到仓库名片（扫描产出的目录/依赖/近期提交），
 	// 否则 agent 只能凭仓库名猜相关性 —— 那正是"找仓库不准"的老问题。
 	summaries := []byte(nil)
-	if row.step == discovery.PlanningCandidates || row.step == discovery.PlanningPlan {
+	if row.step == discovery.PlanningCandidates || row.step == discovery.PlanningPlan || row.step == discovery.PlanningReplan {
 		if encoded, err := d.service.RepoSummaries(ctx, projectID); err == nil {
 			summaries = encoded
 		}
 	}
-	prompt := discovery.PlanningPrompt(row.step, requirement, summaries, skill.SeedDoc(row.skillID))
+	// 重排步的额外输入：上一版计划快照（agent 是在 v1 上改）与受影响仓库集合
+	// （人工打断的判定结果，随意图落库）。读不到就留空 —— 不编一份"上一版计划"。
+	prior := discovery.ReplanContext{}
+	if row.step == discovery.PlanningReplan {
+		if snapshot, err := d.service.PlanSnapshot(ctx, row.issueID); err == nil && len(snapshot) > 0 {
+			if encoded, err := json.Marshal(snapshot); err == nil {
+				prior.PlanJSON = encoded
+			}
+			if version, _ := snapshot["plan_version"].(string); version != "" {
+				prior.PlanVersion = version
+			}
+		}
+		var runContext struct {
+			AffectedRepositories []string `json:"affected_repositories"`
+		}
+		if len(row.context) > 0 {
+			_ = json.Unmarshal(row.context, &runContext)
+		}
+		prior.AffectedRepositories = runContext.AffectedRepositories
+	}
+	prompt := discovery.PlanningPrompt(row.step, requirement, summaries, skill.SeedDoc(row.skillID), prior)
 	if err := os.WriteFile(filepath.Join(workspace, "prompt.txt"), []byte(prompt), 0o644); err != nil {
 		return false, fmt.Errorf("coordinator: planning prompt write failed: %w", err)
 	}

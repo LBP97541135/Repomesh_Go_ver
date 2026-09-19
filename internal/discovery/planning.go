@@ -34,6 +34,9 @@ const (
 	PlanningAnalysis   = 1
 	PlanningCandidates = 2
 	PlanningPlan       = 4
+	// PlanningReplan 是收集窗开完之后的**重排步**（协议 §2 步骤 3-5 的下半段）：
+	// 人在执行中打断并引入新仓库，收集窗的受影响集合上由 Leader 产出 v2。
+	PlanningReplan = 6
 )
 
 // PlanningArtifactFile 是 agent 必须写出的产物文件名（工作区根下）。
@@ -46,6 +49,8 @@ func PlanningRoleFor(step int) (role, skillID string) {
 		return "organization_leader", "project-intake"
 	case PlanningCandidates:
 		return "organization_leader", "cross-repo-planning"
+	case PlanningReplan:
+		return "repository_leader", "task-decomposition"
 	case PlanningPlan:
 		return "repository_leader", "task-decomposition"
 	}
@@ -85,6 +90,15 @@ func PlanningSchemaFor(step int) string {
      "acceptance": "怎么算做完（可验证的一句话）", "depends_on": ["上游任务的 title"]}
   ]
 }`
+	case PlanningReplan:
+		return `{
+  "repositories": ["owner/name", "..."],
+  "tasks": [
+    {"repository": "owner/name", "title": "任务标题", "instruction": "给执行者的完整指令",
+     "acceptance": "怎么算做完（可验证的一句话）", "depends_on": ["上游任务的 title"]}
+  ],
+  "reason": "为什么这样重排：引用受影响仓库集合与你保留/新增/删除的理由"
+}`
 	}
 	return "{}"
 }
@@ -96,7 +110,7 @@ func PlanningSchemaFor(step int) string {
 //     第二份真相，技能库改了 agent 拿到的还是旧话术；
 //  2. 这次要处理的输入（需求原文、仓库名片）；
 //  3. 输出 schema + 落盘要求（产物写到工作区的 planning-artifact.json）。
-func PlanningPrompt(step int, requirement string, repoSummaries []byte, skillDoc string) string {
+func PlanningPrompt(step int, requirement string, repoSummaries []byte, skillDoc string, prior ReplanContext) string {
 	role, skillID := PlanningRoleFor(step)
 	var b strings.Builder
 	fmt.Fprintf(&b, "你是 RepoMesh 的 %s。\n\n", roleLabel(role))
@@ -109,6 +123,19 @@ func PlanningPrompt(step int, requirement string, repoSummaries []byte, skillDoc
 	fmt.Fprintf(&b, "## 本次需求\n\n%s\n\n", strings.TrimSpace(requirement))
 	if len(repoSummaries) > 0 {
 		fmt.Fprintf(&b, "## 候选仓库名片（扫描产出，含目录/依赖/近期提交）\n\n```json\n%s\n```\n\n", string(repoSummaries))
+	}
+	if step == PlanningReplan {
+		// 重排的输入必须包含**上一版计划**与受影响集合：agent 是在 v1 上改，
+		// 不是从零猜一遍 —— 否则每次重排都会把已经定好的批次与任务丢掉。
+		if len(prior.PlanJSON) > 0 {
+			fmt.Fprintf(&b, "## 上一版计划（%s，你正在它的基础上重排）\n\n```json\n%s\n```\n\n",
+				prior.PlanVersion, string(prior.PlanJSON))
+		}
+		if len(prior.AffectedRepositories) > 0 {
+			fmt.Fprintf(&b, "## 本次受影响仓库集合（人工打断的判定结果，扫描已就绪）\n\n%s\n\n",
+				strings.Join(prior.AffectedRepositories, ", "))
+		}
+		b.WriteString("## 重排要求\n\n上一版里已存在、且不受影响的任务**原样保留**（标题保持一致，这样任务身份能在换代时对上）；受影响与新引入的仓库要给出完整任务（标题/指令/验收标准）。\n\n")
 	}
 	fmt.Fprintf(&b, "## 必须产出的结果\n\n只输出下面这个 JSON（不要解释、不要 markdown 代码块外的文字）：\n\n%s\n\n", PlanningSchemaFor(step))
 	fmt.Fprintf(&b, "把这份 JSON 写入当前目录下的 `%s`，然后结束。\n", PlanningArtifactFile)
@@ -159,12 +186,20 @@ func ParsePlanningArtifact(step int, raw []byte) (map[string]any, error) {
 		if items, _ := artifact["candidates"].([]any); len(items) == 0 {
 			return nil, fmt.Errorf("缺少 candidates（候选仓库分档）")
 		}
-	case PlanningPlan:
+	case PlanningPlan, PlanningReplan:
 		if tasks, _ := artifact["tasks"].([]any); len(tasks) == 0 {
 			return nil, fmt.Errorf("缺少 tasks（任务 DAG）")
 		}
 	}
 	return artifact, nil
+}
+
+// ReplanContext 是重排步（第 6 步）的额外输入：上一版计划快照与受影响仓库集合。
+// 其它步留空 —— 不为"统一"给不需要它的步硬塞上下文。
+type ReplanContext struct {
+	PlanVersion          string
+	PlanJSON             []byte
+	AffectedRepositories []string
 }
 
 // PlanningProvenance 是这次产物的出处（审计用：谁产的、用的哪把技能、哪个 run）。
@@ -309,11 +344,92 @@ func (s *Service) ApplyPlanningArtifact(ctx context.Context, tx pgx.Tx, st *Stat
 				"run_id": prov.RunID, "agent_kind": prov.AgentKind,
 			},
 		}
+	case PlanningReplan:
+		tasks, _ := artifact["tasks"].([]any)
+		repositories, _ := artifact["repositories"].([]any)
+		if len(repositories) == 0 {
+			seen := map[string]bool{}
+			for _, entry := range tasks {
+				task, ok := entry.(map[string]any)
+				if !ok {
+					continue
+				}
+				if name, _ := task["repository"].(string); name != "" && !seen[name] {
+					seen[name] = true
+					repositories = append(repositories, name)
+				}
+			}
+		}
+		// v2 是**同一把计划**的新版本，不是另开一把计划：plan_id 必须沿用上一版。
+		planID, _ := st.Plan["plan_id"].(string)
+		if strings.TrimSpace(planID) == "" {
+			return fmt.Errorf("discovery: 没有上一版计划快照，无法定位要换代的计划（重排被拒）")
+		}
+		if s.replanner == nil {
+			// 端口未接线：产物读到了但没有 v2 落库。**如实失败** —— 报成功而计划
+			// 一动没动，比能力缺失更坏（人会以为已经生效）。
+			return fmt.Errorf("discovery: 重排端口未接线，v2 未落库")
+		}
+		runContext, err := planningRunContextTx(ctx, tx, st.IssueID, PlanningReplan)
+		if err != nil {
+			return err
+		}
+		repoNames := []string{}
+		for _, raw := range repositories {
+			if name, ok := raw.(string); ok && strings.TrimSpace(name) != "" {
+				repoNames = append(repoNames, name)
+			}
+		}
+		replanTasks, dag, err := replanTasksFromArtifact(tasks)
+		if err != nil {
+			return err
+		}
+		reason, _ := artifact["reason"].(string)
+		upstream, _ := runContext["upstream_ref"].(string)
+		result, err := s.replanner.ApplyReplan(ctx, ReplanRequest{
+			PlanID:         planID,
+			Actor:          prov.Role,
+			Reason:         reason,
+			UpstreamRef:    upstream,
+			IdempotencyKey: "replan:" + prov.RunID,
+			Repositories:   repoNames,
+			Tasks:          replanTasks,
+			DAG:            dag,
+		})
+		if err != nil {
+			return err
+		}
+		previousVersion, _ := st.Plan["plan_version"].(string)
+		st.Plan = map[string]any{
+			"plan_id":        planID,
+			"plan_version":   result.ResultVersion,
+			"repositories":   repositories,
+			"tasks":          tasks,
+			"replanned_from": previousVersion,
+			"replan_reason":  reason,
+			"ran_at":         time.Now().UTC(),
+			"producer": map[string]any{
+				"role": prov.Role, "skill_id": prov.SkillID,
+				"run_id": prov.RunID, "agent_kind": prov.AgentKind,
+			},
+		}
+		st.Integration = map[string]any{
+			"task_dag_count":   len(tasks),
+			"batch_count":      1,
+			"contract_count":   0,
+			"revision":         result.ResultVersion,
+			"created_tasks":    result.CreatedTasks,
+			"superseded_tasks": result.SupersededTasks,
+			"producer": map[string]any{
+				"role": prov.Role, "skill_id": prov.SkillID,
+				"run_id": prov.RunID, "agent_kind": prov.AgentKind,
+			},
+		}
 	default:
 		return fmt.Errorf("discovery: step %d 不是可派发的规划步", step)
 	}
 	// 决策链：这一步的结论由哪个角色、哪把技能、哪个 run 产出 —— 审计的主键。
-	stepName := map[int]string{PlanningAnalysis: "analysis", PlanningCandidates: "candidates", PlanningPlan: "plan"}[step]
+	stepName := map[int]string{PlanningAnalysis: "analysis", PlanningCandidates: "candidates", PlanningPlan: "plan", PlanningReplan: "replan"}[step]
 	s.recordDecision(ctx, st, fmt.Sprintf("planning:%s:%s:%s", st.IssueID, stepName, prov.RunID),
 		planningDecisionStep(step), decisionchain.StatusConfirmed,
 		"由 "+prov.Role+" 产出（技能 "+prov.SkillID+"）",
@@ -378,21 +494,53 @@ func planningRepositories(artifact map[string]any) []string {
 // 幂等：同一 (issue, step) 已有 pending 就什么都不做（前端 driver 与 coordinator
 // autohost 会同时推进同一条链，重复入队会把同一步派发两次）。
 func (s *Service) EnqueuePlanningRun(ctx context.Context, issueID string, step int) error {
+	return s.EnqueuePlanningRunWithContext(ctx, issueID, step, nil)
+}
+
+// EnqueuePlanningRunWithContext 带上**派发上下文**：重排步（第 6 步）需要把
+// 上一版计划、受影响仓库集合与触发它的打断决策单随意图一起落库 —— web 只写
+// 意图、coordinator 才派发，中间隔着进程边界，放内存就等于"重启后丢一半"。
+func (s *Service) EnqueuePlanningRunWithContext(ctx context.Context, issueID string, step int, runContext map[string]any) error {
 	role, skillID := PlanningRoleFor(step)
 	if role == "" {
 		return fmt.Errorf("discovery: step %d 不是可派发的规划步", step)
 	}
+	payload := "{}"
+	if len(runContext) > 0 {
+		encoded, err := json.Marshal(runContext)
+		if err != nil {
+			return fmt.Errorf("discovery: encode planning run context: %w", err)
+		}
+		payload = string(encoded)
+	}
 	_, err := s.pool.Exec(ctx, `INSERT INTO repomesh_issues.planning_runs
-		(id, issue_id, step, role, skill_id, state)
-		SELECT $1::uuid, $2, $3, $4, $5, 'pending'
+		(id, issue_id, step, role, skill_id, state, context)
+		SELECT $1::uuid, $2, $3, $4, $5, 'pending', $6::jsonb
 		WHERE NOT EXISTS (
 			SELECT 1 FROM repomesh_issues.planning_runs
 			WHERE issue_id=$2 AND step=$3 AND state='pending')`,
-		newPlanningID(), issueID, step, role, skillID)
+		newPlanningID(), issueID, step, role, skillID, payload)
 	if err != nil {
 		return fmt.Errorf("discovery: enqueue planning run: %w", err)
 	}
 	return nil
+}
+
+// PlanningRunContext 读回该 issue 该步最近一次派发的上下文（{} = 没有）。
+func (s *Service) PlanningRunContext(ctx context.Context, issueID string, step int) (map[string]any, error) {
+	var raw []byte
+	err := s.pool.QueryRow(ctx, `SELECT COALESCE((
+		SELECT context FROM repomesh_issues.planning_runs
+		WHERE issue_id=$1 AND step=$2 ORDER BY created_at DESC LIMIT 1), '{}'::jsonb)`,
+		issueID, step).Scan(&raw)
+	if err != nil {
+		return nil, fmt.Errorf("discovery: planning run context: %w", err)
+	}
+	out := map[string]any{}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &out)
+	}
+	return out, nil
 }
 
 // ApplyPlanningRun 收产物的**事务入口**：读状态 → 应用 → 落库。

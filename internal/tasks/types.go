@@ -110,6 +110,11 @@ type TaskSnapshot struct {
 	TaskUID      string `json:"taskUid,omitempty"`
 	RepositoryID string `json:"repositoryId,omitempty"`
 	Title        string `json:"title"`
+	// 2026-09-20：v2 快照此前只带标题 —— 重排新长出来的任务，行里的
+	// instruction/acceptance 是 0010 的默认空串，执行者拿到的是一句空指令。
+	// 任务的指令与验收标准是 Leader 写的，必须随快照一起迁移。
+	Instruction string `json:"instruction,omitempty"`
+	Acceptance  string `json:"acceptance,omitempty"`
 }
 
 // Store persists tasks and their assignment attempts.

@@ -1,6 +1,8 @@
 package web
 
 import (
+	"context"
+
 	"repomesh.local/repomesh/internal/agentteams"
 	"repomesh.local/repomesh/internal/assembly"
 	"repomesh.local/repomesh/internal/branchvalidation"
@@ -29,4 +31,8 @@ type Pipeline struct {
 	// nil = 这条能力未接线：/plans/{id}/interrupt 如实回 501，
 	// **不假装受理**（2026-09-20 之前它就是那样一个空壳）。
 	Escalation *tasks.EscalationService
+	// ReplanHook 在人工打断判定"影响当前计划"之后被调用：它登记一次**重排 v2**
+	// 的规划派发意图（发现链第 6 步）。nil = 未接线：打断照常返回判定结果，
+	// 但**不会有 v2 产生** —— 前端据 replanQueued=false 如实显示，不假装计划动了。
+	ReplanHook func(ctx context.Context, planID, upstreamNodeID string, affected []string) error
 }

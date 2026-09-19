@@ -501,10 +501,19 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 				EmbeddingBaseURL: os.Getenv("REPOMESH_EMBEDDING_BASE_URL"),
 				EmbeddingAPIKey:  os.Getenv("REPOMESH_EMBEDDING_API_KEY"),
 				EmbeddingModel:   os.Getenv("REPOMESH_EMBEDDING_MODEL"),
-			}, pipelinePool))
+			}, pipelinePool)).
+			// 重排 v2 的落库端口：收集窗开完之后由 Leader agent 产出的 v2，经它落进
+			// public.plans（全量快照替换 + 任务轴迁移 + 决策链同事务）。不接的话
+			// 第 6 步会如实失败 —— 不假装计划已经重排。
+			WithReplanner(replanAdapter{store: tasks.NewPostgresStore(pipelinePool)})
 		// Reviews：发现链的人工步骤（③ 分档审批 / ⑤ 物化确认）镜像成审核台的待审项，
 		// 否则审核台读的 review_requests 恒空（它此前全仓没有生产者）。
 		discoveryAPI = web.Discovery{Service: discoveryService, Maintenance: discovery.NewMaintenance(pipelinePool), Reviews: humanControlAPI.Service}
+		// 重排 v2 的**派发意图**入口：人工打断判定"影响当前计划"之后，web 只登记
+		// 意图（发现链第 6 步），派发与收产物由 coordinator 负责（同前五步的形状）。
+		pipelineAPI.ReplanHook = func(ctx context.Context, planID, upstreamNodeID string, affected []string) error {
+			return discoveryService.EnqueueReplan(ctx, planID, upstreamNodeID, affected)
+		}
 		consoleAPI = web.Console{Service: console.New(pipelinePool)}
 	}
 	// 仓库作用域的团队管理（2026-09-20 并入）：只有拿到库池才建服务；

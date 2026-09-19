@@ -115,6 +115,10 @@ type InterruptOutcome struct {
 	AffectsPlan bool `json:"affectsPlan"`
 	// AffectedSet：有改动时的受影响集合（X + 依赖邻接 ∪ 计划既有仓库）。
 	AffectedSet []string `json:"affectedSet,omitempty"`
+	// ReplanQueued：本次打断**已经登记**了一次重排 v2 的派发意图（发现链第 6 步）。
+	// false 有两种情形，界面要分开说：判定为"不影响计划"（本来就不需要重排），
+	// 或重排端口未接线（该重排但没人产 v2 —— 这是**故障**，不是"无事发生"）。
+	ReplanQueued bool `json:"replanQueued"`
 }
 
 // HumanInterrupt is one mid-execution manual repo addition (③).
