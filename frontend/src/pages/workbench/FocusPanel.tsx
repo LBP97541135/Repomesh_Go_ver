@@ -519,6 +519,9 @@ export function FocusPanel({
           tasks={tasks}
           testEvidence={testEvidence}
           trainCars={trainCars}
+          scopeRepoIds={scopeRepoIds}
+          repoOptions={repoOptions}
+          onAppendRepository={onAppendRepository}
         />
       );
     }
