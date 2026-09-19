@@ -33,10 +33,16 @@ type OrganizationsResponse struct {
 	Organizations []Organization `json:"organizations"`
 }
 
-func (s *Service) Organizations(ctx context.Context) (OrganizationsResponse, error) {
+// Organizations 只返回**调用者自己所属的那个空间**。
+//
+// 2026-09-19 账号隔离：此前 `FROM public.organizations` 全库返回，公有部署
+// （一账号一空间）下任何登录账号都能看到别人的空间名与智能体数量。
+func (s *Service) Organizations(ctx context.Context, actor string) (OrganizationsResponse, error) {
 	rows, err := s.pool.Query(ctx, `SELECT o.id::text, COALESCE(o.name,''), o.created_at,
 		(SELECT count(*) FROM public.agents a WHERE a.organization_id=o.id)
-		FROM public.organizations o ORDER BY o.created_at DESC LIMIT 200`)
+		FROM public.organizations o
+		WHERE o.id = (SELECT organization_id FROM repomesh_access.accounts WHERE id=$1)
+		ORDER BY o.created_at DESC LIMIT 200`, actor)
 	if err != nil {
 		return OrganizationsResponse{}, fmt.Errorf("console: orgs: %w", err)
 	}
@@ -136,7 +142,8 @@ func (s *Service) SetupStatus(ctx context.Context) (SetupStatusView, error) {
 	return view, nil
 }
 
-func (s *Service) Agents(ctx context.Context, withRuntime bool) (AgentsResponse, error) {
+// Agents 只返回调用者所属空间里的智能体（此前全库返回）。
+func (s *Service) Agents(ctx context.Context, actor string, withRuntime bool) (AgentsResponse, error) {
 	rows, err := s.pool.Query(ctx, `SELECT a.id::text, a.organization_id::text, a.role, a.status,
 		COALESCE(a.resource_ref->>'name', a.resource_ref->>'resource_name', ''),
 		a.parent_agent_id::text, a.repository_id, NULL,
@@ -149,7 +156,8 @@ func (s *Service) Agents(ctx context.Context, withRuntime bool) (AgentsResponse,
 		0
 		FROM public.agents a
 		LEFT JOIN public.agent_teams t ON t.leader_agent_id=a.id OR t.manager_agent_id=a.id OR t.worker_agent_ids ? a.id::text
-		ORDER BY a.role, a.id LIMIT 500`)
+		WHERE a.organization_id = (SELECT organization_id FROM repomesh_access.accounts WHERE id=$1)
+		ORDER BY a.role, a.id LIMIT 500`, actor)
 	if err != nil {
 		return AgentsResponse{}, fmt.Errorf("console: agents: %w", err)
 	}
@@ -200,7 +208,8 @@ type TeamsResponse struct {
 	Teams []Team `json:"teams"`
 }
 
-func (s *Service) Teams(ctx context.Context, withRuntime bool) (TeamsResponse, error) {
+// Teams 只返回挂在**调用者自己项目**上的团队（此前全库返回）。
+func (s *Service) Teams(ctx context.Context, actor string, withRuntime bool) (TeamsResponse, error) {
 	rows, err := s.pool.Query(ctx, `SELECT t.id::text, COALESCE(t.team_name,''), ''::text, COALESCE(t.repository_id,''),
 		NULL, t.runtime_status,
 		CASE WHEN t.execution_mode='leader' THEN 'leader' ELSE 'server' END,
@@ -209,7 +218,10 @@ func (s *Service) Teams(ctx context.Context, withRuntime bool) (TeamsResponse, e
 		COALESCE(t.worker_agent_ids, '[]'::jsonb)
 		FROM public.agent_teams t
 		LEFT JOIN public.agents l ON l.id=t.leader_agent_id
-		ORDER BY t.id LIMIT 500`)
+		WHERE EXISTS (SELECT 1 FROM repomesh_projects.projects p
+			WHERE p.id=t.project_id
+			  AND p.organization_id = (SELECT organization_id FROM repomesh_access.accounts WHERE id=$1))
+		ORDER BY t.id LIMIT 500`, actor)
 	if err != nil {
 		return TeamsResponse{}, fmt.Errorf("console: teams: %w", err)
 	}
@@ -252,12 +264,17 @@ type RepositoriesResponse struct {
 	Repositories []Repository `json:"repositories"`
 }
 
-func (s *Service) Repositories(ctx context.Context) (RepositoriesResponse, error) {
+// Repositories 只返回**调用者自己的项目引用到的仓库**（此前是全库目录）。
+func (s *Service) Repositories(ctx context.Context, actor string) (RepositoriesResponse, error) {
 	// repomesh_projects.repositories 没有组织归属列（组织在扫描目录
 	// repomesh_scan.repositories 维护，两表 id 空间不同不可 join）——
-	// 这里投影 NULL，消费方按「无组织」处理。
+	// 这里投影 NULL，消费方按「无组织」处理；可见性靠"本项目引用过"来裁剪。
 	rows, err := s.pool.Query(ctx, `SELECT id::text, name, NULL::text
-		FROM repomesh_projects.repositories ORDER BY id LIMIT 500`)
+		FROM repomesh_projects.repositories
+		WHERE id IN (SELECT pr.repository_id FROM repomesh_projects.project_repositories pr
+			JOIN repomesh_projects.projects p ON p.id = pr.project_id
+			WHERE p.owner = $1)
+		ORDER BY id LIMIT 500`, actor)
 	if err != nil {
 		return RepositoriesResponse{}, fmt.Errorf("console: repositories: %w", err)
 	}

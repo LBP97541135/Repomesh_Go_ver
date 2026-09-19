@@ -39,8 +39,7 @@ func (s *Service) Roster(ctx context.Context, actor, role, repositoryID, status 
 	// 2026-09-19 多账户（迁移 0036）：按**账号自己的组织**裁剪，而不是按空表
 	// public.users。账号还没归属组织时（organization_id 为 null）如实退化为"全部"
 	// ——不因为一个没回填的账号就让名册整个空掉（那正是今天踩过的坑）。
-	where := []string{`(a.organization_id = (SELECT organization_id FROM repomesh_access.accounts WHERE id=$1)
-		OR (SELECT organization_id FROM repomesh_access.accounts WHERE id=$1) IS NULL)`}
+	where := []string{`(a.organization_id = (SELECT organization_id FROM repomesh_access.accounts WHERE id=$1))`}
 	// args 与 where 的占位符必须一一对应：上一版把 where 改成 TRUE 却留着 actor，
 	// pgx 直接报 "bind message supplies 1 parameters, but prepared statement requires 0"
 	//（500）——实测踩到，这里保持"where 里有几个 $n，args 就有几个"。

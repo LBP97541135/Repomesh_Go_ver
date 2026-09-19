@@ -91,7 +91,7 @@ func (s *Service) ListIssues(ctx context.Context, principal access.ProjectPrinci
 	if err := s.authorization.LockProjectPrincipal(ctx, tx, principal); err != nil {
 		return IssuePage{}, err
 	}
-	if _, err := readProjectRow(ctx, tx, projectID); err != nil {
+	if _, err := readProjectRow(ctx, tx, projectID, principal.ActorID()); err != nil {
 		return IssuePage{}, err
 	}
 	scope := queryCursorScope{actor: principal.ActorID(), kind: "issues", projectID: projectID, query: query.Text + "\x00" + query.RepositoryID, limit: query.Limit}
@@ -215,9 +215,14 @@ func (s *Service) ListIssues(ctx context.Context, principal access.ProjectPrinci
 	return result, nil
 }
 
-func readProjectRow(ctx context.Context, tx pgx.Tx, projectID string) (bool, error) {
+// readProjectRow 校验"这个项目存在**且属于调用者**"。
+//
+// 2026-09-19 账号隔离：此前只查存在性 —— 任何登录账号只要知道别人的 project id
+// 就能读到那个项目的 issue 列表 / issue 详情 / rooms。公有部署（一账号一空间）
+// 下这是硬伤，所以归属校验落在这一处，三个调用点共用。
+func readProjectRow(ctx context.Context, tx pgx.Tx, projectID, actor string) (bool, error) {
 	var exists bool
-	err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM repomesh_projects.projects WHERE id=$1 AND removed_at IS NULL)`, projectID).Scan(&exists)
+	err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM repomesh_projects.projects WHERE id=$1 AND owner=$2 AND removed_at IS NULL)`, projectID, actor).Scan(&exists)
 	if err != nil {
 		return false, unavailable()
 	}
@@ -339,7 +344,7 @@ func (s *Service) GetIssue(ctx context.Context, principal access.ProjectPrincipa
 	if err := s.authorization.LockProjectPrincipal(ctx, tx, principal); err != nil {
 		return IssueDetail{}, err
 	}
-	if _, err := readProjectRow(ctx, tx, projectID); err != nil {
+	if _, err := readProjectRow(ctx, tx, projectID, principal.ActorID()); err != nil {
 		return IssueDetail{}, err
 	}
 	var detail IssueDetail
@@ -397,7 +402,7 @@ func (s *Service) GetIssueRooms(ctx context.Context, principal access.ProjectPri
 	if err := s.authorization.LockProjectPrincipal(ctx, tx, principal); err != nil {
 		return RoomsView{}, err
 	}
-	if _, err := readProjectRow(ctx, tx, projectID); err != nil {
+	if _, err := readProjectRow(ctx, tx, projectID, principal.ActorID()); err != nil {
 		return RoomsView{}, err
 	}
 	var conversationID string
