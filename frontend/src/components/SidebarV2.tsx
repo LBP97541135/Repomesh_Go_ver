@@ -79,9 +79,9 @@ const NAV_LABEL: Record<NavKey, string> = {
  *  not_implemented——先恢复入口，后端补齐即自动点亮。 */
 const NAV_GROUPS: Array<{ heading: string; keys: NavKey[] }> = [
   { heading: "工作台", keys: ["projects", "issues", "reviews", "repositories"] },
-  { heading: "治理", keys: ["agents", "skills", "specs", "models", "observe"] },
+  // 治理（2026-09-20 用户裁定）：历史决策归治理；智能体与技能已收编进设置
+  { heading: "治理", keys: ["decision-chains", "specs", "models", "observe"] },
 ];
-const NAV_BOTTOM: NavKey[] = ["decision-chains", "settings"];
 
 export function SidebarV2({
   account,
@@ -297,9 +297,19 @@ export function SidebarV2({
 
       <div className="mt-auto grid gap-0.5 border-t border-line pt-2">
         {collapsed && <div className="mx-auto mb-2 h-px w-6 bg-line" />}
-        {NAV_BOTTOM.map((key) => (
-          <NavButton key={key} item={key} />
-        ))}
+        {/* 设置：底部的图标式入口（2026-09-20 用户裁定）——它不是一个工作面，
+            不跟上面的分组抢位置；title 与 aria-label 兜住可读性。 */}
+        <button
+          type="button"
+          title="设置"
+          aria-label="设置"
+          onClick={() => onNavigate("settings")}
+          className={`mx-auto grid size-8 place-items-center rounded-[8px] transition-colors ${
+            nav === "settings" ? "bg-side-active text-cream" : "text-tx2 hover:bg-side-active/50 hover:text-cream"
+          }`}
+        >
+          <Settings size={16} strokeWidth={1.6} aria-hidden="true" />
+        </button>
         {/* 账号块（2026-09-19 用户裁定）：账号管理归这里——切换账号 / 退出登录。
             项目切换在左上角，两处不再混在一个下拉里。 */}
         <div ref={accountRef} className="relative">

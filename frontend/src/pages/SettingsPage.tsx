@@ -11,7 +11,9 @@ import { fetchConsoleAgents, gridSourceMode } from "../api/grid";
 import { fetchCodingAgents, fetchSetupStatus } from "../api/platformSetup";
 import { LocalAccountsPanel } from "../components/LocalAccountsPanel";
 import { LocalCliPage } from "./LocalCliPage";
-import { Bot, Info, Server, Settings2, SquareTerminal, Users, type LucideIcon } from "lucide-react";
+import { AgentsPage } from "./AgentsPage";
+import { SkillsPage } from "./SkillsPage";
+import { Bot, FileCheck, Info, Server, Settings2, SquareTerminal, Users, type LucideIcon } from "lucide-react";
 import { errText } from "../display";
 import { applyTheme, readStoredTheme, type ThemeName } from "../theme";
 import { useRuntimeRows } from "./useRuntimeRows";
@@ -39,7 +41,7 @@ import { useRuntimeRows } from "./useRuntimeRows";
  *  取数不受分类切换影响：setup / 适配器探测 / 花名册在挂载时各取各的（一个失败
  *  不把另一个也变成空白），切到哪个分类都即时呈现。 */
 
-type CategoryKey = "general" | "account" | "platform" | "agents" | "localcli" | "about";
+type CategoryKey = "general" | "account" | "platform" | "agents" | "skills" | "localcli" | "about";
 
 /** 分类图标（lucide）：Trae 同款「图标 + 文字」导航项。 */
 const CATEGORIES: { key: CategoryKey; label: string; icon: LucideIcon }[] = [
@@ -47,6 +49,7 @@ const CATEGORIES: { key: CategoryKey; label: string; icon: LucideIcon }[] = [
   { key: "account", label: "账号与权限", icon: Users },
   { key: "platform", label: "平台", icon: Server },
   { key: "agents", label: "智能体", icon: Bot },
+  { key: "skills", label: "技能", icon: FileCheck },
   { key: "localcli", label: "本地 CLI", icon: SquareTerminal },
   { key: "about", label: "关于", icon: Info },
 ];
@@ -369,11 +372,16 @@ export function SettingsPage({
   account,
   onConfigure,
   initialCategory = "general",
+  onToast = () => undefined,
+  onOpenIssue = () => undefined,
 }: {
   account: Account;
   onConfigure: () => void;
-  /** 旧深链（#/settings/local-cli）落到对应分类；仅挂载时生效 */
+  /** 深链（#/settings/<section>）落到对应分类；仅挂载时生效 */
   initialCategory?: CategoryKey;
+  /** 收编进来的智能体/技能子页要用的两个回调（由外壳注入） */
+  onToast?: (text: string) => void;
+  onOpenIssue?: (issueId: string) => void;
 }) {
   const [category, setCategory] = useState<CategoryKey>(initialCategory);
   const fetcher = useCallback((withRuntime: boolean) => fetchConsoleAgents(withRuntime), []);
@@ -484,14 +492,21 @@ export function SettingsPage({
           />
         )}
         {category === "agents" && (
-          <AgentsCategory
-            probe={probe}
-            probeFailure={probeFailure}
-            kinds={kinds}
-            agentsPhase={phase}
-            agentsError={error}
-          />
+          <>
+            <AgentsCategory
+              probe={probe}
+              probeFailure={probeFailure}
+              kinds={kinds}
+              agentsPhase={phase}
+              agentsError={error}
+            />
+            {/* 智能体花名册与写面（新建/删除）从侧栏顶级入口收编到这里 */}
+            <div className="mt-6 border-t border-line pt-4">
+              <AgentsPage onOpenIssue={onOpenIssue} />
+            </div>
+          </>
         )}
+        {category === "skills" && <SkillsPage onToast={onToast} />}
         {category === "localcli" && <LocalCliPage embedded />}
         {category === "about" && <AboutCategory account={account} base={base} />}
       </div>

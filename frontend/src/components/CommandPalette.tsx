@@ -12,13 +12,12 @@ import { PHASE_SKIN, PHASE_SKIN_FALLBACK } from "../display";
  *
  *  样式对齐侧栏新语言：panel 面板、line 边框、rounded-[10px]、lucide 细线。 */
 
-type NavGo = (nav: "issues" | "reviews" | "repositories" | "agents" | "observe" | "decision-chains" | "settings") => void;
+type NavGo = (nav: "issues" | "reviews" | "repositories" | "observe" | "decision-chains" | "settings") => void;
 
 const PAGES: Array<{ label: string; nav: Parameters<NavGo>[0]; icon: typeof PanelLeft }> = [
   { label: "issue 列表", nav: "issues", icon: PanelLeft },
   { label: "审核队列", nav: "reviews", icon: PanelLeft },
   { label: "仓库", nav: "repositories", icon: PanelLeft },
-  { label: "智能体", nav: "agents", icon: PanelLeft },
   { label: "观测", nav: "observe", icon: PanelLeft },
   { label: "历史决策", nav: "decision-chains", icon: PanelLeft },
   { label: "设置", nav: "settings", icon: Settings },
@@ -40,7 +39,7 @@ export function CommandPalette({
   onClose: () => void;
   /** 已加载的 issue 列表（ConsoleShell 轮询数据原样传入；null = 尚未取到） */
   issues: IssueListItemView[] | null;
-  onNavigate: (nav: "issues" | "reviews" | "repositories" | "agents" | "observe" | "decision-chains" | "settings") => void;
+  onNavigate: (nav: "issues" | "reviews" | "repositories" | "observe" | "decision-chains" | "settings") => void;
   onOpenIssue: (issueId: string) => void;
   onNewIssue?: () => void;
 }) {

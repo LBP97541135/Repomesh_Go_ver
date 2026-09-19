@@ -9,7 +9,6 @@ import { archiveIssue, createIssue, fetchIssues, issuesSourceMode, purgeIssue, t
 import { errText, shortId } from "./display";
 import type { HumanReviewRequestView } from "./api/reviewDesk";
 import { fetchReviewRequests, subscribeReviewRequests } from "./api/reviewDesk";
-import { AgentsPage } from "./pages/AgentsPage";
 import { DecisionChainPage } from "./pages/DecisionChainPage";
 import { IssueListPage } from "./pages/IssueListPage";
 import { ObserveAlerts } from "./pages/observe/ObserveAlerts";
@@ -20,7 +19,6 @@ import { ObserveUsage } from "./pages/observe/ObserveUsage";
 import { RepositoriesPage } from "./pages/RepositoriesPage";
 import { RepositoryTeamPage } from "./pages/RepositoryTeamPage";
 import { ProjectSelectPage } from "./pages/ProjectSelectPage";
-import { SkillsPage } from "./pages/SkillsPage";
 import { ModelProvidersPage } from "./pages/ModelProvidersPage";
 import { SpecPage } from "./pages/SpecPage";
 import { beginProjectSession, clearActiveProject, setActiveProject } from "./api/activeProject";
@@ -522,10 +520,8 @@ export default function ConsoleShell() {
         {(route.nav === "projects" || (activeProjectId === null && ["issues", "repositories"].includes(route.nav))) && (
           <ProjectSelectPage key={account.id} projects={projects} activeProjectId={activeProjectId} error={projectsError} onRetry={() => setProjectsReload(n => n + 1)} onSelect={handleSelectProject} />
         )}
-        {route.nav === "skills" && <SkillsPage onToast={showToast} />}
         {route.nav === "models" && <ModelProvidersPage />}
         {route.nav === "specs" && <SpecPage onToast={showToast} />}
-        {route.nav === "agents" && <AgentsPage onOpenIssue={openIssue} />}
         {route.nav === "observe" &&
           (route.observeSection === null ? (
             <ObserveHome />
@@ -546,7 +542,17 @@ export default function ConsoleShell() {
             key={route.settingsSection ?? "general"}
             account={account}
             onConfigure={() => setSetupRequested(true)}
-            initialCategory={route.settingsSection === "local-cli" ? "localcli" : "general"}
+            initialCategory={
+              route.settingsSection === "local-cli"
+                ? "localcli"
+                : route.settingsSection === "agents"
+                  ? "agents"
+                  : route.settingsSection === "skills"
+                    ? "skills"
+                    : "general"
+            }
+            onToast={showToast}
+            onOpenIssue={openIssue}
           />
         )}
       </main>
