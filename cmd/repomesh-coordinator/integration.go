@@ -73,8 +73,29 @@ func (d *integrationDispatcher) tick(ctx context.Context) bool {
 				d.recordExhausted(ctx, planID, issueID, projectID, repo, "cross_repo_regression")
 			}
 		}
+	} else {
+		// 2026-09-20：单仓库计划此前**什么都不记** —— 于是"跨仓库联调"这一项在记录里
+		// 既不是通过也不是跳过，而是彻底不存在，读的人分不清"没做"和"不需要做"。
+		// 这里如实记一条：这次计划没有跨仓库依赖，联调不适用。
+		d.recordSkipped(ctx, planID, issueID, projectID, repos[0],
+			"本次计划只涉及一个仓库，没有跨仓库依赖 —— 跨仓库联调与回归不适用（不是失败，也不是漏做）。")
 	}
 	return dispatched
+}
+
+// recordSkipped 如实记一条"不适用"的证据，让读的人能区分「没做」与「不需要做」。
+func (d *integrationDispatcher) recordSkipped(ctx context.Context, planID, issueID, projectID, repository, reason string) {
+	var existing int
+	if err := d.pool.QueryRow(ctx, `SELECT count(*) FROM public.test_evidence
+		WHERE plan_id=$1::uuid AND kind='cross_repo_regression'`, planID).Scan(&existing); err != nil || existing > 0 {
+		return
+	}
+	_, _ = d.pool.Exec(ctx, `INSERT INTO public.test_evidence
+		(id, project_id, issue_id, plan_id, repository_id, kind,
+		 script, command, exit_code, passed, summary, run_id, producer)
+		VALUES (gen_random_uuid(), $1::uuid, $2, $3::uuid, $4, 'cross_repo_regression',
+		 '', '', NULL, true, $5, '', 'coordinator')`,
+		projectID, issueID, planID, repository, reason)
 }
 
 // recordExhausted 在"重派额度用满、却仍然没有证据"时**如实记一行不通过**。

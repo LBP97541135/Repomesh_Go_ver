@@ -105,11 +105,16 @@ export function DispatchTree({
    *  2026-09-20 前这里写死「等待上游开发任务全部完成」，而记录其实一直在产生。 */
   const testSummary = (() => {
     if (!testEvidence || testEvidence.items.length === 0) return null;
-    const { passed, failed } = testEvidence;
+    // 「不适用」的记录（例如单仓库计划的跨仓库联调）不该被算成"通过" ——
+    // 它是"不需要做"，与"做了且过了"是两回事。约定：summary 以「不适用」开头。
+    const skipped = testEvidence.items.filter((i) => (i.summary ?? "").startsWith("不适用")).length;
+    const passed = testEvidence.items.filter((i) => i.passed && !(i.summary ?? "").startsWith("不适用")).length;
+    const failed = testEvidence.items.length - passed - skipped;
     const kinds = new Set(testEvidence.items.map((i) => i.kind));
     const parts = [`${testEvidence.items.length} 条记录`];
     parts.push(`${passed} 通过`);
     if (failed > 0) parts.push(`${failed} 未过`);
+    if (skipped > 0) parts.push(`${skipped} 不适用`);
     if (kinds.has("repo_integration")) parts.push("含节点集成");
     if (kinds.has("cross_repo_regression")) parts.push("含跨仓库联调");
     return parts.join(" · ");
