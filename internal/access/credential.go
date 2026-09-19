@@ -99,6 +99,28 @@ func (s *Service) refreshUnknown(ctx context.Context, c credential) {
 	_, _ = s.pool.Exec(ctx, `UPDATE repomesh_access.connections SET refresh_state='unknown',status='unknown',observed_at=now() WHERE actor=$1 AND revision=$2 AND access_epoch=$3 AND refresh_state='claimed'`, c.actor, c.revision, c.epoch)
 }
 
+// UserGitHubToken 返回该账号当前有效的 GitHub **用户**令牌（解封后的明文）。
+//
+// 用途：仓库扫描。公有部署下"扫我自己的仓库"应当**以登录用户本人的身份**去读——
+// 配额 5000 次/小时（匿名只有 60），且天然按账号隔离（读别人的私有仓库 GitHub
+// 直接 404）。这跟仓库发现（discovery）走的是同一套凭据体系。
+//
+// 令牌临期时会尝试刷新一次（canRefresh=true）；拿不到就返回错误，由调用方
+// 决定是降级到部署级令牌还是匿名——**绝不假装拿到了**。
+func (s *Service) UserGitHubToken(ctx context.Context, actor string) (string, error) {
+	if actor == "" {
+		return "", failure(401, "AUTHENTICATION_REQUIRED")
+	}
+	c, err := s.credential(ctx, actor, true)
+	if err != nil {
+		return "", err
+	}
+	if c.token == "" {
+		return "", failure(503, "AUTHORIZATION_UNCONFIRMED")
+	}
+	return c.token, nil
+}
+
 func (s *Service) rejectCredential(ctx context.Context, c credential) {
 	_, _ = s.pool.Exec(ctx, `UPDATE repomesh_access.connections SET status='missing',access_epoch=access_epoch+1,observed_at=now() WHERE actor=$1 AND revision=$2 AND access_epoch=$3`, c.actor, c.revision, c.epoch)
 }

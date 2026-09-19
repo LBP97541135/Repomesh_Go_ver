@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"repomesh.local/repomesh/internal/reposcan"
 )
@@ -92,6 +94,14 @@ func (r *Runner) ScanOrganization(ctx context.Context, groupURL string) (Registr
 	}
 	semaphore := make(chan struct{}, maxWorkers)
 
+	// 2026-09-19：配额是共享的。撞上限流后继续把剩余仓库一个个打过去只会全部
+	// 失败，还白白烧掉配额恢复前的机会——所以命中限流就**立即中止本轮**，
+	// 并把"根本没尝试"的仓库如实计进 RateLimited（它们既不是 failed，
+	// 也不是普通的 skipped）。
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var skippedByRate atomic.Int64
+
 	profiles := make([]RepositoryCard, len(targets))
 	gateSkipped := 0
 	done := 0
@@ -106,8 +116,17 @@ func (r *Runner) ScanOrganization(ctx context.Context, groupURL string) (Registr
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
-			card := r.scanOrgRepository(ctx, info, targets, &gateSkipped)
-			profiles[index] = card
+			if ctx.Err() != nil {
+				// 本轮已因限流中止：这个仓库**根本没试过**，不能算失败。
+				skippedByRate.Add(1)
+				profiles[index] = RepositoryCard{Name: info.Name, URL: info.URL, ScanStatus: ScanStatusSkipped}
+			} else {
+				card, limited := r.scanOrgRepository(ctx, info, targets, &gateSkipped)
+				profiles[index] = card
+				if limited {
+					cancel()
+				}
+			}
 
 			progressMu.Lock()
 			done++
@@ -132,12 +151,18 @@ func (r *Runner) ScanOrganization(ctx context.Context, groupURL string) (Registr
 	}
 	counts.Total = len(targets)
 	counts.Skipped += gateSkipped
+	if n := int(skippedByRate.Load()); n > 0 {
+		counts.RateLimited = n
+		counts.AbortedReason = fmt.Sprintf("平台限流：扫描在第 %d/%d 个仓库处中止，剩余 %d 个未尝试（配额恢复后可重扫）", done-n, len(targets), n)
+	}
 	return counts, nil
 }
 
 // scanOrgRepository scans one listed repository; a failure becomes a
-// failed card (never registered as plausible empty output).
-func (r *Runner) scanOrgRepository(ctx context.Context, info reposcan.RepoInfo, targets []reposcan.RepoInfo, gateSkipped *int) RepositoryCard {
+// failed card (never registered as plausible empty output). The second
+// return value reports a **rate limit**, which the caller uses to abort the
+// rest of the run instead of burning the remaining quota.
+func (r *Runner) scanOrgRepository(ctx context.Context, info reposcan.RepoInfo, targets []reposcan.RepoInfo, gateSkipped *int) (RepositoryCard, bool) {
 	failed := RepositoryCard{
 		Name: info.Name, URL: info.URL, Description: info.Description,
 		AutoCard: nil, ScanStatus: ScanStatusFailed,
@@ -145,20 +170,20 @@ func (r *Runner) scanOrgRepository(ctx context.Context, info reposcan.RepoInfo, 
 
 	head, err := r.Fetcher.FetchHead(ctx, info.URL)
 	if err != nil {
-		return failed
+		return failed, errors.Is(err, reposcan.ErrRateLimited)
 	}
 	if r.unchanged(ctx, info.Name, head) {
 		*gateSkipped++
 		return RepositoryCard{ // not registered; marker for counts only
 			Name: info.Name, URL: info.URL, ScanStatus: ScanStatusSkipped,
-		}
+		}, false
 	}
 
 	card, err := r.scanRepository(ctx, info, head)
 	if err != nil {
-		return failed
+		return failed, errors.Is(err, reposcan.ErrRateLimited)
 	}
-	return card
+	return card, false
 }
 
 // unchanged reports whether the stored card already reflects the current

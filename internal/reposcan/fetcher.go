@@ -60,6 +60,15 @@ var ErrUnauthorized = errors.New("reposcan: credential rejected")
 // whether that becomes a whole-scan failure.
 var ErrUnavailable = errors.New("reposcan: platform unavailable")
 
+// ErrRateLimited reports the platform refused the call because the caller
+// exhausted its quota — GitHub answers 403 (or 429) with
+// `X-RateLimit-Remaining: 0` in that case.
+//
+// 2026-09-19 事故复盘：此前 403 与 401 一起被判成 ErrUnauthorized，于是
+// "配额用尽"被说成"没权限"，46 个仓库里 40 个被记成扫描失败、任务级却仍报
+// succeeded。限流必须与鉴权失败分开——前者可退避重试，后者重试无用。
+var ErrRateLimited = errors.New("reposcan: rate limited")
+
 // Cache wraps a Fetcher with per-scan memoization. Several channels select
 // overlapping files, so each distinct path must cost exactly one upstream
 // call; a fetch that failed (or found nothing) is cached too — a later

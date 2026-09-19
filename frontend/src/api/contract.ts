@@ -544,15 +544,22 @@ export interface UrlIdentification {
  *  **进程内记录，不落库**：API 一重启就没了，轮询到 404 不是「坏 id」而是
  *  「状态丢了」（端点 detail 自述），重扫幂等所以这不致命。 */
 export interface ScanTaskView {
-  task_id: string;
-  kind: "organization" | "repository";
-  url: string;
-  status: "running" | "succeeded" | "failed";
+    task_id: string;
+    kind: "organization" | "repository";
+    url: string;
+    /** partial = 扫描跑完了、但有仓库没能登记（多为平台限流或读不到）——
+    *  此前这种情况任务级报 succeeded，与"40 个失败"同时成立，等于说谎。 */
+    status: "running" | "succeeded" | "partial" | "failed";
   /** 组织扫描在平台枚举返回前**恒 0**：显示「n / ?」，不编一个没人数过的总数 */
   total: number;
   scanned: number;
-  /** 最近**完成**的仓库，不是正在扫的那个 */
-  last_scanned_repository: string | null;
+    /** 最近**完成**的仓库，不是正在扫的那个 */
+    last_scanned_repository: string | null;
+    /** 这次扫描**用的是谁的凭据**：user（发起人自己的令牌，5000 次/小时）
+    *  / deployment（部署级只读令牌）/ anonymous（无凭据，60 次/小时）。 */
+    tokenSource?: "user" | "deployment" | "anonymous";
+    /** 因平台限流而**根本没尝试**的仓库数（与 failed 不同：那些是试过没成功） */
+    rateLimited?: number;
   /** running 期间恒 0（全部读完才写 catalog），失败态同样恒 0 ——
    *  三个计数只在 `succeeded` 后是终值，其余状态下不得当结果展示 */
   registered: number;

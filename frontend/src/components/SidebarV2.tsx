@@ -321,7 +321,7 @@ export function SidebarV2({
               <div className="min-w-0 flex-1">
                 <b className="block truncate text-[12px] text-tx">{account.display_name || account.username}</b>
                 <small className="block truncate text-[10.5px] text-tx2">
-                  {account.is_admin ? "管理员" : "本地账户"}
+                  {account.is_admin ? "管理员" : "个人账号"}
                 </small>
               </div>
             )}

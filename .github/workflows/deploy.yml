@@ -46,10 +46,14 @@ jobs:
           if [ -s /tmp/gofmt.txt ]; then
             echo "::warning::$(wc -l < /tmp/gofmt.txt) 个文件未通过 gofmt（多为 CRLF 行尾），本次不阻断"
           fi
-          go build -o bin/repomesh-web ./cmd/repomesh-web
-          go build -o bin/repomesh-coordinator ./cmd/repomesh-coordinator
-          go build -o bin/repomesh-host-executor ./cmd/repomesh-host-executor
-          echo "三件套构建完成"
+          # 把本次提交 SHA 注入三个二进制（buildinfo.Version）：
+          # 部署后 `curl /healthz` 或 `repomesh-web -version` 就能**直接问出
+          # 线上跑的是哪个 commit**——此前恒为 "dev"，无法自证版本。
+          LDFLAGS="-X repomesh.local/repomesh/internal/buildinfo.Version=${GITHUB_SHA}"
+          go build -ldflags "$LDFLAGS" -o bin/repomesh-web ./cmd/repomesh-web
+          go build -ldflags "$LDFLAGS" -o bin/repomesh-coordinator ./cmd/repomesh-coordinator
+          go build -ldflags "$LDFLAGS" -o bin/repomesh-host-executor ./cmd/repomesh-host-executor
+          echo "三件套构建完成，版本号 = ${GITHUB_SHA}"
 
       - name: 构建前端（交付控制台）
         run: |
@@ -86,6 +90,8 @@ jobs:
           systemctl is-active repomesh-web repomesh-coordinator repomesh-host-executor
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/healthz)" = "200"
           test "$(curl -s -o /dev/null -w '%{http_code}' https://crazykitties.cn/healthz)" = "200"
+          echo "线上自报版本：$(curl -s http://127.0.0.1:8080/healthz)"
+          /opt/repomesh/bin/repomesh-web -version
           echo "验活通过"
 
       - name: 同步 /root/build 为 main 的镜像

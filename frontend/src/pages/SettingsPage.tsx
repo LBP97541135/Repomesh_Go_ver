@@ -257,7 +257,7 @@ function PlatformCategory({
       </SettingRow>
       <SettingRow title="本地身份服务">
         <RowValue>
-          已登录 · {account.username} · {account.is_admin ? "管理员" : "本地账户"}
+          已登录 · {account.username} · {account.is_admin ? "管理员" : "个人账号"}
         </RowValue>
       </SettingRow>
     </>
@@ -356,7 +356,7 @@ function AboutCategory({ account, base }: { account: Account; base: string }) {
       </SettingRow>
       <SettingRow title="登录身份">
         <RowValue>
-          {account.username} · {account.is_admin ? "管理员" : "本地账户"}
+          {account.username} · {account.is_admin ? "管理员" : "个人账号"}
         </RowValue>
       </SettingRow>
     </>

@@ -82,7 +82,7 @@ function AccountRow({ item, self }: { item: Account; self: boolean }) {
           item.is_admin ? "border-amber text-amber" : "border-line text-tx2"
         }`}
       >
-        {item.is_admin ? "管理员" : "本地账户"}
+        {item.is_admin ? "管理员" : "个人账号"}
       </span>
       {/* 停用是少数态，只在为真时出徽标；没有徽标即在用 */}
       {!item.active && (

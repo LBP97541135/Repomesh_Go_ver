@@ -42,6 +42,9 @@ function toScanTask(job: {
   registered: number;
   skipped: number;
   failed?: number;
+  /** 凭据来源与"因限流未尝试"的计数（后端 2026-09-19 起返回） */
+  tokenSource?: "user" | "deployment" | "anonymous";
+  rateLimited?: number;
   error?: string;
   startedAt: string;
   finishedAt?: string;
@@ -50,13 +53,20 @@ function toScanTask(job: {
     task_id: job.id,
     kind: job.kind === "repository" ? "repository" : "organization",
     url: job.url,
-    status: job.status === "succeeded" || job.status === "failed" ? job.status : "running",
+    // partial 也是终态：跑完了但有仓库没登记（限流/读不到），不能当 running
+    // 一直轮询下去，也不能当 succeeded 粉饰过去。
+    status:
+      job.status === "succeeded" || job.status === "failed" || job.status === "partial"
+        ? job.status
+        : "running",
     total: job.total,
     scanned: job.scanned,
     last_scanned_repository: job.lastScannedRepository ?? null,
     registered: job.registered,
     skipped: job.skipped,
     failed: job.failed ?? 0,
+    tokenSource: job.tokenSource,
+    rateLimited: job.rateLimited ?? 0,
     error: job.error ?? null,
     started_at: job.startedAt,
     finished_at: job.finishedAt ?? null,

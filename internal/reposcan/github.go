@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -78,12 +79,30 @@ func (f *GitHubFetcher) get(ctx context.Context, apiPath string, capBytes int64)
 		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
 	switch {
+	case response.StatusCode == http.StatusTooManyRequests,
+		response.StatusCode == http.StatusForbidden && response.Header.Get("X-RateLimit-Remaining") == "0":
+		// 配额用尽（GitHub 用 403 + X-RateLimit-Remaining: 0 表达，偶尔 429）。
+		// 与 401/403 的"凭据被拒"必须分开：前者等一会儿还能成，后者重试无用。
+		if reset := rateLimitReset(response.Header); reset != "" {
+			return nil, fmt.Errorf("%w（配额重置时间 %s）", ErrRateLimited, reset)
+		}
+		return nil, ErrRateLimited
 	case response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden:
 		return nil, ErrUnauthorized
 	case response.StatusCode >= 400:
 		return nil, fmt.Errorf("%w: HTTP %d", ErrUnavailable, response.StatusCode)
 	}
 	return body, nil
+}
+
+// rateLimitReset 把 X-RateLimit-Reset（unix 秒）格式化成 UTC 时间串，供
+// 上层如实告诉用户"什么时候能再试"。取不到就返回空串。
+func rateLimitReset(header http.Header) string {
+	seconds, err := strconv.ParseInt(header.Get("X-RateLimit-Reset"), 10, 64)
+	if err != nil || seconds <= 0 {
+		return ""
+	}
+	return time.Unix(seconds, 0).UTC().Format(time.RFC3339)
 }
 
 type githubTreeResponse struct {

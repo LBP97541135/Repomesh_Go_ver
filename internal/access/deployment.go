@@ -30,6 +30,10 @@ type Deployment struct {
 	} `json:"roots"`
 	TLSCertificateFile string `json:"tlsCertificateFile"`
 	TLSKeyFile         string `json:"tlsKeyFile"`
+	// Mode 是部署模式：`public`（默认）任何 GitHub 账号都能登录、每个账号
+	// 各自一个空间；`private` 只有该组织的成员能登录、全组织共享。
+	// 留空 = public —— 公有部署不需要改配置就能跑。
+	Mode string `json:"mode"`
 }
 
 type Runtime struct {
@@ -59,6 +63,9 @@ func OpenRuntime(ctx context.Context, configPath, databaseURL string) (*Runtime,
 	origin, err := url.Parse(config.Origin)
 	if err != nil || origin.Scheme != "https" || origin.Host == "" || origin.User != nil || origin.Path != "" || origin.RawQuery != "" || origin.Fragment != "" || config.CallbackURL != config.Origin+"/api/auth/github/callback" {
 		return nil, errors.New("authentication requires an exact HTTPS origin and callback")
+	}
+	if config.Mode != "" && config.Mode != "public" && config.Mode != "private" {
+		return nil, errors.New("authentication mode must be public or private")
 	}
 	if (config.TLSCertificateFile == "") != (config.TLSKeyFile == "") {
 		return nil, errors.New("HTTPS certificate and key must be configured together")
@@ -103,6 +110,7 @@ func OpenRuntime(ctx context.Context, configPath, databaseURL string) (*Runtime,
 		return nil, err
 	}
 	service := New(db.Pool(), store, nil)
+	service.SetDeploymentMode(config.Mode)
 	clientRef, err = service.importAppCredential(ctx, config, "github-app-client-secret", config.ClientSecretFile)
 	if err != nil {
 		return nil, err

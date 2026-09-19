@@ -306,10 +306,17 @@ func (s *Service) Attempt(ctx context.Context, bindingCookie, sessionCookie, id 
 	return result, nil
 }
 
-// organizationFor 返回该 GitHub 账号所属的租户（organization）。
-// 2026-09-19 账号隔离：已归属的沿用，新账号**当场开一个私有组织**——
-// 这是"每人一个租户"的唯一入口，注册即分家。将来要多人协作，只需把多个
-// 账号的 organization_id 指向同一个 organization（租户原语保留，不新增概念）。
+// organizationFor 返回该 GitHub 账号所属的"空间"（public.organizations 的一行）。
+//
+// 这里是**公有/私有部署的唯一分叉点**（2026-09-19 用户裁定）：
+//
+//   - public（默认，= 本服务器）：新账号当场开一个自己的空间，各看各的——
+//     互相看不到对方的项目、仓库、中转站。这就是"个人账号"的落地方式。
+//   - private（以后做）：全部账号并进部署唯一空间，全组织共享项目与智能体
+//     配置。登录闸（只有组织成员能登录）属 P2，尚未实现。
+//
+// 已归属的账号一律沿用原值：重放登录不该把人挪走。
+// 空间名刻意用中性文案，不暴露 GitHub 昵称。
 func (s *Service) organizationFor(ctx context.Context, githubID int64, displayName string) (string, error) {
 	var organizationID *string
 	if err := s.pool.QueryRow(ctx, `SELECT organization_id::text FROM repomesh_access.accounts WHERE github_id=$1`, githubID).Scan(&organizationID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -318,12 +325,16 @@ func (s *Service) organizationFor(ctx context.Context, githubID int64, displayNa
 	if organizationID != nil && *organizationID != "" {
 		return *organizationID, nil
 	}
-	name := strings.TrimSpace(displayName)
-	if name == "" {
-		name = "用户"
+	if strings.EqualFold(s.mode, "private") {
+		// 私有部署：并进部署唯一空间（最早创建的那个组织）。
+		var shared string
+		if err := s.pool.QueryRow(ctx, `SELECT id::text FROM public.organizations ORDER BY created_at, id LIMIT 1`).Scan(&shared); err != nil {
+			return "", err
+		}
+		return shared, nil
 	}
 	var created string
-	if err := s.pool.QueryRow(ctx, `INSERT INTO public.organizations(id,name) VALUES(gen_random_uuid(),$1) RETURNING id::text`, name+" 的个人空间").Scan(&created); err != nil {
+	if err := s.pool.QueryRow(ctx, `INSERT INTO public.organizations(id,name) VALUES(gen_random_uuid(),'个人空间') RETURNING id::text`).Scan(&created); err != nil {
 		return "", err
 	}
 	return created, nil

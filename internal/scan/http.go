@@ -38,6 +38,12 @@ type HTTP struct {
 	// Origin/CSRF). Nil means writes pass unauthenticated — tests only.
 	Authenticate func(r *http.Request) error
 
+	// ActorToken resolves the **requesting user's** GitHub token, so a scan runs
+	// as that user (5000 requests/hour, per-account isolation) instead of with
+	// the deployment-level credential (or anonymous, at 60/hour).
+	// Nil means "no per-user credential available" — the shared Fetcher is used.
+	ActorToken func(r *http.Request) (string, error)
+
 	// OnScopeDecided is the 历史决策 producer seam (方案清单 §3 写路径①):
 	// fired once per accepted submission with the raw request, so the
 	// composition root can resolve the actor from the session. Nil keeps
@@ -204,9 +210,13 @@ func (h *HTTP) handleScanJobCreate(w http.ResponseWriter, r *http.Request) {
 		maxWorkers = 20
 	}
 
-	jobID := h.Jobs.Start(kind, body.URL, func(ctx context.Context, progress func(done, total int, name string)) (RegistrationCounts, error) {
+	// 2026-09-19：扫描以**发起人本人的身份**跑。兜底链：
+	// 用户令牌 → 部署级令牌（启动时 Fetcher 上配的）→ 匿名。
+	// tokenSource 会写进任务记录，用户看到"N 个失败"时能知道用的是哪种凭据。
+	fetcher, tokenSource := h.fetcherForRequest(r)
+	jobID := h.Jobs.StartWithTokenSource(kind, body.URL, tokenSource, func(ctx context.Context, progress func(done, total int, name string)) (RegistrationCounts, error) {
 		runner := &Runner{
-			Fetcher:      h.Fetcher,
+			Fetcher:      fetcher,
 			Channels:     h.Service.Channels(),
 			Store:        h.Store,
 			MaxWorkers:   maxWorkers,
@@ -220,6 +230,31 @@ func (h *HTTP) handleScanJobCreate(w http.ResponseWriter, r *http.Request) {
 	})
 	job, _ := h.Jobs.Get(jobID)
 	writeJSON(w, http.StatusAccepted, job)
+}
+
+// tokenBoundFetcher is the optional capability of a fetcher that can be
+// re-bound to a credential for one run (today: *reposcan.Router). Keeping it
+// as an interface assertion means the seam stays optional — a bare fetcher in
+// tests keeps working and simply never claims a user credential.
+type tokenBoundFetcher interface {
+	WithToken(string) reposcan.Fetcher
+	HasToken() bool
+}
+
+// fetcherForRequest returns the fetcher one scan request should use, together
+// with an honest label of the credential it carries. It never claims a
+// stronger credential than it actually has.
+func (h *HTTP) fetcherForRequest(r *http.Request) (reposcan.Fetcher, string) {
+	bound, bindable := h.Fetcher.(tokenBoundFetcher)
+	if h.ActorToken != nil && bindable {
+		if token, err := h.ActorToken(r); err == nil && token != "" {
+			return bound.WithToken(token), "user"
+		}
+	}
+	if bindable && bound.HasToken() {
+		return h.Fetcher, "deployment"
+	}
+	return h.Fetcher, "anonymous"
 }
 
 // handleScanJobGet implements D-4.

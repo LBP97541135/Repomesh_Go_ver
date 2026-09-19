@@ -11,6 +11,14 @@ type RegistrationCounts struct {
 	Registered int
 	Skipped    int
 	Failed     int
+	// RateLimited 是"因平台限流而**根本没尝试**"的仓库数，AbortedReason 非空
+	// 表示本轮被限流提前中止。
+	//
+	// 2026-09-19 事故：配额是共享的，撞上限流后继续把剩余仓库一个个打过去只会
+	// 全部失败，还白白烧掉配额恢复前的机会。所以命中限流即中止本轮，并把没试过的
+	// 如实计在这里——它们既不是 failed（试过了没成功），也不是普通的 skipped。
+	RateLimited   int
+	AbortedReason string
 }
 
 // RegisterScanned applies scan output to the catalog:

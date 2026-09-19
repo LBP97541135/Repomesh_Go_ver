@@ -323,6 +323,17 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			Fetcher:       fetcher,
 			Allowlist:     splitList(os.Getenv("REPOMESH_REPOSITORY_SCAN_ALLOWED_HOSTS")),
 			PlatformExtra: parsePlatformMap(os.Getenv("REPOMESH_REPOSITORY_SCAN_PLATFORMS")),
+			// 2026-09-19：扫描以**发起人本人**的 GitHub 令牌跑（5000 次/小时、
+			// 按账号隔离），而不是部署级环境变量（未配置时退化为匿名 60 次/小时）。
+			// 拿不到用户令牌时如实降级，绝不假装有凭据。
+			ActorToken: func(r *http.Request) (string, error) {
+				principal, err := runtime.Service.AuthenticateProjectRequest(
+					r.Context(), web.SessionCookie(r), r.Header.Get("X-CSRF-Token"), false)
+				if err != nil {
+					return "", err
+				}
+				return runtime.Service.UserGitHubToken(r.Context(), principal.ActorID())
+			},
 			Authenticate: func(r *http.Request) error {
 				if r.Method == http.MethodGet {
 					return nil // reads stay open, matching the other catalog reads

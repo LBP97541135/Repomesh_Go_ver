@@ -37,10 +37,25 @@ type Service struct {
 	issueCreationDestinationResolver IssueCreationDestinationResolver
 	appID                            string
 	issueAppKeyVersion               secrets.VersionID
+	// mode 是部署模式：public（默认）任何 GitHub 账号都能登录、每个账号各自
+	// 一个空间、互相看不到对方的项目/仓库/中转站；private 只有该组织的成员
+	// 能登录、全组织共享（登录闸属 P2，未实现）。空值按 public 处理——
+	// 公有部署不需要改任何部署配置就是正确行为。
+	mode string
 }
 
 func New(pool *pgxpool.Pool, store *secrets.Store, provider Provider) *Service {
 	return &Service{pool: pool, secrets: store, provider: provider}
+}
+
+// SetDeploymentMode 设置部署模式。未知值一律按 public 处理：宁可放开，
+// 也不因为一个拼错的配置把所有人锁在门外。
+func (s *Service) SetDeploymentMode(mode string) {
+	if mode == "private" {
+		s.mode = "private"
+		return
+	}
+	s.mode = "public"
 }
 
 type Failure struct {
