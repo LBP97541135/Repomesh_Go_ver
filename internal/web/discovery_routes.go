@@ -350,6 +350,58 @@ func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discove
 		writeJSON(w, http.StatusOK, receipt)
 	})
 
+	// 候选分流（对齐主线 2026-09-18 的用户裁定）：②在聊天室里选——人勾选或 AI 推断；
+	// 人勾选后 ③ 用依赖图查漏，漏选清单待人确认。
+	register("POST /api/issues/{issueId}/discovery/candidates/selection", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			CreatedByAgentID string   `json:"created_by_agent_id"`
+			IdempotencyKey   string   `json:"idempotency_key"`
+			RepositoryIDs    []string `json:"repository_ids"`
+		}
+		if err := decodeBody(w, r, &body); err != nil {
+			return
+		}
+		receipt, err := discoveryAPI.Service.SelectCandidates(r.Context(), r.PathValue("issueId"), body.CreatedByAgentID, body.IdempotencyKey, body.RepositoryIDs)
+		writeDiscoveryReceipt(w, receipt, err)
+	})
+	register("POST /api/issues/{issueId}/discovery/supplement-check", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			CreatedByAgentID string `json:"created_by_agent_id"`
+			IdempotencyKey   string `json:"idempotency_key"`
+		}
+		if err := decodeBody(w, r, &body); err != nil {
+			return
+		}
+		result, err := discoveryAPI.Service.SupplementCheck(r.Context(), r.PathValue("issueId"), body.CreatedByAgentID, body.IdempotencyKey)
+		if err != nil {
+			writeDiscoveryError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	})
+	register("POST /api/issues/{issueId}/discovery/supplements/confirm", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			CreatedByAgentID string   `json:"created_by_agent_id"`
+			IdempotencyKey   string   `json:"idempotency_key"`
+			Repositories     []string `json:"repositories"`
+		}
+		if err := decodeBody(w, r, &body); err != nil {
+			return
+		}
+		receipt, err := discoveryAPI.Service.ConfirmSupplements(r.Context(), r.PathValue("issueId"), body.CreatedByAgentID, body.IdempotencyKey, body.Repositories)
+		writeDiscoveryReceipt(w, receipt, err)
+	})
+
+	// 恢复告警：卡住的发现链由领域自报（观测面只聚合自报，不直接查这个 schema）。
+	registerProjectRoute(mux, "GET /api/projects/{projectId}/discovery-stalls", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {
+		stalls, err := discoveryAPI.Service.Stalls(r.Context(), r.PathValue("projectId"))
+		if err != nil {
+			return err
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": stalls})
+		return nil
+	})
+
 	if discoveryAPI.Maintenance == nil {
 		return
 	}
