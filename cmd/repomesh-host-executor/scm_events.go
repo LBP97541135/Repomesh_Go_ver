@@ -27,7 +27,21 @@ type testEvidence struct {
 // readTestEvidence 读回并解析证据文件。读不到/解不开/没有 passed 字段一律返回
 // ok=false —— 宁可界面显示"还没有记录"，也不拿一个空的"通过"去骗合并闸门。
 func readTestEvidence(workspace string) (testEvidence, bool) {
-	raw, err := os.ReadFile(filepath.Join(workspace, execution.TestEvidenceFile))
+	// 2026-09-20 线上实测：测试 agent 的命令是 `cd repo` 之后再跑，所以它按提示词
+	// 写下的 "test-evidence.json" 落在 **<workspace>/repo/** 下；而这里原先只看
+	// 工作区根目录 —— 文件明明写好了却读不到，单点验收记录一直是 0 条。
+	// 两处都找（集成 run 的脚本会把文件复制回根目录，单点 run 不会）。
+	var raw []byte
+	var err error
+	for _, candidate := range []string{
+		filepath.Join(workspace, execution.TestEvidenceFile),
+		filepath.Join(workspace, "repo", execution.TestEvidenceFile),
+	} {
+		raw, err = os.ReadFile(candidate)
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		return testEvidence{}, false
 	}
