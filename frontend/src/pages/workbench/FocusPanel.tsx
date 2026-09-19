@@ -174,6 +174,45 @@ function TestEvidenceDetail({ view }: { view: TestEvidenceView | null }) {
   );
 }
 
+/** 测试团队的消息流（2026-09-20 接上）。
+ *
+ *  测试组**没有自己的会话**——它的"说过什么"就是一条条落库的验证证据：
+ *  单点验收 / 仓库集成 / 跨仓联调回归。所以这里不装假消息：**每条记录就是一条
+ *  来自测试组的消息**，谁产出的、什么时候、跑了什么命令、退出码与结论，全部逐字
+ *  来自读面（`GET /issues/{id}/tests`）。没有记录时整段不渲染——没发生的事不摆进度。
+ *
+ *  两处用它：测试组自己的房间（RM-TEST，主体就是这条流）与 Manager 主房间
+ *  （跟在 StepStream 后面，让"测试组干了什么"进入房间流，不必自己切过去找）。 */
+function TestStream({ view }: { view: TestEvidenceView | null }) {
+  if (!view || view.items.length === 0) return null;
+  // 按时间排：房间流是"发生的顺序"，不是按类别归拢的顺序。
+  const items = [...view.items].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  return (
+    <div className="flex flex-col gap-3 px-4 pb-1">
+      {items.map((item, index) => (
+        <div key={`${item.kind}-${index}`} className="flex gap-2.5">
+          <span
+            className="mt-0.5 grid h-[22px] w-[22px] flex-none place-items-center rounded-full bg-amber text-[8.5px] font-bold text-[#16130d]"
+            title="测试组 · db-test"
+          >
+            T
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="mb-0.5 flex items-center gap-1.5">
+              <span className="text-[11px] font-medium text-[var(--tree-ink)]">测试组 · db-test</span>
+              <span className="rounded-[5px] bg-amber-well px-1.5 py-px text-[9.5px] text-amber">
+                {KIND_LABEL[item.kind] ?? item.kind}
+              </span>
+              <span className="text-[10px] text-[var(--tree-faint)]">{hhmm(item.created_at)}</span>
+            </div>
+            <TestEvidenceRow item={item} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function TestEvidenceRow({ item }: { item: TestEvidenceItem }) {
   const tone = item.passed
     ? "border-olive/40 bg-olive-well text-olive"
@@ -612,7 +651,20 @@ export function FocusPanel({
     }
     if (entry.kind === "step") return <StepDetail step={entry.step} state={stepStates[entry.step - 1]} discovery={discovery} onGate={onGate} gateBusy={gateBusy} gateError={gateError} onRetryStep={onRetryStep} stepError={stepError} onForceContinue={onForceContinue} policyCard={policyCard} onConfigurePolicy={onConfigurePolicy} onRetryPolicy={onRetryPolicy} messages={messages} />;
     // 测试组：task 单点 / DAG 节点集成 / 跨仓库联调回归的**真实记录**。
-    if (entry.kind === "tests") return <TestEvidenceDetail view={testEvidence} />;
+    // 2026-09-20：主体改成房间消息流（TestStream），跟其他房间一个读法——
+    // 每条记录就是测试组说过的一句话；下面的分类清单保留，便于按 kind 核对。
+    if (entry.kind === "tests") {
+      return (
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {testEvidence === null ? (
+            <div className="flex flex-1 items-center justify-center text-[11px] text-[var(--tree-faint)]">测试记录加载中…</div>
+          ) : (
+            <TestStream view={testEvidence} />
+          )}
+          <TestEvidenceDetail view={testEvidence} />
+        </div>
+      );
+    }
     // 顶栏「流程」点开的阶段历史（规划/执行/审核/交付）。
     if (entry.kind === "stage") {
       return (
@@ -662,6 +714,9 @@ export function FocusPanel({
           <MessageTimeline messages={messages} />
         )}
         <StepStream discovery={discovery} stepStates={stepStates} onGate={onGate} gateBusy={gateBusy} />
+        {/* 测试组的产出也进房间流（2026-09-20）：此前它只在自己的条目里有记录，
+            Manager 主房间里看不到"验收过了没有"，得自己切过去翻。 */}
+        <TestStream view={testEvidence} />
         <PlanHistory discovery={discovery} />
         <GateStack
           stepStates={stepStates}
@@ -704,6 +759,26 @@ export function FocusPanel({
         roomNo: `RM-${(task?.taskUid ?? task?.id ?? "—").split(":").pop()?.slice(0, 6).toUpperCase() ?? "—"}`,
         note: `${task?.leaderLabel || task?.assignee || "待指派"} · 批次${task?.batchNo ?? "—"}`,
         members,
+      };
+    }
+    // 测试组自己的房间（2026-09-20 接上）：此前它没有门牌分支，会掉进下面的
+    // Manager 兜底——点开测试组，门牌写着 RM-MGR「Manager · 主会话时间线」，
+    // 看上去就是"测试组根本没有自己的页面"。
+    if (entry.kind === "tests") {
+      const total = testEvidence?.items.length ?? 0;
+      const passed = testEvidence?.passed ?? 0;
+      const failed = testEvidence?.failed ?? 0;
+      return {
+        title: "测试组 · db-test",
+        roomNo: "RM-TEST",
+        note:
+          total === 0
+            ? "验证团队 · 还没有记录"
+            : `验证团队 · ${total} 条记录 · ${passed} 通过${failed > 0 ? ` · ${failed} 未过` : ""}`,
+        members: [
+          { label: "T", cls: "t", name: "db-test 测试组" },
+          { label: "你", cls: "u" },
+        ] as RoomMember[],
       };
     }
     return {
@@ -753,18 +828,27 @@ export function FocusPanel({
 }
 
 /** 门牌住户头像：角色色圆 + 在线点（「你」按离线渲染——人在门外看） */
-type RoomMember = { label: string; cls: "m" | "l" | "w" | "u"; name?: string };
+type RoomMember = { label: string; cls: "m" | "l" | "w" | "u" | "t"; name?: string };
 const ROOM_AVA_CLS: Record<string, string> = {
   m: "bg-[var(--tree-acc)] text-[#16130d]",
   l: "bg-[var(--tree-role-l)] text-white",
   w: "bg-olive text-white",
   u: "bg-amber text-[#16130d]",
+  // 测试组：与左树那枚烧瓶同色。
+  t: "bg-amber text-[#16130d]",
+};
+const ROOM_ROLE_NAME: Record<string, string> = {
+  m: "Manager",
+  l: "Leader",
+  w: "Worker",
+  u: "用户",
+  t: "测试组",
 };
 function RoomAvatar({ member }: { member: RoomMember }) {
   return (
     <span
       className={`relative grid size-[22px] place-items-center rounded-full text-[8.5px] font-bold ring-2 ring-[var(--tree-zone)] ${ROOM_AVA_CLS[member.cls]} -ml-1.5 first:ml-0`}
-      title={member.name ? `${member.name}（${member.cls === "m" ? "Manager" : member.cls === "l" ? "Leader" : member.cls === "w" ? "Worker" : "用户"}）` : undefined}
+      title={member.name ? `${member.name}（${ROOM_ROLE_NAME[member.cls] ?? ""}）` : undefined}
     >
       {member.label}
       <span className={`absolute -right-0.5 -bottom-0.5 size-2 rounded-full border-[1.5px] border-[var(--tree-zone)] ${member.cls === "u" ? "bg-[var(--tree-faint)]" : "bg-[#4caf7d]"}`} />
