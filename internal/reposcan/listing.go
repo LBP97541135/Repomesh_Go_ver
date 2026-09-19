@@ -3,6 +3,7 @@ package reposcan
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -66,18 +67,44 @@ type githubRepoListing struct {
 	Size        int    `json:"size"`
 }
 
-// ListRepos walks an organization's repositories, 100 per page, up to 20
-// pages (2000 repositories — beyond that the org should be split).
+// ListRepos walks a group's repositories, 100 per page, up to 20 pages
+// (2000 repositories — beyond that the group should be split).
+//
+// 2026-09-19 修（线上实测）：此前**只**打 `/orgs/{owner}/repos` —— 而 GitHub 对
+// **个人账号**回答 404（个人账号不是组织）。于是"扫自己的账号"这条最常见的路径
+// 直接 `reposcan: platform unavailable: HTTP 404`（扫 https://github.com/LBP97541135
+// 秒失败，而扫真组织 repomesh-train-ticket 成功）。
+//
+// 现在组织端点打不通就退回用户端点 `/users/{owner}/repos`：组织与个人账号在
+// GitHub 上是两个端点族，同一个 URL 形状既可能是组织也可能是个人。
 func (f *GitHubFetcher) ListRepos(ctx context.Context, groupURL string) ([]RepoInfo, error) {
 	segments, ok := SplitRepoPath(NormalizeGroupURL(groupURL))
 	if !ok {
 		return nil, fmt.Errorf("不是可识别的组织地址：%s", groupURL)
 	}
-	org := segments[0]
+	owner := segments[0]
 
+	var lastErr error
+	for _, endpoint := range []string{"/orgs/" + owner + "/repos", "/users/" + owner + "/repos"} {
+		repos, err := f.listRepos(ctx, endpoint)
+		if err == nil {
+			return repos, nil
+		}
+		lastErr = err
+		// 只有"没这个东西"才值得换端点；限流 / 无权限 / 服务不可用都要如实上抛，
+		// 否则会把"配额用尽"伪装成"换个端点就好了"。
+		if !errors.Is(err, ErrNotFound) {
+			return nil, err
+		}
+	}
+	return nil, lastErr
+}
+
+// listRepos 翻页读一个列表端点（`/orgs/…` 或 `/users/…`）。
+func (f *GitHubFetcher) listRepos(ctx context.Context, endpoint string) ([]RepoInfo, error) {
 	var repos []RepoInfo
 	for page := 1; page <= 20; page++ {
-		body, err := f.get(ctx, fmt.Sprintf("/orgs/%s/repos?per_page=100&page=%d", org, page), listMaxBody)
+		body, err := f.get(ctx, fmt.Sprintf("%s?per_page=100&page=%d", endpoint, page), listMaxBody)
 		if err != nil {
 			return nil, err
 		}

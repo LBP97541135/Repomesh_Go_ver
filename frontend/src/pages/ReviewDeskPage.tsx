@@ -55,14 +55,22 @@ const DECISIONS: Array<{ kind: CheckpointDecisionKind; label: string }> = [
 function ReviewCard({
   review,
   onDecide,
+  onOpenIssue,
 }: {
   review: HumanReviewRequestView;
   onDecide: (review: HumanReviewRequestView, decision: CheckpointDecisionKind, reason: string) => Promise<void>;
+  /** 跳到出处 issue（origin=discovery 的条目用）。 */
+  onOpenIssue?: (issueId: string) => void;
 }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState<CheckpointDecisionKind | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // discovery 来源的待审**不在本页决策**：那是发现链的人工步骤（③ 分档审批 /
+  // ⑤ 物化确认）在 issue 页面上的镜像登记，流水线在那边推进。在这里按「通过」
+  // 推不动它 —— 给一个按了没反应的按钮，比不给按钮更糟。所以只给指回 issue 的入口。
+  const fromDiscovery = review.origin === "discovery";
   const pending = review.status === "pending";
+  const decidable = pending && !fromDiscovery;
 
   const decide = async (kind: CheckpointDecisionKind) => {
     setBusy(kind);
@@ -104,7 +112,24 @@ function ReviewCard({
         {review.resolved_by_human_id !== null && ` · 决策人 ${shortId(review.resolved_by_human_id)}`}
       </div>
 
-      {pending && (
+      {pending && fromDiscovery && (
+        <div className="mt-2.5 rounded-hard border border-line bg-ink px-2.5 py-2">
+          <p className="text-[11.5px] leading-[1.7] text-tx2">
+            这一步在 <b className="text-cream">issue 页面</b> 完成（分档审批 / 物化确认），
+            这里只是它的登记 —— 流水线不在审核台上推进。
+          </p>
+          {onOpenIssue && review.issue_id !== "" && (
+            <button
+              className="mt-1.5 rounded-hard border border-line px-2.5 py-[3px] text-[11.5px] text-tx2 hover:border-amber hover:text-amber-hi"
+              onClick={() => onOpenIssue(review.issue_id)}
+            >
+              去 issue 处理
+            </button>
+          )}
+        </div>
+      )}
+
+      {decidable && (
         <div className="mt-2.5">
           <input
             className="w-full rounded-hard border border-line bg-ink px-2.5 py-1.5 text-[12px] text-tx placeholder:text-tx3 focus:border-amber focus:outline-none"
@@ -142,6 +167,7 @@ export function ReviewDeskPage({
   streaming,
   onRefresh,
   onToast,
+  onOpenIssue,
 }: {
   /** null = 尚未取到（加载中）。空数组 = 队列真的空了，两态不合并。 */
   rows: HumanReviewRequestView[] | null;
@@ -150,6 +176,8 @@ export function ReviewDeskPage({
   streaming: boolean;
   onRefresh: () => void;
   onToast: (text: string) => void;
+  /** 跳到出处 issue：discovery 来源的待审项只在那边能推进（见 ReviewCard 注释）。 */
+  onOpenIssue?: (issueId: string) => void;
 }) {
   const [showResolved, setShowResolved] = useState(false);
   const [resolved, setResolved] = useState<HumanReviewRequestView[] | null>(null);
@@ -217,7 +245,7 @@ export function ReviewDeskPage({
       ) : (
         <div className="mt-4 grid gap-2">
           {rows.map((review) => (
-            <ReviewCard key={review.id} review={review} onDecide={decide} />
+            <ReviewCard key={review.id} review={review} onDecide={decide} onOpenIssue={onOpenIssue} />
           ))}
         </div>
       )}
@@ -234,7 +262,7 @@ export function ReviewDeskPage({
           ) : (
             <div className="grid gap-2">
               {resolved.map((review) => (
-                <ReviewCard key={review.id} review={review} onDecide={decide} />
+                <ReviewCard key={review.id} review={review} onDecide={decide} onOpenIssue={onOpenIssue} />
               ))}
             </div>
           )}

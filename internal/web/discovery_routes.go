@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"repomesh.local/repomesh/internal/access"
 	"repomesh.local/repomesh/internal/discovery"
+	"repomesh.local/repomesh/internal/humancontrol"
 )
 
 // writeDiscoveryError 把发现链的错误翻译成**如实的 HTTP 状态 + 人能看懂的话**。
@@ -58,6 +60,77 @@ func writeDiscoveryError(w http.ResponseWriter, err error) {
 type Discovery struct {
 	Service     *discovery.Service
 	Maintenance *discovery.Maintenance
+	// Reviews 是审核台：发现链的**人工步骤**要镜像成它的待审项。
+	//
+	// 2026-09-19 事故：审核台读的 review_requests 全仓没有任何生产者（线上实测
+	// 0 行），而人工步骤只发生在 issue 页面（③ 分档审批 / ⑤ 物化确认）——
+	// 用户在 issue 里看到"待人工"，审核台却永远"没有待审事项"。Nil = 不镜像。
+	Reviews *humancontrol.Service
+}
+
+// discoveryActorKey 把会话主体塞进请求上下文：审核单要记"谁销的账"。
+type discoveryActorKey struct{}
+
+func withDiscoveryActor(ctx context.Context, actor string) context.Context {
+	return context.WithValue(ctx, discoveryActorKey{}, actor)
+}
+
+func discoveryActor(ctx context.Context) string {
+	actor, _ := ctx.Value(discoveryActorKey{}).(string)
+	return actor
+}
+
+// raiseReview 在**上游步骤跑完**后落一张待审单（例如候选评分完成 → 分档待审批）。
+// 一律 fail-open：审核台的写入绝不能反过来打断发现链。
+func (d Discovery) raiseReview(ctx context.Context, issueID, checkpoint, label string) {
+	if d.Reviews == nil || d.Service == nil {
+		return
+	}
+	projectID, title, owner, err := d.Service.IssueContext(ctx, issueID)
+	if err != nil || projectID == "" {
+		return
+	}
+	_, _ = d.Reviews.Request(ctx, humancontrol.RequestCommand{
+		ProjectID:  projectID,
+		Checkpoint: checkpoint,
+		Title:      label + "：" + title,
+		Summary:    "由发现链自动登记：这一步在 issue 页面完成（不是审核台上按按钮），审核台只做登记与回看。",
+		// 指派给项目属主：审核台对非管理员只显示自己名下的待审项。
+		Assignee: owner,
+		// 出处写进 request_content：审核台据此**指回 issue**。流水线在那边推进，
+		// 在这边给一个「通过」按钮只会推不动它（见 humancontrol.ReviewView 注释）。
+		IssueID: issueID,
+		Origin:  "discovery",
+	})
+}
+
+// freezePolicy 在首次物化时把监管策略定死（§3.4：过了物化这一步，策略就定死了）。
+//
+// 这句话此前只是前端卡片上的文案 —— 后端没有任何东西阻止物化之后再来改策略。
+// 策略决定的是「这个需求会停在哪几处、谁能批」，跑起来之后中途改强度，会让已经在
+// 旧强度下做过的决策无从解释。同样 fail-open：定死失败不该反过来打断物化。
+func (d Discovery) freezePolicy(ctx context.Context, issueID string) {
+	if d.Reviews == nil || d.Service == nil {
+		return
+	}
+	projectID, _, _, err := d.Service.IssueContext(ctx, issueID)
+	if err != nil || projectID == "" {
+		return
+	}
+	_ = d.Reviews.FreezePolicyDraft(ctx, projectID)
+}
+
+// settleReview 在**人工步骤完成后**销掉那张待审单（③ 审批完 / ⑤ 物化完）。
+// 同样 fail-open。
+func (d Discovery) settleReview(ctx context.Context, issueID, checkpoint, decision, reason string) {
+	if d.Reviews == nil || d.Service == nil {
+		return
+	}
+	projectID, _, _, err := d.Service.IssueContext(ctx, issueID)
+	if err != nil || projectID == "" {
+		return
+	}
+	_ = d.Reviews.ResolveForCheckpoint(ctx, projectID, checkpoint, discoveryActor(ctx), decision, reason)
 }
 
 // registerDiscoveryRoutes wires the contract v0.4 discovery chain endpoints
@@ -97,7 +170,7 @@ func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discove
 					return
 				}
 			}
-			handler(w, r)
+			handler(w, r.WithContext(withDiscoveryActor(r.Context(), actor)))
 		})
 	}
 
@@ -164,6 +237,16 @@ func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discove
 			return
 		}
 		receipt, err := discoveryAPI.Service.Candidates(r.Context(), r.PathValue("issueId"), body.CreatedByAgentID, body.IdempotencyKey, body.Limit, body.EntryPoint)
+		if err == nil {
+			// 候选评分跑完 = ③ 分档审批待人工（镜像成审核台的一张待审单）。
+			//
+			// 卡点取 `repository_scope` 而不是 `specification`：③ 决定的正是
+			// **哪些仓库在范围内**，这就是 repository_scope 的定义；而
+			// `specification` 在前端被明确标注为「当前没有可达触发点」的卡点
+			//（SupervisionPolicyDialog 的 INERT_CHECKPOINTS），拿它当一道真会停的
+			// 门，等于让界面上一句话与库里的数据互相打架。
+			discoveryAPI.raiseReview(r.Context(), r.PathValue("issueId"), "repository_scope", "分档待审批")
+		}
 		writeDiscoveryReceipt(w, receipt, err)
 	})
 	register("POST /api/issues/{issueId}/discovery/classification", func(w http.ResponseWriter, r *http.Request) {
@@ -186,21 +269,33 @@ func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discove
 			return
 		}
 		receipt, err := discoveryAPI.Service.Plan(r.Context(), r.PathValue("issueId"), body.CreatedByAgentID, body.IdempotencyKey)
+		if err == nil {
+			// 计划生成完 = ⑤ 物化确认待人工。
+			//
+			// 卡点取 `execution`：物化确认是**放行执行**的那道门（确认后编制组装、
+			// 批次下发）。③ 用的是 repository_scope（决定范围），⑤ 用 execution
+			//（放行开工）——两个门两件事，各归其名。
+			discoveryAPI.raiseReview(r.Context(), r.PathValue("issueId"), "execution", "物化待确认")
+		}
 		writeDiscoveryReceipt(w, receipt, err)
 	})
 	register("POST /api/issues/{issueId}/discovery/approval", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
-			DecidedByAgentID string                `json:"decided_by_agent_id"`
-			IdempotencyKey   string                `json:"idempotency_key"`
-			Decision         string                `json:"decision"`
-			Reason           string                `json:"reason"`
+			DecidedByAgentID string                 `json:"decided_by_agent_id"`
+			IdempotencyKey   string                 `json:"idempotency_key"`
+			Decision         string                 `json:"decision"`
+			Reason           string                 `json:"reason"`
 			Adjustments      []discovery.Adjustment `json:"adjustments"`
-			EvidenceVersion  string                `json:"evidence_version"`
+			EvidenceVersion  string                 `json:"evidence_version"`
 		}
 		if err := decodeBody(w, r, &body); err != nil {
 			return
 		}
 		receipt, err := discoveryAPI.Service.Approval(r.Context(), r.PathValue("issueId"), body.DecidedByAgentID, body.IdempotencyKey, body.Decision, body.Reason, body.Adjustments, body.EvidenceVersion)
+		if err == nil {
+			// 人工已在 issue 页面完成分档审批 → 销掉那张待审单。
+			discoveryAPI.settleReview(r.Context(), r.PathValue("issueId"), "repository_scope", body.Decision, body.Reason)
+		}
 		writeDiscoveryReceipt(w, receipt, err)
 	})
 	register("POST /api/issues/{issueId}/discovery/materialize", func(w http.ResponseWriter, r *http.Request) {
@@ -216,6 +311,10 @@ func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discove
 			writeDiscoveryError(w, err)
 			return
 		}
+		// 物化完成 = ⑤ 已确认 → 销掉那张待审单（人工在 issue 页面点的）。
+		discoveryAPI.settleReview(r.Context(), r.PathValue("issueId"), "execution", "approved", "")
+		// 物化同时把监管策略定死：卡点与审核人此后不可改（见 freezePolicy）。
+		discoveryAPI.freezePolicy(r.Context(), r.PathValue("issueId"))
 		writeJSON(w, http.StatusOK, receipt)
 	})
 

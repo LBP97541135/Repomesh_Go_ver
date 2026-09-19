@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
-import { AuthError, authApi, type Account } from "../api/auth";
+import { authApi, type Account } from "../api/auth";
 import type { ConsoleRepositoryView, DiscoveryEffectiveTier } from "../api/contract";
 import { fetchConsoleRepositories } from "../api/grid";
 import {
@@ -268,6 +268,15 @@ function toGrantInput(row: GrantRow): PolicyDraftGrantInput {
 
 /* ─────────────────────────── 取数状态 ─────────────────────────── */
 
+/** 从两种错误类型里取 HTTP 状态：草稿三端点走 `apiRequest`（抛 ApiError），
+ *  账号目录走 `authApi`（抛 AuthError）。两者都有 `status`，但**不是同一个类**，
+ *  只认其中一种就会把「未设定（404）」误判成取数失败——而这两者的界面后果完全相反。 */
+function statusOf(err: unknown): number {
+  return typeof (err as { status?: unknown })?.status === "number"
+    ? (err as { status: number }).status
+    : 0;
+}
+
 type LoadState =
   | { kind: "loading" }
   /** 401：会话过期。**不能混进 `error`**——那一态给「重试」按钮，而重试一个过期会话
@@ -356,7 +365,7 @@ export function SupervisionPolicyDialog({
       const draftPromise = fetchPolicyDraft(projectId).then(
         (draft) => ({ draft, error: null as unknown }),
         (err: unknown) =>
-          err instanceof AuthError && err.status === 404
+          statusOf(err) === 404
             ? { draft: null, error: null as unknown }
             : { draft: null, error: err },
       );
@@ -402,12 +411,12 @@ export function SupervisionPolicyDialog({
         setLoad({ kind: "ready" });
       } catch (err) {
         if (cancelled) return;
-        if (err instanceof AuthError && err.status === 401) {
-          setLoad({ kind: "unauthenticated", detail: err.message });
+        if (statusOf(err) === 401) {
+          setLoad({ kind: "unauthenticated", detail: errText(err) });
           return;
         }
-        if (err instanceof AuthError && err.status === 403) {
-          setLoad({ kind: "forbidden", detail: err.message });
+        if (statusOf(err) === 403) {
+          setLoad({ kind: "forbidden", detail: errText(err) });
           return;
         }
         setLoad({ kind: "error", message: errText(err) });
@@ -556,7 +565,7 @@ export function SupervisionPolicyDialog({
     } catch (err) {
       // detail 原文上抛不归并。⚠ 这里出现域不变量原文就是界面漏了一条约束
       // （见文件头），那是一个待修缺陷，不是给用户看的正常路径。
-      setSubmitError({ detail: errText(err), expired: err instanceof AuthError && err.status === 401 });
+      setSubmitError({ detail: errText(err), expired: statusOf(err) === 401 });
     } finally {
       setBusy(false);
     }
@@ -574,7 +583,7 @@ export function SupervisionPolicyDialog({
       onSaved(null);
       onClose();
     } catch (err) {
-      setSubmitError({ detail: errText(err), expired: err instanceof AuthError && err.status === 401 });
+      setSubmitError({ detail: errText(err), expired: statusOf(err) === 401 });
     } finally {
       setBusy(false);
       setConfirmWithdraw(false);

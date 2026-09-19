@@ -4,7 +4,8 @@ export type PolicyGate = "resolving" | "open" | "sealed" | "unknown";
 import type { PlanAnchor } from "../../types";
 import type { IssueDetailView } from "../../api/contract";
 import { fetchPlanGraphEdges, fetchRepositoryPlan } from "../../api/rooms";
-import { fetchProjectTopology, type ProjectAgentTopologyView } from "../../api/humanControl";
+import { fetchProjectTopology, fetchPolicyDraft, type ProjectAgentTopologyView } from "../../api/humanControl";
+import type { PolicyDraftState } from "../../components/SupervisionPolicyCard";
 import { ApiError } from "../../api/client";
 import { errText } from "../../display";
 import { resolveDataSourceMode } from "../../api/source";
@@ -80,6 +81,51 @@ export function useIssueFlowState(issueId: string, detail: IssueDetailView | nul
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [issueId, detail?.issue_id, reload, supervisionReload]);
   const reloadSupervision = useCallback(() => setSupervisionReload((n) => n + 1), []);
+
+  // ── 监管策略草稿（§3.2/§3.4）：与拓扑读面同一个 reload 拍子 ──
+  //
+  // 为什么两件事要一起取：草稿卡片**只在拓扑还不存在时**渲染（拓扑一落地，档案
+  // 就锁死了，草稿窗口关闭）。两个取数点各问一次，会在物化那一瞬间给出互相矛盾的
+  // 答案——卡片说「还没设」而档案已经在了。所以卡片态由这里的拓扑态与草稿态合成。
+  const [policyDraft, setPolicyDraft] = useState<PolicyDraftState>({ kind: "loading" });
+  const [policyReload, setPolicyReload] = useState(0);
+  const reloadPolicy = useCallback(() => setPolicyReload((n) => n + 1), []);
+  useEffect(() => {
+    if (!detail) return;
+    if (resolveDataSourceMode() === "replay") {
+      // 回放模式没有这一面的夹具：发请求会对夹具 id 答 404，把「回放世界里设了
+      // 卡点」渲染成「尚未设定」——拿取数失败反驳夹具事实。
+      setPolicyDraft({ kind: "unknown" });
+      return;
+    }
+    let cancelled = false;
+    setPolicyDraft({ kind: "loading" });
+    fetchPolicyDraft(issueId)
+      .then((draft) => !cancelled && setPolicyDraft({ kind: "set", draft }))
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const status =
+          typeof (err as { status?: unknown }).status === "number"
+            ? (err as { status: number }).status
+            : 0;
+        // 404 = 还没设过。这不是错误，是「未设定」这条事实本身——后端刻意不返
+        // 200 空对象，因为「没人决定过」与「有人决定了不设卡点」是两件事。
+        setPolicyDraft(
+          status === 404
+            ? { kind: "unset" }
+            : status === 401
+              ? { kind: "unauthenticated", detail: errText(err) }
+              : status === 403
+                ? { kind: "forbidden", detail: errText(err) }
+                : { kind: "error", message: errText(err) },
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+    // 与拓扑同一取舍：依赖 issue 标识与刷新计数，不依赖 detail 整体身份。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [issueId, detail?.issue_id, reload, policyReload]);
 
   // ── 锚点回退中转：发现面板报上来的候选仓（undefined = 还没问过发现读投影） ──
   const [candidateAnchor, setCandidateAnchor] = useState<PlanAnchor | null | undefined>(undefined);
@@ -172,11 +218,28 @@ export function useIssueFlowState(issueId: string, detail: IssueDetailView | nul
   ]);
   const reloadPlan = useCallback(() => setPlanReload((n) => n + 1), []);
 
+  /** 草稿卡片**真正要渲染的那一态**：先看拓扑在不在，再看草稿。
+   *
+   *  为什么在这里合成而不在卡片里各问一次（§3.4）：`GET /projects/{id}/topology`
+   *  拿得到真档案时，草稿窗口已经关了——卡片不该再出现（不给一个按了也没用的
+   *  按钮）。两个取数点各判一次，会在物化那一瞬间给出互相矛盾的答案：卡片说
+   *  「还没设」而档案已经在了。
+   *
+   *  `sealed` / `unknown` 不是错误态，是「这个问题已经不归草稿管了」。 */
+  const policyCard: PolicyDraftState =
+    supervision.status === "ready" || supervision.status === "forbidden"
+      ? { kind: "sealed" }
+      : supervision.status === "loading" || supervision.status === "replay"
+        ? { kind: "unknown" }
+        : policyDraft;
+
   return {
     planState,
     reloadPlan,
     supervision,
     reloadSupervision,
+    policyCard,
+    reloadPolicy,
     candidateAnchor,
     handleCandidateAnchor,
   };

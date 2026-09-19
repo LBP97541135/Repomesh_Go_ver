@@ -472,6 +472,7 @@ export default function ConsoleShell() {
             streaming={reviewsStreaming}
             onRefresh={() => setReviewsReload((n) => n + 1)}
             onToast={showToast}
+            onOpenIssue={openIssue}
           />
         )}
       {route.nav === "repositories" && (

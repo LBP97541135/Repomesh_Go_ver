@@ -456,7 +456,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			EmbeddingAPIKey:  os.Getenv("REPOMESH_EMBEDDING_API_KEY"),
 			EmbeddingModel:   os.Getenv("REPOMESH_EMBEDDING_MODEL"),
 		}, pipelinePool))
-		discoveryAPI = web.Discovery{Service: discoveryService, Maintenance: discovery.NewMaintenance(pipelinePool)}
+		// Reviews：发现链的人工步骤（③ 分档审批 / ⑤ 物化确认）镜像成审核台的待审项，
+		// 否则审核台读的 review_requests 恒空（它此前全仓没有生产者）。
+		discoveryAPI = web.Discovery{Service: discoveryService, Maintenance: discovery.NewMaintenance(pipelinePool), Reviews: humanControlAPI.Service}
 		consoleAPI = web.Console{Service: console.New(pipelinePool)}
 	}
 	if err := web.RunConfigured(ctx, *addr, *assets, auth, projectAPI, modelAPI, scanAPI, decisionAPI, skillsAPI, issuesAPI, messagesAPI, web.AgentTeams{Client: atClient}, pipelineAPI, humanControlAPI, observeV1, discoveryAPI, consoleAPI, certFile, keyFile); err != nil {

@@ -69,6 +69,15 @@ var ErrUnavailable = errors.New("reposcan: platform unavailable")
 // succeeded。限流必须与鉴权失败分开——前者可退避重试，后者重试无用。
 var ErrRateLimited = errors.New("reposcan: rate limited")
 
+// ErrNotFound reports the platform answered "there is no such thing" (GitHub 404).
+//
+// 与 ErrUnavailable 分开的理由：404 是**确定性**的（不存在 / 看不见），重试无用；
+// 而"组织端点 404 → 换用户端点"这种降级恰恰需要把它和"服务不可用"区分开。
+//
+// 2026-09-19 线上实测：扫 `https://github.com/LBP97541135`（**个人账号**）秒失败
+// `reposcan: platform unavailable: HTTP 404` —— 因为列仓库只打了组织端点。
+var ErrNotFound = errors.New("reposcan: not found")
+
 // Cache wraps a Fetcher with per-scan memoization. Several channels select
 // overlapping files, so each distinct path must cost exactly one upstream
 // call; a fetch that failed (or found nothing) is cached too — a later

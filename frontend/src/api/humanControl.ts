@@ -8,7 +8,6 @@
  *  自己的通道，就没有哪个调用点需要记住这条规则。
  *
  *  通道实现只有一处（`auth.ts` 的 `sessionRequest`），本模块只声明端点。 */
-import { sessionRequest } from "./auth";
 import { apiRequest } from "./http";
 import type { TeamRuntimeStatus } from "./contract";
 import type { ProjectCheckpoint } from "./reviewDesk";
@@ -342,7 +341,11 @@ export interface TopologyPolicyDraftView {
  *   - **401 = 会话过期**，重试没有意义（重试一个过期会话不会有别的结果），
  *     要指向重新登录。 */
 export function fetchPolicyDraft(projectId: string): Promise<TopologyPolicyDraftView> {
-  return sessionRequest<TopologyPolicyDraftView>(
+  // 2026-09-19 对齐 Go 路由：草稿三端点挂在 `/api/projects/{id}/policy-draft`
+  // （无 v1 段），与 topology 一族同前缀。旧的 sessionRequest 会拼成
+  // `/api/v1/...` → 404 错位；而**写操作**还必须带 X-CSRF-Token，那个通道也不带。
+  return apiRequest<TopologyPolicyDraftView>(
+    "GET",
     `/projects/${encodeURIComponent(projectId)}/policy-draft`,
   );
 }
@@ -370,9 +373,10 @@ export function putPolicyDraft(
   projectId: string,
   payload: TopologyPolicyDraftInput,
 ): Promise<TopologyPolicyDraftView> {
-  return sessionRequest<TopologyPolicyDraftView>(
+  return apiRequest<TopologyPolicyDraftView>(
+    "PUT",
     `/projects/${encodeURIComponent(projectId)}/policy-draft`,
-    { method: "PUT", body: JSON.stringify(payload) },
+    payload,
   );
 }
 
@@ -382,7 +386,8 @@ export function putPolicyDraft(
  *  **没得撤时是 404 而不是一句轻快的 204**：以为自己撤掉了一份其实早被别人撤掉的
  *  策略，与真的撤掉了是两件事，后端选择说出来（路由文档明写）。 */
 export function deletePolicyDraft(projectId: string): Promise<void> {
-  return sessionRequest<void>(`/projects/${encodeURIComponent(projectId)}/policy-draft`, {
-    method: "DELETE",
-  });
+  return apiRequest<void>(
+    "DELETE",
+    `/projects/${encodeURIComponent(projectId)}/policy-draft`,
+  );
 }

@@ -97,6 +97,8 @@ func handlerConfigured(assets fs.FS, auth Auth, projectAPI Projects, modelAPI Mo
 	registerIssues(mux, auth, issueAPI)
 	registerMessages(mux, auth, messagesAPI)
 	registerHumanControl(mux, auth, humanControlAPI)
+	registerPolicyDraftRoutes(mux, auth, humanControlAPI)
+	registerAccountDirectory(mux, auth)
 	registerObserveV1(mux, auth, observeV1)
 	registerDiscoveryRoutes(mux, auth, discoveryAPI)
 	registerConsoleRoutes(mux, auth, consoleAPI)

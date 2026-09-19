@@ -28,6 +28,7 @@ import { fetchConsoleRepositories } from "../../api/grid";
 import { autoTrigger } from "./autoTrigger";
 import { useIssueFlowState } from "./useIssueFlowState";
 import { PlanDagCapsule } from "../../components/PlanDagCapsule";
+import { SupervisionPolicyDialog } from "../../components/SupervisionPolicyDialog";
 import { AIChatInput } from "../../components/ui/ai-chat-input";
 import { errText } from "../../display";
 
@@ -328,6 +329,8 @@ export function WorkbenchPage({
   // ── 人工门（分档审批 / 物化确认）──
   const [gateBusy, setGateBusy] = useState<"approveTiers" | "materialize" | null>(null);
   const [gateError, setGateError] = useState<string | null>(null);
+  /** 监管策略弹窗（迁移 5-1b）：草稿卡片上的「配置 / 修改」。 */
+  const [policyOpen, setPolicyOpen] = useState(false);
   const handleGate = (action: "approveTiers" | "materialize") => {
     if (!detail || !discovery) return;
     if (resolveDataSourceMode() === "replay") {
@@ -769,6 +772,9 @@ export function WorkbenchPage({
             gateBusy={gateBusy}
             gateError={gateError}
             onRetryStep={handleRetryStep}
+            policyCard={flow.policyCard}
+            onConfigurePolicy={() => setPolicyOpen(true)}
+            onRetryPolicy={flow.reloadPolicy}
             mergePending={allTasksDone && trainCars !== null && issueHitl === "hitl"}
             onConfirmMerge={() => onToast("已确认合并：按仓库依赖顺序执行（演示）")}
             input={
@@ -793,6 +799,27 @@ export function WorkbenchPage({
             }
           />
         </div>
+      )}
+
+      {/* 监管策略弹窗（迁移 5-1b）：草稿卡片上的「配置 / 修改」打开它。
+          两个入参都取**已取到的事实**：生效分档来自发现读投影（弹窗用它把仓库
+          下拉限定在计划内的仓库上，配出一条物化时必被拒的授权是界面失职），
+          任务数来自计划集成计数（还没生成计划时是 null —— 那时 T 未知，
+          代价预告如实说「每个任务各 1 次」，不拿 0 冒充）。 */}
+      {detail && (
+        <SupervisionPolicyDialog
+          open={policyOpen}
+          projectId={detail.issue_id}
+          issueTitle={detail.title}
+          effectiveTiers={discovery?.effective_tiers ?? []}
+          taskCount={discovery?.integration?.task_dag_count ?? null}
+          onClose={() => setPolicyOpen(false)}
+          onSaved={() => {
+            // 保存/撤回后重取草稿，让卡片显示的是服务端真正存下的那一份。
+            flow.reloadPolicy();
+            setPolicyOpen(false);
+          }}
+        />
       )}
     </div>
   );

@@ -89,6 +89,10 @@ func (f *GitHubFetcher) get(ctx context.Context, apiPath string, capBytes int64)
 		return nil, ErrRateLimited
 	case response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden:
 		return nil, ErrUnauthorized
+	case response.StatusCode == http.StatusNotFound:
+		// 404 是确定性的"没有这个东西"（仓库不存在、私有仓库看不见、
+		// 或者组织端点用在个人账号上）。与"服务不可用"分开，调用方才能据此降级。
+		return nil, ErrNotFound
 	case response.StatusCode >= 400:
 		return nil, fmt.Errorf("%w: HTTP %d", ErrUnavailable, response.StatusCode)
 	}

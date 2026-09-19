@@ -44,6 +44,16 @@ export interface HumanReviewRequestView {
   repository_id: string | null;
   requested_by_agent_id: string | null;
   resolved_by_human_id: string | null;
+  /** 这条待审**从哪来的**（后端 request_content.origin）。
+   *
+   *  `discovery` = 发现链的人工步骤（③ 分档审批 / ⑤ 物化确认）在 issue 页面上的
+   *  镜像登记：**流水线在 issue 那边推进**，在这个队列里按按钮推不动它。所以界面
+   *  对这类条目不给决策按钮，而是给一个指回 issue 的入口 —— 给一个按了没反应的
+   *  按钮，比不给按钮更糟。
+   *  `pipeline`（或空）= 审核台自己的卡点，在这里决策。 */
+  origin: string;
+  /** origin=discovery 时的出处 issue；否则空串。 */
+  issue_id: string;
   created_at: string;
   updated_at: string;
 }

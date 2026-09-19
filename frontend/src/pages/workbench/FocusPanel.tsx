@@ -15,6 +15,7 @@ import type { DiscoveryView } from "../../api/contract";
 import type { PlanTaskItem } from "../../api/taskTree";
 import type { ConversationMessage } from "../../api/conversations";
 import type { FocusEntry, StepState } from "./treeModel";
+import { SupervisionPolicyCard, type PolicyDraftState } from "../../components/SupervisionPolicyCard";
 
 /** 消息作者 → 角色显示。先看 authorKind（user 是人），服务侧 agent 再按
  *  roster 命名约定（agent_<role>[_<name>]）推导；都推不出按系统条目样式。 */
@@ -102,6 +103,10 @@ export interface FocusPanelProps {
   gateError: string | null;
   /** 失败步重试 */
   onRetryStep: (step: 1 | 2 | 3 | 4) => void;
+  /** 监管策略草稿卡片的合成态（由页面的拓扑态 + 草稿态合成，见 useIssueFlowState） */
+  policyCard: PolicyDraftState;
+  onConfigurePolicy: () => void;
+  onRetryPolicy: () => void;
   /** 输入框配置；null=不渲染输入 */
   input: { placeholder: string; sending: boolean; disabled?: boolean; onSend: (text: string) => void } | null;
   /** 交付期到达且人工参与:合并确认也作为一条带按钮的消息出现在 Manager 房间 */
@@ -119,6 +124,9 @@ export function FocusPanel({
   gateBusy,
   gateError,
   onRetryStep,
+  policyCard,
+  onConfigurePolicy,
+  onRetryPolicy,
   input,
   mergePending = false,
   onConfirmMerge,
@@ -131,7 +139,7 @@ export function FocusPanel({
         </div>
       );
     }
-    if (entry.kind === "step") return <StepDetail step={entry.step} state={stepStates[entry.step - 1]} discovery={discovery} onGate={onGate} gateBusy={gateBusy} gateError={gateError} onRetryStep={onRetryStep} messages={messages} />;
+    if (entry.kind === "step") return <StepDetail step={entry.step} state={stepStates[entry.step - 1]} discovery={discovery} onGate={onGate} gateBusy={gateBusy} gateError={gateError} onRetryStep={onRetryStep} policyCard={policyCard} onConfigurePolicy={onConfigurePolicy} onRetryPolicy={onRetryPolicy} messages={messages} />;
     if (entry.kind === "task") {
       return (
         <div className="flex min-h-0 flex-1 flex-col">
@@ -351,6 +359,9 @@ function StepDetail({
   gateBusy,
   gateError,
   onRetryStep,
+  policyCard,
+  onConfigurePolicy,
+  onRetryPolicy,
   messages,
 }: {
   step: 1 | 2 | 3 | 4 | 5;
@@ -360,6 +371,9 @@ function StepDetail({
   gateBusy: "approveTiers" | "materialize" | null;
   gateError: string | null;
   onRetryStep: (step: 1 | 2 | 3 | 4) => void;
+  policyCard: PolicyDraftState;
+  onConfigurePolicy: () => void;
+  onRetryPolicy: () => void;
   messages: ConversationMessage[] | null;
 }) {
   const wrap = (cards: ReactNode) => (
@@ -478,7 +492,13 @@ function StepDetail({
   // step 5
   const materialized = discovery?.materialization?.status === "materialized";
   return wrap(
-    <CardShell title={materialized ? "已物化并开工" : "物化并开工"} tone={materialized ? "done" : "gate"}>
+    <>
+      {/* 监管策略卡片（§3.1）：与物化按钮同级。**只在拓扑还不存在时**才有按钮
+          —— 拓扑一落地档案就锁死了（§3.4），卡片态由 useIssueFlowState 合成。 */}
+      {!materialized && (
+        <SupervisionPolicyCard state={policyCard} onConfigure={onConfigurePolicy} onRetry={onRetryPolicy} />
+      )}
+      <CardShell title={materialized ? "已物化并开工" : "物化并开工"} tone={materialized ? "done" : "gate"}>
       {materialized ? (
         <p className="text-[11px] leading-[1.7] text-[var(--tree-sub)]">编制已组装、批次已下发——左侧树已换代为任务视图，点任务行查看各自房间的消息流。</p>
       ) : (
@@ -493,7 +513,8 @@ function StepDetail({
           </button>
         </>
       )}
-      {gateError && <p className="mt-2 rounded-[7px] border border-salmon/40 bg-salmon-well px-2.5 py-1.5 text-[11px] text-salmon">{gateError}</p>}
-    </CardShell>,
+        {gateError && <p className="mt-2 rounded-[7px] border border-salmon/40 bg-salmon-well px-2.5 py-1.5 text-[11px] text-salmon">{gateError}</p>}
+      </CardShell>
+    </>,
   );
 }
