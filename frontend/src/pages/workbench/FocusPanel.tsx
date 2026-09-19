@@ -581,7 +581,7 @@ export function FocusPanel({
       return { title: "选择条目查看详情", roomNo: "RM-—", note: "点左侧步骤 / 任务行进入房间", members: [] as RoomMember[] };
     }
     if (entry.kind === "step") {
-      const titles = ["① 需求分析", "② 候选评分", "③ 分档审批", "④ 生成计划", "⑤ 物化确认"];
+      const titles = ["需求分析", "候选评分", "分档审批", "生成计划", "物化确认"];
       return {
         title: titles[entry.step - 1], roomNo: `RM-S${entry.step}`,
         note: `规划 · 步骤 ${entry.step}`, members: [{ label: "M", cls: "m" }] as RoomMember[],
@@ -975,7 +975,7 @@ function PlanHistory({ discovery }: { discovery: DiscoveryView | null }) {
   const mat = discovery.materialization;
   const rows: Array<{ step: string; body: ReactNode }> = [
     {
-      step: "① 需求分析",
+      step: "需求分析",
       body: a ? (
         <>
           <span>{(a.extracted_keywords ?? []).join(" · ") || "（无关键词）"}</span>
@@ -986,7 +986,7 @@ function PlanHistory({ discovery }: { discovery: DiscoveryView | null }) {
       ),
     },
     {
-      step: "② 候选评分",
+      step: "候选评分",
       body: c ? (
         <>
           <span>{c.items.length} 个候选 · {(c.items[0]?.repository_name ?? "—")}</span>
@@ -997,7 +997,7 @@ function PlanHistory({ discovery }: { discovery: DiscoveryView | null }) {
       ),
     },
     {
-      step: "③ 分档审批",
+      step: "分档审批",
       body: k ? (
         <span>
           必改 {k.required.length} · 可能 {k.maybe.length} · 排除 {k.excluded.length} ·{" "}
@@ -1008,7 +1008,7 @@ function PlanHistory({ discovery }: { discovery: DiscoveryView | null }) {
       ),
     },
     {
-      step: "④ 生成计划",
+      step: "生成计划",
       body: integration ? (
         <>
           <span>{integration.task_dag_count} 个任务</span>
@@ -1019,7 +1019,7 @@ function PlanHistory({ discovery }: { discovery: DiscoveryView | null }) {
       ),
     },
     {
-      step: "⑤ 物化确认",
+      step: "物化确认",
       body: mat ? <span>{mat.status}{mat.at ? ` · ${String(mat.at).slice(0, 16)}` : ""}</span> : <span>未物化</span>,
     },
   ];
