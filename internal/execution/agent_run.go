@@ -13,6 +13,13 @@ import (
 // 白烧额度与模型调用，该停下来让人看。到顶后任务停在 'failed' 并带上原因。
 const maxDevAttempts = 3
 
+// TestEvidenceFile 是测试 agent 必须写出的证据文件名（工作区根下）。
+//
+// 派发端（coordinator 的 buildTestCommand）把它写进提示词，收端
+// （host-executor 的 recordDeliveryFacts）按同名读回 —— 两边共用这一个常量，
+// 免得改名时只改了一头、另一头静默读不到（那样测试记录会悄悄变空）。
+const TestEvidenceFile = "test-evidence.json"
+
 // AgentRunCommand launches one coding agent process inside an attempt.
 type AgentRunCommand struct {
 	AttemptID      string

@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"repomesh.local/repomesh/internal/execution"
 )
 
 // coordinatorLedger adapts the coordinator to the tasks.ExecutionFacade: it
@@ -114,12 +116,20 @@ func buildTestCommand(agentKind, model, instruction, repoFullName, attemptID, is
 	// 单引号会让外层 bash -c '...' 提前闭合（git 段静默丢失、exit 0 假成功），
 	// 与 buildAgentCommand 同一道 sanitize。
 	requirement = sanitizeSingleQuoted(requirement)
+	// 2026-09-20：测试结论此前只留在 agent 的 stdout 散文里，平台侧只剩一个退出码。
+	// 现在要求它把结论写成**机器可读的产物文件**（与规划 agent 写
+	// planning-artifact.json 同一套做法），executor 在 run 退出后读回、入库 ——
+	// 单点验收从此可查：脚本是哪个、跑了什么命令、退出码、结论是什么。
 	testPrompt := "You are the test agent for this repository. " +
 		"Requirement: " + requirement + ". " +
 		"Inspect the change the development agent just delivered (git diff origin/main...HEAD). " +
-		"Write a test script that verifies the requirement, run it, and report the exact command you ran, " +
-		"its exit code and a one-line summary. If the change does not satisfy the requirement, " +
-		"say so explicitly instead of reporting success."
+		"Write a test script that verifies the requirement and run it. " +
+		"Then write the result to a file named " + execution.TestEvidenceFile + " in the current directory, " +
+		"as this exact JSON shape and nothing else: " +
+		`{"script":"<path of the test script you wrote>","command":"<the exact command you ran>",` +
+		`"exit_code":<integer>,"passed":<true|false>,"summary":"<one line, what you actually observed>"}. ` +
+		"If the change does not satisfy the requirement, set passed=false and say so in summary " +
+		"instead of reporting success. Do not invent results."
 	testPrompt = sanitizeSingleQuoted(testPrompt)
 	var agentLine string
 	switch agentKind {

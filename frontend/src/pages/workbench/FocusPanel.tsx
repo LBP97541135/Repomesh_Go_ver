@@ -15,6 +15,7 @@ import type { DiscoveryProducer, DiscoveryView } from "../../api/contract";
 import type { PlanTaskItem } from "../../api/taskTree";
 import type { ConversationMessage } from "../../api/conversations";
 import type { FocusEntry, StepState } from "./treeModel";
+import type { TestEvidenceItem, TestEvidenceView } from "../../api/testEvidence";
 import { SupervisionPolicyCard, type PolicyDraftState } from "../../components/SupervisionPolicyCard";
 
 /** 消息作者 → 角色显示。先看 authorKind（user 是人），服务侧 agent 再按
@@ -103,6 +104,97 @@ function MessageTimeline({ messages }: { messages: ConversationMessage[] }) {
   );
 }
 
+const KIND_LABEL: Record<string, string> = {
+  task_single_point: "任务单点验收",
+  repo_integration: "仓库集成验证",
+  cross_repo_regression: "跨仓库联调 + 回归",
+};
+
+/** 测试组的记录详情：三种 kind 各一段，逐条列出脚本、命令、退出码与结论。
+ *
+ *  2026-09-20：这些事实此前只以一个退出码的形式躺在 scm_commands 里，界面上
+ *  「测试组」永远是写死的一行文案。没有记录就说没有 —— 不摆一个假的通过。 */
+function TestEvidenceDetail({ view }: { view: TestEvidenceView | null }) {
+  if (view === null) {
+    return (
+      <div className="flex flex-1 items-center justify-center text-[11px] text-[var(--tree-faint)]">
+        测试记录加载中…
+      </div>
+    );
+  }
+  if (view.items.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col gap-2 px-4 py-3">
+        <p className="text-[12px] font-medium text-[var(--tree-ink)]">测试组 · 还没有记录</p>
+        <p className="text-[11px] leading-[1.8] text-[var(--tree-sub)]">
+          每条任务跑完开发后会自动派一个测试 agent 做单点验收（它写测试脚本、跑、把结论写成证据文件）；
+          计划的全部任务过了经理门之后，还会按仓库派节点级集成，跨仓库时再加一轮联调与回归。
+          记录产生后会出现在这里。
+        </p>
+      </div>
+    );
+  }
+  const order = ["task_single_point", "repo_integration", "cross_repo_regression"];
+  const groups = order
+    .map((kind) => ({ kind, items: view.items.filter((i) => i.kind === kind) }))
+    .filter((g) => g.items.length > 0);
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
+      <div className="flex items-baseline gap-2">
+        <span className="text-[12px] font-medium text-[var(--tree-ink)]">测试组 · db-test</span>
+        <span className="text-[11px] text-[var(--tree-sub)]">
+          {view.items.length} 条记录 · {view.passed} 通过
+          {view.failed > 0 ? ` · ${view.failed} 未过` : ""}
+        </span>
+      </div>
+      {groups.map((group) => (
+        <div key={group.kind} className="flex flex-col gap-1.5">
+          <p className="text-[11px] font-medium text-[var(--tree-sub)]">
+            {KIND_LABEL[group.kind] ?? group.kind}（{group.items.length}）
+          </p>
+          {group.items.map((item, index) => (
+            <TestEvidenceRow key={`${group.kind}-${index}`} item={item} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TestEvidenceRow({ item }: { item: TestEvidenceItem }) {
+  const tone = item.passed
+    ? "border-olive/40 bg-olive-well text-olive"
+    : "border-salmon/40 bg-salmon-well text-salmon";
+  return (
+    <div className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+      <div className="flex items-center gap-2">
+        <span className={`flex-none rounded-[5px] border px-1.5 py-px text-[10px] ${tone}`}>
+          {item.passed ? "通过" : "未过"}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[11.5px] text-[var(--tree-ink)]">
+          {item.repository_id || item.task_id || "—"}
+        </span>
+        {item.exit_code !== undefined && (
+          <span className="flex-none font-mono text-[10.5px] text-[var(--tree-faint)]">
+            exit {item.exit_code}
+          </span>
+        )}
+      </div>
+      {item.command && (
+        <p className="mt-1 break-all font-mono text-[10.5px] leading-[1.7] text-[var(--tree-sub)]">
+          $ {item.command}
+        </p>
+      )}
+      {item.script && (
+        <p className="mt-0.5 break-all text-[10.5px] text-[var(--tree-faint)]">脚本：{item.script}</p>
+      )}
+      {item.summary && (
+        <p className="mt-1 text-[11px] leading-[1.75] text-[var(--tree-sub)]">{item.summary}</p>
+      )}
+    </div>
+  );
+}
+
 export interface FocusPanelProps {
   entry: FocusEntry | null;
   discovery: DiscoveryView | null;
@@ -131,6 +223,8 @@ export interface FocusPanelProps {
   /** 交付期到达且人工参与:合并确认也作为一条带按钮的消息出现在 Manager 房间 */
   mergePending?: boolean;
   onConfirmMerge?: () => void;
+  /** 测试团队的记录（task 单点 / DAG 节点集成 / 跨仓库联调回归）。 */
+  testEvidence: TestEvidenceView | null;
 }
 
 export function FocusPanel({
@@ -152,6 +246,7 @@ export function FocusPanel({
   input,
   mergePending = false,
   onConfirmMerge,
+  testEvidence,
 }: FocusPanelProps) {
   const body = (() => {
     if (entry === null) {
@@ -162,6 +257,8 @@ export function FocusPanel({
       );
     }
     if (entry.kind === "step") return <StepDetail step={entry.step} state={stepStates[entry.step - 1]} discovery={discovery} onGate={onGate} gateBusy={gateBusy} gateError={gateError} onRetryStep={onRetryStep} stepError={stepError} onForceContinue={onForceContinue} policyCard={policyCard} onConfigurePolicy={onConfigurePolicy} onRetryPolicy={onRetryPolicy} messages={messages} />;
+    // 测试组：task 单点 / DAG 节点集成 / 跨仓库联调回归的**真实记录**。
+    if (entry.kind === "tests") return <TestEvidenceDetail view={testEvidence} />;
     if (entry.kind === "task") {
       return (
         <div className="flex min-h-0 flex-1 flex-col">

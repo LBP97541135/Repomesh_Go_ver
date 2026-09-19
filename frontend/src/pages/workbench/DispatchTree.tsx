@@ -10,6 +10,7 @@
 import { useMemo, useState } from "react";
 import type { DiscoveryView } from "../../api/contract";
 import type { PlanTaskItem } from "../../api/taskTree";
+import type { TestEvidenceView } from "../../api/testEvidence";
 import { STEP_LABELS, deriveStepStates, type FocusEntry, type StepState } from "./treeModel";
 import { IconChevron, IconClock, IconFlask, IconRun, IconCheck, IconUser } from "./treeIcons";
 
@@ -66,6 +67,7 @@ export function DispatchTree({
   materialized,
   activeEntry,
   onOpen,
+  testEvidence,
 }: {
   title: string;
   discovery: DiscoveryView | null;
@@ -74,6 +76,8 @@ export function DispatchTree({
   materialized: boolean;
   activeEntry: FocusEntry | null;
   onOpen: (entry: FocusEntry) => void;
+  /** 测试团队的真实记录；null = 还没取到 */
+  testEvidence: TestEvidenceView | null;
 }) {
   const [openLeader, setOpenLeader] = useState<string | null>(null);
   const stepStates = deriveStepStates(discovery);
@@ -96,6 +100,20 @@ export function DispatchTree({
   const pending = tasks?.filter((t) => t.status === "pending" || t.status === "blocked").length ?? 0;
   const total = tasks?.length ?? 0;
   const pct = total > 0 ? done / total : 0;
+
+  /** 测试组那一行说的话：有记录就说记录（几条、几条没过），没有就说还没有。
+   *  2026-09-20 前这里写死「等待上游开发任务全部完成」，而记录其实一直在产生。 */
+  const testSummary = (() => {
+    if (!testEvidence || testEvidence.items.length === 0) return null;
+    const { passed, failed } = testEvidence;
+    const kinds = new Set(testEvidence.items.map((i) => i.kind));
+    const parts = [`${testEvidence.items.length} 条记录`];
+    parts.push(`${passed} 通过`);
+    if (failed > 0) parts.push(`${failed} 未过`);
+    if (kinds.has("repo_integration")) parts.push("含节点集成");
+    if (kinds.has("cross_repo_regression")) parts.push("含跨仓库联调");
+    return parts.join(" · ");
+  })();
 
   const hl = "bg-[rgba(94,106,210,.055)] shadow-[inset_0_0_0_1px_rgba(94,106,210,.22)]";
 
@@ -225,13 +243,14 @@ export function DispatchTree({
       {/* 测试组：常驻一生 */}
       <div className="mt-4 border-t border-[var(--tree-hairline)] pt-3">
         <button
-          className="flex w-full items-center gap-2 rounded-[7px] px-2 py-1.5 text-left hover:bg-[var(--tree-zone)]"
-          title="测试任务与结果（当前无候选进入验证）"
+          className={`flex w-full items-center gap-2 rounded-[7px] px-2 py-1.5 text-left hover:bg-[var(--tree-zone)] ${activeEntry?.kind === "tests" ? hl : ""}`}
+          title={testSummary ?? "测试任务与结果"}
+          onClick={() => onOpen({ kind: "tests" })}
         >
           <IconFlask size={13} className="flex-none text-amber" />
           <span className="text-[12.5px] font-medium text-[var(--tree-ink)]">测试组 · db-test</span>
           <span className="ml-auto text-[11px] text-[var(--tree-faint)]">
-            {materialized ? "等待上游开发任务全部完成" : "等待上游规划完成"}
+            {testSummary ?? (materialized ? "还没有记录" : "等待上游规划完成")}
           </span>
         </button>
       </div>

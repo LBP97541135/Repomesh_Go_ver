@@ -197,6 +197,16 @@ func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discove
 		}
 		writeJSON(w, http.StatusOK, view)
 	})
+	// 测试团队的记录读面：task 单点验收 / DAG 节点集成 / 跨仓库联调回归。
+	// 三种 kind 一次读回，界面按 kind 分组展示（见 internal/discovery/testevidence.go）。
+	register("GET /api/issues/{issueId}/tests", func(w http.ResponseWriter, r *http.Request) {
+		view, err := discoveryAPI.Service.TestEvidence(r.Context(), r.PathValue("issueId"))
+		if err != nil {
+			writeDiscoveryError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, view)
+	})
 	register("GET /api/issues/{issueId}/discovery", func(w http.ResponseWriter, r *http.Request) {
 		tx, err := discoveryAPI.Service.BeginRead(r.Context())
 		if err != nil {

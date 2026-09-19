@@ -10,7 +10,10 @@ import type { DiscoveryView } from "../../api/contract";
 export type FocusEntry =
   | { kind: "mgr" }
   | { kind: "step"; step: 1 | 2 | 3 | 4 | 5 }
-  | { kind: "task"; taskId: string };
+  | { kind: "task"; taskId: string }
+  // 测试组：task 单点验收 / DAG 节点集成 / 跨仓库联调回归的**真实记录**
+  // （2026-09-20 前这里没有读面，树上那一行是写死的文案）。
+  | { kind: "tests" };
 
 export type StepState = "done" | "run" | "gate" | "wait" | "failed";
 

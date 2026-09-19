@@ -11,6 +11,7 @@ import { parseRequirementDocument, resolveProjectId, type CreateIssueRequest } f
 import { fetchIssueDetail } from "../../api/rooms";
 import { listConversationMessages, submitMessage, type ConversationMessage } from "../../api/conversations";
 import { listPlanTasks, type PlanTaskItem } from "../../api/taskTree";
+import { fetchTestEvidence, type TestEvidenceView } from "../../api/testEvidence";
 import { approveTask, rejectTask } from "../../api/tasks";
 import {
   fetchDiscovery,
@@ -168,6 +169,29 @@ export function WorkbenchPage({
   }, [isNew, discoveryIssueKey, reload]);
 
   // ── 治理决策主体（人工门与自动推进的「谁在操作」） ──
+  // ── 测试团队的记录（task 单点 / DAG 节点集成 / 跨仓库联调回归）──
+  //  2026-09-20：此前树上那一行「测试组 · db-test」是写死的文案，永远显示
+  //  「等待上游开发任务全部完成」，而这些记录其实一直在产生（只以一个退出码的
+  //  形式存在）。这里与发现链同一节拍轮询，让那一行说真话。
+  const [testEvidence, setTestEvidence] = useState<TestEvidenceView | null>(null);
+  useEffect(() => {
+    if (isNew || discoveryIssueKey === null) {
+      setTestEvidence(null);
+      return;
+    }
+    let cancelled = false;
+    const tick = () =>
+      fetchTestEvidence(discoveryIssueKey)
+        .then((view) => !cancelled && setTestEvidence(view))
+        .catch(() => undefined);
+    tick();
+    const timer = window.setInterval(tick, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [isNew, discoveryIssueKey, reload]);
+
   const [principal, setPrincipal] = useState<GovernanceAgent | null>(null);
   const principalOrgKey = detail?.organization_id ?? null;
   useEffect(() => {
@@ -928,6 +952,7 @@ export function WorkbenchPage({
                 materialized={materialized}
                 activeEntry={activeEntry}
                 onOpen={setActiveEntry}
+                testEvidence={testEvidence}
               />
             </div>
             {/* PR 交付列车:交付环节到达时从左栏底部弹入,不占聊天房间 */}
@@ -936,6 +961,7 @@ export function WorkbenchPage({
           <FocusPanel
             entry={activeEntry}
             discovery={discovery}
+            testEvidence={testEvidence}
             stepStates={stepStates}
             task={taskEntry}
             messages={entryMessages}

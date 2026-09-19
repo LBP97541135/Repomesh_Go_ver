@@ -118,6 +118,8 @@ func runWorker(args []string) int {
 	}
 	taskStore := tasks.NewPostgresStore(runtime.Pool())
 	dagLedger := &coordinatorLedger{pool: runtime.Pool()}
+	// 节点级测试派发（本仓库集成 / 跨仓库联调回归）：见 integration.go。
+	integrations := newIntegrationDispatcher(runtime.Pool())
 	// Delivery pipeline loop: independent of the auth worker so a hung
 	// upstream call inside RunOne cannot stall 自动托管 and DAG dispatch.
 	// SKIP LOCKED keeps this loop safe against any future concurrent scheduler.
@@ -133,6 +135,9 @@ func runWorker(args []string) int {
 			if _, dispatchErr := taskStore.DispatchOne(dagCtx, dagLedger, dispatchWorker, agentKind); dispatchErr != nil {
 				slog.Warn("dag dispatch deferred", "reason", dispatchErr.Error())
 			}
+			// 节点级测试：计划的每条任务都过了经理门之后，再做本仓库集成；
+			// 计划跨仓库时再做跨仓库联调 + 回归（见 integration.go）。
+			integrations.tick(dagCtx)
 			dagCancel()
 			timer := time.NewTimer(500 * time.Millisecond)
 			select {
