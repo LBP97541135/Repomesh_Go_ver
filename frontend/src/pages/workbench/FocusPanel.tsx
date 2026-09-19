@@ -9,9 +9,9 @@
  *  消息渲染：只有真实房间消息才渲染成聊天气泡（契约 Q4 硬约束），角色由
  *  actor_id 前缀推导（agent_<role>[_<name>]），推导不出按系统条目样式。 */
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { IconCheck, IconClock, IconRun, IconSend } from "./treeIcons";
-import type { DiscoveryView } from "../../api/contract";
+import type { DiscoveryProducer, DiscoveryView } from "../../api/contract";
 import type { PlanTaskItem } from "../../api/taskTree";
 import type { ConversationMessage } from "../../api/conversations";
 import type { FocusEntry, StepState } from "./treeModel";
@@ -29,6 +29,19 @@ function actorOf(authorKind: string, actorId: string): { label: string; role: st
     return { label: name, role, cls, letter: cls === "m" ? "M" : cls === "l" ? "L" : "W" };
   }
   return { label: actorId, role: "系统", cls: "s", letter: "·" };
+}
+
+/** 产出者一行：谁产的、用哪把技能、哪个 run。
+ *
+ *  规划期的结论由角色 agent 产出，界面必须说清是谁 —— 审计要的就是这个：
+ *  结论不再是一个匿名 JSON。老快照没有 producer（后端自己算的那批），如实不显示。 */
+function ProducerLine({ producer }: { producer?: DiscoveryProducer }) {
+  if (!producer) return null;
+  return (
+    <p className="mt-1.5 text-[10.5px] leading-[1.7] text-[var(--tree-faint)]">
+      产出：{producer.role} · 技能 {producer.skill_id} · run {producer.run_id.slice(0, 14)}
+    </p>
+  );
 }
 
 const AVA_CLS: Record<string, string> = {
@@ -107,6 +120,8 @@ export interface FocusPanelProps {
   stepError: { step: number; message: string } | null;
   /** 「忽略追问，强制继续」：需求信息偏少时给用户的另一条路。 */
   onForceContinue: () => void;
+  /** 经理门（审核段）：blocked 任务的通过/驳回。 */
+  onDecideTask: (taskId: string, decision: "approve" | "reject", reason: string) => Promise<void>;
   /** 监管策略草稿卡片的合成态（由页面的拓扑态 + 草稿态合成，见 useIssueFlowState） */
   policyCard: PolicyDraftState;
   onConfigurePolicy: () => void;
@@ -130,6 +145,7 @@ export function FocusPanel({
   onRetryStep,
   stepError,
   onForceContinue,
+  onDecideTask,
   policyCard,
   onConfigurePolicy,
   onRetryPolicy,
@@ -155,6 +171,12 @@ export function FocusPanel({
             <div className="flex flex-1 items-center justify-center text-[11px] text-[var(--tree-faint)]">消息流加载中…</div>
           ) : (
             <MessageTimeline messages={messages} />
+          )}
+          {/* 经理门（审核段）：agent 跑完把任务置 blocked 等经理批 —— 此前后端有
+              approve/reject 端点、前端也有调用封装，但**界面上没有任何入口**，
+              于是任务永远停在 blocked，整条链看起来"卡住"。 */}
+          {task !== null && task.status === "blocked" && (
+            <TaskGate task={task} onDecide={onDecideTask} />
           )}
         </div>
       );
@@ -343,6 +365,58 @@ function FocusInput({  placeholder,
 
 /* ── 规划步骤详情卡 ── */
 
+/** 经理门卡片：blocked 任务的通过 / 驳回（驳回必须给原因 —— 后端会拒空原因）。 */
+function TaskGate({
+  task,
+  onDecide,
+}: {
+  task: PlanTaskItem;
+  onDecide: (taskId: string, decision: "approve" | "reject", reason: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const decide = (decision: "approve" | "reject") => {
+    setBusy(decision);
+    setError(null);
+    onDecide(task.id, decision, reason.trim())
+      .then(() => setReason(""))
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setBusy(null));
+  };
+  return (
+    <div className="border-t border-dashed border-[var(--tree-hairline)] px-4 py-3">
+      <div className="microlabel pb-1.5">经理门 · 待人审</div>
+      <p className="text-[11.5px] leading-[1.7] text-[var(--tree-sub)]">
+        {task.workerLabel ?? "执行者"} 已跑完并把任务交回。通过则任务置为完成；驳回会带原因退回，可再次派发。
+      </p>
+      <input
+        className="mt-2 w-full rounded-[7px] border border-[var(--tree-line)] bg-[var(--tree-card)] px-2.5 py-1.5 text-[11.5px] text-[var(--tree-ink)] placeholder:text-[var(--tree-faint)] focus:border-[var(--tree-acc)] focus:outline-none"
+        placeholder="审批意见 / 驳回原因"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+      />
+      <div className="mt-2 flex gap-1.5">
+        <button
+          className="rounded-[7px] bg-[var(--tree-acc)] px-3 py-1 text-[11.5px] font-semibold text-white disabled:opacity-50"
+          disabled={busy !== null}
+          onClick={() => decide("approve")}
+        >
+          {busy === "approve" ? "提交中…" : "通过"}
+        </button>
+        <button
+          className="rounded-[7px] border border-[var(--tree-line)] px-3 py-1 text-[11.5px] text-[var(--tree-ink)] hover:border-salmon hover:text-salmon disabled:opacity-50"
+          disabled={busy !== null || reason.trim() === ""}
+          onClick={() => decide("reject")}
+        >
+          {busy === "reject" ? "提交中…" : "驳回"}
+        </button>
+      </div>
+      {error && <p className="mt-1.5 text-[11px] text-salmon">{error}</p>}
+    </div>
+  );
+}
+
 function CardShell({ title, tone = "plain", children }: { title: string; tone?: "plain" | "done" | "gate"; children: ReactNode }) {
   const toneCls =
     tone === "done" ? "text-olive" : tone === "gate" ? "text-amber" : "text-[var(--tree-acc)]";
@@ -438,6 +512,7 @@ function StepDetail({
             <p className="mt-1 text-[10.5px] leading-[1.7] text-[var(--tree-faint)]">
               ○ 只表示**这段话里没有出现**该维度的常见说法，不代表你没说清——判定按词面，真实需求常被漏判。
             </p>
+            <ProducerLine producer={a.producer} />
           </div>
 
           {/* 需求确实太短（真·信息不足）时才追问，并给「忽略追问继续」这条出路。
@@ -474,6 +549,7 @@ function StepDetail({
     return wrap(
       c ? (
         <CardShell title={`候选仓库 ${c.items.length} 个`} tone="done">
+          <ProducerLine producer={c.producer} />
           {c.items.map((it) => (
             <div key={it.repository_id} className="flex items-center gap-2 py-0.5 text-[11.5px]">
               <span className="font-mono text-[11px] text-[var(--tree-ink)]">{it.repository_name}</span>
@@ -521,6 +597,7 @@ function StepDetail({
     const integration = discovery?.integration ?? null;
     return wrap(
       <CardShell title={integration ? `计划 v1 · ${integration.task_dag_count} 任务 ${integration.batch_count} 批` : "生成计划"} tone={integration ? "done" : "plain"}>
+        <ProducerLine producer={integration?.producer} />
         {integration ? (
           <p className="text-[11px] leading-[1.7] text-[var(--tree-sub)]">
             批次明细的读面（计划纸面快照）在 Go 后端尚未迁移，批次划分以物化确认卡与任务树为准。

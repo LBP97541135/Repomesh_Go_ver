@@ -1038,6 +1038,18 @@ export interface DiscoveryDimensionView {
 }
 
 /** §2.2 `requirement_analysis` 直投影（GUI 步 1 / 管线 Step 0）。 */
+/** 这一步的产物**是谁产的**（后端 planning_runs + 产物 provenance）。
+ *
+ *  规划期的结论由角色 agent 产出（① 分析 / ② 候选 → Organization Leader，
+ *  ④ 计划 → Repository Leader）。界面必须说清是谁、用哪把技能、哪个 run ——
+ *  审计要的就是这个：结论不再是一个匿名 JSON。 */
+export interface DiscoveryProducer {
+  role: string;
+  skill_id: string;
+  run_id: string;
+  agent_kind: string;
+}
+
 export interface DiscoveryAnalysisBlock {
   sufficient: boolean;
   confidence: number;
@@ -1055,6 +1067,8 @@ export interface DiscoveryAnalysisBlock {
   ran_at: string;
   by_agent_id: string;
   error: DiscoveryStepError | null;
+  /** 产出者；老快照（后端自己算的那批）没有这个字段 —— 不编一个。 */
+  producer?: DiscoveryProducer;
 }
 
 /** §2.2 candidates.items 单条。
@@ -1091,6 +1105,7 @@ export interface DiscoveryCandidatesBlock {
   ran_at: string;
   by_agent_id: string;
   error: DiscoveryStepError | null;
+  producer?: DiscoveryProducer;
 }
 
 /** `ConfirmationResultView.plan`。名字与 §5.4 的 `RepositoryPlanView`（计划纸面）
@@ -1185,6 +1200,7 @@ export interface DiscoveryClassificationBlock {
   ran_at: string;
   by_agent_id: string;
   error: DiscoveryStepError | null;
+  producer?: DiscoveryProducer;
 }
 
 /** §2.2 `approval`（GUI 步 3 下半）。审批 v1 必经：非 approved 时 §4.3 的
@@ -1221,6 +1237,8 @@ export interface DiscoveryEffectiveTier {
 
 /** §3.1 `integration`：集成产物已落草稿快照时的计数（GUI 步 4 / 管线 Step 3）。 */
 export interface DiscoveryIntegrationCounts {
+  /** 计划这一步的产出者（④ 由 Repository Leader 产出）。 */
+  producer?: DiscoveryProducer;
   task_dag_count: number;
   batch_count: number;
   contract_count: number;

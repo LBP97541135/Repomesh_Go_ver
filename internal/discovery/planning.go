@@ -300,6 +300,10 @@ func (s *Service) ApplyPlanningArtifact(ctx context.Context, tx pgx.Tx, st *Stat
 			"task_dag_count": len(tasks),
 			"batch_count":    1,
 			"contract_count": 0,
+			"producer": map[string]any{
+				"role": prov.Role, "skill_id": prov.SkillID,
+				"run_id": prov.RunID, "agent_kind": prov.AgentKind,
+			},
 		}
 	default:
 		return fmt.Errorf("discovery: step %d 不是可派发的规划步", step)

@@ -11,6 +11,7 @@ import { parseRequirementDocument, type CreateIssueRequest } from "../../api/iss
 import { fetchIssueDetail } from "../../api/rooms";
 import { listConversationMessages, submitMessage, type ConversationMessage } from "../../api/conversations";
 import { listPlanTasks, type PlanTaskItem } from "../../api/taskTree";
+import { approveTask, rejectTask } from "../../api/tasks";
 import {
   fetchDiscovery,
   materializeDiscovery,
@@ -464,6 +465,18 @@ export function WorkbenchPage({
       .catch((err: unknown) => onToast(`强制继续失败：${errText(err)}`));
   };
 
+  /** 经理门：blocked 任务的通过/驳回（审核段唯一的写动作）。 */
+  const handleDecideTask = async (taskId: string, decision: "approve" | "reject", reason: string) => {
+    const projectId = await resolveProjectId();
+    if (!projectId) throw new Error("没有可用项目，无法提交审批");
+    if (decision === "approve") {
+      await approveTask(projectId, taskId, reason);
+    } else {
+      await rejectTask(projectId, taskId, reason);
+    }
+    setReload((n) => n + 1);
+  };
+
   const handleRetryStep = (step: 1 | 2 | 3 | 4) => {
     if (!detail || !principal) {
       onToast("决策主体未接入，无法重试。");
@@ -578,11 +591,16 @@ export function WorkbenchPage({
   const stepStates = deriveStepStates(discovery);
   const doneSteps = stepStates.filter((s) => s === "done").length;
   const allTasksDone = !!tasks && tasks.length > 0 && tasks.every((t) => t.status === "done");
+  /** 等经理批的任务数（审核段的唯一信号）。 */
+  const blockedTasks = tasks?.filter((t) => t.status === "blocked").length ?? 0;
   const STAGES = ["规划", "执行", "审核", "交付"] as const;
   const stageState = (i: number): "done" | "now" | "todo" => {
     if (i === 0) return materialized ? "done" : "now";
     if (i === 1) return materialized ? (allTasksDone ? "done" : "now") : "todo";
-    // 审核读面（测试组执行态、复核队列汇总）待后端迁移——不点亮不装数据;
+    // 审核段（2026-09-20 点亮）：任务跑完会被置 blocked 等经理批 —— 有 blocked
+    // 就是"现在轮到你"，全部 done 才算过。此前这里写死 todo（"读面待迁移"），
+    // 于是任务明明堆在 blocked 上，界面上看不出该有人做事。
+    if (i === 2) return blockedTasks > 0 ? "now" : allTasksDone && tasks !== null && tasks.length > 0 ? "done" : "todo";
     // 交付以「全部任务完成、PR 列车在场」为准。
     if (i === 3) return allTasksDone ? "now" : "todo";
     return "todo";
@@ -779,7 +797,15 @@ export function WorkbenchPage({
                   <span
                     key={title}
                     className="flex items-center gap-1.5"
-                    title={i >= 2 ? "该阶段读面待后端迁移，暂不点亮" : undefined}
+                    title={
+                      i === 2
+                        ? blockedTasks > 0
+                          ? `${blockedTasks} 个任务等你批（点任务行审批）`
+                          : undefined
+                        : i === 3
+                          ? "交付读面：PR 列车在场即为到达"
+                          : undefined
+                    }
                   >
                     {i > 0 && <span className={`h-px w-4 ${stageState(i - 1) !== "todo" ? "bg-line-strong" : "bg-line"}`} />}
                     <span
@@ -867,6 +893,7 @@ export function WorkbenchPage({
             onRetryStep={handleRetryStep}
             stepError={stepError}
             onForceContinue={handleForceContinue}
+            onDecideTask={handleDecideTask}
             policyCard={flow.policyCard}
             onConfigurePolicy={() => setPolicyOpen(true)}
             onRetryPolicy={flow.reloadPolicy}
