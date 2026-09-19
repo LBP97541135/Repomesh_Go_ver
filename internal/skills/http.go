@@ -150,6 +150,9 @@ func (s *Service) handleListVersions(w http.ResponseWriter, r *http.Request) {
 		skillID = sk.ID
 	} else if id := strings.TrimSpace(r.URL.Query().Get("skill_id")); id != "" {
 		skillID = id
+		if (!s.requireSkillInSpace(w, r, skillID)) {
+			return
+		}
 	} else {
 		writeCoded(w, http.StatusBadRequest, "bad_request", "specify ?skill=<name> or ?skill_id=<id>")
 		return
@@ -230,6 +233,9 @@ func (s *Service) handleEvaluate(w http.ResponseWriter, r *http.Request) {
 	if !s.requireEnabled(w, r) {
 		return
 	}
+	if (!s.requireVersionInSpace(w, r, r.PathValue("id"))) {
+		return
+	}
 	v, err := s.StartEvaluation(r.Context(), r.PathValue("id"))
 	if err != nil {
 		s.fail(w, err)
@@ -240,6 +246,9 @@ func (s *Service) handleEvaluate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) handleRecordRun(w http.ResponseWriter, r *http.Request) {
 	if !s.requireEnabled(w, r) {
+		return
+	}
+	if (!s.requireVersionInSpace(w, r, r.PathValue("id"))) {
 		return
 	}
 	var body struct {
@@ -266,6 +275,9 @@ func (s *Service) handleCanary(w http.ResponseWriter, r *http.Request) {
 	if !s.requireEnabled(w, r) {
 		return
 	}
+	if (!s.requireVersionInSpace(w, r, r.PathValue("id"))) {
+		return
+	}
 	v, err := s.EnterCanary(r.Context(), r.PathValue("id"))
 	if err != nil {
 		s.fail(w, err)
@@ -276,6 +288,9 @@ func (s *Service) handleCanary(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) handlePromote(w http.ResponseWriter, r *http.Request) {
 	if !s.requireEnabled(w, r) {
+		return
+	}
+	if (!s.requireVersionInSpace(w, r, r.PathValue("id"))) {
 		return
 	}
 	v, err := s.Promote(r.Context(), r.PathValue("id"))
@@ -290,6 +305,9 @@ func (s *Service) handleRollback(w http.ResponseWriter, r *http.Request) {
 	if !s.requireEnabled(w, r) {
 		return
 	}
+	if (!s.requireVersionInSpace(w, r, r.PathValue("id"))) {
+		return
+	}
 	v, err := s.Rollback(r.Context(), r.PathValue("id"))
 	if err != nil {
 		s.fail(w, err)
@@ -300,6 +318,9 @@ func (s *Service) handleRollback(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) handleRelease(w http.ResponseWriter, r *http.Request) {
 	if !s.requireEnabled(w, r) {
+		return
+	}
+	if (!s.requireVersionInSpace(w, r, r.PathValue("id"))) {
 		return
 	}
 	var body struct {
@@ -326,6 +347,9 @@ func (s *Service) handleCreateApproval(w http.ResponseWriter, r *http.Request) {
 	if !s.requireEnabled(w, r) {
 		return
 	}
+	if (!s.requireVersionInSpace(w, r, r.PathValue("id"))) {
+		return
+	}
 	versionID := r.PathValue("id")
 	v, err := s.Store.GetVersion(r.Context(), versionID)
 	if err != nil {
@@ -347,6 +371,9 @@ func (s *Service) handleCreateApproval(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 	if !s.requireEnabled(w, r) {
+		return
+	}
+	if (!s.requireApprovalInSpace(w, r, r.PathValue("id"))) {
 		return
 	}
 	var body struct {
@@ -374,6 +401,9 @@ func (s *Service) handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) handleAddQuestion(w http.ResponseWriter, r *http.Request) {
 	if !s.requireEnabled(w, r) {
+		return
+	}
+	if (!s.requireVersionInSpace(w, r, r.PathValue("id"))) {
 		return
 	}
 	var body struct {
@@ -413,6 +443,9 @@ func (s *Service) handleArms(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &body) {
 		return
 	}
+	if (!s.requireQuestionInSpace(w, r, body.QuestionID)) {
+		return
+	}
 	withLabel, withoutLabel, labelA, labelB, err := s.Store.BuildArms(r.Context(), body.QuestionID)
 	if err != nil {
 		s.fail(w, err)
@@ -434,6 +467,9 @@ func (s *Service) handleListBindings(w http.ResponseWriter, r *http.Request) {
 	agentID := strings.TrimSpace(r.URL.Query().Get("agent_id"))
 	if agentID == "" {
 		writeCoded(w, http.StatusBadRequest, "bad_request", "specify ?agent_id=<id>")
+		return
+	}
+	if (!s.requireAgentInSpace(w, r, agentID)) {
 		return
 	}
 	bindings, err := s.Store.ActiveBindings(r.Context(), agentID)
@@ -464,6 +500,9 @@ func (s *Service) handleBind(w http.ResponseWriter, r *http.Request) {
 			"agent_id, version_id and source are required")
 		return
 	}
+	if (!s.requireVersionInSpace(w, r, body.VersionID)) {
+		return
+	}
 	if err := s.Store.BindAgent(r.Context(), body.AgentID, body.VersionID, body.Source); err != nil {
 		s.fail(w, err)
 		return
@@ -476,6 +515,9 @@ func (s *Service) handleBind(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) handleUnbind(w http.ResponseWriter, r *http.Request) {
 	if !s.requireEnabled(w, r) {
+		return
+	}
+	if (!s.requireBindingInSpace(w, r, r.PathValue("id"))) {
 		return
 	}
 	id := r.PathValue("id")
@@ -502,6 +544,9 @@ func (s *Service) handleAddSuggestion(w http.ResponseWriter, r *http.Request) {
 		writeCoded(w, http.StatusBadRequest, "bad_request", "skill_id and suggestion are required")
 		return
 	}
+	if (!s.requireSkillInSpace(w, r, body.SkillID)) {
+		return
+	}
 	var taskID *string
 	if body.TaskID != nil && *body.TaskID != "" {
 		taskID = body.TaskID
@@ -516,6 +561,9 @@ func (s *Service) handleAddSuggestion(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) handleDecideSuggestion(w http.ResponseWriter, r *http.Request) {
 	if !s.requireEnabled(w, r) {
+		return
+	}
+	if (!s.requireSuggestionInSpace(w, r, r.PathValue("id"))) {
 		return
 	}
 	var body struct {
@@ -599,4 +647,110 @@ func (s *Service) handlePutSetting(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"feature": "skill_governance", "enabled": *body.Enabled})
+}
+
+
+// ---- 空间守卫（2026-09-19 账号隔离）----
+//
+// 技能的**按 id** 端点此前完全不看归属：按名字裁剪只挡住"按名字查"，
+// 挡不住"按 id 打"。只要拿到别人的 skill/version/approval/binding id，
+// 就能读它、改它、把它 promote 上去。这里统一收口。
+//
+// 一律回 404 而不是 403：不向调用者泄露"这个 id 存在，只是不属于你"。
+
+func (s *Service) requireSkillInSpace(w http.ResponseWriter, r *http.Request, skillID string) bool {
+	ok, err := s.Store.SkillInSpace(r.Context(), s.organization(r), skillID)
+	if err != nil {
+		s.fail(w, err)
+		return false
+	}
+	if !ok {
+		writeError(w, http.StatusNotFound, "no such skill")
+		return false
+	}
+	return true
+}
+
+func (s *Service) requireVersionInSpace(w http.ResponseWriter, r *http.Request, versionID string) bool {
+	ok, err := s.Store.VersionInSpace(r.Context(), s.organization(r), versionID)
+	if err != nil {
+		s.fail(w, err)
+		return false
+	}
+	if !ok {
+		writeError(w, http.StatusNotFound, "no such skill version")
+		return false
+	}
+	return true
+}
+
+// requireApprovalInSpace 把审批 id 解析到它评审的版本，再判空间。
+func (s *Service) requireApprovalInSpace(w http.ResponseWriter, r *http.Request, approvalID string) bool {
+	versionID, err := s.Store.VersionIDForApproval(r.Context(), approvalID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "no such approval")
+		return false
+	}
+	if err != nil {
+		s.fail(w, err)
+		return false
+	}
+	return s.requireVersionInSpace(w, r, versionID)
+}
+
+// requireSuggestionInSpace 把建议 id 解析到它针对的技能，再判空间。
+func (s *Service) requireSuggestionInSpace(w http.ResponseWriter, r *http.Request, suggestionID string) bool {
+	skillID, err := s.Store.SkillIDForSuggestion(r.Context(), suggestionID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "no such suggestion")
+		return false
+	}
+	if err != nil {
+		s.fail(w, err)
+		return false
+	}
+	return s.requireSkillInSpace(w, r, skillID)
+}
+
+// requireBindingInSpace 把绑定 id 解析到它引用的版本，再判空间。
+func (s *Service) requireBindingInSpace(w http.ResponseWriter, r *http.Request, bindingID string) bool {
+	versionID, err := s.Store.VersionIDForBinding(r.Context(), bindingID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "no such binding")
+		return false
+	}
+	if err != nil {
+		s.fail(w, err)
+		return false
+	}
+	return s.requireVersionInSpace(w, r, versionID)
+}
+
+
+// requireAgentInSpace 校验该智能体落在调用者的空间里（绑定列表按 agent 查询）。
+func (s *Service) requireAgentInSpace(w http.ResponseWriter, r *http.Request, agentID string) bool {
+	ok, err := s.Store.AgentInSpace(r.Context(), s.organization(r), agentID)
+	if err != nil {
+		s.fail(w, err)
+		return false
+	}
+	if !ok {
+		writeError(w, http.StatusNotFound, "no such agent")
+		return false
+	}
+	return true
+}
+
+// requireQuestionInSpace 把测试题 id 解析到它所属技能，再判空间。
+func (s *Service) requireQuestionInSpace(w http.ResponseWriter, r *http.Request, questionID string) bool {
+	skillID, err := s.Store.SkillIDForQuestion(r.Context(), questionID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "no such question")
+		return false
+	}
+	if err != nil {
+		s.fail(w, err)
+		return false
+	}
+	return s.requireSkillInSpace(w, r, skillID)
 }

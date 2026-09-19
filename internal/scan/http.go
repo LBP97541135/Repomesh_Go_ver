@@ -150,16 +150,7 @@ func writeError(w http.ResponseWriter, status int, detail string) {
 // checkbox source.
 func (h *HTTP) handleRepositoryList(w http.ResponseWriter, r *http.Request) {
 	// 按调用者的空间裁剪；调用者没有空间时返回空集，而不是全库。
-	if lister, ok := h.Store.(organizationScopedLister); ok {
-		cards, err := lister.ListInOrganization(r.Context(), h.organization(r))
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		writeJSON(w, http.StatusOK, cards)
-		return
-	}
-	cards, err := h.Store.List(r.Context())
+	cards, err := h.catalogForRequest(r.Context(), r)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -171,6 +162,23 @@ func (h *HTTP) handleRepositoryList(w http.ResponseWriter, r *http.Request) {
 // 测试用的内存目录不实现，那时退回全局 List）。
 type organizationScopedLister interface {
 	ListInOrganization(ctx context.Context, organizationID string) ([]RepositoryCard, error)
+}
+
+// organizationScopedCatalog 在"按空间读"之外再加"按空间写"。
+type organizationScopedCatalog interface {
+	organizationScopedLister
+	AddInOrganization(ctx context.Context, organizationID string, card RepositoryCard) error
+}
+
+// catalogForRequest 取"调用者空间可见的卡片"。
+//
+// 2026-09-19 账号隔离：扫描目录的读面（列表 / 依赖图 / 手动登记的查重）此前
+// 全部走全局 List —— 于是别人的仓库既能看到，也能被当成"已存在"而挡住自己登记。
+func (h *HTTP) catalogForRequest(ctx context.Context, r *http.Request) ([]RepositoryCard, error) {
+	if lister, ok := h.Store.(organizationScopedLister); ok {
+		return lister.ListInOrganization(ctx, h.organization(r))
+	}
+	return h.Store.List(ctx)
 }
 
 // organization 取调用者的空间标识；未注入 seam 时为空串。
@@ -324,7 +332,8 @@ func (h *HTTP) handleRepositoryCreate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "name and url are required")
 		return
 	}
-	cards, err := h.Store.List(r.Context())
+	// 查重只看**自己空间**里的卡片：别人的同名仓库不该挡住自己登记。
+	cards, err := h.catalogForRequest(r.Context(), r)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -345,8 +354,15 @@ func (h *HTTP) handleRepositoryCreate(w http.ResponseWriter, r *http.Request) {
 		TestPaths:    body.TestPaths,
 		ScanStatus:   ScanStatusOK,
 	}
-	if err := h.Store.Add(r.Context(), card); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	// 写入时盖章：不盖章的卡片读面看不见（ListInOrganization 按空间过滤）。
+	var addErr error
+	if scoped, ok := h.Store.(organizationScopedCatalog); ok {
+		addErr = scoped.AddInOrganization(r.Context(), h.organization(r), card)
+	} else {
+		addErr = h.Store.Add(r.Context(), card)
+	}
+	if addErr != nil {
+		writeError(w, http.StatusInternalServerError, addErr.Error())
 		return
 	}
 	writeJSON(w, http.StatusCreated, card)
@@ -427,7 +443,8 @@ func (h *HTTP) handleRepositoryDependents(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "name is required")
 		return
 	}
-	cards, err := h.Store.List(r.Context())
+	// 依赖图只看**自己空间**的卡片：别人的仓库依赖关系不该出现在这里。
+	cards, err := h.catalogForRequest(r.Context(), r)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

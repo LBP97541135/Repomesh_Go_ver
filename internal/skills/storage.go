@@ -88,6 +88,79 @@ func nullableUUID(value string) any {
 	return value
 }
 
+// SkillInSpace 判断该技能是否落在调用者的空间里（全局种子技能对所有空间可见）。
+//
+// 2026-09-19 账号隔离：技能的**按 id** 端点（版本列表、状态流转、绑定…）此前
+// 完全不看归属 —— 只要拿到别人的 skill id 就能读它、改它。读面按名字裁剪只
+// 挡住了"按名字查"，挡不住"按 id 打"。
+func (s *Store) SkillInSpace(ctx context.Context, organizationID, skillID string) (bool, error) {
+	var ok bool
+	err := s.Pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM public.skills
+			 WHERE id = $1 AND (organization_id IS NULL OR organization_id = $2::uuid))`,
+		skillID, nullableUUID(organizationID)).Scan(&ok)
+	return ok, err
+}
+
+// VersionInSpace 判断该版本所属技能是否落在调用者的空间里。
+func (s *Store) VersionInSpace(ctx context.Context, organizationID, versionID string) (bool, error) {
+	var ok bool
+	err := s.Pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM public.skill_versions v
+			 JOIN public.skills sk ON sk.id = v.skill_id
+			 WHERE v.id = $1 AND (sk.organization_id IS NULL OR sk.organization_id = $2::uuid))`,
+		versionID, nullableUUID(organizationID)).Scan(&ok)
+	return ok, err
+}
+
+// VersionIDForApproval 把审批 id 解析回它评审的版本 id，供空间校验使用。
+func (s *Store) VersionIDForApproval(ctx context.Context, approvalID string) (string, error) {
+	var versionID string
+	err := s.Pool.QueryRow(ctx, `SELECT version_id FROM public.skill_approvals WHERE id = $1`, approvalID).Scan(&versionID)
+	return versionID, err
+}
+
+// SkillIDForSuggestion 把建议 id 解析回它针对的技能 id。
+func (s *Store) SkillIDForSuggestion(ctx context.Context, suggestionID string) (string, error) {
+	var skillID string
+	err := s.Pool.QueryRow(ctx, `SELECT skill_id FROM public.skill_update_suggestions WHERE id = $1`, suggestionID).Scan(&skillID)
+	return skillID, err
+}
+
+// VersionIDForBinding 把绑定 id 解析回它引用的版本 id。
+func (s *Store) VersionIDForBinding(ctx context.Context, bindingID string) (string, error) {
+	var versionID string
+	err := s.Pool.QueryRow(ctx, `SELECT version_id FROM public.agent_skill_bindings WHERE id = $1`, bindingID).Scan(&versionID)
+	return versionID, err
+}
+
+// SkillIDForQuestion 把测试题 id 解析回它所属的技能 id。
+func (s *Store) SkillIDForQuestion(ctx context.Context, questionID string) (string, error) {
+	var skillID string
+	err := s.Pool.QueryRow(ctx, `SELECT skill_id FROM public.skill_test_questions WHERE id = $1`, questionID).Scan(&skillID)
+	return skillID, err
+}
+
+// AgentInSpace 判断该智能体是否落在调用者的空间里（绑定列表按 agent 查询，
+// 而 agent 是空间内对象）。
+func (s *Store) AgentInSpace(ctx context.Context, organizationID, agentID string) (bool, error) {
+	if agentID == "" || organizationID == "" {
+		return false, nil
+	}
+	var ok bool
+	// 用 id::text 比较而不是 $1::uuid：调用者可能传垃圾字符串，
+	// 那样会得到 22P02 而不是干净的"不在你的空间里"。
+	err := s.Pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM public.agents
+			 WHERE id::text = $1
+			   AND organization_id = (SELECT organization_id FROM repomesh_access.accounts WHERE id = $2))`,
+		agentID, organizationID).Scan(&ok)
+	return ok, err
+}
+
 // RegisterSkill 在指定空间里登记/更新一把技能；organizationID 为空表示
 // **全局种子技能**（系统自带，所有人可见）。
 //
