@@ -23,16 +23,16 @@ type ScanJob struct {
 	Skipped               int    `json:"skipped"`
 	Failed                int    `json:"failed"`
 	// RateLimited 是"因平台限流而根本没尝试"的仓库数（见 RegistrationCounts）。
-	RateLimited           int    `json:"rateLimited,omitempty"`
-	Error                 string `json:"error,omitempty"`
+	RateLimited int    `json:"rateLimited,omitempty"`
+	Error       string `json:"error,omitempty"`
 	// TokenSource 如实说明这次扫描**用的是谁的凭据**：
 	//   user       = 发起人自己的 GitHub 令牌（5000 次/小时，按账号隔离）
 	//   deployment = 部署级只读令牌（环境变量配置的兜底）
 	//   anonymous  = 无凭据（60 次/小时，只够扫几个仓库）
 	// 用户看到"6 成功 40 失败"时，这一栏能直接回答"为什么会这样"。
-	TokenSource           string `json:"tokenSource,omitempty"`
-	StartedAt             string `json:"startedAt"`
-	FinishedAt            string `json:"finishedAt,omitempty"`
+	TokenSource string `json:"tokenSource,omitempty"`
+	StartedAt   string `json:"startedAt"`
+	FinishedAt  string `json:"finishedAt,omitempty"`
 }
 
 // ScanJobStatus values.
@@ -118,7 +118,10 @@ func (r *JobRegistry) StartWithTokenSource(kind, url, tokenSource string, run fu
 		defer r.mu.Unlock()
 		if err != nil {
 			job.Status = JobFailed
-			job.Error = err.Error()
+			// 翻成人话再交给界面：err.Error() 是给日志看的（"reposcan: not found"），
+			// 用户拿它分不清「链接贴错 / 私有仓没权限 / 平台抽风」，而这三件事的
+			// 下一步动作完全不同（见 errtext.go）。
+			job.Error = HumanScanError(err, job.Kind, job.URL, job.TokenSource)
 		} else if counts.AbortedReason != "" || counts.Failed > 0 {
 			job.Status = JobPartial
 			job.RateLimited = counts.RateLimited
@@ -131,11 +134,25 @@ func (r *JobRegistry) StartWithTokenSource(kind, url, tokenSource string, run fu
 		} else {
 			job.Status = JobSucceeded
 		}
-		job.Total = counts.Total
-		job.Scanned = counts.Total
+		// Total 取「曾经知道过的最大目标数」：失败路径上 counts.Total 可能是 0
+		//（组织列表就没拉到），把它写回去等于把已经枚举到的目标数抹掉。
+		if counts.Total > job.Total {
+			job.Total = counts.Total
+		}
+		if err == nil {
+			job.Scanned = counts.Total
+		}
+		// 失败时**保留进度回调报回的值**（job.Scanned 已由回调写过），不写成 Total：
+		// 写成 Total 等于说「全扫完了」，而这次可能一个都没登记。2026-09-20 实测
+		// 那条记录同时说了「1/1 已扫」「0 个失败」和「failed」——三句话互相打架。
 		job.Registered = counts.Registered
 		job.Skipped = counts.Skipped
 		job.Failed = counts.Failed
+		if err != nil && job.Failed == 0 && job.Total > 0 {
+			// 任务级失败必然意味着至少一个目标没能登记；否则同一条记录会同时说
+			// 「失败了」和「0 个失败」。
+			job.Failed = 1
+		}
 		now := time.Now().UTC().Format(time.RFC3339)
 		job.FinishedAt = now
 		r.mirror.Save(context.Background(), *job)
