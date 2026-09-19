@@ -12,6 +12,7 @@ import { fetchIssueDetail } from "../../api/rooms";
 import { listConversationMessages, submitMessage, type ConversationMessage } from "../../api/conversations";
 import { listPlanTasks, type PlanTaskItem } from "../../api/taskTree";
 import { fetchTestEvidence, type TestEvidenceView } from "../../api/testEvidence";
+import { appendIssueRepository } from "../../api/issueScope";
 import { approveTask, rejectTask } from "../../api/tasks";
 import {
   fetchDiscovery,
@@ -587,6 +588,18 @@ export function WorkbenchPage({
       .catch((err: unknown) => onToast(`强制继续失败：${errText(err)}`));
   };
 
+  /** ③ 执行中人工打断：把**一个人确认过的**仓库追加进本次 Issue 的仓库范围。
+   *
+   *  2026-09-20：后端此前没有追加路径（范围只在建 issue 时写入），界面上也没有入口。
+   *  这里只做"人确认后追加"这一步；服务端的 409/404 原样上抛，不做自动重试。 */
+  const handleAppendRepository = async (repositoryId: string) => {
+    if (!detail) throw new Error("issue 还没加载完");
+    const pid = await resolveProjectId();
+    if (!pid) throw new Error("没有可用项目，无法追加仓库");
+    await appendIssueRepository(pid, detail.issue_id, repositoryId);
+    onToast("已追加进本次 Issue 的仓库范围");
+    setReload((n) => n + 1);
+  };
   /** 经理门：blocked 任务的通过/驳回（审核段唯一的写动作）。 */
   const handleDecideTask = async (taskId: string, decision: "approve" | "reject", reason: string) => {
     const projectId = await resolveProjectId();
@@ -1097,6 +1110,9 @@ export function WorkbenchPage({
             testEvidence={testEvidence}
             tasks={tasks}
             trainCars={trainCars}
+            scopeRepoIds={detail.repositoryIds ?? []}
+            repoOptions={Object.entries(repoNameById).map(([id, name]) => ({ id, name }))}
+            onAppendRepository={handleAppendRepository}
             stepStates={stepStates}
             task={taskEntry}
             messages={entryMessages}

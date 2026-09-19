@@ -214,6 +214,71 @@ function TestEvidenceRow({ item }: { item: TestEvidenceItem }) {
  *  交付 = PR 列车每节车厢的 PR 与合并状态
  *
  *  只摆**已经真实发生**的事：没有记录就说没有。 */
+/** 本次 Issue 的仓库范围 —— ③「执行中人工打断 / 动态引入新仓库」的**人工确认入口**。
+ *
+ *  2026-09-20：范围此前只在建 issue 时选定，界面上没有任何追加入口。后端现在有了
+ *  追加端点（POST .../issues/{id}/scope/repositories），这里补上人确认的那一步 ——
+ *  用户已裁定：**新仓库必须人工确认才生效**，不允许 agent 自己改范围。
+ *
+ *  候选只列**本项目已挂的**仓库：服务端也只收这种，未挂的会以 409
+ *  REPOSITORY_NOT_IN_PROJECT 明确拒绝（挂仓库是另一个动作，不在这里替人做）。 */
+function IssueScopeCard({
+  scopeRepoIds,
+  repoOptions,
+  onAppend,
+}: {
+  scopeRepoIds: string[];
+  repoOptions: Array<{ id: string; name: string }>;
+  onAppend: (repositoryId: string) => Promise<void>;
+}) {
+  const [pick, setPick] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const nameOf = (id: string) => repoOptions.find((r) => r.id === id)?.name ?? id;
+  const candidates = repoOptions.filter((r) => !scopeRepoIds.includes(r.id));
+  const submit = () => {
+    if (pick === "" || busy) return;
+    setBusy(true);
+    setErr(null);
+    onAppend(pick)
+      .then(() => setPick(""))
+      .catch((e: unknown) => setErr(e instanceof Error ? e.message : String(e)))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <div className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+      <p className="text-[11.5px] text-[var(--tree-ink)]">本次 Issue 的仓库范围（{scopeRepoIds.length}）</p>
+      {scopeRepoIds.length === 0 && (
+        <p className="mt-1 text-[10.5px] text-[var(--tree-faint)]">还没有仓库 —— 服务端按此范围校验一切改动。</p>
+      )}
+      {scopeRepoIds.map((id) => (
+        <p key={id} className="mt-1 break-all font-mono text-[10.5px] text-[var(--tree-sub)]">{nameOf(id)}</p>
+      ))}
+      {candidates.length > 0 && (
+        <div className="mt-2 flex items-center gap-2">
+          <select
+            className="min-w-0 flex-1 rounded-[6px] border border-[var(--tree-hairline)] bg-[var(--tree-bg)] px-1.5 py-1 text-[11px] text-[var(--tree-ink)]"
+            value={pick}
+            onChange={(e) => setPick(e.target.value)}
+          >
+            <option value="">追加一个仓库…</option>
+            {candidates.map((r) => (
+              <option key={r.id} value={r.id}>{r.name}</option>
+            ))}
+          </select>
+          <button
+            className="flex-none rounded-[6px] border border-[var(--tree-acc)] px-2 py-1 text-[11px] text-[var(--tree-acc)] disabled:opacity-50"
+            disabled={busy || pick === ""}
+            onClick={submit}
+          >
+            {busy ? "追加中…" : "追加"}
+          </button>
+        </div>
+      )}
+      {err !== null && <p className="mt-1 text-[10.5px] text-salmon">{err}</p>}
+    </div>
+  );
+}
 function StageHistory({
   stage,
   discovery,
@@ -221,6 +286,9 @@ function StageHistory({
   tasks,
   testEvidence,
   trainCars,
+  scopeRepoIds,
+  repoOptions,
+  onAppendRepository,
 }: {
   stage: 0 | 1 | 2 | 3;
   discovery: DiscoveryView | null;
@@ -228,6 +296,12 @@ function StageHistory({
   tasks: PlanTaskItem[] | null;
   testEvidence: TestEvidenceView | null;
   trainCars: TrainCarSpec[] | null;
+  /** 本次 Issue 当前的仓库范围（issue 详情的 repositoryIds） */
+  scopeRepoIds: string[];
+  /** 本项目已挂的仓库（追加的候选只从这里来） */
+  repoOptions: Array<{ id: string; name: string }>;
+  /** 人确认追加一个仓库 */
+  onAppendRepository: (repositoryId: string) => Promise<void>;
 }) {
   const stepState = (i: number): string => {
     const st = stepStates[i];
@@ -268,6 +342,7 @@ function StageHistory({
             )}
           </div>
         ))}
+        <IssueScopeCard scopeRepoIds={scopeRepoIds} repoOptions={repoOptions} onAppend={onAppendRepository} />
       </div>
     );
   }
@@ -380,6 +455,12 @@ export interface FocusPanelProps {
   /** 阶段历史（顶栏「流程」点开）要看的东西：任务行与交付列车。 */
   tasks: PlanTaskItem[] | null;
   trainCars: TrainCarSpec[] | null;
+  /** 本次 Issue 当前的仓库范围（issue 详情的 repositoryIds） */
+  scopeRepoIds: string[];
+  /** 本项目已挂的仓库（追加候选只从这里来） */
+  repoOptions: Array<{ id: string; name: string }>;
+  /** 人确认把一个仓库追加进本次 Issue 的范围 */
+  onAppendRepository: (repositoryId: string) => Promise<void>;
 }
 
 export function FocusPanel({
@@ -404,6 +485,9 @@ export function FocusPanel({
   testEvidence,
   tasks,
   trainCars,
+  scopeRepoIds,
+  repoOptions,
+  onAppendRepository,
   onChooseManual,
   onChooseAI,
   onConfirmSupplements,
