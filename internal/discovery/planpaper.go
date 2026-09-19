@@ -3,11 +3,65 @@ package discovery
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
 )
+
+// decodePaperBatches 是 execution_batches 的 as-built 容错读取（计划纸这一侧）。
+//
+// 规范形状是 [][]string（每批一串仓库名）。2026-09-20 线上实测物化写出过
+// [{"batch_no":1,"tasks":[{"repository":"owner/name"}]}]，读面按 [][]string 解不开，
+// §5.4 计划纸与 GET /plans/{id}/tasks 一起 503。这里只认「批次 → 仓库名」，
+// 认不出的条目跳过 —— 不编造批次划分。
+func decodePaperBatches(raw []byte) ([][]string, error) {
+	if len(raw) == 0 {
+		return [][]string{}, nil
+	}
+	var entries []json.RawMessage
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		return nil, err
+	}
+	type richBatch struct {
+		BatchNo int `json:"batch_no"`
+		Tasks   []struct {
+			Repository string `json:"repository"`
+		} `json:"tasks"`
+	}
+	out := [][]string{}
+	rich := []richBatch{}
+	usedRich := false
+	for _, entry := range entries {
+		var names []string
+		if err := json.Unmarshal(entry, &names); err == nil {
+			out = append(out, names)
+			continue
+		}
+		var batch richBatch
+		if err := json.Unmarshal(entry, &batch); err != nil {
+			continue
+		}
+		usedRich = true
+		rich = append(rich, batch)
+	}
+	if usedRich {
+		sort.SliceStable(rich, func(i, j int) bool { return rich[i].BatchNo < rich[j].BatchNo })
+		for _, batch := range rich {
+			repos := []string{}
+			for _, task := range batch.Tasks {
+				if strings.TrimSpace(task.Repository) != "" {
+					repos = append(repos, task.Repository)
+				}
+			}
+			if len(repos) > 0 {
+				out = append(out, repos)
+			}
+		}
+	}
+	return out, nil
+}
 
 // RepositoryPlan serves the contract §5.4 repo-granularity plan paper as-built:
 // the plan snapshot this issue's materialization receipt points at, with batch
@@ -41,7 +95,14 @@ func (s *Service) RepositoryPlan(ctx context.Context, issueID, repositoryID stri
 	}
 	var batches [][]string
 	if err := json.Unmarshal(batchesRaw, &batches); err != nil {
-		return nil, err
+		// 2026-09-20：execution_batches 的 as-built 容错（同 internal/tasks 的
+		// decodePlanBatches）。物化曾经写出 [{"batch_no":1,"tasks":[{repository}]}]，
+		// 按 [][]string 解不开 —— 这里只认「批次 → 仓库名」这一层语义。
+		tolerant, tolerantErr := decodePaperBatches(batchesRaw)
+		if tolerantErr != nil {
+			return nil, err
+		}
+		batches = tolerant
 	}
 	var dag map[string][]string
 	_ = json.Unmarshal(dagRaw, &dag)

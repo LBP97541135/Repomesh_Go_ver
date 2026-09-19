@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -162,6 +164,63 @@ func decodePlanDAG(raw []byte) (map[string][]string, error) {
 	return out, nil
 }
 
+// decodePlanBatches 是 execution_batches 的 as-built 容错读取。
+//
+// 规范形状是 [][]string（每批一串**仓库名**）。2026-09-20 线上实测物化写出过
+// [{"batch_no":1,"tasks":[{"repository":"owner/name",…}]}]，读面按 [][]string
+// 直接解不开。这里只认「批次 → 仓库名」这一层语义：对象形状按 batch_no 排序后
+// 取 tasks[].repository；既不是数组也不是认识的对象就跳过 —— 不编造批次划分。
+func decodePlanBatches(raw []byte) ([][]string, error) {
+	if len(raw) == 0 {
+		return [][]string{}, nil
+	}
+	var entries []json.RawMessage
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		return nil, fmt.Errorf("decode json: %w", err)
+	}
+	type richBatch struct {
+		BatchNo int `json:"batch_no"`
+		Tasks   []struct {
+			Repository string `json:"repository"`
+		} `json:"tasks"`
+	}
+	type decoded struct {
+		batchNo int
+		repos   []string
+	}
+	out := [][]string{}
+	rich := []decoded{}
+	usedRich := false
+	for _, entry := range entries {
+		var names []string
+		if err := json.Unmarshal(entry, &names); err == nil {
+			out = append(out, names)
+			continue
+		}
+		var batch richBatch
+		if err := json.Unmarshal(entry, &batch); err != nil {
+			continue
+		}
+		usedRich = true
+		repos := []string{}
+		for _, task := range batch.Tasks {
+			if strings.TrimSpace(task.Repository) != "" {
+				repos = append(repos, task.Repository)
+			}
+		}
+		rich = append(rich, decoded{batchNo: batch.BatchNo, repos: repos})
+	}
+	if usedRich {
+		sort.SliceStable(rich, func(i, j int) bool { return rich[i].batchNo < rich[j].batchNo })
+		for _, batch := range rich {
+			if len(batch.repos) > 0 {
+				out = append(out, batch.repos)
+			}
+		}
+	}
+	return out, nil
+}
+
 func scanPlan(row pgx.Row) (ExecutionPlan, error) {
 	var (
 		p            ExecutionPlan
@@ -173,7 +232,16 @@ func scanPlan(row pgx.Row) (ExecutionPlan, error) {
 		return ExecutionPlan{}, err
 	}
 	if err := jsonUnmarshalInto(batches, &p.Batches); err != nil {
-		return ExecutionPlan{}, err
+		// 2026-09-20 线上实测：物化曾把 execution_batches 写成
+		// [{"batch_no":1,"tasks":[{"repository":…}]}]，而这里是 [][]string ——
+		// 于是 GET /plans/{id}/tasks 每 5s 报一次 503，界面上的任务树永远是空的。
+		// 读面按 as-built 容错：只认「批次 → 仓库名」这一层语义，认不出的条目
+		// 丢弃而不是整条失败（同 decodePlanDAG 的处理）。
+		tolerant, tolerantErr := decodePlanBatches(batches)
+		if tolerantErr != nil {
+			return ExecutionPlan{}, err
+		}
+		p.Batches = tolerant
 	}
 	decodedDAG, err := decodePlanDAG(dag)
 	if err != nil {
