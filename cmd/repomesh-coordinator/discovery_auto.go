@@ -48,37 +48,25 @@ const autohostAgent = "00000000-0000-4000-8000-00000000a070"
 // when it performed work.
 func (a *discoveryAutomator) step(ctx context.Context) bool {
 	now := time.Now()
-	var p discoveryProgress
-	err := a.pool.QueryRow(ctx, `
-		SELECT d.issue_id,
-		       (d.analysis IS NOT NULL AND d.analysis <> 'null'::jsonb)                    AS has_analysis,
-		       COALESCE((d.analysis->>'sufficient')::bool, false)                          AS sufficient,
-		       COALESCE(jsonb_typeof(d.analysis->'forced_continue') = 'object', false)     AS forced,
-		       (d.candidates IS NOT NULL AND d.candidates <> 'null'::jsonb)                AS has_candidates,
-		       (d.classification IS NOT NULL AND d.classification <> 'null'::jsonb)        AS has_classification,
-		       COALESCE(d.approval->>'state', '')                                          AS approval_state,
-		       COALESCE(d.classification_evidence_version, '')                             AS evidence_version,
-		       (d.plan IS NOT NULL AND d.plan <> 'null'::jsonb)                            AS has_plan,
-		       (d.materialization IS NOT NULL AND d.materialization <> 'null'::jsonb)      AS has_materialization
-		FROM repomesh_issues.issue_discoveries d
-		JOIN repomesh_issues.issues i ON i.id = d.issue_id
-		WHERE i.removed_at IS NULL
-		  AND NOT (d.analysis IS NOT NULL AND d.analysis <> 'null'::jsonb
-		  AND (COALESCE((d.analysis->>'sufficient')::bool, false) OR jsonb_typeof(d.analysis->'forced_continue') = 'object')
-		           AND d.candidates IS NOT NULL AND d.candidates <> 'null'::jsonb
-		           AND d.classification IS NOT NULL AND d.classification <> 'null'::jsonb
-		           AND d.approval->>'state' = 'approved'
-		           AND d.plan IS NOT NULL AND d.plan <> 'null'::jsonb
-		           AND d.materialization IS NOT NULL AND d.materialization <> 'null'::jsonb)
-		ORDER BY d.updated_at
-		LIMIT 1`).Scan(
-		&p.issueID, &p.hasAnalysis, &p.sufficient, &p.forced, &p.hasCandidates,
-		&p.hasClassification, &p.approvalState, &p.evidenceVersion, &p.hasPlan, &p.hasMaterialization)
+	candidates, err := a.pendingIssues(ctx)
 	if err != nil {
 		slog.Info("autohost: no pending discovery", "reason", err.Error())
 		return false
 	}
-	if until, ok := a.backoff[p.issueID]; ok && now.Before(until) {
+	// 头阻塞修复（2026-09-20 线上实测）：此前只取「最旧的那一条」，于是一条永远
+	// 过不去的 issue（线上是 iss_2db1 —— 分档把全部仓库都排除了，审批每 10s 撞
+	// 一次墙）就把后面所有 issue 全饿死：新 issue 的 ② 永远等不到派发，界面上一直
+	// 停在「等待前序」。现在按最旧优先往下看，跳过正处于退避期的那些。
+	var p discoveryProgress
+	picked := false
+	for _, candidate := range candidates {
+		if until, ok := a.backoff[candidate.issueID]; ok && now.Before(until) {
+			continue
+		}
+		p, picked = candidate, true
+		break
+	}
+	if !picked {
 		return false
 	}
 	delete(a.backoff, p.issueID)
@@ -138,4 +126,47 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 		return done(err)
 	}
 	return false
+}
+
+// pendingIssues 取还没走完发现链的 issue，**最旧优先**，一次多取几条。
+// 取多条是为了让退避中的 issue 能被跳过而不是堵住队首（见 step 的注释）。
+func (a *discoveryAutomator) pendingIssues(ctx context.Context) ([]discoveryProgress, error) {
+	rows, err := a.pool.Query(ctx, `
+		SELECT d.issue_id,
+		       (d.analysis IS NOT NULL AND d.analysis <> 'null'::jsonb)                    AS has_analysis,
+		       COALESCE((d.analysis->>'sufficient')::bool, false)                          AS sufficient,
+		       COALESCE(jsonb_typeof(d.analysis->'forced_continue') = 'object', false)     AS forced,
+		       (d.candidates IS NOT NULL AND d.candidates <> 'null'::jsonb)                AS has_candidates,
+		       (d.classification IS NOT NULL AND d.classification <> 'null'::jsonb)        AS has_classification,
+		       COALESCE(d.approval->>'state', '')                                          AS approval_state,
+		       COALESCE(d.classification_evidence_version, '')                             AS evidence_version,
+		       (d.plan IS NOT NULL AND d.plan <> 'null'::jsonb)                            AS has_plan,
+		       (d.materialization IS NOT NULL AND d.materialization <> 'null'::jsonb)      AS has_materialization
+		FROM repomesh_issues.issue_discoveries d
+		JOIN repomesh_issues.issues i ON i.id = d.issue_id
+		WHERE i.removed_at IS NULL
+		  AND NOT (d.analysis IS NOT NULL AND d.analysis <> 'null'::jsonb
+		  AND (COALESCE((d.analysis->>'sufficient')::bool, false) OR jsonb_typeof(d.analysis->'forced_continue') = 'object')
+		           AND d.candidates IS NOT NULL AND d.candidates <> 'null'::jsonb
+		           AND d.classification IS NOT NULL AND d.classification <> 'null'::jsonb
+		           AND d.approval->>'state' = 'approved'
+		           AND d.plan IS NOT NULL AND d.plan <> 'null'::jsonb
+		           AND d.materialization IS NOT NULL AND d.materialization <> 'null'::jsonb)
+		ORDER BY d.updated_at
+		LIMIT 20`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	pending := []discoveryProgress{}
+	for rows.Next() {
+		var p discoveryProgress
+		if err := rows.Scan(
+			&p.issueID, &p.hasAnalysis, &p.sufficient, &p.forced, &p.hasCandidates,
+			&p.hasClassification, &p.approvalState, &p.evidenceVersion, &p.hasPlan, &p.hasMaterialization); err != nil {
+			return nil, err
+		}
+		pending = append(pending, p)
+	}
+	return pending, rows.Err()
 }
