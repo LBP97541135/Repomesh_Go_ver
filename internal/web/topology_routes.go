@@ -44,29 +44,45 @@ func registerTopologyRoutes(mux *http.ServeMux, auth Auth, assemblySvc *assembly
 	// 约定与其它写面一致——会话 + CSRF + Origin 严格相等。注意 registerProjectRoute
 	// 只把 POST/PATCH 当写操作，**DELETE 不在其列**；这里显式把 DELETE 也按写处理，
 	// 否则删除会绕过 CSRF。
-	agentWrite := func(w http.ResponseWriter, r *http.Request) bool {
+	// agentWrite 现在把**调用者身份**一并交出来：智能体写面必须按调用者自己的
+	// 空间收口（2026-09-19 账号隔离）。
+	agentWrite := func(w http.ResponseWriter, r *http.Request) (string, bool) {
 		if auth.Service == nil {
 			writeHumanControlError(w, &accessFailure{status: 503, code: "auth_not_configured"})
-			return false
+			return "", false
 		}
 		if auth.Origin == "" || len(r.Header.Values("Origin")) != 1 || r.Header.Get("Origin") != auth.Origin {
 			writeHumanControlError(w, &accessFailure{status: 403, code: "origin_rejected"})
+			return "", false
+		}
+		principal, err := auth.Service.AuthenticateProjectRequest(
+			r.Context(), cookie(r, sessionCookie), r.Header.Get("X-CSRF-Token"), true)
+		if err != nil {
+			writeHumanControlError(w, err)
+			return "", false
+		}
+		return principal.ActorID(), true
+	}
+	// agentInSpace 校验该智能体落在调用者的空间里；不在就 404（不泄露"存在但不是你的"）。
+	agentInSpace := func(w http.ResponseWriter, r *http.Request, actor, agentID string) bool {
+		ok, err := auth.Service.AgentInOrganization(r.Context(), actor, agentID)
+		if err != nil {
+			writeHumanControlError(w, err)
 			return false
 		}
-		if _, err := auth.Service.AuthenticateProjectRequest(
-			r.Context(), cookie(r, sessionCookie), r.Header.Get("X-CSRF-Token"), true); err != nil {
-			writeHumanControlError(w, err)
+		if !ok {
+			writeHumanControlError(w, &accessFailure{status: 404, code: "NOT_FOUND"})
 			return false
 		}
 		return true
 	}
 	mux.HandleFunc("POST /api/agents", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		if !agentWrite(w, r) {
+		actor, ok := agentWrite(w, r)
+		if !ok {
 			return
 		}
 		var body struct {
-			OrganizationID string `json:"organizationId"`
 			Role           string `json:"role"`
 			RepositoryID   string `json:"repositoryId"`
 			Name           string `json:"name"`
@@ -74,7 +90,14 @@ func registerTopologyRoutes(mux *http.ServeMux, auth Auth, assemblySvc *assembly
 		if err := decodeBody(w, r, &body); err != nil {
 			return
 		}
-		agentID, err := assemblySvc.CreateAgent(r.Context(), body.OrganizationID, body.Role, body.RepositoryID, body.Name)
+		// 2026-09-19 账号隔离：空间**只认调用者自己的** —— 此前 organizationId 直接
+		// 取自请求体，想往哪个空间塞就往哪个空间塞。（前端仍可能传，这里忽略。）
+		organization, err := auth.Service.OrganizationOf(r.Context(), actor)
+		if err != nil || organization == "" {
+			writeHumanControlError(w, &accessFailure{status: 422, code: "VALIDATION_FAILED"})
+			return
+		}
+		agentID, err := assemblySvc.CreateAgent(r.Context(), organization, body.Role, body.RepositoryID, body.Name)
 		if err != nil {
 			writeHumanControlError(w, &accessFailure{status: 422, code: "VALIDATION_FAILED"})
 			return
@@ -83,7 +106,11 @@ func registerTopologyRoutes(mux *http.ServeMux, auth Auth, assemblySvc *assembly
 	})
 	mux.HandleFunc("DELETE /api/agents/{id}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		if !agentWrite(w, r) {
+		actor, ok := agentWrite(w, r)
+		if !ok {
+			return
+		}
+		if !agentInSpace(w, r, actor, r.PathValue("id")) {
 			return
 		}
 		if err := assemblySvc.DeleteAgent(r.Context(), r.PathValue("id")); err != nil {
@@ -101,7 +128,11 @@ func registerTopologyRoutes(mux *http.ServeMux, auth Auth, assemblySvc *assembly
 	// 写集合里，这里沿用显式守卫以保持一致。
 	mux.HandleFunc("PATCH /api/agents/{id}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		if !agentWrite(w, r) {
+		actor, ok := agentWrite(w, r)
+		if !ok {
+			return
+		}
+		if !agentInSpace(w, r, actor, r.PathValue("id")) {
 			return
 		}
 		var body struct {

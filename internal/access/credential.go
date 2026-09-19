@@ -144,6 +144,43 @@ func (s *Service) OrganizationOf(ctx context.Context, actor string) (string, err
 	return *organization, nil
 }
 
+// IssueInOrganization 判断该 issue 是否挂在该账号名下的项目上。
+//
+// 2026-09-19 账号隔离：`/api/issues/{issueId}/...` 一族（发现链、归档、清理）
+// 此前只认 issue id —— 拿到别人的 id 就能读它的发现状态、替它跑规划、甚至归档它。
+// 归属规则与项目读面一致：**项目的 owner 必须是调用者**。
+func (s *Service) IssueInOrganization(ctx context.Context, actor, issueID string) (bool, error) {
+	if actor == "" || issueID == "" {
+		return false, nil
+	}
+	var ok bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM repomesh_issues.issues i
+			 JOIN repomesh_projects.projects p ON p.id = i.project_id
+			 WHERE i.id = $1 AND p.owner = $2)`, issueID, actor).Scan(&ok)
+	return ok, err
+}
+
+// AgentInOrganization 判断该智能体是否落在该账号的空间里。
+//
+// 2026-09-19 账号隔离：`DELETE/PATCH /api/agents/{id}` 此前只认 id；
+// 而 `POST /api/agents` 更是**从请求体里取 organizationId** —— 想往哪个空间塞
+// 就往哪个空间塞。写面必须只认调用者自己的空间。
+func (s *Service) AgentInOrganization(ctx context.Context, actor, agentID string) (bool, error) {
+	if actor == "" || agentID == "" {
+		return false, nil
+	}
+	var ok bool
+	// id::text 比较：调用者可能传垃圾字符串，那样会得到 22P02 而不是干净的"不是你的"。
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM public.agents g
+			 JOIN repomesh_access.accounts a ON a.organization_id = g.organization_id
+			 WHERE g.id::text = $1 AND a.id = $2)`, agentID, actor).Scan(&ok)
+	return ok, err
+}
+
 func (s *Service) rejectCredential(ctx context.Context, c credential) {
 	_, _ = s.pool.Exec(ctx, `UPDATE repomesh_access.connections SET status='missing',access_epoch=access_epoch+1,observed_at=now() WHERE actor=$1 AND revision=$2 AND access_epoch=$3`, c.actor, c.revision, c.epoch)
 }

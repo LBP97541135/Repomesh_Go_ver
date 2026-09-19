@@ -64,20 +64,38 @@ type Discovery struct {
 // and the v0.5 archive/purge maintenance endpoints. All authenticate with
 // the session cookie (writes also check CSRF).
 func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discovery) {
-	guard := func(w http.ResponseWriter, r *http.Request) error {
+	guard := func(w http.ResponseWriter, r *http.Request) (string, error) {
 		if auth.Service == nil {
-			return &accessFailure{status: 503, code: "auth_not_configured"}
+			return "", &accessFailure{status: 503, code: "auth_not_configured"}
 		}
 		write := r.Method != http.MethodGet && r.Method != http.MethodHead
-		_, err := auth.Service.AuthenticateProjectRequest(r.Context(), cookie(r, sessionCookie), r.Header.Get("X-CSRF-Token"), write)
-		return err
+		principal, err := auth.Service.AuthenticateProjectRequest(r.Context(), cookie(r, sessionCookie), r.Header.Get("X-CSRF-Token"), write)
+		if err != nil {
+			return "", err
+		}
+		return principal.ActorID(), nil
 	}
 	register := func(pattern string, handler http.HandlerFunc) {
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Cache-Control", "no-store")
-			if err := guard(w, r); err != nil {
+			actor, err := guard(w, r)
+			if err != nil {
 				writeDiscoveryError(w, err)
 				return
+			}
+			// 2026-09-19 账号隔离：issue 作用域的端点必须落在**调用者名下的项目**上。
+			// 此前只认 issue id —— 拿到别人的 id 就能读它的发现状态、替它跑规划、
+			// 甚至归档它。回 404 而不是 403：不泄露"这个 issue 存在，只是不是你的"。
+			if issueID := r.PathValue("issueId"); issueID != "" {
+				owned, checkErr := auth.Service.IssueInOrganization(r.Context(), actor, issueID)
+				if checkErr != nil {
+					writeDiscoveryError(w, checkErr)
+					return
+				}
+				if !owned {
+					writeJSON(w, http.StatusNotFound, map[string]string{"error": "resource_not_found"})
+					return
+				}
 			}
 			handler(w, r)
 		})
