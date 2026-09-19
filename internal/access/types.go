@@ -72,6 +72,9 @@ func unavailable() error                    { return failure(503, "RESULT_UNCONF
 type User struct {
 	ID          string `json:"id"`
 	DisplayName string `json:"displayName"`
+	// IsAdmin 是该账号自己的授权事实，只用于前端隐藏控件；
+	// 写路由每次请求另行校验（见 Service.IsAdmin），绝不拿它当权威。
+	IsAdmin bool `json:"isAdmin"`
 }
 
 type ConnectionView struct {

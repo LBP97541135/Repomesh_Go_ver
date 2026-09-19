@@ -18,7 +18,7 @@ func (s *Service) Session(ctx context.Context, cookie string) (Session, error) {
 		WHERE s.hash=$1 AND s.binding=b.hash AND s.actor=a.id AND NOT s.revoked AND NOT a.disabled
 		AND s.expires_at>now() AND s.last_active_at>now()-interval '30 minutes'
 		AND b.expires_at>now() AND s.generation=b.identity_generation
-		RETURNING a.id,a.display_name,a.github_id,s.binding,s.generation`, digest(cookie)).Scan(&view.User.ID, &view.User.DisplayName, &view.GitHubID, &view.Binding, &view.Generation)
+		RETURNING a.id,a.display_name,a.github_id,a.is_admin,s.binding,s.generation`, digest(cookie)).Scan(&view.User.ID, &view.User.DisplayName, &view.GitHubID, &view.User.IsAdmin, &view.Binding, &view.Generation)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Session{}, failure(401, "AUTHENTICATION_REQUIRED")
 	}

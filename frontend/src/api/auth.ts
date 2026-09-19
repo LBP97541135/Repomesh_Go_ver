@@ -73,7 +73,7 @@ async function goRequest<T>(path: string, init?: RequestInit): Promise<T> {
 
 /** Go `GET /api/session` 的响应形状（internal/web 的 auth 会话出参）。 */
 export interface GoSession {
-  user: { id: string; displayName: string; githubId: string };
+  user: { id: string; displayName: string; githubId: string; isAdmin?: boolean };
   csrfToken: string;
 }
 
@@ -88,7 +88,8 @@ export async function fetchSession(): Promise<{ account: Account; csrfToken: str
       id: session.user.id,
       username: session.user.githubId,
       display_name: session.user.displayName,
-      is_admin: false,
+      // 账号自己的管理员事实：服务端仍是写操作的权威（见仓库团队管理）
+      is_admin: session.user.isAdmin === true,
       active: true,
     },
   };
