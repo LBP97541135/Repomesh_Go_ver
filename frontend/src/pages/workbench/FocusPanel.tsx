@@ -178,6 +178,7 @@ export function FocusPanel({
           {task !== null && task.status === "blocked" && (
             <TaskGate task={task} onDecide={onDecideTask} />
           )}
+          <PlanHistory discovery={discovery} />
         </div>
       );
     }
@@ -189,6 +190,7 @@ export function FocusPanel({
         ) : (
           <MessageTimeline messages={messages} />
         )}
+        <PlanHistory discovery={discovery} />
         <GateStack
           stepStates={stepStates}
           mergePending={mergePending}
@@ -413,6 +415,91 @@ function TaskGate({
         </button>
       </div>
       {error && <p className="mt-1.5 text-[11px] text-salmon">{error}</p>}
+    </div>
+  );
+}
+
+/** 规划记录（只读回看）：物化后左树换成任务视图，规划那 5 步与它们的产物
+ *  就从界面上消失了 —— 用户实测的原话是"进入执行页面后看不到规划页面的记录"。
+ *  这里把 5 步的结论与**产出者**并排摊开，任何一步都能追到是谁产的。
+ *
+ *  数据源就是 `discovery`（工作台仍在轮询它），所以这不是另一份真相。 */
+function PlanHistory({ discovery }: { discovery: DiscoveryView | null }) {
+  const [open, setOpen] = useState(false);
+  if (!discovery) return null;
+  const a = discovery.analysis;
+  const c = discovery.candidates;
+  const k = discovery.classification;
+  const integration = discovery.integration;
+  const mat = discovery.materialization;
+  const rows: Array<{ step: string; body: ReactNode }> = [
+    {
+      step: "① 需求分析",
+      body: a ? (
+        <>
+          <span>{(a.extracted_keywords ?? []).join(" · ") || "（无关键词）"}</span>
+          <ProducerLine producer={a.producer} />
+        </>
+      ) : (
+        <span>未跑</span>
+      ),
+    },
+    {
+      step: "② 候选评分",
+      body: c ? (
+        <>
+          <span>{c.items.length} 个候选 · {(c.items[0]?.repository_name ?? "—")}</span>
+          <ProducerLine producer={c.producer} />
+        </>
+      ) : (
+        <span>未跑</span>
+      ),
+    },
+    {
+      step: "③ 分档审批",
+      body: k ? (
+        <span>
+          必改 {k.required.length} · 可能 {k.maybe.length} · 排除 {k.excluded.length} ·{" "}
+          {discovery.approval.state === "approved" ? "已批准" : "待批准"}
+        </span>
+      ) : (
+        <span>未跑</span>
+      ),
+    },
+    {
+      step: "④ 生成计划",
+      body: integration ? (
+        <>
+          <span>{integration.task_dag_count} 个任务</span>
+          <ProducerLine producer={integration.producer} />
+        </>
+      ) : (
+        <span>未跑</span>
+      ),
+    },
+    {
+      step: "⑤ 物化确认",
+      body: mat ? <span>{mat.status}{mat.at ? ` · ${String(mat.at).slice(0, 16)}` : ""}</span> : <span>未物化</span>,
+    },
+  ];
+  return (
+    <div className="border-t border-dashed border-[var(--tree-hairline)] px-4 py-2.5">
+      <button
+        className="microlabel flex w-full items-center gap-1.5 text-left hover:text-[var(--tree-acc)]"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span>{open ? "▾" : "▸"}</span> 规划记录（只读回看）
+      </button>
+      {open && (
+        <div className="mt-1.5 flex flex-col gap-1.5">
+          {rows.map((row) => (
+            <div key={row.step} className="text-[11px] leading-[1.7] text-[var(--tree-sub)]">
+              <span className="text-[var(--tree-ink)]">{row.step}</span>
+              <span className="pl-1.5">{row.body}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
