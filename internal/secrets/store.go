@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"fmt"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -65,10 +66,13 @@ func New(ctx context.Context, pool *pgxpool.Pool, config Config) (*Store, error)
 		return nil, ErrConfiguration
 	}
 	if err := s.registerRoots(ctx); err != nil {
-		return nil, err
+		// 2026-09-20 事故教训：这里原来直接返回裸的 sentinel（ErrUnavailable /
+		// ErrConfiguration），启动失败时日志只有一句「secret source is unavailable」，
+		// 无从定位是哪一步、哪个表。带上步骤与因果链。
+		return nil, fmt.Errorf("secret store register roots: %w", err)
 	}
 	if err := s.check(ctx); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("secret store self-check: %w", err)
 	}
 	return s, nil
 }
