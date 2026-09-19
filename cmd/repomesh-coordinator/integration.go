@@ -57,14 +57,17 @@ func (d *integrationDispatcher) tick(ctx context.Context) bool {
 	}
 	dispatched := false
 	for _, repo := range repos {
-		if d.dispatch(ctx, planID, issueID, projectID, repo, "repo_integration") {
+		if d.dispatch(ctx, planID, issueID, projectID, repo, "repo_integration", repos) {
 			dispatched = true
 		}
 	}
 	// 跨仓库联调只在真的跨仓库时有意义：单仓库计划派它等于自己跟自己联调。
+	// 每个仓库各派一条（每条验自己那一侧），聚合起来才是这次跨仓库回归。
 	if len(repos) > 1 {
-		if d.dispatch(ctx, planID, issueID, projectID, "", "cross_repo_regression") {
-			dispatched = true
+		for _, repo := range repos {
+			if d.dispatch(ctx, planID, issueID, projectID, repo, "cross_repo_regression", repos) {
+				dispatched = true
+			}
 		}
 	}
 	return dispatched
@@ -91,7 +94,7 @@ func (d *integrationDispatcher) planRepositories(ctx context.Context, planID str
 // dispatch 派一条集成 run。task_package_ref 用约定形状
 // "plan:<planID>:kind:<kind>:repo:<repository>"，executor 据此把证据记到对的位置
 // （集成 run 不属于任何一条任务，所以不能塞 task id）。
-func (d *integrationDispatcher) dispatch(ctx context.Context, planID, issueID, projectID, repository, kind string) bool {
+func (d *integrationDispatcher) dispatch(ctx context.Context, planID, issueID, projectID, repository, kind string, allRepos []string) bool {
 	// 2026-09-20 线上实测（我自己的第一版就踩了）：tick 的准入条件是"这条计划还
 	// 没有集成证据"，而证据要等 run **跑完**才写 —— run 还在飞的那段时间里条件
 	// 一直成立，于是每 500ms 重派一条，几秒钟堆出几十条待跑 run。这里按**精确引用**
@@ -138,7 +141,7 @@ func (d *integrationDispatcher) dispatch(ctx context.Context, planID, issueID, p
 	if err := os.MkdirAll(workspace, 0o755); err != nil {
 		return false
 	}
-	prompt := integrationPrompt(kind, repository)
+	prompt := integrationPrompt(kind, repository, allRepos)
 	if err := os.WriteFile(filepath.Join(workspace, "prompt.txt"), []byte(prompt), 0o644); err != nil {
 		return false
 	}
@@ -161,9 +164,9 @@ func (d *integrationDispatcher) dispatch(ctx context.Context, planID, issueID, p
 		return false
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO repomesh_execution.agent_runs
-		(id, attempt_id, agent_kind, command, workspace, task_package_ref, state)
-		VALUES ($1,$2,'test_agent',$3,$4,$5,'pending')`,
-		runID, attemptID, buildIntegrationCommand(agentKind, model), workspace, ref); err != nil {
+		(id, attempt_id, agent_kind, command, workspace, task_package_ref, state, repo_full_name)
+		VALUES ($1,$2,'test_agent',$3,$4,$5,'pending',$6)`,
+		runID, attemptID, buildIntegrationCommand(agentKind, model, repository), workspace, ref, repository); err != nil {
 		return false
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -176,12 +179,14 @@ func (d *integrationDispatcher) dispatch(ctx context.Context, planID, issueID, p
 
 // integrationPrompt 让集成 agent 只做**验证**：它不改代码，只回答"这个范围还能不能
 // 跑"，并把结论写成机器可读的证据文件。
-func integrationPrompt(kind, repository string) string {
+func integrationPrompt(kind, repository string, allRepos []string) string {
 	scope := "本仓库（" + repository + "）"
 	work := "把该仓库在集成态下跑起来：装依赖、跑它既有的测试与构建，确认改动合在一起仍然成立。"
 	if kind == "cross_repo_regression" {
-		scope = "本次计划涉及的全部仓库"
-		work = "做跨仓库联调与回归：确认上游仓库的改动在下游仍然成立、仓库之间的接口约定没有被破坏，并跑一遍各仓库既有的测试。"
+		scope = "本次计划涉及的全部仓库：" + strings.Join(allRepos, "、") + "（你手上检出的是 " + repository + "）"
+		work = "做跨仓库联调与回归：结合上面列出的其它仓库，确认本次改动在 " + repository +
+			" 这一侧仍然成立、仓库之间的接口约定没有被破坏，并跑一遍该仓库既有的测试。" +
+			"你只能看到自己检出的那个仓库 —— 对看不到的仓库不要臆测，直接说清哪些结论无法在本仓库内验证。"
 	}
 	return "你是 RepoMesh 的测试 agent，负责**集成验证**，不要修改任何业务代码。\n\n" +
 		"范围：" + scope + "。\n\n" +
@@ -192,11 +197,23 @@ func integrationPrompt(kind, repository string) string {
 		"验证不过就 passed=false 并说清哪里不过 —— 不要编结果，也不要为了通过而放宽检查。\n"
 }
 
-// buildIntegrationCommand 与规划派发同一约定：prompt 走工作区文件，不拼进 argv。
-func buildIntegrationCommand(agentKind, model string) string {
+// buildIntegrationCommand 与交付脚本同一约定：先铸令牌克隆**目标仓库**，再在工作区
+// 里跑 agent；prompt 走工作区文件（不拼进 argv，否则 sanitize 会把引号抹掉）。
+//
+// 2026-09-20：第一版没克隆、也没给 repo_full_name，集成 agent 的工作区是空的 ——
+// 它手上没有仓库，所谓"集成验证"只能靠猜。这里补上克隆，executor 据 repo_full_name
+// 现场铸该仓库的 installation token（同交付 run）。
+func buildIntegrationCommand(agentKind, model, repository string) string {
+	agent := "codex exec -c model_provider=minimax -c model=" + model +
+		" --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox \"$(cat ../prompt.txt)\""
 	if agentKind == "claude_cli" {
-		return "bash -c 'claude -p \"$(cat prompt.txt)\" --model " + model + " --dangerously-skip-permissions'"
+		agent = "claude -p \"$(cat ../prompt.txt)\" --model " + model + " --dangerously-skip-permissions"
 	}
-	return "bash -c 'codex exec -c model_provider=minimax -c model=" + model +
-		" --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox \"$(cat prompt.txt)\"'"
+	script := "set -e\n" +
+		"T=${REPOMESH_GH_TOKEN:?missing installation token}\n" +
+		"git clone --depth 5 https://x-access-token:$T@github.com/" + repository + ".git repo\n" +
+		"cd repo\n" +
+		agent + "\n" +
+		"cp " + execution.TestEvidenceFile + " ../" + execution.TestEvidenceFile + " 2>/dev/null || true"
+	return "bash -c '" + script + "'"
 }
