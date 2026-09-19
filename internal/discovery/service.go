@@ -263,6 +263,9 @@ func (st *State) View() map[string]any {
 		"classification_evidence_version": st.EvidenceVersion,
 		"effective_tiers":                 st.EffectiveTiers,
 		"approval":                        st.Approval,
+		// plan 块（④ 生成计划的产出；未生成 → null）。此前读面不输出它，
+		// 前端阶段历史与「④ 已生成」判定全部拿不到事实（2026-09-20 补）。
+		"plan":                            st.Plan,
 		"integration":                     st.Integration,
 		"materialization":                 st.Materialization,
 	}

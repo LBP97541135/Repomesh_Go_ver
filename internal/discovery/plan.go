@@ -524,12 +524,17 @@ func (s *Service) Materialize(ctx context.Context, issueID, agentID, idempotency
 		// every dispatch aborts with a placeholder foreign key.
 		// batch_no 填 1：物化实际做的事就是"下发批次 1"（同一批全部任务），
 		// 这里此前留空，界面上的任务行只能显示「批次—」——而它明明就在批次 1 里。
+		// leader_label/worker_label（用户裁定）：Leader 归属仓库（`Leader · <仓库名>`），
+		// Worker 是编制内序号 W1、W2…——此前写入端不填这两列，树上只能显示「待指派」假标签。
+		leaderLabel := "Leader · " + repo
+		workerLabel := fmt.Sprintf("W%d", index+1)
 		err = tx.QueryRow(ctx,
-			"INSERT INTO public.tasks (id, organization_id, project_id, plan_id, task_uid, repository_id, title, instruction, acceptance, source_ref, idempotency_key, batch_no, conversation_id)"+
-				" VALUES (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9::jsonb, $10, 1, $11)"+
+			"INSERT INTO public.tasks (id, organization_id, project_id, plan_id, task_uid, repository_id, title, instruction, acceptance, source_ref, idempotency_key, batch_no, conversation_id, leader_label, worker_label)"+
+				" VALUES (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9::jsonb, $10, 1, $11, $12, $13)"+
 				" ON CONFLICT (idempotency_key) DO UPDATE SET title = public.tasks.title, conversation_id = EXCLUDED.conversation_id RETURNING id::text",
 			orgID, st.ProjectID, planID, planID+":"+repo+":"+strconv.Itoa(index), repo, title, instruction, acceptance,
-			fmt.Sprintf(`{"issueId":%q}`, issueID), planID+":"+repo+":"+strconv.Itoa(index), conversationID).Scan(&taskID)
+			fmt.Sprintf(`{"issueId":%q}`, issueID), planID+":"+repo+":"+strconv.Itoa(index), conversationID,
+			leaderLabel, workerLabel).Scan(&taskID)
 		if err != nil {
 			return nil, err
 		}
