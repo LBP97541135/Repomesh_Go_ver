@@ -365,6 +365,7 @@ func (s *Service) Materialize(ctx context.Context, issueID, agentID, idempotency
 		Title       string
 		Instruction string
 		Acceptance  string
+		DependsOn   []string
 	}
 	planned := []plannedTask{}
 	if raw, ok := st.Plan["tasks"].([]any); ok && len(raw) > 0 {
@@ -380,8 +381,17 @@ func (s *Service) Materialize(ctx context.Context, issueID, agentID, idempotency
 			}
 			instruction, _ := task["instruction"].(string)
 			acceptance, _ := task["acceptance"].(string)
+			dependsOn := []string{}
+			if rawDeps, ok := task["depends_on"].([]any); ok {
+				for _, depAny := range rawDeps {
+					if dep, ok := depAny.(string); ok && strings.TrimSpace(dep) != "" {
+						dependsOn = append(dependsOn, dep)
+					}
+				}
+			}
 			planned = append(planned, plannedTask{
 				Repository: repo, Title: title, Instruction: instruction, Acceptance: acceptance,
+				DependsOn: dependsOn,
 			})
 		}
 	}
@@ -412,19 +422,41 @@ func (s *Service) Materialize(ctx context.Context, issueID, agentID, idempotency
 	if strings.TrimSpace(planVersion) == "" {
 		planVersion = "v1"
 	}
-	dagEntries := []map[string]any{}
-	for index, planTask := range planned {
-		dagEntries = append(dagEntries, map[string]any{
-			"index": index, "repository": planTask.Repository, "title": planTask.Title,
-			"acceptance": planTask.Acceptance,
-		})
+	// 两个 jsonb 列的形状由读面定死，不是随便塞：
+	//   · execution_batches 是 [][]string，条目是**仓库名**（planpaper.go 的 §5.4
+	//     仓库粒度计划纸按仓库名解析目录 id）；物化实际就是一次性下发批次 1，
+	//     所以就是「一批 = 全部获批仓库」。
+	//   · task_dag 是 map[string][]string 的邻接表，键与值同样是仓库名。
+	// 2026-09-20 线上实测：先前塞的是 [{batch_no,tasks:[{…}]}]，读面按 [][]string
+	// 解不开，GET 计划 DAG 每 5s 报一次 503（json: cannot unmarshal object into
+	// Go value of type []string）。
+	batchJSON, _ := json.Marshal([][]string{repositories})
+	// 仓库级依赖：把 agent 的任务级 depends_on 折算过去（只有两端任务都认识才连边，
+	// 认不出就丢弃 —— 不猜依赖）。自环不连。
+	repoByTitle := map[string]string{}
+	for _, planTask := range planned {
+		repoByTitle[planTask.Title] = planTask.Repository
 	}
-	dagJSON, _ := json.Marshal(map[string]any{"tasks": dagEntries})
-	// 批次划分就是物化实际做的事：一次性下发批次 1。
-	batchJSON, _ := json.Marshal([]map[string]any{{
-		"batch_no": 1,
-		"tasks":    dagEntries,
-	}})
+	dag := map[string][]string{}
+	for _, repo := range repositories {
+		dag[repo] = []string{}
+	}
+	seenEdge := map[string]bool{}
+	for _, planTask := range planned {
+		for _, dep := range planTask.DependsOn {
+			from, ok := repoByTitle[dep]
+			if !ok || from == planTask.Repository {
+				continue
+			}
+			key := from + "->" + planTask.Repository
+			if seenEdge[key] {
+				continue
+			}
+			seenEdge[key] = true
+			dag[from] = append(dag[from], planTask.Repository)
+		}
+	}
+	dagJSON, _ := json.Marshal(dag)
 	var createdByAgent any
 	if isUUID(agentID) {
 		createdByAgent = agentID
