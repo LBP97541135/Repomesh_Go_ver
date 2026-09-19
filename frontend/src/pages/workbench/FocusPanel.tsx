@@ -1241,12 +1241,7 @@ function StepDetail({
     return wrap(
       a ? (
         <CardShell title="需求已解析" tone="done">
-          <div className="flex flex-wrap gap-1.5">
-            {(a.extracted_keywords ?? []).map((k) => (
-              <span key={k} className="rounded-full border border-[var(--tree-hairline)] bg-[var(--tree-zone)] px-2 py-px text-[10.5px] text-[var(--tree-sub)]">{k}</span>
-            ))}
-          </div>
-          <div className="mt-2">
+          <div className="mt-1">
             {(a.dimensions ?? []).map((d) => (
               <p key={d.name} className="flex gap-1.5 py-px text-[11px] text-[var(--tree-sub)]">
                 <span className={d.covered ? "text-olive" : "text-tx3"}>{d.covered ? "✓" : "○"}</span>
