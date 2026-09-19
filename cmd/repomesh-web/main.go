@@ -6,8 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"net/http"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -21,10 +21,10 @@ import (
 	"repomesh.local/repomesh/internal/assembly"
 	"repomesh.local/repomesh/internal/branchvalidation"
 	"repomesh.local/repomesh/internal/buildinfo"
-	"repomesh.local/repomesh/internal/database"
-	"repomesh.local/repomesh/internal/discovery"
 	"repomesh.local/repomesh/internal/console"
+	"repomesh.local/repomesh/internal/database"
 	"repomesh.local/repomesh/internal/decisionchain"
+	"repomesh.local/repomesh/internal/discovery"
 	"repomesh.local/repomesh/internal/gates"
 	"repomesh.local/repomesh/internal/handoff"
 	"repomesh.local/repomesh/internal/humancontrol"
@@ -400,6 +400,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if pipelinePool != nil {
 		humanControlAPI = web.HumanControl{Service: humancontrol.New(pipelinePool)}
 		observeV1 = web.ObserveV1{Service: observability.New(pipelinePool)}
+		web.SetAgentSettingsPool(pipelinePool)
 		// The discovery chain audits approval + materialize decisions into
 		// the same decision chain as the scan scope seam (B3 wiring); its
 		// embedding config mirrors the main decision service.

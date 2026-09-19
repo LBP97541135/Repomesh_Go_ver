@@ -45,7 +45,7 @@ func sanitizeSingleQuoted(text string) string {
 // the real requirement, commit, push a delivery branch and open the pull
 // request. The App installation token is read from the cache file refreshed
 // by repomesh-gh-token.timer — never embedded into the stored command.
-func buildAgentCommand(agentKind, instruction, repoFullName, attemptID, issueTitle, issueID string) (string, error) {
+func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, issueTitle, issueID string) (string, error) {
 	prompt := strings.TrimSpace(instruction)
 	if prompt == "" {
 		prompt = "Complete the assigned task in this repository. Implement the requirement, run the existing checks, commit your changes with a summary."
@@ -61,9 +61,9 @@ func buildAgentCommand(agentKind, instruction, repoFullName, attemptID, issueTit
 		// Prompt travels in DOUBLE quotes: the whole script is wrapped in one
 		// outer single-quote pair, and any inner single quote would close it
 		// early — silently truncating the delivery sequence after the agent.
-		agentLine = fmt.Sprintf("codex exec -c model_provider=minimax -c model=MiniMax-M2 --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox \"%s\"", prompt)
+		agentLine = fmt.Sprintf("codex exec -c model_provider=minimax -c model=%s --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox \"%s\"", model, prompt)
 	case "claude_cli":
-		agentLine = fmt.Sprintf("claude -p \"%s\" --dangerously-skip-permissions", prompt)
+		agentLine = fmt.Sprintf("claude -p \"%s\" --model %s --dangerously-skip-permissions", prompt, model)
 	default:
 		return "", fmt.Errorf("coordinator: unsupported agent kind %q", agentKind)
 	}
@@ -116,17 +116,26 @@ func (l *coordinatorLedger) ReserveForTask(ctx context.Context, workerID, taskID
 		return "", fmt.Errorf("coordinator: reserve begin failed: %w", err)
 	}
 	defer tx.Rollback(ctx)
-	var projectID, issueID, revision, repoFullName, issueTitle string
+	var projectID, issueID, revision, repoFullName, issueTitle, configuredKind, configuredModel string
 	err = tx.QueryRow(ctx, `SELECT t.project_id::text, t.source_ref->>'issueId', i.initial_configuration_revision,
 		       t.repository_id, i.title
+		       , COALESCE(a.agent_kind, ''), COALESCE(a.model, '')
 		FROM public.tasks t
 		JOIN repomesh_issues.issues i ON i.project_id = t.project_id::text AND i.id = t.source_ref->>'issueId'
+		LEFT JOIN repomesh_projects.agent_settings a ON a.project_id = t.project_id::text
 		WHERE t.id::text=$1 LIMIT 1`, taskID).
-		Scan(&projectID, &issueID, &revision, &repoFullName, &issueTitle)
+		Scan(&projectID, &issueID, &revision, &repoFullName, &issueTitle, &configuredKind, &configuredModel)
 	if err != nil {
 		return "", fmt.Errorf("coordinator: task %s is not linked to an issue (missing source_ref?)", taskID)
 	}
-	command, err := buildAgentCommand(agentKind, instruction, repoFullName, attemptID, issueTitle, issueID)
+	// 项目级智能体配置（/app/ 项目页保存）覆盖部署默认：CLI 种类与模型。
+	if configuredKind == "codex_cli" || configuredKind == "claude_cli" {
+		agentKind = configuredKind
+	}
+	if configuredModel == "" {
+		configuredModel = "MiniMax-M2"
+	}
+	command, err := buildAgentCommand(agentKind, configuredModel, instruction, repoFullName, attemptID, issueTitle, issueID)
 	if err != nil {
 		return "", err
 	}

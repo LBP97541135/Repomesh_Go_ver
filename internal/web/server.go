@@ -100,6 +100,7 @@ func handlerConfigured(assets fs.FS, auth Auth, projectAPI Projects, modelAPI Mo
 	registerObserveV1(mux, auth, observeV1)
 	registerDiscoveryRoutes(mux, auth, discoveryAPI)
 	registerConsoleRoutes(mux, auth, consoleAPI)
+	registerAgentSettings(mux, auth)
 	registerPipelineRoutes(mux, auth, pipeline)
 	registerPipelineRoutes2(mux, auth, pipeline)
 	registerPipelineExtensions(mux, auth, pipeline.Extensions)
