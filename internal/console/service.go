@@ -219,7 +219,12 @@ func (s *Service) Teams(ctx context.Context, actor string, withRuntime bool) (Te
 		FROM public.agent_teams t
 		LEFT JOIN public.agents l ON l.id=t.leader_agent_id
 		WHERE EXISTS (SELECT 1 FROM repomesh_projects.projects p
-			WHERE p.id=t.project_id
+			-- 2026-09-20 现网实测：这里是 **text = uuid**，查询必然报错
+			-- （"console: teams: ERROR: operator does not exist: text = uuid"）——
+			-- repomesh_projects.projects.id 是 text，而 public.agent_teams.project_id
+			-- 是 uuid。同一批 JOIN 里其它比较（project_repositories.project_id、
+			-- issues.project_id）两边都是 text，所以只有这一处会炸。
+			WHERE p.id=t.project_id::text
 			  AND p.organization_id = (SELECT organization_id FROM repomesh_access.accounts WHERE id=$1))
 		ORDER BY t.id LIMIT 500`, actor)
 	if err != nil {
