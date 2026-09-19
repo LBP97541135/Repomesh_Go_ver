@@ -34,4 +34,35 @@ func registerAgentTeams(mux *http.ServeMux, auth Auth, at AgentTeams) {
 		_, _ = w.Write(body)
 		return nil
 	})
+	// ── 健康监控代理（Phase 1，2026-09-18）：透传 Controller 的健康/状态/Worker 端点 ──
+	proxy := func(w http.ResponseWriter, r *http.Request, fetch func() ([]byte, int, error)) {
+		if at.Client == nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"detail": "AgentTeams controller not configured"})
+			return
+		}
+		body, status, err := fetch()
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"detail": err.Error()})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = w.Write(body)
+	}
+
+	registerProjectRoute(mux, "GET /api/agentteams/health", auth, func(w http.ResponseWriter, r *http.Request, _ access.ProjectPrincipal) error {
+		proxy(w, r, func() ([]byte, int, error) { return at.Client.ControllerHealth(r.Context()) })
+		return nil
+	})
+
+	registerProjectRoute(mux, "GET /api/agentteams/status", auth, func(w http.ResponseWriter, r *http.Request, _ access.ProjectPrincipal) error {
+		proxy(w, r, func() ([]byte, int, error) { return at.Client.PlatformStatus(r.Context()) })
+		return nil
+	})
+
+	registerProjectRoute(mux, "GET /api/agentteams/workers/{name}/status", auth, func(w http.ResponseWriter, r *http.Request, _ access.ProjectPrincipal) error {
+		proxy(w, r, func() ([]byte, int, error) { return at.Client.WorkerStatus(r.Context(), r.PathValue("name")) })
+		return nil
+	})
+
 }

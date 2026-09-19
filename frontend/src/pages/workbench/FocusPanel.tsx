@@ -11,6 +11,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { IconCheck, IconClock, IconHouse, IconRun, IconSend } from "./treeIcons";
+import { WorkerHealthGate } from "./WorkerHealthGate";
 import type { DiscoveryProducer, DiscoveryView } from "../../api/contract";
 import type { PlanTaskItem } from "../../api/taskTree";
 import type { ConversationMessage } from "../../api/conversations";
@@ -532,6 +533,8 @@ export function FocusPanel({
     if (entry.kind === "task") {
       return (
         <div className="flex min-h-0 flex-1 flex-col">
+          {/* Worker 恢复卡（Phase 2+3，2026-09-20 并入）：派工门判定 + 恢复动作 */}
+          <WorkerHealthGate workerName={task?.workerLabel ?? null} />
           {task === null ? (
             <p className="px-4 py-3 text-[11px] text-[var(--tree-faint)]">任务行数据未取到，不摆假详情。</p>
           ) : messages === null ? (

@@ -301,6 +301,13 @@ function TaskRow({
       <TaskStatusIcon status={task.status} />
       <span className="flex-none font-mono text-[10.5px] text-[var(--tree-faint)]">{task.taskUid ?? "—"}</span>
       <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-[var(--tree-ink)]">{task.title}</span>
+      {/* Worker 健康色点（Phase 1，2026-09-20 并入）：有执行者身份时显示 */}
+      {(task.workerLabel || task.assignee) && (
+        <span
+          className="size-1.5 flex-none rounded-full bg-[var(--tree-faint)]"
+          title={`Worker: ${task.workerLabel || task.assignee}`}
+        />
+      )}
       <span className="flex-none rounded-[5px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-1.5 py-px text-[10px] text-[var(--tree-faint)]">
         {/* 执行者：优先装配期写下的显示名；没有就显示**真的跑过这条任务的 agent**
             （后端任务树读面带出的 assignee）；两个都没有才写「待指派」——
