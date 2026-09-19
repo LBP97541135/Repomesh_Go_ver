@@ -361,6 +361,12 @@ func (s *Service) ApplyPlanningRun(ctx context.Context, issueID string, step int
 	if err := s.ApplyPlanningArtifact(ctx, tx, st, step, artifact, prov); err != nil {
 		return err
 	}
+	// **必须真的落库**：ApplyPlanningArtifact 只改内存里的 state 并记决策链，
+	// 不写库。少了这一句，事务里一个写操作都没有 —— 线上实测就是
+	// 「planning_runs 说 succeeded、决策链有节点、issue_discoveries 一个字节没动」。
+	if err := s.save(ctx, tx, st); err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
 }
 
