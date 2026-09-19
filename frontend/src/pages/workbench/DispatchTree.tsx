@@ -47,19 +47,18 @@ function TaskStatusIcon({ status }: { status: string }) {
   return <IconClock size={12} className="flex-none text-amber" />;
 }
 
-/** 状态 → 步骤行左端数字圈的配色。 */
-function stepIconCls(state: StepState): string {
-  switch (state) {
-    case "done":
-      return "border-olive/50 bg-olive/10 text-olive";
-    case "run":
-      return "border-[var(--tree-acc)] text-[var(--tree-acc)]";
-    case "gate":
-    case "failed":
-      return "border-amber/60 text-amber";
-    default:
-      return "border-[var(--tree-line)] text-[var(--tree-faint)]";
-  }
+/** 状态 → 步骤行左端图标（原型同款，2026-09-18 主线：restore prototype step
+ *  status icons / light-purple pending glyph）：
+ *  完成=绿圈勾 / 进行中=紫同心圆 / 待人审=琥珀人形 / 失败=鲑红时钟 / **待完成=浅紫同心圆**。 */
+function StepStateIcon({ state }: { state: StepState }) {
+  if (state === "done") return <IconCheck size={15} className="flex-none text-olive/75" />;
+  if (state === "run")
+    return <IconRun size={13} className="flex-none animate-pulse text-[var(--tree-acc)]" />;
+  if (state === "gate" || state === "choose" || state === "confirm")
+    return <IconUser size={13} className="flex-none text-amber" />;
+  if (state === "failed") return <IconClock size={13} className="flex-none text-salmon" />;
+  // 待完成 = 浅紫同心圆（原型同款紫的淡化版）
+  return <IconRun size={13} className="flex-none text-[var(--tree-acc)] opacity-55" />;
 }
 
 export function DispatchTree({
@@ -196,13 +195,9 @@ export function DispatchTree({
                     className={`flex w-full items-center gap-2 rounded-[7px] px-2 py-1.5 text-left hover:bg-[rgba(94,106,210,.05)] ${active ? hl : ""}`}
                     onClick={() => onOpen({ kind: "step", step: (i + 1) as 1 | 2 | 3 | 4 | 5 })}
                   >
-                    <span
-                      className={`grid h-5 w-5 flex-none place-items-center rounded-full border-[1.5px] bg-[var(--tree-card)] text-[10px] font-bold ${stepIconCls(st)} ${st === "run" ? "animate-pulse" : ""}`}
-                    >
-                      {st === "done" ? "✓" : i + 1}
-                    </span>
+                    <StepStateIcon state={st} />
                     <span className={`text-[12px] ${st === "done" || st === "run" ? "font-medium text-[var(--tree-ink)]" : "text-[var(--tree-sub)]"}`}>
-                      {String(i + 1).replace("1", "①").replace("2", "②").replace("3", "③").replace("4", "④").replace("5", "⑤")} {label}
+                      {label}
                     </span>
                     <span className="ml-auto" />
                     <span className={`rounded-[5px] border px-1.5 py-px text-[10px] ${pill.cls}`}>{pill.text}</span>
