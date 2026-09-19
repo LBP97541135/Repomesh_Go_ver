@@ -94,9 +94,12 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 	idem := "autohost:" + p.issueID
 	switch {
 	case !p.hasAnalysis:
-		slog.Info("autohost: running analysis", "issue", p.issueID)
-		_, err = a.service.Analysis(ctx, p.issueID, autohostAgent, idem+":analysis", nil, false)
-		return done(err)
+		// 2026-09-20：① 需求分析不再由后端词表算，改为**派发给 Organization Leader
+		// agent**（infra 的 Governed Flow：Scope 由角色产出，后端只校验与记录）。
+		// 这里只登记意图 —— 真正的派发与收产物在 planningDispatcher 里，与状态机
+		// 同一拍子。意图是幂等的，重复登记不会把同一步派发两次。
+		slog.Info("autohost: enqueue planning analysis", "issue", p.issueID)
+		return done(a.service.EnqueuePlanningRun(ctx, p.issueID, discovery.PlanningAnalysis))
 	case !p.sufficient && !p.forced:
 		// 自动托管 has no human to answer the dimension questions: record the
 		// forced continue so Candidates accept the analysis (its designed

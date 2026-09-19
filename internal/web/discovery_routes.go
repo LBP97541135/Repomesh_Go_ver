@@ -223,8 +223,28 @@ func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discove
 		if err := decodeBody(w, r, &body); err != nil {
 			return
 		}
-		receipt, err := discoveryAPI.Service.Analysis(r.Context(), r.PathValue("issueId"), body.CreatedByAgentID, body.IdempotencyKey, body.Answers, body.ForceContinue)
-		writeDiscoveryReceipt(w, receipt, err)
+		// 2026-09-20：① 需求分析改由 Organization Leader agent 产出（infra 的
+		// Governed Flow）。这里不再由后端算，只做两件事：
+		//   · 追问回答 → 并进需求原文（否则 agent 拿到的还是那份信息不足的文本）；
+		//   · 登记派发意图 → coordinator 每 tick 派发并收产物。
+		// force_continue 例外：它不含任何计算（只是"人选择忽略追问"这个事实），
+		// 仍然就地记录。
+		if body.ForceContinue {
+			receipt, err := discoveryAPI.Service.Analysis(r.Context(), r.PathValue("issueId"), body.CreatedByAgentID, body.IdempotencyKey, nil, true)
+			writeDiscoveryReceipt(w, receipt, err)
+			return
+		}
+		if len(body.Answers) > 0 {
+			if err := discoveryAPI.Service.AppendAnalysisAnswers(r.Context(), r.PathValue("issueId"), body.Answers); err != nil {
+				writeDiscoveryError(w, err)
+				return
+			}
+		}
+		if err := discoveryAPI.Service.EnqueuePlanningRun(r.Context(), r.PathValue("issueId"), discovery.PlanningAnalysis); err != nil {
+			writeDiscoveryError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"task_id": nil, "step": 1, "status": "accepted"})
 	})
 	register("POST /api/issues/{issueId}/discovery/candidates", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {

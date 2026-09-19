@@ -1,0 +1,451 @@
+package discovery
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+
+	"repomesh.local/repomesh/internal/decisionchain"
+)
+
+// ───────────── 规划期的真实 agent 派发 ─────────────
+//
+// 2026-09-20 审计：发现链五步此前**全部由 Go 代码算**（① 固定词表判定、
+// ② 规则召回、③ 规则分档、④ 模板拼任务），`created_by_agent_id` 只是个图章 ——
+// agent 一行代码都没执行。而 infra 的 Governed AgentTeams Flow 要求：
+// Scope 由 Organization Leader 提、Specification 与 Task DAG 由 Repository Leader 写，
+// 后端只做**校验、门禁与记录**（"Agent prompts are guidance; the role check,
+// immutable context bundle, path policy, isolated workspace, and Runner commit
+// policy are the enforcement boundaries"）。
+//
+// 这个文件是那条要求的落点：把「要 agent 产出什么」写成一份**带输出 schema 的
+// 提示词**，产物回来后校验、落库、记进决策链。没有兜底模拟 —— 拿不到合格产物
+// 就是失败，失败原因如实上屏。
+
+// 会被派发给 agent 的发现链步骤（3=分档审批、5=物化确认是人工门，不派发）。
+const (
+	PlanningAnalysis   = 1
+	PlanningCandidates = 2
+	PlanningPlan       = 4
+)
+
+// PlanningArtifactFile 是 agent 必须写出的产物文件名（工作区根下）。
+const PlanningArtifactFile = "planning-artifact.json"
+
+// PlanningRoleFor 返回该步的产出角色与技能（infra 角色表 + 技能库种子）。
+func PlanningRoleFor(step int) (role, skillID string) {
+	switch step {
+	case PlanningAnalysis:
+		return "organization_leader", "project-intake"
+	case PlanningCandidates:
+		return "organization_leader", "cross-repo-planning"
+	case PlanningPlan:
+		return "repository_leader", "task-decomposition"
+	}
+	return "", ""
+}
+
+// PlanningSchemaFor 返回该步**必须**产出的 JSON 形状（给 agent 看的那份）。
+//
+// 没有 schema，agent 会写一段散文回来，机器读不了；schema 写宽了，界面拿到的是
+// 一堆缺字段的对象。所以这里逐字段写死，并要求"只输出这个 JSON"。
+func PlanningSchemaFor(step int) string {
+	switch step {
+	case PlanningAnalysis:
+		return `{
+  "dimensions": [
+    {"name": "业务场景", "covered": true, "note": "一句话说明这段话里哪句覆盖了它"},
+    {"name": "行为描述", "covered": true, "note": "..."},
+    {"name": "变更类型", "covered": true, "note": "..."},
+    {"name": "技术约束", "covered": false, "note": "这段话里没有提到的，就说没有"}
+  ],
+  "questions": ["只对 covered=false 的维度各问一句，最多 4 句"],
+  "extracted_keywords": ["从需求里抽出的关键词，最多 12 个"],
+  "analyzed_requirement": "把需求改写成一句可执行的话（保留原意，不要加戏）"
+}`
+	case PlanningCandidates:
+		return `{
+  "candidates": [
+    {"repository": "owner/name", "tier": "required|maybe|excluded", "score": 0.0,
+     "reason": "为什么这个仓库要改/不改，引用你看到的证据"}
+  ]
+}`
+	case PlanningPlan:
+		return `{
+  "repositories": ["owner/name", "..."],
+  "tasks": [
+    {"repository": "owner/name", "title": "任务标题", "instruction": "给执行者的完整指令",
+     "acceptance": "怎么算做完（可验证的一句话）", "depends_on": ["上游任务的 title"]}
+  ]
+}`
+	}
+	return "{}"
+}
+
+// PlanningPrompt 组装派给 agent 的完整提示词。
+//
+// 三样东西缺一不可：
+//  1. **真技能文档**（SKILL.md 原文）—— 在 prompt 里另抄一段"你该做什么"就是
+//     第二份真相，技能库改了 agent 拿到的还是旧话术；
+//  2. 这次要处理的输入（需求原文、仓库名片）；
+//  3. 输出 schema + 落盘要求（产物写到工作区的 planning-artifact.json）。
+func PlanningPrompt(step int, requirement string, repoSummaries []byte, skillDoc string) string {
+	role, skillID := PlanningRoleFor(step)
+	var b strings.Builder
+	fmt.Fprintf(&b, "你是 RepoMesh 的 %s。\n\n", roleLabel(role))
+	if strings.TrimSpace(skillDoc) != "" {
+		fmt.Fprintf(&b, "## 你的技能（%s，技能库原文）\n\n%s\n\n", skillID, strings.TrimSpace(skillDoc))
+	} else {
+		// 认不出技能时如实说，不编一份假文档。
+		fmt.Fprintf(&b, "## 技能\n\n（技能库中没有找到 %s，请按角色职责行事。）\n\n", skillID)
+	}
+	fmt.Fprintf(&b, "## 本次需求\n\n%s\n\n", strings.TrimSpace(requirement))
+	if len(repoSummaries) > 0 {
+		fmt.Fprintf(&b, "## 候选仓库名片（扫描产出，含目录/依赖/近期提交）\n\n```json\n%s\n```\n\n", string(repoSummaries))
+	}
+	fmt.Fprintf(&b, "## 必须产出的结果\n\n只输出下面这个 JSON（不要解释、不要 markdown 代码块外的文字）：\n\n%s\n\n", PlanningSchemaFor(step))
+	fmt.Fprintf(&b, "把这份 JSON 写入当前目录下的 `%s`，然后结束。\n", PlanningArtifactFile)
+	b.WriteString("写不出合格内容时，也把 `{}` 写进文件并在 JSON 的 \"error\" 字段里说明原因 —— 不要留空文件。\n")
+	return b.String()
+}
+
+func roleLabel(role string) string {
+	switch role {
+	case "organization_leader":
+		return "组织 Leader（负责需求范围与跨仓库规划）"
+	case "repository_leader":
+		return "仓库 Leader（负责仓库规格与任务拆解）"
+	case "worker":
+		return "Worker（负责在指定仓库内执行任务）"
+	}
+	return role
+}
+
+// ParsePlanningArtifact 校验 agent 产物并抽出要落库的字段。
+//
+// 校验是**结构性的**（这一步该有什么字段），不是内容性的 —— 内容对不对由人工门
+// （③ 分档审批 / ⑤ 物化确认）与复核角色判，后端不替 agent 做业务判断。
+func ParsePlanningArtifact(step int, raw []byte) (map[string]any, error) {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" {
+		return nil, fmt.Errorf("产物为空文件")
+	}
+	// agent 有时会把 JSON 包在 ```json 里；只剥这一层，不做别的容错。
+	trimmed = strings.TrimPrefix(trimmed, "```json")
+	trimmed = strings.TrimPrefix(trimmed, "```")
+	trimmed = strings.TrimSuffix(trimmed, "```")
+	var artifact map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(trimmed)), &artifact); err != nil {
+		return nil, fmt.Errorf("产物不是合法 JSON：%w", err)
+	}
+	if msg, _ := artifact["error"].(string); strings.TrimSpace(msg) != "" {
+		return nil, fmt.Errorf("agent 报告失败：%s", strings.TrimSpace(msg))
+	}
+	switch step {
+	case PlanningAnalysis:
+		if dims, _ := artifact["dimensions"].([]any); len(dims) == 0 {
+			return nil, fmt.Errorf("缺少 dimensions（四维结论）")
+		}
+	case PlanningCandidates:
+		if items, _ := artifact["candidates"].([]any); len(items) == 0 {
+			return nil, fmt.Errorf("缺少 candidates（候选仓库分档）")
+		}
+	case PlanningPlan:
+		if tasks, _ := artifact["tasks"].([]any); len(tasks) == 0 {
+			return nil, fmt.Errorf("缺少 tasks（任务 DAG）")
+		}
+	}
+	return artifact, nil
+}
+
+// PlanningProvenance 是这次产物的出处（审计用：谁产的、用的哪把技能、哪个 run）。
+type PlanningProvenance struct {
+	Role      string
+	SkillID   string
+	RunID     string
+	AgentKind string
+}
+
+// ApplyPlanningArtifact 把校验过的产物落进发现链状态。
+//
+// 只做两件事：**按既有形状填字段**（界面不用改）与**记进决策链**（谁产的、
+// 哪把技能、哪个 run 都能追）。不做二次加工 —— 那等于把 agent 的结论再算一遍，
+// 用户看到的就不是 agent 的结论了。
+func (s *Service) ApplyPlanningArtifact(ctx context.Context, tx pgx.Tx, st *State, step int, artifact map[string]any, prov PlanningProvenance) error {
+	switch step {
+	case PlanningAnalysis:
+		dimensions, _ := artifact["dimensions"].([]any)
+		covered, missing := 0, []string{}
+		for _, raw := range dimensions {
+			dim, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			if isCovered, _ := dim["covered"].(bool); isCovered {
+				covered++
+			} else if name, _ := dim["name"].(string); name != "" {
+				missing = append(missing, name)
+			}
+		}
+		total := len(dimensions)
+		confidence := 0.0
+		if total > 0 {
+			confidence = float64(covered) / float64(total)
+		}
+		// sufficient 由**信息量**判（见 steps.go 的 minInformativeRunes）：
+		// 词面覆盖只作提示。这里沿用同一条判据，避免两处标准打架。
+		analyzed, _ := artifact["analyzed_requirement"].(string)
+		if strings.TrimSpace(analyzed) == "" {
+			analyzed = st.RequirementText
+		}
+		questions, _ := artifact["questions"].([]any)
+		keywords, _ := artifact["extracted_keywords"].([]any)
+		st.Analysis = map[string]any{
+			"sufficient":           len([]rune(strings.TrimSpace(analyzed))) >= minInformativeRunes,
+			"informative":          len([]rune(strings.TrimSpace(analyzed))) >= minInformativeRunes,
+			"confidence":           confidence,
+			"missing_dimensions":   missing,
+			"dimensions":           dimensions,
+			"questions":            questions,
+			"extracted_keywords":   keywords,
+			"answers":              nil,
+			"analyzed_requirement": analyzed,
+			"forced_continue":      nil,
+			"error":                nil,
+			"ran_at":               time.Now().UTC(),
+			"by_agent_id":          nil,
+			"producer": map[string]any{
+				"role": prov.Role, "skill_id": prov.SkillID,
+				"run_id": prov.RunID, "agent_kind": prov.AgentKind,
+			},
+		}
+		text := analyzed
+		st.AnalyzedText = &text
+	case PlanningCandidates:
+		items, _ := artifact["candidates"].([]any)
+		st.Candidates = map[string]any{
+			"items":    items,
+			"llm_used": true,
+			"ran_at":   time.Now().UTC(),
+			"producer": map[string]any{
+				"role": prov.Role, "skill_id": prov.SkillID,
+				"run_id": prov.RunID, "agent_kind": prov.AgentKind,
+			},
+		}
+	case PlanningPlan:
+		tasks, _ := artifact["tasks"].([]any)
+		repositories, _ := artifact["repositories"].([]any)
+		planID := st.IssueID + ":plan:v1"
+		st.Plan = map[string]any{
+			"plan_id":      planID,
+			"plan_version": "v1",
+			"repositories": repositories,
+			"tasks":        tasks,
+			"ran_at":       time.Now().UTC(),
+			"producer": map[string]any{
+				"role": prov.Role, "skill_id": prov.SkillID,
+				"run_id": prov.RunID, "agent_kind": prov.AgentKind,
+			},
+		}
+		// integration 是界面读的"计划已就绪"信号（步进器与物化卡都看它）。
+		st.Integration = map[string]any{
+			"task_dag_count": len(tasks),
+			"batch_count":    1,
+			"contract_count": 0,
+		}
+	default:
+		return fmt.Errorf("discovery: step %d 不是可派发的规划步", step)
+	}
+	// 决策链：这一步的结论由哪个角色、哪把技能、哪个 run 产出 —— 审计的主键。
+	stepName := map[int]string{PlanningAnalysis: "analysis", PlanningCandidates: "candidates", PlanningPlan: "plan"}[step]
+	s.recordDecision(ctx, st, fmt.Sprintf("planning:%s:%s:%s", st.IssueID, stepName, prov.RunID),
+		planningDecisionStep(step), decisionchain.StatusConfirmed,
+		"由 "+prov.Role+" 产出（技能 "+prov.SkillID+"）",
+		map[string]any{"run_id": prov.RunID, "role": prov.Role, "skill_id": prov.SkillID},
+		planningRepositories(artifact))
+	return nil
+}
+
+// planningDecisionStep 把规划步映到决策链的五个步骤上（决策链的步骤集是固定的
+// 五步，不为规划新开一类）：① 分析与 ② 候选都属于"分类"这一段，④ 计划属于"任务"。
+func planningDecisionStep(step int) decisionchain.DecisionStep {
+	if step == PlanningPlan {
+		return decisionchain.StepTask
+	}
+	return decisionchain.StepClassification
+}
+
+// planningRepositories 从产物里抽出涉及的仓库名（决策链的 affected_repositories）。
+func planningRepositories(artifact map[string]any) []string {
+	names := []string{}
+	if repos, ok := artifact["repositories"].([]any); ok {
+		for _, raw := range repos {
+			if name, ok := raw.(string); ok && name != "" {
+				names = append(names, name)
+			}
+		}
+	}
+	if items, ok := artifact["candidates"].([]any); ok {
+		for _, raw := range items {
+			item, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			if tier, _ := item["tier"].(string); tier == "excluded" {
+				continue
+			}
+			if name, _ := item["repository"].(string); name != "" {
+				names = append(names, name)
+			}
+		}
+	}
+	if tasks, ok := artifact["tasks"].([]any); ok {
+		for _, raw := range tasks {
+			task, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			if name, _ := task["repository"].(string); name != "" {
+				names = append(names, name)
+			}
+		}
+	}
+	return names
+}
+
+// EnqueuePlanningRun 登记一次规划派发的**意图**（不派发）。
+//
+// 为什么拆成"入队"与"派发"两件事：web 进程没有 host-executor 的派发能力，
+// 而 coordinator 才是那个有台账与工作区的人。web 只写意图，coordinator 每 tick
+// 取一条 pending 去派发 —— 与发现链状态机由 coordinator 驱动是同一个形状。
+//
+// 幂等：同一 (issue, step) 已有 pending 就什么都不做（前端 driver 与 coordinator
+// autohost 会同时推进同一条链，重复入队会把同一步派发两次）。
+func (s *Service) EnqueuePlanningRun(ctx context.Context, issueID string, step int) error {
+	role, skillID := PlanningRoleFor(step)
+	if role == "" {
+		return fmt.Errorf("discovery: step %d 不是可派发的规划步", step)
+	}
+	_, err := s.pool.Exec(ctx, `INSERT INTO repomesh_issues.planning_runs
+		(id, issue_id, step, role, skill_id, state)
+		SELECT $1::uuid, $2, $3, $4, $5, 'pending'
+		WHERE NOT EXISTS (
+			SELECT 1 FROM repomesh_issues.planning_runs
+			WHERE issue_id=$2 AND step=$3 AND state='pending')`,
+		newPlanningID(), issueID, step, role, skillID)
+	if err != nil {
+		return fmt.Errorf("discovery: enqueue planning run: %w", err)
+	}
+	return nil
+}
+
+// ApplyPlanningRun 收产物的**事务入口**：读状态 → 应用 → 落库。
+func (s *Service) ApplyPlanningRun(ctx context.Context, issueID string, step int, artifact map[string]any, prov PlanningProvenance) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	st, err := s.load(ctx, tx, issueID)
+	if err != nil {
+		return err
+	}
+	if st == nil {
+		return fmt.Errorf("discovery: issue %s 还没有发现链状态", issueID)
+	}
+	if err := s.ApplyPlanningArtifact(ctx, tx, st, step, artifact, prov); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// FailPlanningRun 把失败**如实写进发现链状态**。
+//
+// 2026-09-20 审计里最刺眼的一条就是"什么都不显示"：前端 driver 静默吞错、
+// coordinator autohost 只写 backoff 与日志，界面拿不到原因。所以这一步失败必须
+// 落进状态里 —— 界面本来就读 analysis.error / candidates.error / plan.error。
+func (s *Service) FailPlanningRun(ctx context.Context, issueID string, step int, reason string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	st, err := s.load(ctx, tx, issueID)
+	if err != nil {
+		return err
+	}
+	if st == nil {
+		return fmt.Errorf("discovery: issue %s 还没有发现链状态", issueID)
+	}
+	block := map[string]any{
+		"error": reason, "ran_at": time.Now().UTC(),
+		"producer": map[string]any{"role": "unavailable"},
+	}
+	switch step {
+	case PlanningAnalysis:
+		st.Analysis = block
+	case PlanningCandidates:
+		st.Candidates = block
+	case PlanningPlan:
+		st.Plan = block
+	default:
+		return fmt.Errorf("discovery: step %d 不是可派发的规划步", step)
+	}
+	if err := s.save(ctx, tx, st); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func newPlanningID() string {
+	buffer := make([]byte, 16)
+	if _, err := rand.Read(buffer); err != nil {
+		return ""
+	}
+	buffer[6] = buffer[6]&15 | 64
+	buffer[8] = buffer[8]&63 | 128
+	return fmt.Sprintf("%x-%x-%x-%x-%x", buffer[:4], buffer[4:6], buffer[6:8], buffer[8:10], buffer[10:])
+}
+
+// AppendAnalysisAnswers 把追问的回答并进需求文本，并把旧分析清掉（该重算了）。
+//
+// 追问是"人补信息"这条回路：补进来的话必须**进需求原文**，否则 agent 拿到的还是
+// 那份信息不足的文本，问了等于没问。
+func (s *Service) AppendAnalysisAnswers(ctx context.Context, issueID string, answers []Answer) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	st, err := s.load(ctx, tx, issueID)
+	if err != nil {
+		return err
+	}
+	if st == nil {
+		return fmt.Errorf("discovery: issue %s 还没有发现链状态", issueID)
+	}
+	text := st.RequirementText
+	appended := false
+	for _, answer := range answers {
+		if strings.TrimSpace(answer.Answer) == "" {
+			continue
+		}
+		text += "\n" + answer.Question + ": " + answer.Answer
+		appended = true
+	}
+	if !appended {
+		return nil
+	}
+	st.RequirementText = text
+	st.Analysis = nil
+	st.AnalyzedText = nil
+	if err := s.save(ctx, tx, st); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}

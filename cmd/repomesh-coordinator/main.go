@@ -102,6 +102,9 @@ func runWorker(args []string) int {
 		EmbeddingModel:   os.Getenv("REPOMESH_EMBEDDING_MODEL"),
 	}, runtime.Pool()))
 	automator := newDiscoveryAutomator(discoveryService, runtime.Pool())
+	// 规划期的真实 agent 派发（需求分析/候选评分/生成计划由角色 agent 产出）：
+	// 与发现链状态机同一拍子 —— 先派发/收产物，再让状态机往下走。
+	planner := newPlanningDispatcher(runtime.Pool(), discoveryService)
 	transport, err := models.NewSingleRequestTransport(protocolVersion)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "model test transport:", err)
@@ -121,6 +124,7 @@ func runWorker(args []string) int {
 		for ctx.Err() == nil {
 			slog.Info("pipeline: tick")
 			dagCtx, dagCancel := context.WithTimeout(ctx, 10*time.Second)
+			planner.tick(dagCtx)
 			automator.step(dagCtx)
 			if _, promoteErr := taskStore.PromoteReady(dagCtx); promoteErr != nil {
 				slog.Warn("dag promotion deferred", "reason", promoteErr.Error())
