@@ -82,6 +82,8 @@ const NAV_GROUPS: Array<{ heading: string; keys: NavKey[] }> = [
   // 治理（2026-09-20 用户裁定）：历史决策归治理；智能体与技能已收编进设置
   { heading: "治理", keys: ["specs", "models", "observe", "decision-chains"] },
 ];
+/** 底部常驻项：设置（恢复原样——图标 + 文字的一行，不跟分组抢位置）。 */
+const NAV_BOTTOM: NavKey[] = ["settings"];
 
 export function SidebarV2({
   account,
@@ -297,6 +299,9 @@ export function SidebarV2({
 
       <div className="mt-auto grid gap-0.5 border-t border-line pt-2">
         {collapsed && <div className="mx-auto mb-2 h-px w-6 bg-line" />}
+        {NAV_BOTTOM.map((key) => (
+          <NavButton key={key} item={key} />
+        ))}
         {/* 账号块（2026-09-19 用户裁定）：账号管理归这里——切换账号 / 退出登录。
             项目切换在左上角，两处不再混在一个下拉里。 */}
         <div ref={accountRef} className="relative">
@@ -358,27 +363,15 @@ export function SidebarV2({
             </div>
           )}
         </div>
-        {/* 底部控制行：收起侧栏与设置并排，设置在收起图标的右边（2026-09-20 用户裁定） */}
-        <div className="mt-0.5 flex items-center gap-1">
-          <button
-            title={collapsed ? "展开侧栏" : "收起侧栏"}
-            className="grid h-7 flex-1 place-items-center rounded-[6px] text-tx3 transition-colors hover:bg-side-active/50 hover:text-tx"
-            onClick={() => setCollapsed((v) => !v)}
-          >
-            {collapsed ? <PanelLeftOpen size={15} strokeWidth={1.5} /> : <PanelLeftClose size={15} strokeWidth={1.5} />}
-          </button>
-          <button
-            type="button"
-            title="设置"
-            aria-label="设置"
-            onClick={() => onNavigate("settings")}
-            className={`grid size-7 flex-none place-items-center rounded-[6px] transition-colors ${
-              nav === "settings" ? "bg-side-active text-cream" : "text-tx3 hover:bg-side-active/50 hover:text-tx"
-            }`}
-          >
-            <Settings size={15} strokeWidth={1.5} aria-hidden="true" />
-          </button>
-        </div>
+        <button
+          title={collapsed ? "展开侧栏" : "收起侧栏"}
+          className={`mt-0.5 grid h-7 place-items-center rounded-[6px] text-tx3 transition-colors hover:bg-side-active/50 hover:text-tx ${
+            collapsed ? "w-full" : "w-7"
+          }`}
+          onClick={() => setCollapsed((v) => !v)}
+        >
+          {collapsed ? <PanelLeftOpen size={15} strokeWidth={1.5} /> : <PanelLeftClose size={15} strokeWidth={1.5} />}
+        </button>
       </div>
     </aside>
   );
