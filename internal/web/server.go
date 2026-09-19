@@ -112,6 +112,7 @@ func handlerConfigured(assets fs.FS, auth Auth, projectAPI Projects, modelAPI Mo
 	registerHandoffRoutes(mux, auth, pipeline.HandoffDocs)
 	registerTopologyRoutes(mux, auth, pipeline.Assembly, humanControlAPI.Service)
 	registerProjects(mux, auth, projectAPI)
+	registerDispatchGate(mux, auth, agentTeams) // Phase 2 派发闸(2026-09-18)
 	registerAgentTeams(mux, auth, agentTeams)
 	registerModels(mux, auth, modelAPI)
 	registerScanRoutes(mux, scan)
