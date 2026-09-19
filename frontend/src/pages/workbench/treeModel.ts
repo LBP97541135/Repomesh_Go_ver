@@ -33,11 +33,21 @@ export function deriveStepStates(d: DiscoveryView | null, hitl = false): StepSta
   // ① 需求分析：分析不充分且还有待澄清问题时 → 停在「待人答」门
   //    （2026-09-20 移植主线 5743fbc2：此前只要 analysis 块在场就标 done，
   //     用户看不出自己需要补充回答，右栏也没有立即弹出追问）
+  //
+  //    2026-09-20 修正「门粘住」：`sufficient` / `questions` 是**上一次分析的历史
+  //    快照**，链路往后走之后不会被清空。只判这两个字段的话，只要当初那次分析
+  //    被判不充分，① 就永久显示「待人审」——哪怕 ②③④ 都跑完了（线上实测：
+  //    iss_bfd2f80fff1692db9259 的 ③ 已完成、④ 已跑，① 还挂着待人审）。
+  //    补上「链路还没走过 ①」这个条件：② 一旦产出候选块，说明人已经就 ① 做过
+  //    决定（回答了追问，或强制继续），这个门就不该再挡。
+  const a = d.analysis;
+  const analysisPending =
+    a !== null && !a.sufficient && (a.questions?.length ?? 0) > 0 && d.candidates === null;
   states[0] =
-    d.analysis !== null
-      ? d.analysis?.error
+    a !== null
+      ? a.error
         ? "failed"
-        : !d.analysis.sufficient && d.analysis.questions.length > 0
+        : analysisPending
           ? "gate"
           : "done"
       : d.step === 1
