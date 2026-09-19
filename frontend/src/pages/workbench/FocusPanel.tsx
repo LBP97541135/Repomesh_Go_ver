@@ -608,6 +608,14 @@ export interface FocusPanelProps {
   repoOptions: Array<{ id: string; name: string }>;
   /** 人确认把一个仓库追加进本次 Issue 的范围 */
   onAppendRepository: (repositoryId: string) => Promise<void>;
+  /** 计划换代状态（GET /plans/{id}）：当前版本号与收集窗状态。null = 还没有计划。
+   *  ↑ 这两枚是「执行中人工打断」那套（PlanReplanCard，A1(f)）的入参，
+   *  调用方 WorkbenchPage 已经在传，但顶层 props 漏了声明、StageHistory 调用点
+   *  也漏了透传——于是 42acf537 自己就 tsc 不干净（部署流程跳过 tsc，所以照样上线）。
+   *  这里补齐三处：接口、解构、StageHistory 调用点。 */
+  planState: { planVersion: string; replanState: string } | null;
+  /** ③ 执行中人工打断：提交一个**人点名**的仓库，后端判定它是否影响当前计划。 */
+  onInterruptPlan: (repository: string, note: string) => Promise<InterruptOutcomeView>;
 }
 
 export function FocusPanel({
@@ -640,6 +648,8 @@ export function FocusPanel({
   onChooseAI,
   onConfirmSupplements,
   selectionBusy = false,
+  planState,
+  onInterruptPlan,
 }: FocusPanelProps) {
   const body = (() => {
     if (entry === null) {
