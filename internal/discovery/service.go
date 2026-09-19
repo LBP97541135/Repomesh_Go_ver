@@ -161,6 +161,34 @@ func (s *Service) load(ctx context.Context, tx pgx.Tx, issueID string) (*State, 
 		"SELECT "+stateColumns+" FROM repomesh_issues.issue_discoveries WHERE issue_id=$1", issueID))
 }
 
+// ensureState 取发现链状态；**没有就按 issue 现场补一份**。
+//
+// 2026-09-20 线上实测：issue 刚建好，自动托管就把 ① 派给了 agent，产物回来写库时
+// 才发现 issue_discoveries 里还没有这一行（那一行此前只有 UI 走 steps.go 分析时才
+// 建），整步于是以「还没有发现链状态」失败 —— agent 明明跑成功（exit 0），界面却
+// 什么都不显示。状态是**派发的前置条件，不是派发的结果**：这里按 issue 的标题+描述
+// 补一份，字段照实取自 issue 行，不编造内容。
+func (s *Service) ensureState(ctx context.Context, tx pgx.Tx, issueID string) (*State, error) {
+	st, err := s.load(ctx, tx, issueID)
+	if err != nil {
+		return nil, err
+	}
+	if st != nil {
+		return st, nil
+	}
+	var title, description, projectID string
+	if err := tx.QueryRow(ctx,
+		"SELECT title, description, project_id FROM repomesh_issues.issues WHERE id=$1", issueID).
+		Scan(&title, &description, &projectID); err != nil {
+		return nil, err
+	}
+	return &State{
+		IssueID:         issueID,
+		ProjectID:       projectID,
+		RequirementText: strings.TrimSpace(title + "\n" + description),
+	}, nil
+}
+
 func (s *Service) save(ctx context.Context, tx pgx.Tx, st *State) error {
 	tiers, _ := json.Marshal(st.EffectiveTiers)
 	query := "INSERT INTO repomesh_issues.issue_discoveries" +

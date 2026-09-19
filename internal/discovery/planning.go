@@ -398,12 +398,9 @@ func (s *Service) ApplyPlanningRun(ctx context.Context, issueID string, step int
 		return err
 	}
 	defer tx.Rollback(ctx)
-	st, err := s.load(ctx, tx, issueID)
+	st, err := s.ensureState(ctx, tx, issueID)
 	if err != nil {
 		return err
-	}
-	if st == nil {
-		return fmt.Errorf("discovery: issue %s 还没有发现链状态", issueID)
 	}
 	if err := s.ApplyPlanningArtifact(ctx, tx, st, step, artifact, prov); err != nil {
 		return err
@@ -428,12 +425,9 @@ func (s *Service) FailPlanningRun(ctx context.Context, issueID string, step int,
 		return err
 	}
 	defer tx.Rollback(ctx)
-	st, err := s.load(ctx, tx, issueID)
+	st, err := s.ensureState(ctx, tx, issueID)
 	if err != nil {
 		return err
-	}
-	if st == nil {
-		return fmt.Errorf("discovery: issue %s 还没有发现链状态", issueID)
 	}
 	block := map[string]any{
 		"error": reason, "ran_at": time.Now().UTC(),
@@ -475,12 +469,9 @@ func (s *Service) AppendAnalysisAnswers(ctx context.Context, issueID string, ans
 		return err
 	}
 	defer tx.Rollback(ctx)
-	st, err := s.load(ctx, tx, issueID)
+	st, err := s.ensureState(ctx, tx, issueID)
 	if err != nil {
 		return err
-	}
-	if st == nil {
-		return fmt.Errorf("discovery: issue %s 还没有发现链状态", issueID)
 	}
 	text := st.RequirementText
 	appended := false
@@ -518,12 +509,18 @@ func (s *Service) repositoryIDByName(ctx context.Context, tx pgx.Tx, name string
 	return id
 }
 
-// RepoSummaries 返回本空间已登记仓库的**名片**（扫描产出的目录/依赖/近期提交），
+// RepoSummaries 返回**本项目已接入仓库**的**名片**（扫描产出的目录/依赖/近期提交），
 // 作为规划 agent 的输入。
 //
 // 为什么必须有：agent 看不到证据就只能凭仓库名猜相关性 —— 那正是"找仓库不准"
 // 的老问题（线上实测的候选评分里，两个仓库的关键词命中都是 []）。取不到就返回空
 // 切片，调用方如实降级（prompt 里就没有名片段），不编造内容。
+//
+// 2026-09-20 线上实测：这里此前**没有按项目过滤**，SQL 是"全部已登记仓库"，而且
+// 扫描名片只按 `url LIKE '%owner/name%'` 模糊对上（不看组织）。结果是别的项目的
+// 仓库也进了本项目 issue 的候选名单 —— 线上那条 issue 的候选里出现了
+// LBP97541135/fastgpt-plugin，而它根本不在该项目的仓库列表里。名片的取法与
+// loadRepoPool 保持一致：同项目 + 同组织 + URL 精确比对。
 func (s *Service) RepoSummaries(ctx context.Context, projectID string) ([]byte, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT r.owner || '/' || r.name,
@@ -531,10 +528,21 @@ func (s *Service) RepoSummaries(ctx context.Context, projectID string) ([]byte, 
 		       COALESCE(s.metadata->'topDirs', '[]'::jsonb),
 		       COALESCE(s.metadata->'deps', '[]'::jsonb),
 		       COALESCE(s.metadata->'recentCommits', '[]'::jsonb)
-		FROM repomesh_projects.repositories r
-		LEFT JOIN repomesh_scan.repositories s
-		       ON s.url LIKE '%' || r.owner || '/' || r.name || '%'
-		ORDER BY r.id`)
+		FROM repomesh_projects.project_repositories pr
+		JOIN repomesh_projects.repositories r ON r.id = pr.repository_id
+		JOIN repomesh_projects.projects p ON p.id = pr.project_id
+		JOIN repomesh_access.accounts a ON a.id = p.owner
+		LEFT JOIN LATERAL (
+		  SELECT scan.* FROM repomesh_scan.repositories scan
+		  WHERE scan.organization_id = a.organization_id
+		    AND lower(regexp_replace(rtrim(scan.url, '/'), '\.git$', '')) IN
+		      (lower('https://' || r.host || '/' || r.owner || '/' || r.name),
+		       lower('http://' || r.host || '/' || r.owner || '/' || r.name),
+		       lower('git@' || r.host || ':' || r.owner || '/' || r.name))
+		  ORDER BY scan.profiled_at DESC, scan.id LIMIT 1
+		) s ON true
+		WHERE pr.project_id = $1
+		ORDER BY r.id`, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("discovery: repo summaries: %w", err)
 	}
