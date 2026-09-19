@@ -30,6 +30,8 @@ export function PlanDagCapsule({
   execution,
   onRetry,
   resetKey,
+  stageLabel,
+  onOpenStage,
 }: {
   state: PlanDagState;
   /** C-4 执行态着色与胶囊进度读数的输入；null = 尚未物化。 */
@@ -37,6 +39,13 @@ export function PlanDagCapsule({
   onRetry: () => void;
   /** 换 issue 即复位（收起 + 错误边界复位），不把上一单的错误挂到这一单头上。 */
   resetKey: string;
+  /** 当前链路节点（规划/执行/审核/交付）。
+   *  2026-09-20 移植主线 9e1dee3d：顶栏那条四点链路条收编进胶囊——收起态只显示
+   *  当前节点这一个词，点开看 DAG 方案图。**计划快照未就绪时胶囊也渲染**（只显
+   *  节点、不可展开）：链路走到哪本身就是有价值的信息，不该因为没有计划图而消失。 */
+  stageLabel?: string;
+  /** 点链路节点那一个词 → 打开那一段的阶段历史。不传就只当读数、不可点。 */
+  onOpenStage?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -54,31 +63,60 @@ export function PlanDagCapsule({
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
-  if (state.status === "absent" || state.status === "loading") return null;
+  // 没有图可看（absent / 首载中）时：有链路节点就只剩那一个词的读数胶囊，没有就整个不出现。
+  const stageOnly = state.status === "absent" || state.status === "loading";
+  if (stageOnly && !stageLabel) return null;
 
   const progress = capsuleProgress(execution);
 
   return (
     <div ref={wrapRef} className="relative z-20">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
+      {/* 两枚控件共用一个胶囊外壳：左边点开/收起 DAG 方案图，右边那一个词（链路当前
+          节点）点开它那一段的历史。
+          拆成两枚而不是嵌套 <button>，是因为按钮不能嵌按钮；而阶段历史这一面是
+          2026-09-20 LBP 才做的（点哪段看哪段发生过什么），顶栏那条四点条拆掉以后
+          它是唯一入口，不能跟着一起消失。 */}
+      <div
         className={`flex items-center gap-2 rounded-full border bg-panel px-3 py-1 font-mono text-[10.5px] shadow-card transition-colors ${
-          open ? "border-amber/60" : "border-line hover:border-amber/60"
+          open ? "border-amber/60" : "border-line"
         }`}
-        title={open ? "收起计划 DAG" : "展开计划 DAG"}
       >
-        <span className={`size-1.5 flex-none rounded-full ${state.status === "error" ? "bg-salmon" : "bg-olive"}`} />
-        {state.status === "ready" ? (
-          <span className="text-tx3">
-            v{state.plan.plan_version} · {state.plan.dag.nodes.length} 节点 · {state.plan.execution_batches.length} 批次
-            {progress ? ` · ${progress}` : ""}
-          </span>
-        ) : (
-          <span className="text-tx3">取用失败</span>
+        <button
+          type="button"
+          disabled={stageOnly}
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-2 transition-colors hover:text-tx disabled:cursor-default"
+          title={stageOnly ? "计划快照未就绪，暂无可展开的 DAG" : open ? "收起计划 DAG" : "展开计划 DAG"}
+        >
+          <span
+            className={`size-1.5 flex-none rounded-full ${state.status === "error" ? "bg-salmon" : stageLabel ? "bg-amber" : "bg-olive"}`}
+          />
+          {state.status === "ready" ? (
+            <span className="text-tx3">
+              v{state.plan.plan_version} · {state.plan.dag.nodes.length} 节点 · {state.plan.execution_batches.length} 批次
+              {progress ? ` · ${progress}` : ""}
+            </span>
+          ) : stageOnly ? null : (
+            <span className="text-tx3">取用失败</span>
+          )}
+          <span className="flex-none text-tx3"><ChevronDown size={12} strokeWidth={1.5} className={open ? "rotate-180" : ""} /></span>
+        </button>
+        {/* 链路当前节点：收编自顶栏那条四点条（2026-09-20 移植主线 9e1dee3d）。 */}
+        {stageLabel && onOpenStage && (
+          <>
+            <span className="h-3 w-px flex-none bg-line" />
+            <button
+              type="button"
+              onClick={() => onOpenStage()}
+              className="flex-none text-tx transition-colors hover:text-amber-hi"
+              title={`查看「${stageLabel}」这一段发生过什么`}
+            >
+              {stageLabel}
+            </button>
+          </>
         )}
-        <span className="flex-none text-tx3"><ChevronDown size={12} strokeWidth={1.5} className={open ? "rotate-180" : ""} /></span>
-      </button>
+        {stageLabel && !onOpenStage && <span className="flex-none text-tx">{stageLabel}</span>}
+      </div>
 
       {open && (
         // 设计定稿(2026-09-08):880px 容器是等比缩放的基准,不按节点数缩水。

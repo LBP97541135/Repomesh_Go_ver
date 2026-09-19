@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, FileText, PanelLeftOpen, X } from "lucide-react";
 import { PrTrainCard, type TrainCarSpec } from "./PrTrainCard";
 import { DispatchTree } from "./DispatchTree";
@@ -6,7 +6,8 @@ import { FocusPanel } from "./FocusPanel";
 import { deriveStepStates } from "./treeModel";
 import type { FocusEntry } from "./treeModel";
 import { IconBolt, IconUser } from "./treeIcons";
-import type { DiscoveryView, IssueDetailView } from "../../api/contract";
+import type { DagExecutionView } from "../../types";
+import type { DiscoveryView, IssueDetailView, TaskDisplayStatus } from "../../api/contract";
 import { parseRequirementDocument, resolveProjectId, type CreateIssueRequest } from "../../api/issues";
 import { fetchIssueDetail } from "../../api/rooms";
 import { listConversationMessages, submitMessage, type ConversationMessage } from "../../api/conversations";
@@ -70,13 +71,19 @@ function composeRequirementText(typed: string, documentText: string): string {
   return typed ? `${typed}\n\n${DOC_SENTINEL}\n${documentText}` : `${DOC_SENTINEL}\n${documentText}`;
 }
 
-/** 当前焦点的会话 id：MGR/步骤 → 主会话；任务 → 该任务协作房间。 */
+/** 当前焦点的会话 id：MGR/步骤 → 主会话；任务 → 该任务协作房间；测试组 → 无。
+ *
+ *  测试组**没有自己的会话**：它的读面是测试证据（`GET /issues/{id}/tests`），
+ *  不是消息流。这里必须显式返回 null——否则它会落到下面的兜底、拿到**主会话**的
+ *  id，于是右栏在测试房间里弹出一个输入框，人往里写的话会发到 Manager 房间去。 */
 function entryConvIdOf(
   entry: FocusEntry | null,
   detail: IssueDetailView | null,
   taskById: Map<string, PlanTaskItem>,
 ): string | null {
   if (!detail || entry === null) return null;
+  // 测试组（证据读面，没有会话）与阶段历史（只读回看）都不该有输入框。
+  if (entry.kind === "tests" || entry.kind === "stage") return null;
   if (entry.kind === "task") return taskById.get(entry.taskId)?.conversationId ?? null;
   return detail.source?.conversationId ?? null;
 }
@@ -853,6 +860,63 @@ export function WorkbenchPage({
     if (i === 3) return allTasksDone ? "now" : "todo";
     return "todo";
   };
+  /** 链路当前节点（一个词）。
+   *  2026-09-20 移植主线 9e1dee3d：顶栏那条四点链路条收编进 DAG 胶囊——
+   *  顶栏只留标题，进度收成这一个词；规划期还说清五步走到第几步。
+   *  历史入口不丢：点这个词开那一段的阶段历史（见胶囊的 onOpenStage）。 */
+  const stageNowIdx = STAGES.findIndex((_, i) => stageState(i) === "now");
+  const stageIdx = stageNowIdx >= 0 ? stageNowIdx : STAGES.length - 1;
+  const stageLabel = !materialized ? `${STAGES[0]} ${doneSteps}/5` : STAGES[stageIdx];
+
+  /** DAG 的执行态着色输入（2026-09-20 接线）。
+   *  此前这里恒传 `execution={null}`，于是 DAG 图**画得出来但颜色是死的**——
+   *  已交付/进行中/失败三类节点全长一样，看不出哪个仓跑到哪了。
+   *  数据源是任务树读面（`plans/{id}/tasks`），按仓归拢：
+   *  一个仓的任务展示态一致就是那个态，**不一致记 null**（读模型说的就是"这一仓
+   *  里有不同态"，界面不替它选一个）。
+   *  未验证/blocker/失败理由三面任务树读面不提供，如实留空——planDagPanel 对空
+   *  值按 0 呈现，不会编出"0 条 blocker"这种话。 */
+  const dagExecution = useMemo<DagExecutionView | null>(() => {
+    if (!materialized || tasks === null) return null;
+    const byTaskStatus: Record<string, TaskDisplayStatus> = {
+      done: "succeeded",
+      running: "running",
+      failed: "failed",
+      blocked: "blocked",
+      assigned: "pending",
+      pending: "pending",
+    };
+    const counts: Record<string, Record<TaskDisplayStatus, number>> = {};
+    for (const t of tasks) {
+      const repo = t.repositoryId;
+      if (!repo) continue;
+      const status = byTaskStatus[t.status] ?? "pending";
+      counts[repo] = counts[repo] ?? { pending: 0, running: 0, repairing: 0, blocked: 0, succeeded: 0, failed: 0 };
+      counts[repo][status] += 1;
+    }
+    const byRepository: Record<string, TaskDisplayStatus | null> = {};
+    const taskCountByRepository: Record<string, number> = {};
+    const unverifiedCountByRepository: Record<string, number> = {};
+    const blockerCountByRepository: Record<string, number> = {};
+    const failureReasonsByRepository: Record<string, string[]> = {};
+    for (const [repo, buckets] of Object.entries(counts)) {
+      const total = Object.values(buckets).reduce((a, b) => a + b, 0);
+      const present = (Object.keys(buckets) as TaskDisplayStatus[]).filter((s) => buckets[s] > 0);
+      byRepository[repo] = present.length === 1 ? present[0] : null;
+      taskCountByRepository[repo] = total;
+      unverifiedCountByRepository[repo] = 0;
+      blockerCountByRepository[repo] = 0;
+      failureReasonsByRepository[repo] = [];
+    }
+    return {
+      byRepository,
+      taskCountByRepository,
+      unverifiedCountByRepository,
+      blockerCountByRepository,
+      failureReasonsByRepository,
+      roundLabel: flow.planState.status === "ready" ? `计划 ${flow.planState.plan.plan_version}` : "本轮",
+    };
+  }, [materialized, tasks, flow.planState]);
 
   // ── 交付期:PR 列车按任务顺序组装车厢——有 PR 的 change-set 挂真门禁轮询,
   //    没开 PR 的任务坐「待提交」车厢。车厢读面按 reload 同拍刷新。 ──
@@ -1093,55 +1157,12 @@ export function WorkbenchPage({
               issue 列表
             </button>
           )}
-          <span className="eyebrow">流程</span>
+          {/* 2026-09-20 移植主线 9e1dee3d：顶栏那条四点链路条（规划/执行/审核/交付）
+              收编进右侧 DAG 胶囊，顶栏只留标题。原来那四个圆点是**可点**的入口，
+              所以链路节点在胶囊里仍然是可点的——点它开那一段的阶段历史，
+              历史入口不随条一起消失。 */}
           {detail ? (
-            <div className="flex items-center gap-1.5">
-              {STAGES.map((title, i) => {
-                const st = stageState(i);
-                return (
-                  <span
-                    key={title}
-                    className="flex items-center gap-1.5"
-                    title={
-                      i === 2
-                        ? blockedTasks > 0
-                          ? `${blockedTasks} 个任务等你批（点任务行审批）`
-                          : undefined
-                        : i === 3
-                          ? "交付读面：PR 列车在场即为到达"
-                          : undefined
-                    }
-                  >
-                    {i > 0 && <span className={`h-px w-4 ${stageState(i - 1) !== "todo" ? "bg-line-strong" : "bg-line"}`} />}
-                    {/* 2026-09-20：这四个阶段此前只是状态指示（不可点），人想看
-                        "这一段到底发生过什么"只能自己翻。现在点哪段就切到哪段的历史，
-                        与左树/右栏是同一套焦点机制（activeEntry）。 */}
-                    <button
-                      className={`flex items-center gap-1.5 rounded-hard px-1 py-0.5 transition-colors hover:bg-white/5 ${
-                        activeEntry?.kind === "stage" && activeEntry.stage === i ? "bg-white/10" : ""
-                      }`}
-                      onClick={() => setActiveEntry({ kind: "stage", stage: i as 0 | 1 | 2 | 3 })}
-                    >
-                      <span
-                        className={`grid size-[18px] place-items-center rounded-full border-[1.5px] text-[10px] font-bold ${
-                          st === "now"
-                            ? "border-amber bg-amber text-on-amber"
-                            : st === "done"
-                              ? "border-olive bg-olive text-on-amber"
-                              : "border-line-strong text-tx3"
-                        }`}
-                      >
-                        {st === "done" ? "✓" : st === "now" ? "●" : i + 1}
-                      </span>
-                      <span className={`text-[12px] ${st === "now" ? "font-medium text-tx" : "text-tx3"}`}>
-                        {title}
-                        {i === 0 && !materialized ? ` ${doneSteps}/5` : ""}
-                      </span>
-                    </button>
-                  </span>
-                );
-              })}
-            </div>
+            <h1 className="min-w-0 truncate text-[13px] font-medium text-tx">{detail.title}</h1>
           ) : (
             <span className="text-[11.5px] text-tx3">…</span>
           )}
@@ -1155,13 +1176,16 @@ export function WorkbenchPage({
               {issueHitl === "ai" ? "自动托管" : "人工参与"}
             </span>
           )}
-          {/* 计划 DAG 胶囊（原顶栏组件，重构时误删，此番归位） */}
+          {/* 计划 DAG 胶囊（原顶栏组件，重构时误删，此番归位）。
+              2026-09-20：链路当前节点收编进来（顶栏四点条撤走），execution 接线。 */}
           <div className="ml-auto flex items-center gap-2">
             <PlanDagCapsule
               state={flow.planState}
-              execution={null}
+              execution={dagExecution}
               onRetry={flow.reloadPlan}
               resetKey={issueId ?? "new"}
+              stageLabel={stageLabel}
+              onOpenStage={() => setActiveEntry({ kind: "stage", stage: stageIdx as 0 | 1 | 2 | 3 })}
             />
           </div>
         </div>
