@@ -56,7 +56,13 @@ func (e *executor) launchAgentRun(ctx context.Context, command []string, workspa
 				code = -1
 			}
 		}
-		return e.execution.MarkAgentExited(ctx, runID, code, killed, "")
+		if err := e.execution.MarkAgentExited(ctx, runID, code, killed, ""); err != nil {
+			return err
+		}
+		// 交付面的事实（PR 链接 / 测试退出码）在 run 退出后才可观测，
+		// 所以记账点就在这里 —— 合并闸门的输入全靠它。
+		e.recordDeliveryFacts(ctx, runID, workspace)
+		return nil
 	case <-ctx.Done():
 		_ = syscall.Kill(-pid, syscall.SIGTERM)
 		timer := time.AfterFunc(10*time.Second, func() { _ = syscall.Kill(-pid, syscall.SIGKILL) })
@@ -72,7 +78,11 @@ func (e *executor) launchAgentRun(ctx context.Context, command []string, workspa
 				code = -1
 			}
 		}
-		return e.execution.MarkAgentExited(context.Background(), runID, code, killed, "")
+		if err := e.execution.MarkAgentExited(context.Background(), runID, code, killed, ""); err != nil {
+			return err
+		}
+		e.recordDeliveryFacts(context.Background(), runID, workspace)
+		return nil
 	}
 }
 

@@ -84,8 +84,13 @@ func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, i
 		"git push origin HEAD:$B\n" +
 		"curl -sf -X POST -H \"Authorization: Bearer $T\" -H \"Accept: application/vnd.github+json\" " +
 		"https://api.github.com/repos/$R/pulls " +
-		"-d \"{\\\"title\\\":\\\"RepoMesh: " + safeTitle + "\\\",\\\"head\\\":\\\"$B\\\",\\\"base\\\":\\\"main\\\",\\\"body\\\":\\\"RepoMesh automated delivery for issue " + issueID + "\\\"}\"\n" +
-		"echo REPO_PR_CREATED=$R:$B"
+		"-d \"{\\\"title\\\":\\\"RepoMesh: " + safeTitle + "\\\",\\\"head\\\":\\\"$B\\\",\\\"base\\\":\\\"main\\\",\\\"body\\\":\\\"RepoMesh automated delivery for issue " + issueID + "\\\"}\" > pr.json\n" +
+		"echo REPO_PR_CREATED=$R:$B\n" +
+		// 2026-09-20：把 PR 链接也打出来。合并闸门与合并动作都要**PR 编号**
+		//（GitHub 的合并接口按编号调），只有 repo:branch 是合不了的。
+		// 模式里不含引号：整段脚本被单引号包着，脚本内不能再出现单引号。
+		"PR_PATH=$(grep -o \"github.com/[^/]*/[^/]*/pull/[0-9]*\" pr.json | head -1)\n" +
+		"echo REPO_PR_URL=https://$PR_PATH"
 	return "bash -c '" + script + "'", nil
 }
 

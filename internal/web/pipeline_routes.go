@@ -105,6 +105,14 @@ func registerPipelineRoutes(mux *http.ServeMux, auth Auth, pipeline Pipeline) {
 		if err := pipeline.Tasks.ApproveStep(r.Context(), r.PathValue("taskId"), claims.ActorID(), body.Summary); err != nil {
 			return err
 		}
+		// 经理批准 = 交付闸门的 review 那一项（闸门四项里唯一由人产生的一项）。
+		// 记不上就记不上（fail-open）：审批本身已经落库，不能因为记账失败回滚它。
+		if scmSvc := pipeline.SCMRoutes.SCM; scmSvc != nil {
+			if changeSetID, csErr := scmSvc.ChangeSetForTask(r.Context(), r.PathValue("taskId")); csErr == nil && changeSetID != "" {
+				_ = scmSvc.RecordEvent(r.Context(), changeSetID, "review",
+					`{"actor":"`+claims.ActorID()+`","decision":"approved"}`)
+			}
+		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "done"})
 		return nil
 	})

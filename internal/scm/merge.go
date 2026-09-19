@@ -108,3 +108,20 @@ func parsePullURL(raw string) (owner, repo string, number int, ok bool) {
 	}
 	return owner, repo, n, true
 }
+
+// ChangeSetForTask 返回该任务名下的 change set（没有就返回空串，不报错）。
+//
+// 用途：经理批准任务时要往它的 change set 上记一条 review —— 闸门四项里的
+// 最后一项，也是唯一由**人**产生的那一项。
+func (s *Service) ChangeSetForTask(ctx context.Context, taskID string) (string, error) {
+	var id string
+	err := s.pool.QueryRow(ctx, `SELECT id::text FROM public.change_sets
+		WHERE task_id = $1::uuid ORDER BY version DESC LIMIT 1`, taskID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("scm: change set by task: %w", err)
+	}
+	return id, nil
+}
