@@ -16,22 +16,25 @@ import { IconChevron, IconClock, IconFlask, IconRun, IconCheck, IconUser } from 
 
 export type { FocusEntry, StepState };
 
+/* 徽章走全站统一的 .pill 族（index.css，2026-09-18 第一批）：3 基础
+   （done/run/wait）+ 人审门（gate）+ 失败（fail）+ 元信息（meta）。
+   就地写死的 border/bg/text 尺寸样式全部去掉，高度与圆角由 .pill 统一管。 */
 const STEP_PILL: Record<StepState, { text: string; cls: string }> = {
-  done: { text: "已完成", cls: "border-olive/50 bg-olive/10 text-olive" },
-  run: { text: "进行中", cls: "border-[var(--tree-acc)] bg-[var(--tree-acc)]/10 text-[var(--tree-acc)]" },
-  gate: { text: "待人审", cls: "border-amber/40 bg-amber-well text-amber" },
-  failed: { text: "失败", cls: "border-salmon/40 bg-salmon-well text-salmon" },
-  wait: { text: "等待前序", cls: "border-[var(--tree-hairline)] bg-[var(--tree-zone)] text-[var(--tree-faint)]" },
-  choose: { text: "待人选", cls: "border-amber/40 bg-amber-well text-amber" },
-  confirm: { text: "待人确认", cls: "border-amber/40 bg-amber-well text-amber" },
+  done: { text: "已完成", cls: "pill pill-done" },
+  run: { text: "进行中", cls: "pill pill-run" },
+  gate: { text: "待人审", cls: "pill pill-gate" },
+  failed: { text: "失败", cls: "pill pill-fail" },
+  wait: { text: "等待前序", cls: "pill pill-wait" },
+  choose: { text: "待人选", cls: "pill pill-gate" },
+  confirm: { text: "待人确认", cls: "pill pill-gate" },
 };
 
 const TASK_PILL: Record<string, { text: string; cls: string }> = {
-  done: { text: "已完成", cls: "border-olive/50 bg-olive/10 text-olive" },
-  running: { text: "进行中", cls: "border-[var(--tree-acc)] bg-[var(--tree-acc)]/10 text-[var(--tree-acc)]" },
-  pending: { text: "待下发", cls: "border-amber/40 bg-amber-well text-amber" },
-  assigned: { text: "已指派", cls: "border-[var(--tree-hairline)] bg-[var(--tree-zone)] text-[var(--tree-sub)]" },
-  blocked: { text: "受阻", cls: "border-salmon/40 bg-salmon-well text-salmon" },
+  done: { text: "已完成", cls: "pill pill-done" },
+  running: { text: "进行中", cls: "pill pill-run" },
+  pending: { text: "待下发", cls: "pill pill-gate" },
+  assigned: { text: "已指派", cls: "pill pill-wait" },
+  blocked: { text: "受阻", cls: "pill pill-fail" },
 };
 
 function taskPill(status: string) {
@@ -140,9 +143,9 @@ export function DispatchTree({
         )}
       </div>
 
-      {/* Manager 组：常驻一生 */}
+      {/* Manager 组：常驻一生。2026-09-18 微态：整卡 hover 轻抬底色（不做放大/重阴影） */}
       <div
-        className={`relative rounded-[9px] bg-[var(--tree-mgr)] p-2.5 ${activeEntry?.kind === "mgr" ? hl : ""}`}
+        className={`relative rounded-[9px] bg-[var(--tree-mgr)] p-2.5 transition-colors hover:bg-[color-mix(in_oklab,var(--tree-mgr)_92%,var(--tree-acc)_8%)] ${activeEntry?.kind === "mgr" ? hl : ""}`}
       >
         {materialized && (total > 0 || groups.grouped.length > 0) && (
           <span
@@ -158,10 +161,9 @@ export function DispatchTree({
           title="查看主会话时间线（需求→规划→下发）"
         >
           <IconUser size={14} className="flex-none text-[var(--tree-acc)]" />
-          <span className="text-[12.5px] font-semibold text-[var(--tree-ink)]">Manager · 主脑</span>
-          <span className="ml-auto rounded-[5px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-1.5 py-px text-[10px] text-[var(--tree-sub)]">
-            {materialized ? "执行中" : "规划中"}
-          </span>
+          {/* 2026-09-18 第二批：粗体标题降为 medium，大黑字不再压整页 */}
+          <span className="text-[12.5px] font-medium text-[var(--tree-ink)]">Manager · 主脑</span>
+          <span className="pill ml-auto pill-meta">{materialized ? "执行中" : "规划中"}</span>
         </button>
         <div className="flex items-center gap-2 px-0.5 pt-2 text-[11px] text-[var(--tree-sub)]">
           <span className="flex-none">{materialized ? `汇总进度:${total} 个任务` : "汇总进度:5 个规划步骤"}</span>
@@ -200,7 +202,7 @@ export function DispatchTree({
                       {label}
                     </span>
                     <span className="ml-auto" />
-                    <span className={`rounded-[5px] border px-1.5 py-px text-[10px] ${pill.cls}`}>{pill.text}</span>
+                    <span className={pill.cls}>{pill.text}</span>
                   </button>
                   {i < 4 && (
                     <span className={`ml-[19px] block h-1.5 w-px ${stepStates[i] === "done" ? "border-l border-olive/50" : "bg-[var(--tree-line)]"}`} />
@@ -260,7 +262,7 @@ export function DispatchTree({
       {/* 测试组：常驻一生 */}
       <div className="mt-4 border-t border-[var(--tree-hairline)] pt-3">
         <button
-          className={`flex w-full items-center gap-2 rounded-[7px] px-2 py-1.5 text-left hover:bg-[var(--tree-zone)] ${activeEntry?.kind === "tests" ? hl : ""}`}
+          className={`flex w-full items-center gap-2 rounded-[7px] px-2 py-1.5 text-left transition-colors hover:bg-[var(--tree-zone)] ${activeEntry?.kind === "tests" ? hl : ""}`}
           title={testSummary ?? "测试任务与结果"}
           onClick={() => onOpen({ kind: "tests" })}
         >
@@ -303,16 +305,14 @@ function TaskRow({
           title={`Worker: ${task.workerLabel || task.assignee}`}
         />
       )}
-      <span className="flex-none rounded-[5px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-1.5 py-px text-[10px] text-[var(--tree-faint)]">
+      <span className="pill flex-none pill-meta">
         {/* 执行者：优先装配期写下的显示名；没有就显示**真的跑过这条任务的 agent**
             （后端任务树读面带出的 assignee）；两个都没有才写「待指派」——
             此前物化写入端不填 workerLabel，于是每条跑完的任务都显示「待指派」。 */}
         {task.workerLabel || task.assignee || "待指派"}
       </span>
-      <span className="flex-none rounded-[5px] border border-[var(--tree-hairline)] bg-[var(--tree-zone)] px-1.5 py-px text-[10px] text-[var(--tree-sub)]">
-        批次{task.batchNo ?? "—"}
-      </span>
-      <span className={`flex-none rounded-[5px] border px-1.5 py-px text-[10px] ${pill.cls}`}>{pill.text}</span>
+      <span className="pill flex-none pill-meta">批次{task.batchNo ?? "—"}</span>
+      <span className={`flex-none ${pill.cls}`}>{pill.text}</span>
     </button>
   );
 }

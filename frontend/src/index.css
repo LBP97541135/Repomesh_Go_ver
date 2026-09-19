@@ -172,6 +172,45 @@ button {
 }
 
 @layer components {
+  /* —— Linear 式减法 UI 第一批（2026-09-18 主线 Linear 第一批并入）：
+        四级字阶 + 状态徽章族 ——
+     字阶：L1 页面大标题 18/600，L2 模块标题 15/500，L3 正文 13/400，
+     L4 辅助元信息 11.5/400（颜色走 tx2 降权）。行高固定：标题 1.3 正文 1.5。 */
+  .t-l1 { font-size: 18px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; }
+  .t-l2 { font-size: 15px; font-weight: 500; line-height: 1.35; }
+  .t-l3 { font-size: 13px; font-weight: 400; line-height: 1.5; }
+  .t-l4 { font-size: 11.5px; font-weight: 400; line-height: 1.45; color: var(--color-tx2); }
+
+  /* 状态徽章：全站只允许这几种（3 基础 done/run/wait + 人审门 gate + 失败 fail
+     + 中性元信息 meta）。统一高度 20px / 统一圆角 / 统一 10.5px 字号；
+     禁止再为单个状态就地发明 border/px/py/text 样式。
+     圆角直接吃 --radius-hard（LBP 已有该令牌：深色 2px / 浅色 6px），不另立新值。 */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 20px;
+    padding: 0 7px;
+    border-radius: var(--radius-hard);
+    border: 1px solid transparent;
+    font-size: 10.5px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  /* 配色照 2026-09-18 主线第一批：olive / tree-acc / amber / salmon /
+     hairline+card / hairline+zone。LBP 这批语义色令牌齐备，无需映射。 */
+  .pill-done { border-color: color-mix(in oklab, var(--color-olive) 45%, transparent); background: color-mix(in oklab, var(--color-olive) 10%, transparent); color: var(--color-olive); }
+  .pill-run { border-color: color-mix(in oklab, var(--tree-acc) 40%, transparent); background: color-mix(in oklab, var(--tree-acc) 10%, transparent); color: var(--tree-acc); }
+  .pill-gate { border-color: color-mix(in oklab, var(--color-amber) 40%, transparent); background: var(--color-amber-well); color: var(--color-amber); }
+  .pill-fail { border-color: color-mix(in oklab, var(--color-salmon) 40%, transparent); background: var(--color-salmon-well); color: var(--color-salmon); }
+  .pill-meta { border-color: var(--tree-hairline); background: var(--tree-card); color: var(--tree-sub); }
+  .pill-wait { border-color: var(--tree-hairline); background: var(--tree-zone); color: var(--tree-faint); }
+
+  /* 卡片 hover：轻微底色变化，不做放大/重阴影（2026-09-18 主线第三批微态） */
+  .card-hover { transition: background-color 120ms ease; }
+  .card-hover:hover { background: var(--tree-zone); }
+
   /* 微标签：等宽大写加字距。深色跟随琥珀金；浅色用 --color-eyebrow
      （中性灰）——黑标签会和小节标题抢层级，见浅色块内的角色说明。 */
   .eyebrow {
