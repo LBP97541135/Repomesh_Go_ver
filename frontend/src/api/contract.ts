@@ -1190,6 +1190,8 @@ export interface DiscoveryAdjustmentRecord {
  *  图预补充的证据明细、图与模型的分歧清单、低信任观察名单（契约 §2.2）。
  */
 export interface DiscoveryClassificationBlock {
+  /** pending = 依赖图查出的漏选清单正待人确认（人工勾选路径的第 3 步门）。 */
+  supplement_state?: "none" | "pending" | "confirmed";
   required: ConfirmationResultView[];
   maybe: ConfirmationResultView[];
   excluded: ConfirmationResultView[];
@@ -1299,6 +1301,8 @@ export interface DiscoveryView {
   classification_evidence_version: string | null;
   effective_tiers: DiscoveryEffectiveTier[];
   approval: DiscoveryApprovalBlock;
+  /** 计划块（④ 生成计划产出；未生成 → null）。阶段历史「规划」回看要用。 */
+  plan?: Record<string, unknown> | null;
   integration: DiscoveryIntegrationCounts | null;
   /** 从未物化过 → **null**（同 `integration` 的缺席口径：键在、值为 null）。
    *  收据先于轮次存在：失败的那次没有轮次，却正是最需要被看见的那次。 */
