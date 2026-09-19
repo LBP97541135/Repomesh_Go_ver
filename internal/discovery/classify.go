@@ -78,7 +78,7 @@ func (s *Service) Classification(ctx context.Context, issueID, agentID, idempote
 				reason = rationale + "；置信度低于纳入门槛"
 			}
 		} else if reason == "" {
-			reason = "由组织 Leader 分档"
+			reason = "由 Manager（总领导）分档"
 		}
 		if conflictsWithGraph {
 			reason += "（注意：依赖图上孤立，与其它必改仓库没有依赖关系，建议复核）"

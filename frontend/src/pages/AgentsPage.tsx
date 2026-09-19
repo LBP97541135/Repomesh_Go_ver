@@ -31,8 +31,9 @@ import { useRuntimeRows } from "./useRuntimeRows";
  *      它跑的是哪个 CLI 平台不观测，所以这一格只写 External，不写任何 CLI 名字。 */
 
 const ROLE_LABEL: Record<AgentRole, string> = {
-  organization_leader: "组织 leader",
-  repository_leader: "仓库 leader",
+  // 2026-09-20 用户更正命名：总领导叫 **Manager**，仓库领导叫 **Leader**。
+  organization_leader: "Manager（总领导）",
+  repository_leader: "Leader（仓库领导）",
   worker: "worker",
 };
 
@@ -341,7 +342,10 @@ export function AgentsPage({ onOpenIssue }: { onOpenIssue: (issueId: string) => 
               </button>
               <span className="text-[13.5px] font-semibold text-cream">{displayName}</span>
               <span className="rounded-full bg-amber/20 px-2 py-[1px] text-[10.5px] text-amber-hi">
-                {agent.role === "leader" ? "组织 leader" : agent.role === "manager" ? "仓库 leader" : agent.role}
+                {/* 2026-09-20 更正：manager = 总领导（组织级）、leader = 仓库领导。
+                    此前这里两个映射是**反的** —— manager 显示成「仓库 leader」、
+                    leader 显示成「组织 leader」。 */}
+                {agent.role === "manager" ? "Manager（总领导）" : agent.role === "leader" ? "Leader（仓库领导）" : agent.role}
               </span>
             </div>
             <p className="mt-2 text-[11.5px] text-tx2">

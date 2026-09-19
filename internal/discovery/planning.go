@@ -119,9 +119,11 @@ func PlanningPrompt(step int, requirement string, repoSummaries []byte, skillDoc
 func roleLabel(role string) string {
 	switch role {
 	case "organization_leader":
-		return "组织 Leader（负责需求范围与跨仓库规划）"
+		// 2026-09-20 用户更正命名：总领导叫 **Manager**，仓库领导叫 **Leader**。
+		// 此前两个都叫 "Leader"（组织 Leader / 仓库 Leader），界面上分不清谁是谁。
+		return "Manager（总领导：负责需求范围与跨仓库规划）"
 	case "repository_leader":
-		return "仓库 Leader（负责仓库规格与任务拆解）"
+		return "Leader（仓库领导：负责仓库规格与任务拆解）"
 	case "worker":
 		return "Worker（负责在指定仓库内执行任务）"
 	}

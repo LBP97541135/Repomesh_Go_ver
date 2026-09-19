@@ -178,8 +178,8 @@ export function RollbackModal({
             <b className="mr-1.5 font-mono tracking-[0.08em]">决策主体未接入</b>
             花名册里没有该组织可用的 organization_leader，也没有配置 VITE_GOVERNANCE_AGENT_ID
             覆盖。提交已禁用——回滚必须记在一个真实主体名下。§4.6 还要求主体是
-            <b className="text-cream"> 组织 leader</b>：这条命令替所有仓库说话，单仓 leader
-            会被服务端以 403 拒绝。
+            <b className="text-cream"> Manager（总领导）</b>：这条命令替所有仓库说话，
+            单仓 Leader（仓库领导）会被服务端以 403 拒绝。
           </div>
         )}
 
