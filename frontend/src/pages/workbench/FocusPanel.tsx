@@ -62,6 +62,15 @@ const RPILL_CLS: Record<string, string> = {
 };
 
 function hhmm(at: string): string {
+  // 2026-09-20 线上实测：这里原先直接对原始字符串做 slice(11,16)，而后端按
+  // **UTC** 序列化 created_at（例如 03:01 CST 存成 19:01Z）—— 界面上每条消息的
+  // 时间都比真实时间早 8 小时。解析成 Date 再按浏览器本地时区格式化；
+  // 解析不出来（形状意外）才退回原来的切片，至少不会显示成空白。
+  const parsed = new Date(at);
+  if (!Number.isNaN(parsed.getTime())) {
+    const two = (n: number) => String(n).padStart(2, "0");
+    return `${two(parsed.getHours())}:${two(parsed.getMinutes())}`;
+  }
   return at.slice(11, 16);
 }
 
