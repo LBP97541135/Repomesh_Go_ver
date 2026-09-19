@@ -557,6 +557,7 @@ export function FocusPanel({
         ) : (
           <MessageTimeline messages={messages} />
         )}
+        <StepStream discovery={discovery} stepStates={stepStates} onGate={onGate} gateBusy={gateBusy} />
         <PlanHistory discovery={discovery} />
         <GateStack
           stepStates={stepStates}
@@ -657,6 +658,120 @@ function RoomAvatar({ member }: { member: RoomMember }) {
 
 /** 待人审计项:就地成为 Manager 房间里的带按钮消息(「需要人的地方成为消息」
  *  惯例)。分档审批 / 物化确认 / 合并确认,与树上步骤卡共用同一套写回路。 */
+
+/** 规划步骤流(2026-09-18):①-⑤ 全部消息化进 Manager 主房间。
+ *  数据从发现链读面推导——真实链路每进一步,轮询刷新即流入新「消息」;
+ *  人工门(③⑤)的消息带按钮,就地成为可操作的对话。 */
+function StepStream({
+  discovery,
+  stepStates,
+  onGate,
+  gateBusy,
+}: {
+  discovery: DiscoveryView | null;
+  stepStates: StepState[];
+  onGate: (action: "approveTiers" | "materialize") => void;
+  gateBusy: "approveTiers" | "materialize" | null;
+}) {
+  if (!discovery || stepStates[0] === "wait") return null;
+  const msgRow = (node: ReactNode, key: string, who: "user" | "mgr" = "mgr") => (
+    <div key={key} className="flex gap-2.5">
+      {who === "mgr" ? (
+        <span className="mt-0.5 grid h-[22px] w-[22px] flex-none place-items-center rounded-full bg-[var(--tree-acc)] text-[8.5px] font-bold text-white">M</span>
+      ) : (
+        <span className="mt-0.5 grid h-[22px] w-[22px] flex-none place-items-center rounded-full bg-[var(--tree-zone)] text-[8.5px] font-bold text-[var(--tree-sub)]">你</span>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="mb-0.5 flex items-center gap-1.5">
+          <span className="text-[11px] font-semibold text-[var(--tree-ink)]">{who === "mgr" ? "Manager" : "你"}</span>
+          <span className="rounded-[5px] bg-[var(--tree-acc)]/12 px-1.5 py-px text-[9.5px] text-[var(--tree-acc)]">{who === "mgr" ? "Manager" : "用户"}</span>
+        </div>
+        {node}
+      </div>
+    </div>
+  );
+  const card = (children: ReactNode) => (
+    <div className="rounded-lg border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2 text-[11.5px] leading-[1.65] text-[var(--tree-ink)]">{children}</div>
+  );
+  const flow: ReactNode[] = [];
+  // 开场双消息：用户发送了需求 → Manager 开始分析（2026-09-18 用户裁定）
+  const requirementText = discovery.analysis?.analyzed_requirement ?? "";
+  flow.push(msgRow(card(<>
+    <span className="font-semibold">{requirementText.includes("\n") || requirementText.length > 80 ? "发送了需求文档" : requirementText.trim() || "发送了需求"}</span>
+  </>), "m0", "user"));
+  flow.push(msgRow(card(<>
+    <span className="font-semibold">收到，开始分析需求…</span>
+  </>), "m1"));
+  // ① 需求分析
+  const a = discovery.analysis;
+  if (a) {
+    flow.push(msgRow(card(<>
+      <span className="font-semibold">需求分析完成</span>
+    </>), "s1"));
+  }
+  // ② 候选评分
+  const c = discovery.candidates;
+  if (c) {
+    flow.push(msgRow(card(<>
+      <span className="font-semibold">候选仓库 {c.items.length} 个</span>
+      {c.items.length > 0 && (
+        <span className="text-[var(--tree-sub)]"> · {c.items.slice(0, 3).map((it) => it.repository_name).join("、")}{c.selection_mode === "manual" ? "(你勾选)" : "(AI 推断)"}</span>
+      )}
+      {c.items.length === 0 && <span className="text-[var(--tree-sub)]"> · 目录内没有命中候选</span>}
+    </>), "s2"));
+  }
+  // ③ 分档审批
+  const cls = discovery.classification;
+  if (cls) {
+    const pending = discovery.approval?.state !== "approved" && stepStates[2] === "gate";
+    // ponytail: 超过 3 个仓库只展示前 3 + "等 N 个"，不平铺 20 个（2026-09-18 用户反馈太密）
+    const tierLine = (t: string, arr: Array<{ repository: string }>) => {
+      if (!arr.length) return `${t}：无`;
+      const names = arr.map((r) => r.repository.replace(/^.*\//, ""));
+      return names.length <= 3 ? `${t}：${names.join("、")}` : `${t}：${names.slice(0, 3).join("、")} 等 ${names.length} 个`;
+    };
+    flow.push(msgRow(card(<>
+      <span className="font-semibold">{discovery.approval?.state === "approved" ? "分档已确认" : "分档待人审"}</span>
+      <div className="mt-1 flex flex-col gap-0.5 text-[11px] text-[var(--tree-sub)]">
+        <p>{tierLine("必需", cls.required)}</p>
+        <p>{tierLine("可能", cls.maybe)}</p>
+        <p className="text-[var(--tree-faint)]">{tierLine("排除", cls.excluded)}</p>
+        {cls.required.length + cls.maybe.length === 0 && <p>必需+可能均为空——评分器无信号,请回树上「分档审批」把仓库调进必需档。</p>}
+      </div>
+      {pending && cls.required.length + cls.maybe.length > 0 && (
+        <button type="button" disabled={gateBusy === "approveTiers"} onClick={() => onGate("approveTiers")}
+          className="mt-1.5 rounded-[7px] border border-amber/40 bg-amber-well px-3 py-1 text-[11.5px] font-semibold text-amber hover:bg-amber-well/80 disabled:opacity-50">
+          {gateBusy === "approveTiers" ? "提交中…" : "批准分档"}
+        </button>
+      )}
+    </>), "s3"));
+  }
+  // ④ 生成计划
+  const integration = discovery.integration;
+  const planned = (discovery.plan ?? null) !== null || integration !== null;
+  if (planned || stepStates[3] === "run") {
+    flow.push(msgRow(card(<>
+      <span className="font-semibold">{integration ? `计划 v1 已生成 · ${integration.task_dag_count} 任务 ${integration.batch_count} 批` : "正在生成计划…"}</span>
+    </>), "s4"));
+  }
+  // ⑤ 物化确认
+  if (stepStates[4] === "gate" || stepStates[4] === "done") {
+    const done = stepStates[4] === "done";
+    flow.push(msgRow(card(<>
+      <span className="font-semibold">{done ? "物化完成 · 已开工" : "物化确认 · 待人审"}</span>
+      {!done && <p className="mt-0.5 text-[11px] text-[var(--tree-sub)]">确认后组建编制并下发批次1,左侧树换代为任务视图。</p>}
+      {!done && (
+        <button type="button" disabled={gateBusy === "materialize"} onClick={() => onGate("materialize")}
+          className="mt-1.5 rounded-[7px] bg-[var(--tree-acc)] px-3 py-1 text-[11.5px] font-semibold text-white hover:bg-[var(--tree-acc)]/90 disabled:opacity-50">
+          {gateBusy === "materialize" ? "物化中…" : "确认物化并开工"}
+        </button>
+      )}
+    </>), "s5"));
+  }
+  if (flow.length === 0) return null;
+  return <div className="flex flex-col gap-3 px-4 pb-1">{flow}</div>;
+}
+
 function GateStack({
   stepStates,
   mergePending,

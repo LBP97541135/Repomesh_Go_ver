@@ -1095,6 +1095,8 @@ export interface DiscoveryCandidateItem {
 
 /** §2.2 `candidates` 直投影（GUI 步 2 / 管线 Step 1）。 */
 export interface DiscoveryCandidatesBlock {
+  /** 候选来源：manual=人勾选 / ai（或缺省）=模型推断（2026-09-18 用户裁定）。 */
+  selection_mode?: "manual" | "ai" | null;
   items: DiscoveryCandidateItem[];
   /** Q11：**产出机制的自述**。关键词回退与 LLM 结果形状完全相同，
    *  `false` 时必须显示「关键词回退评分」，**禁止呈现为模型评分**（§3.1 诚实条款）。
