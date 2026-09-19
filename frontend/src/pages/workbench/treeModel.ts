@@ -30,12 +30,16 @@ export function deriveStepStates(d: DiscoveryView | null, hitl = false): StepSta
   if (!d) return states;
   const running = d.step_state === "running";
   const failed = d.step_state === "failed";
-  // ① 需求分析
+  // ① 需求分析：分析不充分且还有待澄清问题时 → 停在「待人答」门
+  //    （2026-09-20 移植主线 5743fbc2：此前只要 analysis 块在场就标 done，
+  //     用户看不出自己需要补充回答，右栏也没有立即弹出追问）
   states[0] =
     d.analysis !== null
       ? d.analysis?.error
         ? "failed"
-        : "done"
+        : !d.analysis.sufficient && d.analysis.questions.length > 0
+          ? "gate"
+          : "done"
       : d.step === 1
         ? running
           ? "run"

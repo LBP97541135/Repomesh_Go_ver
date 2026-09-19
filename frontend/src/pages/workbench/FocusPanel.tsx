@@ -9,6 +9,7 @@
  *  消息渲染：只有真实房间消息才渲染成聊天气泡（契约 Q4 硬约束），角色由
  *  actor_id 前缀推导（agent_<role>[_<name>]），推导不出按系统条目样式。 */
 
+import { X as IconX } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { IconCheck, IconClock, IconHouse, IconRun, IconSend } from "./treeIcons";
 import { WorkerHealthGate } from "./WorkerHealthGate";
@@ -100,7 +101,7 @@ function MessageTimeline({ messages }: { messages: ConversationMessage[] }) {
             </span>
             <div className="min-w-0 flex-1">
               <div className="mb-0.5 flex items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-[var(--tree-ink)]">{actor.label}</span>
+                <span className="text-[11px] font-medium text-[var(--tree-ink)]">{actor.label}</span>
                 <span className={`rounded-[5px] px-1.5 py-px text-[9.5px] ${RPILL_CLS[actor.cls]}`}>{actor.role}</span>
                 <span className="ml-auto font-mono text-[10px] text-[var(--tree-faint)]">{hhmm(m.createdAt)}</span>
               </div>
@@ -177,7 +178,7 @@ function TestEvidenceRow({ item }: { item: TestEvidenceItem }) {
     ? "border-olive/40 bg-olive-well text-olive"
     : "border-salmon/40 bg-salmon-well text-salmon";
   return (
-    <div className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+    <div className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2 transition-colors hover:bg-[var(--tree-zone)]">
       <div className="flex items-center gap-2">
         <span className={`flex-none rounded-[5px] border px-1.5 py-px text-[10px] ${tone}`}>
           {item.passed ? "通过" : "未过"}
@@ -252,7 +253,7 @@ function IssueScopeCard({
       .finally(() => setBusy(false));
   };
   return (
-    <div className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+    <div className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2 transition-colors hover:bg-[var(--tree-zone)]">
       <p className="text-[11.5px] text-[var(--tree-ink)]">本次 Issue 的仓库范围（{scope.length}）</p>
       {scope.length === 0 && (
         <p className="mt-1 text-[10.5px] text-[var(--tree-faint)]">还没有仓库 —— 服务端按此范围校验一切改动。</p>
@@ -336,7 +337,7 @@ function StageHistory({
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-4 py-3">
         <p className="text-[12px] font-medium text-[var(--tree-ink)]">规划 · 五步回看</p>
         {STEP_LABELS.map((label, i) => (
-          <div key={label} className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+          <div key={label} className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2 transition-colors hover:bg-[var(--tree-zone)]">
             <div className="flex items-center gap-2">
               <span className="text-[11.5px] text-[var(--tree-ink)]">{i + 1}. {label}</span>
               <span className="ml-auto text-[10.5px] text-[var(--tree-sub)]">{stepState(i)}</span>
@@ -363,7 +364,7 @@ function StageHistory({
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 py-3">
         <p className="text-[12px] font-medium text-[var(--tree-ink)]">执行 · 任务与验收</p>
         {tasks.map((t) => (
-          <div key={t.id} className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+          <div key={t.id} className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2 transition-colors hover:bg-[var(--tree-zone)]">
             <div className="flex items-center gap-2">
               <span className="min-w-0 flex-1 truncate text-[11.5px] text-[var(--tree-ink)]">{t.title}</span>
               <span className="flex-none text-[10.5px] text-[var(--tree-sub)]">{t.status}</span>
@@ -393,7 +394,7 @@ function StageHistory({
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-4 py-3">
         <p className="text-[12px] font-medium text-[var(--tree-ink)]">审核 · 经理门决策</p>
         {decided.map((t) => (
-          <div key={t.id} className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+          <div key={t.id} className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2 transition-colors hover:bg-[var(--tree-zone)]">
             <p className="text-[11.5px] text-[var(--tree-ink)]">{t.title}</p>
             <p className="mt-1 text-[10.5px] leading-[1.7] text-[var(--tree-sub)]">
               {t.resultSummary}
@@ -409,7 +410,7 @@ function StageHistory({
     <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-4 py-3">
       <p className="text-[12px] font-medium text-[var(--tree-ink)]">交付 · PR 列车</p>
       {trainCars.map((car, index) => (
-        <div key={index} className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+        <div key={index} className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2 transition-colors hover:bg-[var(--tree-zone)]">
           <div className="flex items-center gap-2">
             <span className="min-w-0 flex-1 truncate text-[11.5px] text-[var(--tree-ink)]">{car.repo}</span>
             <span className={`flex-none rounded-[5px] border px-1.5 py-px text-[10px] ${car.merged ? "border-olive/40 bg-olive-well text-olive" : "border-[var(--tree-hairline)] text-[var(--tree-sub)]"}`}>
@@ -452,7 +453,11 @@ export interface FocusPanelProps {
   input: { placeholder: string; sending: boolean; disabled?: boolean; onSend: (text: string) => void } | null;
   /** 交付期到达且人工参与:合并确认也作为一条带按钮的消息出现在 Manager 房间 */
   mergePending?: boolean;
-  onConfirmMerge?: () => void;
+  /** 点「查看交付序列」:左栏那列交付列车高亮（合并确认在列车上做，聊天卡只做指针）
+   *  2026-09-20 移植主线 9f206b0a。 */
+  onViewTrain?: () => void;
+  /** 收起右栏(2026-09-20 移植主线 0c7a54a1):收起后左栏铺满,窄条上一个展开按钮 */
+  onCollapse?: () => void;
   /** 候选分流(2026-09-18 用户裁定):第 2 步聊天室里选——人勾选 / AI 推断 */
   onChooseManual?: () => void;
   onChooseAI?: () => void;
@@ -491,7 +496,8 @@ export function FocusPanel({
   onRetryPolicy,
   input,
   mergePending = false,
-  onConfirmMerge,
+  onViewTrain,
+  onCollapse,
   testEvidence,
   tasks,
   trainCars,
@@ -566,7 +572,7 @@ export function FocusPanel({
           stepStates={stepStates}
           mergePending={mergePending}
           onGate={onGate}
-          onConfirmMerge={onConfirmMerge}
+          onViewTrain={onViewTrain}
           gateBusy={gateBusy}
           gateError={gateError}
           discovery={discovery}
@@ -618,7 +624,7 @@ export function FocusPanel({
       <div className="flex items-center gap-2.5 border-b border-[var(--tree-hairline)] bg-[var(--tree-zone)] px-4 py-2.5">
         <IconHouse size={15} className="flex-none text-[var(--tree-acc)]" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-semibold leading-[1.4] text-[var(--tree-ink)]">{header.title}</p>
+          <p className="truncate text-[12.5px] font-medium leading-[1.4] text-[var(--tree-ink)]">{header.title}</p>
           <p className="truncate font-mono text-[9.5px] tracking-wide text-[var(--tree-faint)]">
             {header.roomNo} · {header.note}
           </p>
@@ -629,6 +635,18 @@ export function FocusPanel({
               <RoomAvatar key={i} member={m} />
             ))}
           </div>
+        )}
+        {/* 收起右栏(2026-09-20 移植主线 0c7a54a1)：摆在门牌条上而不是正文里，
+            「选中了条目时也能收起」——正文里那块空态按钮只在没选条目时可见。 */}
+        {onCollapse && (
+          <button
+            type="button"
+            className="grid size-6 flex-none place-items-center rounded-hard text-[var(--tree-faint)] transition-colors hover:bg-[var(--tree-card)] hover:text-[var(--tree-ink)]"
+            title="收起详情面板"
+            onClick={() => onCollapse()}
+          >
+            <IconX size={13} strokeWidth={1.75} />
+          </button>
         )}
       </div>
       {/* 天花板：房檐下一条渐变阴影，「进到屋里」的纵深 */}
@@ -779,7 +797,7 @@ function GateStack({
   stepStates,
   mergePending,
   onGate,
-  onConfirmMerge,
+  onViewTrain,
   gateBusy,
   gateError,
   discovery,
@@ -792,7 +810,7 @@ function GateStack({
   stepStates: StepState[];
   mergePending: boolean;
   onGate: (action: "approveTiers" | "materialize") => void;
-  onConfirmMerge?: () => void;
+  onViewTrain?: () => void;
   gateBusy: "approveTiers" | "materialize" | null;
   gateError: string | null;
   discovery: DiscoveryView | null;
@@ -843,12 +861,15 @@ function GateStack({
     });
   }
   if (mergePending) {
+    // 2026-09-20 移植主线 9f206b0a：这张卡从「确认合并」变成「查看交付序列」指针
+    // —— 合并确认在左栏那列车上做（那里能看到每节车厢的门禁与顺序），聊天卡里
+    // 只负责把人带到列车前。
     cards.push({
       key: "merge",
       title: "交付序列 · 待确认合并",
-      desc: "全部任务完成、门禁就绪,按依赖顺序执行合并",
-      label: "确认合并",
-      action: () => onConfirmMerge?.(),
+      desc: "全部任务完成、门禁就绪;合并顺序见左侧交付列车",
+      label: "查看交付序列",
+      action: () => onViewTrain?.(),
       busy: false,
     });
   }
@@ -865,7 +886,7 @@ function GateStack({
             <div className="mb-0.5 flex items-center gap-1.5">
               <span className="text-[11px] font-medium text-[var(--tree-ink)]">候选仓库 · 待人选择</span>
             </div>
-            <div className="rounded-hard border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+            <div className="rounded-hard border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2 transition-colors hover:bg-[var(--tree-zone)]">
               <p className="text-[11px] leading-[1.6] text-[var(--tree-sub)]">这个需求涉及哪些仓库?你来勾选,或让 AI 从项目目录推断。</p>
               <div className="mt-1.5 flex gap-2">
                 <button
@@ -897,9 +918,9 @@ function GateStack({
           </span>
           <div className="min-w-0 flex-1">
             <div className="mb-0.5 flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-[var(--tree-ink)]">{c.title}</span>
+              <span className="text-[11px] font-medium text-[var(--tree-ink)]">{c.title}</span>
             </div>
-            <div className="rounded-lg border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+            <div className="rounded-lg border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2 transition-colors hover:bg-[var(--tree-zone)]">
               <p className="text-[11px] leading-[1.6] text-[var(--tree-sub)]">{c.desc}</p>
               <button
                 type="button"
@@ -943,9 +964,9 @@ function SupplementConfirmCard({
       </span>
       <div className="min-w-0 flex-1">
         <div className="mb-0.5 flex items-center gap-1.5">
-          <span className="text-[11px] font-semibold text-[var(--tree-ink)]">漏选清单 · 待人确认</span>
+          <span className="text-[11px] font-medium text-[var(--tree-ink)]">漏选清单 · 待人确认</span>
         </div>
-        <div className="rounded-hard border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+        <div className="rounded-hard border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2 transition-colors hover:bg-[var(--tree-zone)]">
           <p className="text-[11px] leading-[1.6] text-[var(--tree-sub)]">依赖图显示这些仓库可能被漏选(你勾选的仓库依赖它们):</p>
           <div className="mt-1 flex flex-col gap-0.5">
             {supplements.map((s) => (
@@ -1167,8 +1188,8 @@ function CardShell({ title, tone = "plain", children }: { title: string; tone?: 
   const toneCls =
     tone === "done" ? "text-olive" : tone === "gate" ? "text-amber" : "text-[var(--tree-acc)]";
   return (
-    <div className="rounded-[9px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] p-3">
-      <p className={`mb-1.5 flex items-center gap-1.5 text-[12px] font-semibold text-[var(--tree-ink)]`}>
+    <div className="rounded-[9px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] p-3 transition-colors hover:bg-[var(--tree-zone)]">
+      <p className={`mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-[var(--tree-ink)]`}>
         {tone === "done" ? <IconCheck size={12} className={toneCls} /> : tone === "gate" ? <IconClock size={12} className={toneCls} /> : <IconRun size={12} className={toneCls} />}
         {title}
       </p>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronLeft, FileText, X } from "lucide-react";
+import { ChevronLeft, FileText, PanelLeftOpen, X } from "lucide-react";
 import { PrTrainCard, type TrainCarSpec } from "./PrTrainCard";
 import { DispatchTree } from "./DispatchTree";
 import { FocusPanel } from "./FocusPanel";
@@ -107,6 +107,8 @@ export function WorkbenchPage({
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [activeEntry, setActiveEntry] = useState<FocusEntry | null>(null);
+  /** 右栏可折叠(2026-09-20 移植主线 0c7a54a1):收起后左树铺满,窄条上一个展开钮。 */
+  const [focusOpen, setFocusOpen] = useState(true);
   /** 静默轮询与首载的界线：换 issue 才整页 loading，轮询只换数据不闪屏
    *  （树与右栏每 5s 卸载重挂正是「一闪一闪」的根源，旧工作台同款保护）。 */
   const loadedIssueRef = useRef<string | null>(null);
@@ -356,6 +358,15 @@ export function WorkbenchPage({
     discovery.analysis !== null &&
     !discovery.analysis.sufficient &&
     discovery.analysis.questions.length > 0;
+
+  // 追问待答且右栏没有选中条目时，自动跳到步 1（2026-09-20 移植主线 5743fbc2）：
+  // ① 现在会停在「待人答」门态，但人不点左树就看不到追问与回答框 —— 自动选中
+  // 让人一进页就能答。已经选着别处时不抢焦点（activeEntry === null 才动）。
+  useEffect(() => {
+    if (clarifyPending && activeEntry === null) {
+      setActiveEntry({ kind: "step", step: 1 });
+    }
+  }, [clarifyPending, activeEntry]);
 
   // ── 右栏输入框：追问回答（规划期）或往当前会话发消息（真端点） ──
   const [sending, setSending] = useState(false);
@@ -837,9 +848,22 @@ export function WorkbenchPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, trainKey, reload]);
 
+  // ── 查看交付序列（2026-09-20 移植主线 9f206b0a）：右栏那张合并卡只是指针 ——
+  //    点一下把左栏列车滚进视野并高亮一档；合并确认在列车上做（那里能看到每节
+  //    车厢的门禁与顺序），聊天卡不再假装自己能合并。 ──
+  const trainWrapRef = useRef<HTMLDivElement | null>(null);
+  const [trainSpot, setTrainSpot] = useState(false);
+  const handleViewTrain = () => {
+    setTrainSpot(true);
+    trainWrapRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    window.setTimeout(() => setTrainSpot(false), 2000);
+  };
+  /** 右栏焦点正停在「交付序列」（顶栏交付段点开的历史）时，列车持续高亮。 */
+  const viewingDelivery = activeEntry?.kind === "stage" && activeEntry.stage === 3;
+
   const train: ReactNode =
     allTasksDone && trainCars !== null ? (
-      <div className="train-in flex-none px-4 pb-4 pt-1">
+      <div ref={trainWrapRef} className="train-in flex-none px-4 pb-4 pt-1">
         <PrTrainCard
           cars={trainCars}
           projectId={trainPid ?? undefined}
@@ -847,6 +871,7 @@ export function WorkbenchPage({
           // handleConfirmMerge 已经改成真调合并端点，但按钮接的是这一行，于是
           // 点「确认合并」只弹一句话、一个 PR 都不会合。改成真合并。
           onConfirm={() => void handleConfirmMerge()}
+          spotlight={trainSpot || viewingDelivery}
         />
       </div>
     ) : null;
@@ -880,6 +905,45 @@ export function WorkbenchPage({
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="text-[19px] font-medium text-cream">{greeting}，要规划什么需求？</h1>
           <p className="text-[12px] text-tx2">项目：{projectName} · 选择本次 Issue 的工作仓库后提交</p>
+          {/* 需求模板下载（2026-09-20 移植主线 13abb29c）：模板按发现链真正校验的
+              四个维度（业务场景/行为描述/变更类型/技术约束）排版，词面命中覆盖标记，
+              照它填就能一次过分析、少走追问轮次。 */}
+          <button
+            type="button"
+            className="mt-1 flex items-center gap-1.5 rounded-hard border border-line px-3 py-1 text-[11.5px] text-tx2 transition-colors hover:border-amber hover:text-tx"
+            title="下载需求模板（.md）——按四维度填写，减少追问轮次"
+            onClick={() => {
+              const tmpl = [
+                "# 需求标题（一句话概括核心目标）",
+                "",
+                "## 业务场景",
+                "谁在什么场景下遇到什么问题？（用户/场景/业务/客户）",
+                "",
+                "## 行为描述",
+                "系统应该支持什么行为？期望的功能/接口是什么？（应该/需要/支持/实现）",
+                "",
+                "## 变更类型",
+                "这是新增功能、修改现有逻辑、修复 bug、重构还是迁移？（新增/修改/重构/修复/迁移）",
+                "",
+                "## 技术约束（可选，缺少不算不足）",
+                "性能/安全/兼容性/依赖/协议方面有什么要求？",
+                "",
+                "---",
+                "以上四个维度都写清楚，需求分析直接通过，不需要追问。",
+                "技术约束为可选维度，缺少不影响分析通过。",
+              ].join("\n");
+              const blob = new Blob([tmpl], { type: "text/markdown;charset=utf-8" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = "需求模板.md";
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            <FileText size={13} strokeWidth={1.75} />
+            下载需求模板
+          </button>
         </div>
         <section className="w-full max-w-[720px] rounded-hard border border-line bg-panel p-4 text-sm">
           <h2>本次 Issue 的仓库范围（已选 {selectedRepos.length} 个）</h2>
@@ -1066,7 +1130,7 @@ export function WorkbenchPage({
         </div>
         <div className="flex max-h-[50vh] flex-col gap-1 overflow-y-auto px-4 py-3">
           {Object.entries(repoNameById).map(([id, name]) => (
-            <label key={id} className="flex cursor-pointer items-center gap-2.5 rounded-hard border border-line bg-ink px-3 py-2 text-[12px] hover:border-amber">
+            <label key={id} className="flex cursor-pointer items-center gap-2.5 rounded-hard border border-line bg-ink px-3 py-2 text-[12px] transition-colors hover:border-amber hover:bg-[var(--tree-zone)]">
               <input
                 type="checkbox"
                 checked={!!pickedRepos[id]}
@@ -1122,55 +1186,73 @@ export function WorkbenchPage({
             {/* PR 交付列车:交付环节到达时从左栏底部弹入,不占聊天房间 */}
             {train}
           </div>
-          <FocusPanel
-            entry={activeEntry}
-            discovery={discovery}
-            testEvidence={testEvidence}
-            tasks={tasks}
-            trainCars={trainCars}
-            scopeRepoIds={(detail.repositories ?? []).map((r) => r.repository_id)}
-            repoOptions={Object.entries(repoNameById).map(([id, name]) => ({ id, name }))}
-            onAppendRepository={handleAppendRepository}
-            stepStates={stepStates}
-            task={taskEntry}
-            messages={entryMessages}
-            onGate={handleGate}
-            gateBusy={gateBusy}
-            gateError={gateError}
-            onRetryStep={handleRetryStep}
-            stepError={stepError}
-            onForceContinue={handleForceContinue}
-            onDecideTask={handleDecideTask}
-            policyCard={flow.policyCard}
-            onConfigurePolicy={() => setPolicyOpen(true)}
-            onRetryPolicy={flow.reloadPolicy}
-            mergePending={allTasksDone && trainCars !== null && issueHitl === "hitl"}
-            onConfirmMerge={handleConfirmMerge}
-            onChooseManual={handleChooseManual}
-            onChooseAI={handleChooseAI}
-            onConfirmSupplements={handleConfirmSupplements}
-            selectionBusy={selectionBusy}
-            input={
-              activeEntry === null
-                ? null
-                : clarifyPending && activeEntry.kind === "step" && activeEntry.step <= 2
-                  ? {
-                      placeholder: "回答处理员的追问 —— 发送后它会带着你的补充继续分析（Enter 发送）",
-                      sending,
-                      onSend: handleEntrySend,
-                    }
-                  : entryConvId
+          {focusOpen ? (
+            <FocusPanel
+              entry={activeEntry}
+              discovery={discovery}
+              testEvidence={testEvidence}
+              tasks={tasks}
+              trainCars={trainCars}
+              scopeRepoIds={(detail.repositories ?? []).map((r) => r.repository_id)}
+              repoOptions={Object.entries(repoNameById).map(([id, name]) => ({ id, name }))}
+              onAppendRepository={handleAppendRepository}
+              stepStates={stepStates}
+              task={taskEntry}
+              messages={entryMessages}
+              onGate={handleGate}
+              gateBusy={gateBusy}
+              gateError={gateError}
+              onRetryStep={handleRetryStep}
+              stepError={stepError}
+              onForceContinue={handleForceContinue}
+              onDecideTask={handleDecideTask}
+              policyCard={flow.policyCard}
+              onConfigurePolicy={() => setPolicyOpen(true)}
+              onRetryPolicy={flow.reloadPolicy}
+              mergePending={allTasksDone && trainCars !== null && issueHitl === "hitl"}
+              // 2026-09-20 移植主线 9f206b0a：合并卡改做「查看交付序列」指针。
+              // onConfirmMerge 这个 prop 撤掉了，但能力没少 —— 列车卡自己的
+              // 「确认合并」才是真入口（那里看得见每节车厢的门禁与顺序）。
+              onViewTrain={handleViewTrain}
+              onCollapse={() => setFocusOpen(false)}
+              onChooseManual={handleChooseManual}
+              onChooseAI={handleChooseAI}
+              onConfirmSupplements={handleConfirmSupplements}
+              selectionBusy={selectionBusy}
+              input={
+                activeEntry === null
+                  ? null
+                  : clarifyPending && activeEntry.kind === "step" && activeEntry.step <= 2
                     ? {
-                        placeholder:
-                          activeEntry.kind === "mgr"
-                            ? "发消息到主会话…（Enter 发送）"
-                            : "发消息到该任务房间…（Enter 发送）",
+                        placeholder: "回答处理员的追问 —— 发送后它会带着你的补充继续分析（Enter 发送）",
                         sending,
                         onSend: handleEntrySend,
                       }
-                    : null
-            }
-          />
+                    : entryConvId
+                      ? {
+                          placeholder:
+                            activeEntry.kind === "mgr"
+                              ? "发消息到主会话…（Enter 发送）"
+                              : "发消息到该任务房间…（Enter 发送）",
+                          sending,
+                          onSend: handleEntrySend,
+                        }
+                      : null
+              }
+            />
+          ) : (
+            /* 收起态：一条 36px 窄条，左树铺满；点展开钮复原右栏
+               （2026-09-20 移植主线 0c7a54a1，贴合 LBP 的左树 + 右详情分栏）。 */
+            <div className="flex w-[36px] flex-none flex-col items-center border-l border-[var(--tree-hairline)] bg-[var(--tree-zone)] py-3">
+              <button
+                className="grid size-7 place-items-center rounded-hard text-[var(--tree-faint)] transition-colors hover:bg-[var(--tree-card)] hover:text-[var(--tree-ink)]"
+                title="展开详情面板"
+                onClick={() => setFocusOpen(true)}
+              >
+                <PanelLeftOpen size={14} strokeWidth={1.5} />
+              </button>
+            </div>
+          )}
         </div>
       )}
 

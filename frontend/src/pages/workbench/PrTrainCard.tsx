@@ -12,6 +12,7 @@
  *  freezeChangeSet)提供给本卡。 */
 
 import { useEffect, useState } from "react";
+import { IconChevron } from "./treeIcons";
 import { getMergeGate, type MergeGate } from "../../api/scm";
 
 type CarState = "done" | "run" | "wait";
@@ -64,14 +65,21 @@ export function PrTrainCard({
   cars,
   projectId,
   className = "",
+  spotlight = false,
 }: {
   onConfirm?: () => void;
   /** live 车厢(可选):提供 changeSetId 的车厢轮询真门禁;缺省 = 夹具三节 */
   cars?: TrainCarSpec[];
   projectId?: string;
   className?: string;
+  /** 查看交付序列时点名这列车(2026-09-20 移植主线 9f206b0a):卡片高亮一档,
+   *  与左栏其余内容拉开层次 —— 合并确认在这列车上做,不在聊天卡里做。 */
+  spotlight?: boolean;
 }) {
   const live = cars !== undefined;
+  // 2026-09-20 移植主线第二批(0c7a54a1):默认收起成一行摘要,点开再看整列车
+  // （次级信息渐进披露——交付期左栏底部不再被三节车厢撑高）
+  const [open, setOpen] = useState(false);
   const list: Array<TrainCarSpec & { state?: CarState }> =
     cars ?? FIXTURE_CARS.map((c) => ({ ...c }));
   const [gates, setGates] = useState<Record<string, MergeGate>>({});
@@ -95,19 +103,40 @@ export function PrTrainCard({
   }, [projectId, cars]);
 
   return (
-    <div className={`rounded-xl border border-[var(--tree-hairline)] bg-[var(--tree-card)] p-3 shadow-[0_1px_3px_rgba(15,15,15,.05)] ${className}`}>
-      {/* 卡头:合并确认语境 */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="rounded-full border border-olive/50 bg-olive/10 px-2 py-0.5 text-[10px] font-medium text-olive">
-            测试已通过
-          </span>
-          <span className="rounded-full border border-[#e0dfdc] bg-[#fafafa] px-2 py-0.5 text-[10px] text-[var(--tree-faint)]">
-            Manager 已确认
-          </span>
-        </div>
-        <span className="text-[10px] text-[var(--tree-faint)]">交付序列 · 按仓库依赖顺序合并</span>
-      </div>
+    <div
+      className={`rounded-xl border border-[var(--tree-hairline)] bg-[var(--tree-card)] p-3 shadow-[0_1px_3px_rgba(15,15,15,.05)] transition-shadow duration-300 ${
+        spotlight ? "ring-2 ring-[var(--tree-acc)]/45" : ""
+      } ${className}`}
+    >
+      {/* 卡头=折叠开关(2026-09-20):摘要行常驻(两枚徽标 + N 节 · M 已合并 + 箭头),
+          列车详情点开看 —— 合并确认按钮在列车里,不在摘要行。 */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 rounded-hard text-left transition-colors hover:bg-[var(--tree-zone)]"
+        title={open ? "收起交付序列" : "展开交付序列"}
+      >
+        <span className="rounded-full border border-olive/50 bg-olive/10 px-2 py-0.5 text-[10px] font-medium text-olive">
+          测试已通过
+        </span>
+        <span className="rounded-full border border-[#e0dfdc] bg-[#fafafa] px-2 py-0.5 text-[10px] text-[var(--tree-faint)]">
+          Manager 已确认
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[10.5px] text-[var(--tree-faint)]">
+          交付序列 · {list.length} 节 · {list.filter((c) => (live ? c.merged : c.state === "done")).length} 已合并
+        </span>
+        <IconChevron
+          size={11}
+          className={`flex-none text-[var(--tree-faint)] transition-transform ${open ? "rotate-90" : ""}`}
+        />
+      </button>
+
+      <div
+        className={`grid transition-[grid-template-rows,opacity] duration-300 ${
+          open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+        }`}
+      >
+        <div className="min-h-0 overflow-hidden">
 
       {/* 列车:三节,箭头表达顺序 */}
       <div className="mt-2.5 flex items-stretch">
@@ -133,11 +162,11 @@ export function PrTrainCard({
           return (
             <div key={car.repo} className="flex min-w-[118px] flex-1 items-stretch">
               <div
-                className={`min-w-[118px] flex-1 rounded-lg border bg-[var(--tree-card)] px-2.5 py-2 ${
+                className={`min-w-[118px] flex-1 rounded-lg border bg-[var(--tree-card)] px-2.5 py-2 transition-colors hover:bg-[var(--tree-zone)] ${
                   state === "run" ? "border-[rgba(94,106,210,.45)] shadow-[0_0_0_3px_rgba(94,106,210,.07)]" : "border-[var(--tree-hairline)]"
                 }`}
               >
-                <div className="text-[12.5px] font-semibold text-[#37352f]">{car.repo}</div>
+                <div className="text-[12.5px] font-medium text-[#37352f]">{car.repo}</div>
                 <div className="mt-0.5 font-mono text-[10px] text-[var(--tree-faint)]">
                   {live ? car.pr ?? car.changeSetId : car.pr}
                 </div>
@@ -165,17 +194,18 @@ export function PrTrainCard({
         })}
       </div>
 
-      {/* 人工节点:确认合并(带按钮的消息) */}
-      <div className="mt-2.5 flex items-center justify-between border-t border-dashed border-[var(--tree-hairline)] pt-2">
-        <span className="text-[10.5px] text-[var(--tree-faint)]">
-          前序已合并的仓库先合;确认后按顺序依次执行,乱序将被 merge gate 拒绝
-        </span>
+      {/* 人工节点:确认合并(带按钮的消息)
+          2026-09-20 移植主线 f4f0c49a:去掉左侧那句脚注 —— 顺序约束由各车厢的
+          状态文案与门禁如实表达,不再额外挂一行说明文字。 */}
+      <div className="mt-2.5 flex items-center justify-end border-t border-dashed border-[var(--tree-hairline)] pt-2">
         <button
           onClick={onConfirm}
           className="rounded-lg bg-[var(--tree-acc)] px-3.5 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-[var(--tree-acc)]"
         >
           确认合并
         </button>
+      </div>
+        </div>
       </div>
     </div>
   );
