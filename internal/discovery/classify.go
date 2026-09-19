@@ -106,7 +106,12 @@ func (s *Service) Classification(ctx context.Context, issueID, agentID, idempote
 		"adjustments": []any{}, "ran_at": time.Now().UTC(), "by_agent_id": agentID, "error": nil,
 	}
 	names := []string{}
-	for _, group := range [][]map[string]any{required, maybe, excluded} {
+	// 2026-09-20 线上实测：这里此前把**排除档也算进范围校验**，于是一个越界的
+	// 候选（agent 顺手给"本项目里但不在本 issue 范围"的仓库打了个 excluded）
+	// 会让整步 ③ 以「仓库不在此 Issue 已确认的项目范围内」失败 —— 而"排除它"
+	// 恰恰就是正确的结论。范围校验只对**真会被改动的那两档**有意义；排除档
+	// 不进计划、不进任务，越界也无害。required/maybe 越界仍然照旧拦下。
+	for _, group := range [][]map[string]any{required, maybe} {
 		for _, entry := range group {
 			names = append(names, entry["repository"].(string))
 		}
