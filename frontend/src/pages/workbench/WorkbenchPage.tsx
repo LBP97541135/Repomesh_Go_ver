@@ -7,7 +7,7 @@ import { deriveStepStates } from "./treeModel";
 import type { FocusEntry } from "./treeModel";
 import { IconBolt, IconUser } from "./treeIcons";
 import type { DiscoveryView, IssueDetailView } from "../../api/contract";
-import { parseRequirementDocument, type CreateIssueRequest } from "../../api/issues";
+import { parseRequirementDocument, resolveProjectId, type CreateIssueRequest } from "../../api/issues";
 import { fetchIssueDetail } from "../../api/rooms";
 import { listConversationMessages, submitMessage, type ConversationMessage } from "../../api/conversations";
 import { listPlanTasks, type PlanTaskItem } from "../../api/taskTree";
