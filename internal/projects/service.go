@@ -60,7 +60,9 @@ func (s *Service) Create(ctx context.Context, principal access.ProjectPrincipal,
 		}
 		return CreateResult{}, err
 	}
-	observation, err := s.access.ObserveProjectRepositories(ctx, principal, locators)
+	// 提交路径必须现探：CheckProjectObservation 要求观测落在 60 秒窗口内，
+	// 命中一条 5 分钟的旧缓存会放行已经变化的参与权（2026-09-18 主线修正）。
+	observation, err := s.access.ObserveProjectRepositoriesFresh(ctx, principal, locators)
 	if err != nil {
 		replayTx, beginErr := s.beginWrite(ctx)
 		if beginErr == nil {
@@ -233,7 +235,7 @@ func (s *Service) prepareUpdate(ctx context.Context, principal access.ProjectPri
 	}
 	var observation access.ProjectObservation
 	if len(additions) > 0 {
-		observation, err = s.access.ObserveProjectRepositories(ctx, principal, additions)
+		observation, err = s.access.ObserveProjectRepositoriesFresh(ctx, principal, additions)
 		if err != nil {
 			return updatePlan{}, err
 		}
@@ -617,7 +619,7 @@ func (s *Service) Repositories(ctx context.Context, principal access.ProjectPrin
 	if err != nil {
 		return ProjectRepositoryPage{}, err
 	}
-	observation, err := s.access.ObserveProjectRepositories(ctx, principal, repositories)
+	observation, err := s.access.ObserveProjectRepositoriesFresh(ctx, principal, repositories)
 	if err != nil {
 		return ProjectRepositoryPage{}, err
 	}

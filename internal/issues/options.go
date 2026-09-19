@@ -108,11 +108,13 @@ func (s *Service) Options(ctx context.Context, principal access.ProjectPrincipal
 	if end > len(observed) {
 		end = len(observed)
 	}
+	// 凭据级失败(所有仓都 unknown)仍然整体失败;单仓 unknown 是数据漂移
+	// (external id 不匹配/单仓探测失败)——那个仓不可选即可,不该拖垮整个表单。
+	if observation.AuthorizationFailed() {
+		return CreationOptions{}, failure(503, "AUTHORIZATION_UNCONFIRMED")
+	}
 	available := 0
 	for index, item := range observed {
-		if item.ParticipationStatus == "unknown" {
-			return CreationOptions{}, failure(503, "AUTHORIZATION_UNCONFIRMED")
-		}
 		if item.ParticipationStatus != "allowed" {
 			continue
 		}
