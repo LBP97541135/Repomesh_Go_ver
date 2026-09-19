@@ -74,8 +74,24 @@ func (s *Service) Analysis(ctx context.Context, issueID, agentID, idempotencyKey
 		return receipt, nil
 	}
 	text := st.RequirementText
+	// 持续补充：之前各轮已落库的 Q&A 也拼进文本——每轮只传当轮的 answers，
+	// 不合并的话上一轮的补充信息在重算时会被整段丢掉（2026-09-18 主线修正）。
+	merged := make([]map[string]any, 0, len(answers))
+	if prev, ok := st.Analysis["answers"].([]any); ok {
+		for _, item := range prev {
+			entry, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			merged = append(merged, entry)
+			question, _ := entry["question"].(string)
+			answer, _ := entry["answer"].(string)
+			text += "\n" + question + ": " + answer
+		}
+	}
 	for _, answer := range answers {
 		text += "\n" + answer.Question + ": " + answer.Answer
+		merged = append(merged, map[string]any{"question": answer.Question, "answer": answer.Answer})
 	}
 	lower := strings.ToLower(text)
 	keywords := extractKeywords(lower)
@@ -125,7 +141,7 @@ func (s *Service) Analysis(ctx context.Context, issueID, agentID, idempotencyKey
 		"dimensions":           dimensions,
 		"questions":            questions,
 		"extracted_keywords":   keywords,
-		"answers":              answers,
+		"answers":              merged,
 		"analyzed_requirement": text,
 		"forced_continue":      nil,
 		"ran_at":               time.Now().UTC(),
@@ -147,7 +163,12 @@ func (s *Service) Analysis(ctx context.Context, issueID, agentID, idempotencyKey
 
 func extractKeywords(lower string) []string {
 	stop := map[string]bool{"的": true, "了": true, "和": true, "是": true, "在": true, "有": true,
-		"the": true, "and": true, "for": true, "with": true, "this": true, "that": true}
+		"the": true, "and": true, "for": true, "with": true, "this": true, "that": true,
+		// 模板/文档结构噪声词（2026-09-18 主线修正：需求文档的标题编号和模板字段
+		// 不是业务关键词，留着只会把候选评分拖向"001/train/dataset"这类假信号）。
+		"001": true, "002": true, "003": true, "dataset": true, "datasets": true,
+		"train": true, "ticket": true, "data": true, "dataset来源": true,
+		"案例编号": true, "数据集": true, "需求概述": true, "修复需求": true}
 	words := strings.FieldsFunc(lower, func(r rune) bool {
 		return !(r > 127 || (r >= 97 && r <= 122) || (r >= 48 && r <= 57))
 	})
@@ -157,6 +178,10 @@ func extractKeywords(lower string) []string {
 		if len([]rune(word)) < 2 || stop[word] || seen[word] {
 			continue
 		}
+		// 纯数字的词不进关键词（编号/ID/年份等，2026-09-18 主线修正）。
+		if isAllDigits(word) {
+			continue
+		}
 		seen[word] = true
 		result = append(result, word)
 		if len(result) >= 12 {
@@ -164,6 +189,16 @@ func extractKeywords(lower string) []string {
 		}
 	}
 	return result
+}
+
+// isAllDigits 判断整串是否都是数字（编号/ID/年份不构成业务关键词）。
+func isAllDigits(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return len(s) > 0
 }
 
 func minInt(a, b int) int {
@@ -207,7 +242,10 @@ func (s *Service) Candidates(ctx context.Context, issueID, agentID, idempotencyK
 		limit = 50
 	}
 
-	// Candidate discovery cannot expand the issue's confirmed work scope.
+	// 候选发现**不扩** issue 已确认的工作范围。这条边界有测试守着
+	// （observation_postgres_test 的 "scope leaked into observation"），
+	// 2026-09-18 主线曾把它放宽到项目范围、随后自己收了回去；LBP 这条线
+	// 保持 issue 范围，候选只会落在已经确认过的仓上。
 	cards, err := s.loadRepoPool(ctx, tx, st.ProjectID, issueID)
 	if err != nil {
 		return nil, err
