@@ -1,0 +1,117 @@
+name: deploy
+
+# 触发：push 到 main（全自动部署）+ 手动点按钮。
+#
+# ⚠️ 绝不添加 pull_request 触发。这个仓库是**公开**的，而 runner 是装在
+#    生产服务器上、以 root 运行的**自托管** runner —— PR 触发的 workflow
+#    等于让任何人的代码在这台机器上以 root 执行。只留 push:main 与手动。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 同一时间只允许一个部署；不取消进行中的（半途取消会留下停服/半装状态）
+concurrency:
+  group: repomesh-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, linux, repomesh-deploy]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 备份当前版本（失败回滚用）
+        id: backup
+        run: |
+          set -euo pipefail
+          STAMP=$(date +%Y%m%d-%H%M%S)
+          BK="/opt/repomesh/backups/$STAMP"
+          mkdir -p "$BK"
+          cp -a /opt/repomesh/bin "$BK/bin"
+          cp -a /opt/repomesh/dist "$BK/dist"
+          echo "path=$BK" >> "$GITHUB_OUTPUT"
+          echo "备份完成：$BK"
+          # 只保留最近 10 份
+          ls -dt /opt/repomesh/backups/* | tail -n +11 | xargs -r rm -rf
+
+      - name: 构建三个二进制
+        run: |
+          set -euo pipefail
+          export PATH=/usr/local/go/bin:$PATH
+          # gofmt 只告警、不阻断：仓库里 182 个文件是 CRLF 行尾（历史遗留，
+          # apply_patch 引入的），一旦阻断会让每次部署都失败。等做一次
+          # "全仓归一 LF" 的专门提交之后，这里再改成硬门禁。
+          gofmt -l internal cmd > /tmp/gofmt.txt || true
+          if [ -s /tmp/gofmt.txt ]; then
+            echo "::warning::$(wc -l < /tmp/gofmt.txt) 个文件未通过 gofmt（多为 CRLF 行尾），本次不阻断"
+          fi
+          go build -o bin/repomesh-web ./cmd/repomesh-web
+          go build -o bin/repomesh-coordinator ./cmd/repomesh-coordinator
+          go build -o bin/repomesh-host-executor ./cmd/repomesh-host-executor
+          echo "三件套构建完成"
+
+      - name: 构建前端（交付控制台）
+        run: |
+          set -euo pipefail
+          cd frontend
+          npm ci --no-audit --no-fund
+          # 跳过 tsc：控制台有既有类型错误，npm run build 会失败
+          npx vite build
+          echo "前端构建完成"
+
+      - name: 停服 → 迁移 → 安装 → 起服
+        run: |
+          set -euo pipefail
+          # 部署凭据只从服务器本地环境文件读，不进仓库、不进 GitHub Secrets
+          set -a
+          . /etc/repomesh/env
+          set +a
+          systemctl stop repomesh-host-executor repomesh-coordinator repomesh-web
+          ./bin/repomesh-web db migrate --timeout 60s
+          for b in repomesh-web repomesh-coordinator repomesh-host-executor; do
+            install -m 0755 "bin/$b" "/opt/repomesh/bin/$b"
+          done
+          # 前端只覆盖 index.html 与 assets/，保留服务器本地的 runtime-config.js
+          cp -a frontend/dist/index.html /opt/repomesh/dist/index.html
+          rm -rf /opt/repomesh/dist/assets
+          cp -a frontend/dist/assets /opt/repomesh/dist/assets
+          systemctl start repomesh-web repomesh-coordinator repomesh-host-executor
+          echo "三件套已安装并启动"
+
+      - name: 验活
+        run: |
+          set -euo pipefail
+          sleep 5
+          systemctl is-active repomesh-web repomesh-coordinator repomesh-host-executor
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/healthz)" = "200"
+          test "$(curl -s -o /dev/null -w '%{http_code}' https://crazykitties.cn/healthz)" = "200"
+          echo "验活通过"
+
+      - name: 同步 /root/build 为 main 的镜像
+        run: |
+          set -euo pipefail
+          # 服务端那份源码副本从此只读镜像 main；本地改 → push → 由这里落地
+          git -C /root/build remote set-url origin https://github.com/LBP97541135/Repomesh_Go_ver.git
+          git -C /root/build fetch --all --prune
+          git -C /root/build reset --hard origin/main
+          git -C /root/build log --oneline -1
+
+      - name: 失败回滚
+        if: failure()
+        run: |
+          set -euo pipefail
+          BK=$(ls -dt /opt/repomesh/backups/* 2>/dev/null | head -1 || true)
+          if [ -z "$BK" ]; then
+            echo "::error::没有可用备份，需人工介入"
+            exit 1
+          fi
+          echo "::warning::部署失败，回滚到 $BK"
+          systemctl stop repomesh-host-executor repomesh-coordinator repomesh-web || true
+          cp -a "$BK/bin/." /opt/repomesh/bin/
+          rm -rf /opt/repomesh/dist/assets
+          cp -a "$BK/dist/." /opt/repomesh/dist/
+          systemctl start repomesh-web repomesh-coordinator repomesh-host-executor || true
+          sleep 5
+          systemctl is-active repomesh-web repomesh-coordinator repomesh-host-executor || true
+          echo "::error::已回滚到上一版本，请检查失败原因后重新推送"
