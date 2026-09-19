@@ -21,6 +21,7 @@ import { RepositoriesPage } from "./pages/RepositoriesPage";
 import { ProjectSelectPage } from "./pages/ProjectSelectPage";
 import { SkillsPage } from "./pages/SkillsPage";
 import { ModelProvidersPage } from "./pages/ModelProvidersPage";
+import { SpecPage } from "./pages/SpecPage";
 import { beginProjectSession, clearActiveProject, setActiveProject } from "./api/activeProject";
 import { listAllProjects, type ProjectListItem } from "./api/projects";
 import { ReviewDeskPage } from "./pages/ReviewDeskPage";
@@ -504,6 +505,7 @@ export default function ConsoleShell() {
         )}
         {route.nav === "skills" && <SkillsPage onToast={showToast} />}
         {route.nav === "models" && <ModelProvidersPage />}
+        {route.nav === "specs" && <SpecPage onToast={showToast} />}
         {route.nav === "teams" && <TeamsPage onOpenIssue={openIssue} onOpenRoom={openRoom} />}
         {route.nav === "agents" && <AgentsPage onOpenIssue={openIssue} />}
         {route.nav === "observe" &&

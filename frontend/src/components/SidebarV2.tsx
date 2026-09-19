@@ -42,6 +42,7 @@ export type NavKey =
   | "teams"
   | "agents"
   | "observe"
+  | "specs"
   | "decision-chains"
   | "settings";
 
@@ -55,6 +56,7 @@ const NAV_ICON: Record<NavKey, LucideIcon> = {
   teams: Users,
   agents: Bot,
   observe: Activity,
+  specs: FileCheck,
   "decision-chains": History,
   settings: Settings,
 };
@@ -69,6 +71,7 @@ const NAV_LABEL: Record<NavKey, string> = {
   teams: "团队",
   agents: "智能体",
   observe: "观测",
+  specs: "规格",
   "decision-chains": "历史决策",
   settings: "设置",
 };
@@ -80,7 +83,7 @@ const NAV_LABEL: Record<NavKey, string> = {
  *  not_implemented——先恢复入口，后端补齐即自动点亮。 */
 const NAV_GROUPS: Array<{ heading: string; keys: NavKey[] }> = [
   { heading: "工作台", keys: ["projects", "issues", "reviews", "repositories"] },
-  { heading: "治理", keys: ["teams", "agents", "skills", "models", "observe"] },
+  { heading: "治理", keys: ["teams", "agents", "skills", "specs", "models", "observe"] },
 ];
 const NAV_BOTTOM: NavKey[] = ["decision-chains", "settings"];
 
