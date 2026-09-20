@@ -81,6 +81,11 @@ function goIssueDetailToView(d: GoIssueDetail): IssueDetailView {
     title: d.title,
     requirement_text: d.description,
     document_filename: null,
+    // 服务端事实，**必须透出来**：0053 起人审门模式由服务端说了算（建项时写入，
+    // 协调器按它停门）。转换函数此前把 `d.hitlMode` 丢掉了，于是工作台永远读到
+    // undefined、一律按最保守的 hitl 处理 —— 服务端设成 ai 也照样等人。
+    // 缺省/老数据仍按 hitl（与 client.ts 的 GoIssueDetail 注释同一口径）。
+    hitlMode: d.hitlMode === "ai" ? "ai" : "hitl",
     state: "open",
     phase: "plan",
     phase_note: "",

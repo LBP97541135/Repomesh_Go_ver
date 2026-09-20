@@ -220,6 +220,15 @@ export interface HumanGrantView {
 
 /** §3：在 §2 单条的**全部字段**之上追加，故继承 IssueListItemView 而不重抄字段表。 */
 export interface IssueDetailView extends IssueListItemView {
+  /** 这次 issue 的人审门模式（0053 迁移落的列，`internal/issues/query.go` 恒返回，
+   *  从未设置时 COALESCE 成 `hitl`）：`ai` = 自动托管（处理员代行 ③ 分档审批与
+   *  ⑤ 物化确认），`hitl` = 门等真人。
+   *
+   *  2026-09-20 补声明：此前它只活在浏览器 sessionStorage 里，协调器在 Go 侧看不到，
+   *  于是"人工参与"模式下这两个门照样被自动代行、换台机器还会回到默认。工作台改成读
+   *  服务端这个字段时只加了消费方、漏了这里的类型，`tsc -b` 因此报错（部署流程跳过
+   *  tsc，所以线上没有症状，但任何人本地构建都会被挡住）。 */
+  hitlMode: "ai" | "hitl";
   rounds: IssueRoundView[];
   repositories: IssueRepositoryRef[];
   teams: IssueTeamRef[];

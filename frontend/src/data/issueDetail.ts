@@ -27,6 +27,8 @@ export const issueDetailFixture: IssueDetailView = {
   issue_id: ISSUE_ID,
   issue_key: null,
   organization_id: ORG_ID,
+  // 回放样例：走最保守的人审门模式（门等真人），与服务端缺省一致。
+  hitlMode: "hitl",
   title: "结账价格修改原因：记录、暴露并在后台展示",
   requirement_text:
     "运营侧需要在订单结账时记录价格被修改的原因（促销、议价、纠错），原因随订单落库并在后台订单详情页展示。价格修改入口不变，新增原因必填校验与审计字段。",
