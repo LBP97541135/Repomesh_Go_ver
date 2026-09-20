@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -327,7 +328,66 @@ func (s *Service) EnsureForProject(ctx context.Context, projectID string, worker
 		}
 		created = append(created, id)
 	}
+	// 补齐房间号：这一步不能省。房间由 AgentTeams 控制器**异步**建，建队那一刻
+	// 通常还没建好，于是下面的 Create 读到空、room_id 留 NULL；而本函数会跳过
+	// "已经有团队"的仓库，那个 NULL 就再也没人来填。没有这条兜底，房间号恒空，
+	// "进房间看对话"永远是间进不去的房。
+	//
+	// 只 GET、不写远端，幂等；失败不影响本函数的返回（建队本身已经成功了）。
+	if _, err := s.backfillRooms(ctx); err != nil {
+		slog.Warn("repository team room backfill deferred", "reason", err.Error())
+	}
 	return created, firstErr
+}
+
+// backfillRooms 给"已经有团队但还没记住房间号"的行补一次回读。返回补齐的条数。
+func (s *Service) backfillRooms(ctx context.Context) (int, error) {
+	if s.pool == nil || s.client == nil {
+		return 0, nil
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT repository_id, agentteams_team_name
+		FROM public.repository_teams
+		WHERE COALESCE(team_room_id, '') = ''
+		ORDER BY repository_id`)
+	if err != nil {
+		return 0, fmt.Errorf("list teams without rooms: %w", err)
+	}
+	type pendingTeam struct{ repositoryID, teamName string }
+	pending := []pendingTeam{}
+	for rows.Next() {
+		var team pendingTeam
+		if err := rows.Scan(&team.repositoryID, &team.teamName); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("scan team without room: %w", err)
+		}
+		pending = append(pending, team)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	filled := 0
+	for _, team := range pending {
+		view, status, err := s.client.GetTeam(ctx, team.teamName)
+		if err != nil || status != http.StatusOK {
+			continue
+		}
+		if view.TeamRoomID == "" && view.LeaderDMRoomID == "" {
+			// 房间还没建好。下一轮再来，不当作错误。
+			continue
+		}
+		if _, err := s.pool.Exec(ctx, `
+			UPDATE public.repository_teams
+			SET team_room_id = COALESCE(NULLIF($2, ''), team_room_id),
+			    leader_dm_room_id = COALESCE(NULLIF($3, ''), leader_dm_room_id),
+			    updated_at = now()
+			WHERE repository_id = $1`, team.repositoryID, view.TeamRoomID, view.LeaderDMRoomID); err != nil {
+			return filled, fmt.Errorf("persist backfilled rooms: %w", err)
+		}
+		filled++
+	}
+	return filled, nil
 }
 
 // EnsureAll 扫**所有**项目，把还没建队的仓库补上。服务重启后、或本次改动之前接入的

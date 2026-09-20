@@ -1,0 +1,39 @@
+package repositoryteams
+
+import (
+	"context"
+	"testing"
+
+	"repomesh.local/repomesh/internal/agentteams"
+)
+
+// 缺配置时一个远端请求都不该发出去。backfillRooms 在每次 EnsureForProject（含那条
+// 2 分钟收敛循环）里都会跑，所以"没配就打远端"会被放大成周期性噪声。
+func TestBackfillRoomsIsNoOpWithoutPoolOrClient(t *testing.T) {
+	cases := []struct {
+		name    string
+		service *Service
+	}{
+		{"没有池", &Service{client: &agentteams.Client{BaseURL: "http://controller:8090"}}},
+		{"没有控制器客户端", &Service{}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			filled, err := testCase.service.backfillRooms(context.Background())
+			if err != nil {
+				t.Fatalf("backfillRooms: %v", err)
+			}
+			if filled != 0 {
+				t.Fatalf("filled=%d; want 0", filled)
+			}
+		})
+	}
+}
+
+// persistRooms 同理：没有控制器客户端时不能假装"回读过了"，更不能去碰事务。
+// 这里传 nil 事务正是为了钉住"客户端为空时提前返回"这条顺序。
+func TestPersistRoomsIsNoOpWithoutClient(t *testing.T) {
+	if err := (&Service{}).persistRooms(context.Background(), nil, "repo-1", "team-1"); err != nil {
+		t.Fatalf("persistRooms: %v", err)
+	}
+}

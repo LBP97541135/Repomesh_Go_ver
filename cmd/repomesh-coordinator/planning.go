@@ -34,10 +34,13 @@ type planningDispatcher struct {
 	reviews *humancontrol.Service
 	// workspaceRoot 与执行期同一约定（executor 的 prepareWorkspace 用的也是它）。
 	workspaceRoot string
+	// rooms 把"派下去 / 成了 / 没成"如实投进该 issue 的仓库团队房。
+	// 为 nil 时整条链路行为不变 —— 房间是观察面，缺它不该改变规划行为。
+	rooms *roomNotifier
 }
 
-func newPlanningDispatcher(pool *pgxpool.Pool, service *discovery.Service, reviews *humancontrol.Service) *planningDispatcher {
-	return &planningDispatcher{pool: pool, service: service, reviews: reviews, workspaceRoot: "/opt/repomesh/workspaces"}
+func newPlanningDispatcher(pool *pgxpool.Pool, service *discovery.Service, reviews *humancontrol.Service, rooms *roomNotifier) *planningDispatcher {
+	return &planningDispatcher{pool: pool, service: service, reviews: reviews, workspaceRoot: "/opt/repomesh/workspaces", rooms: rooms}
 }
 
 // raiseReview 在**产物入库之后**落一张待审单。
@@ -260,6 +263,7 @@ func (d *planningDispatcher) dispatch(ctx context.Context, row planningRow) (boo
 	}
 	fmt.Fprintf(os.Stderr, "coordinator: planning dispatched issue=%s step=%d role=%s run=%s\n",
 		row.issueID, row.step, row.role, runID)
+	d.rooms.Notify(ctx, row.issueID, "planning-dispatch:"+runID, planningDispatchedNotice(row.step, row.role))
 	return true, nil
 }
 
@@ -339,10 +343,13 @@ func (d *planningDispatcher) collectFinished(ctx context.Context) (bool, error) 
 		}
 		fmt.Fprintf(os.Stderr, "coordinator: planning failed issue=%s step=%d reason=%s\n",
 			one.issueID, one.step, reason)
+		// 幂等键用 planning_runs 行 id：一次规划尝试一条，重投不刷屏。
+		d.rooms.Notify(ctx, one.issueID, "planning-failed:"+one.id, planningFailedNotice(one.step, reason))
 		return d.finishRun(ctx, one.id, "", "failed", reason)
 	}
 	fmt.Fprintf(os.Stderr, "coordinator: planning collected issue=%s step=%d role=%s\n",
 		one.issueID, one.step, one.role)
+	d.rooms.Notify(ctx, one.issueID, "planning-done:"+one.id, planningCompletedNotice(one.step, one.role))
 	return d.finishRun(ctx, one.id, "", "succeeded", "")
 }
 
