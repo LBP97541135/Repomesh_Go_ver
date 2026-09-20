@@ -33,8 +33,47 @@ const STATUS_LABEL: Record<SkillStatus, string> = {
   rolled_back: "已回滚",
 };
 
-/** 2026-09-20 统一装修：按钮与状态标签全部换成全站既有写法（仓库页/审核台同款），
- *  不再各画一套描边。 */
+/** 按功能板块分组 + 每个技能一句话介绍（2026-09-20 用户裁定）。
+ *
+ *  分组与文案是**前端展示层**的静态映射：数据源（internal/skills/presets.go 的
+ *  15 个种子）没有"板块"这个字段，按交付流程归四类；未命中映射的（用户自己接入
+ *  的技能）落「其它」，介绍退回 scenario。名字对不上时也只是少个分组，不会丢条目。 */
+const SKILL_GROUPS: Array<{ heading: string; skills: string[] }> = [
+  {
+    heading: "立项与规划 · Leader",
+    skills: ["project-intake", "cross-repo-planning", "delivery-governance"],
+  },
+  {
+    heading: "管理与把关 · Manager",
+    skills: ["repository-spec-authoring", "task-decomposition", "code-review", "test-review", "worker-dispatch", "worker-result-evaluation"],
+  },
+  {
+    heading: "执行与自验 · Worker",
+    skills: ["task-execution", "self-test", "blocker-reporting"],
+  },
+  {
+    heading: "进阶实践 · 可选",
+    skills: ["tdd", "cross-repo-test", "integration-run"],
+  },
+];
+
+const SKILL_INTRO: Record<string, string> = {
+  "project-intake": "接下需求，明确目标与仓库范围，开出这个项目",
+  "cross-repo-planning": "跨多个仓库排规划，定先后与依赖",
+  "delivery-governance": "盯整条交付链的门禁与节奏，异常时叫停",
+  "repository-spec-authoring": "给仓库写规格说明，让后续任务有据可依",
+  "task-decomposition": "把规划拆成可执行的小任务",
+  "code-review": "评审代码改动，把关质量与规范",
+  "test-review": "评审测试用例与证据是否充分",
+  "worker-dispatch": "把任务派给合适的执行者",
+  "worker-result-evaluation": "验收执行结果，决定通过还是打回",
+  "task-execution": "按任务说明改代码、提交产物",
+  "self-test": "交付前先自测，别把问题甩给下游",
+  "blocker-reporting": "卡住时及时上报原因与所需支援",
+  tdd: "先写测试再写实现的开发方式",
+  "cross-repo-test": "多仓改动一起联测",
+  "integration-run": "把整条链路跑起来做集成验证",
+};
 const chip =
   "flex-none rounded-hard border border-line px-2.5 py-[3px] text-[11.5px] text-tx2 hover:border-amber hover:text-amber-hi disabled:opacity-50";
 const primary =
@@ -150,6 +189,15 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
     }
   };
 
+  // 左列分组：种子按功能板块，其余（自己接入的）落「其它」。
+  const knownNames = new Set(SKILL_GROUPS.flatMap((g) => g.skills));
+  const groupedSkills = SKILL_GROUPS.map((g) => ({
+    heading: g.heading,
+    items: (skills ?? []).filter((s) => g.skills.includes(s.name)),
+  })).filter((g) => g.items.length > 0);
+  const otherSkills = (skills ?? []).filter((s) => !knownNames.has(s.name));
+  if (otherSkills.length > 0) groupedSkills.push({ heading: "其它 · 自己接入", items: otherSkills });
+
   return (
     <div className={embedded ? "" : "max-w-[860px]"}>
       {/* 2026-09-20 用户裁定：标题行只留标题——"N 个"与生命周期说明这行字去掉。 */}
@@ -172,29 +220,35 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
           {skills !== null && skills.length === 0 && (
             <p className="px-3 py-3 text-[12px] text-tx3">还没有技能。</p>
           )}
-          {(skills ?? []).map((skill) => {
-            const active = selected?.id === skill.id;
-            return (
-              <button
-                key={skill.id}
-                className={`block w-full border-b border-line px-3 py-2 text-left last:border-b-0 ${
-                  active ? "bg-amber/10" : "hover:bg-well"
-                }`}
-                onClick={() => setSelected(skill)}
-              >
-                <span className="flex items-center gap-2">
-                  <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-tx">{skill.name}</span>
-                  {/* 系统自带（`created_by=system-seed`，库里 organization_id 为空 = 全局
-                      种子技能）：必须标出来。2026-09-20 用户实测把它当成了"别人的技能"，
-                      根子就是界面上分不清"系统自带的"和"某人接入的"。 */}
-                  {skill.created_by === "system-seed" && <span className="pill pill-meta flex-none">内置</span>}
-                </span>
-                <span className="mt-[2px] block truncate text-[11px] text-tx2">
-                  {skill.scenario} · {skill.target_agent_role}
-                </span>
-              </button>
-            );
-          })}
+          {groupedSkills.map((group) => (
+            <div key={group.heading}>
+              <div className="microlabel border-b border-line bg-well px-3 py-1.5">{group.heading}</div>
+              {group.items.map((skill) => {
+                const active = selected?.id === skill.id;
+                return (
+                  <button
+                    key={skill.id}
+                    className={`block w-full border-b border-line px-3 py-2 text-left hover:bg-well ${
+                      active ? "bg-amber/10" : ""
+                    }`}
+                    onClick={() => setSelected(skill)}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-tx">{skill.name}</span>
+                      {/* 系统自带（`created_by=system-seed`，库里 organization_id 为空 = 全局
+                          种子技能）：必须标出来。2026-09-20 用户实测把它当成了"别人的技能"，
+                          根子就是界面上分不清"系统自带的"和"某人接入的"。 */}
+                      {skill.created_by === "system-seed" && <span className="pill pill-meta flex-none">内置</span>}
+                    </span>
+                    {/* 一句话介绍；自己接入的没有文案，退回场景与角色。 */}
+                    <span className="mt-[2px] block truncate text-[11px] text-tx2">
+                      {SKILL_INTRO[skill.name] ?? `${skill.scenario} · ${skill.target_agent_role}`}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
 
         {/* 右：选中技能的版本与动作 */}
