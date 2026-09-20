@@ -58,13 +58,19 @@ func registerTaskOutputRoutes(mux *http.ServeMux, auth Auth, pipeline Pipeline) 
 			return
 		}
 		projectID := r.PathValue("projectId")
-		// 再叠一层**归属**校验：这个项目得属于该账号的组织。
+		// 再叠一层**可读性**校验：这个项目得是**调用者 owner 的**，或者调用者是 admin。
 		//
 		// 为什么必须加：`agent_runs.task_package_ref` 是**全局字符串**，project_id
 		// 又来自**请求路径**——只按路径过滤的话，任何人拿别人的 (projectId, taskId)
 		// 就能读到别人的 agent 日志。这是本读面独有的风险（其它读面读的是自己
 		// 项目域内、由 service 层二次校验过的数据），所以这里显式挡一道。
-		ok, err := projectBelongsToActorOrg(ctx, pool, projectID, claims.ActorID())
+		//
+		// 口径与库内既有约定一致（`humancontrol.List`：带 projectID 时"调用者必须是
+		// 项目 owner，或 admin"，ADR-0022）。**不能**改成"必须同组织"：线上实测
+		// `e2e` 项目属于组织 c5374c02…，而正在用它的登录账号 a6c34869 属于
+		// 9f733ff8… —— 管理员跨组织操作项目是**既有事实**，按组织判会把用户
+		// 正在用的项目判成 404。
+		ok, err := projectReadableByActor(ctx, pool, projectID, claims.ActorID())
 		if err != nil {
 			writeProjectError(w, err)
 			return
@@ -82,19 +88,23 @@ func registerTaskOutputRoutes(mux *http.ServeMux, auth Auth, pipeline Pipeline) 
 	})
 }
 
-// projectBelongsToActorOrg 判断项目是否属于该账号所在的组织。
+// projectReadableByActor 判断调用者能不能读这个项目的 agent 日志。
 //
-// 口径与库里的既有事实一致：`repomesh_projects.projects.owner` 指向
-// `repomesh_access.accounts.id`（**都是 text**），账号带 `organization_id`。
-// 判不出来（项目不存在/账号不存在）一律当"不属于" —— 读面不区分
-// "不存在"和"没权限"，免得把别人的项目存在性当情报漏出去。
-func projectBelongsToActorOrg(ctx context.Context, pool taskOutputQuerier, projectID, actor string) (bool, error) {
+// 判据 = **项目 owner 是调用者**，或**调用者是 admin**（与 `humancontrol.List`
+// 对带 projectID 的读面用的同一口径，见 ADR-0022）。
+//
+// 判不出来（项目不存在 / 账号不存在 / 被禁用）一律当"读不了" —— 读面不区分
+// "不存在"和"没权限"，免得把"别人的项目存在"当情报漏出去。
+func projectReadableByActor(ctx context.Context, pool taskOutputQuerier, projectID, actor string) (bool, error) {
 	var ok bool
 	err := pool.QueryRow(ctx, `SELECT EXISTS (
 		SELECT 1 FROM repomesh_projects.projects p
-		JOIN repomesh_access.accounts owner ON owner.id = p.owner
 		WHERE p.id = $1
-		  AND owner.organization_id = (SELECT organization_id FROM repomesh_access.accounts WHERE id = $2)
+		  AND (
+		    p.owner = $2
+		    OR EXISTS (SELECT 1 FROM repomesh_access.accounts a
+		                WHERE a.id = $2 AND a.is_admin AND NOT a.disabled)
+		  )
 	)`, projectID, actor).Scan(&ok)
 	if err != nil {
 		return false, err
