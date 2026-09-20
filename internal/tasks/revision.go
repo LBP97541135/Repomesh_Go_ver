@@ -29,6 +29,10 @@ type PlanRevision struct {
 	CreatedTasks        int            `json:"createdTasks"`
 	SupersededTasks     int            `json:"supersededTasks"`
 	IdempotencyKey      string         `json:"idempotencyKey"`
+	// UpstreamRef 指向**触发本轮重排的那一跳**（人工打断/升级梯的决策单 id）。
+	// 2026-09-20：此前它只喂给双轴挂钩（决策链节点），却没进修订记录本身 ——
+	// 于是"v2 是谁触发的"在计划轴的审计里查不到，只能去决策链反查。
+	UpstreamRef string `json:"upstreamRef,omitempty"`
 }
 
 // RevisionCommand is one apply request. IdempotencyKey dedupes: a replay
@@ -215,6 +219,7 @@ func (p *PostgresStore) ApplyRevision(ctx context.Context, cmd RevisionCommand) 
 		CreatedTasks:        created,
 		SupersededTasks:     superseded,
 		IdempotencyKey:      cmd.IdempotencyKey,
+		UpstreamRef:         cmd.UpstreamRef,
 	}
 	entryJSON, err := jsonMarshal(entry)
 	if err != nil {
