@@ -17,6 +17,7 @@ func registerPipelineRoutes(mux *http.ServeMux, auth Auth, pipeline Pipeline) {
 
 	// 跨仓交付的一致版本清单（评委建议②）：读最近一份 / 建一份快照。
 	registerDeliveryManifestRoutes(mux, auth, pipeline)
+	registerPlanSnapshotRoutes(mux, auth, pipeline)
 
 	// ---- M4: 编制组装 ----
 	//

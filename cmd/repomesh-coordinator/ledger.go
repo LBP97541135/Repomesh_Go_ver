@@ -133,9 +133,30 @@ func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, i
 		"find . -type d -name __pycache__ -prune -exec rm -rf {} +\n" +
 		"find . -type f -name \"*.pyc\" -delete\n" +
 		"rm -rf .pytest_cache\n" +
-		"git add -A\n" +
+		// 2026-09-20 线上实测：上面那两条 find **没能**把产物挡在提交之外（PR 里
+		// 依然出现 src/__pycache__/*.pyc）。所以再加一道**不依赖顺序**的闸：
+		// git add 直接按 pathspec 排除构建产物 —— 就算文件还在工作区，也进不了提交。
+		// 这不是"眼不见为净"：产物本来就不该进交付，交付物要能被人看懂。
+		// 注意：整段脚本被 bash -c '...' 包着，所以 pathspec 只能用**双引号**
+		// （脚本内出现单引号会让外层引号提前闭合，交付序列被静默截断）。
+		"git add -A -- . \":(exclude)**/__pycache__/**\" \":(exclude)**/*.pyc\" \":(exclude)**/*.pyo\" \":(exclude)**/.pytest_cache/**\"\n" +
 		"if git diff --cached --quiet; then echo REPO_DELIVERY_EMPTY=1; exit 3; fi\n" +
 		"git commit -m \"RepoMesh delivery " + issueID + ": " + safeTitle + "\"\n" +
+		// A2（2026-09-20 线上实测）：交付分支是**派工时**的 main 拉出来的，而 agent 要跑
+		// 几分钟 —— 这期间别的交付可能已经合进 main。于是"先合的那个 PR"会让后合的
+		// **必然冲突**（实测：同一个 e2e 仓库两条任务都改 src/pricing.py，#25 一合进
+		// main，#26 立刻变成 dirty，界面上点合并就回 405 "Pull request has merge
+		// conflicts"）。这里在推送**之前**把最新 main rebase 进来：PR 因此总是长在最新
+		// main 上，合并时不会再有冲突。
+		//
+		// rebase 真冲突（同一处被两边改了）就**如实失败**：不许硬推、不许挑一边、
+		// 也不许悄悄放弃自己的改动 —— 那种情况需要人（或协调 agent）来判。
+		"git fetch --depth 5 origin main\n" +
+		"if ! git rebase FETCH_HEAD >/dev/null 2>&1; then\n" +
+		"  git rebase --abort >/dev/null 2>&1 || true\n" +
+		"  echo REPO_DELIVERY_CONFLICT=1\n" +
+		"  exit 4\n" +
+		"fi\n" +
 		"git push origin HEAD:refs/heads/$B\n" +
 		"curl -sf -X POST -H \"Authorization: Bearer $T\" -H \"Accept: application/vnd.github+json\" " +
 		"https://api.github.com/repos/$R/pulls " +

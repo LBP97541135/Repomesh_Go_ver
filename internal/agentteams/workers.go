@@ -123,3 +123,29 @@ func (c *Client) UpdateTeam(ctx context.Context, name string, members []TeamMemb
 	}{WorkerMembers: members}
 	return c.write(ctx, http.MethodPut, "/api/v1/teams/"+url.PathEscape(name), payload)
 }
+
+// TeamView is the subset of one AgentTeams Team we read back.
+//
+// TeamRoomID / LeaderDMRoomID live in the Team CR's **status**, filled in by the
+// controller after it has created the Matrix rooms. They are therefore absent
+// from the POST/PUT /api/v1/teams response — the only way to learn a room is to
+// read the team back once reconciliation has run.
+type TeamView struct {
+	Name           string `json:"name"`
+	Phase          string `json:"phase"`
+	TeamRoomID     string `json:"teamRoomID"`
+	LeaderDMRoomID string `json:"leaderDMRoomID"`
+}
+
+// GetTeam reads one team back (GET /api/v1/teams/{name}).
+func (c *Client) GetTeam(ctx context.Context, name string) (TeamView, int, error) {
+	data, status, err := c.read(ctx, http.MethodGet, "/api/v1/teams/"+url.PathEscape(name))
+	if err != nil || status != http.StatusOK {
+		return TeamView{}, status, err
+	}
+	var view TeamView
+	if err := json.Unmarshal(data, &view); err != nil {
+		return TeamView{}, status, fmt.Errorf("agentteams team %s: decode response: %w", name, err)
+	}
+	return view, status, nil
+}

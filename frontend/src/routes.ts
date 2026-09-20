@@ -7,7 +7,6 @@ import type { NavKey } from "./components/SidebarV2";
 export const NAV_HASH: Record<NavKey, string> = {
   projects: "#/projects",
   skills: "#/skills",
-  models: "#/models",
   issues: "#/issues",
   reviews: "#/reviews",
   repositories: "#/repositories",
@@ -126,6 +125,12 @@ export function parseRoute(hash: string): Route {
       observeSection: null,
       settingsSection: SETTINGS_SECTIONS.includes(section) ? section : null,
     };
+  }
+
+  // #/models = 原侧栏「模型」顶级页。2026-09-20 收编进设置：供应商配置改在
+  // 「设置 → 模型与 API」，老书签与老链接落到同一个分类，不留空白页。
+  if (/^\/models(?:[/?#]|$)/.test(h)) {
+    return { nav: "settings", issueId: null, roomId: null, observeSection: null, settingsSection: "models" };
   }
 
   // 观测板块子页：#/observe/usage|logs|alerts|trace（未知段回落门户）

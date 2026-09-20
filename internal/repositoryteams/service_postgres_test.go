@@ -14,7 +14,7 @@ import (
 	"repomesh.local/repomesh/internal/testdb"
 )
 
-// 0056 的回归锁：团队按 **(项目, 仓库)** 归属，不再是「全局一个仓库一支队」。
+// 0057 的回归锁：团队按 **(项目, 仓库)** 归属，不再是「全局一个仓库一支队」。
 //
 // 病是什么：业务链是 账号 → 项目 → issue → 仓库，同一份仓库允许挂到多个项目。
 // 而 `public.repository_teams` 的主键只有 `repository_id`（扫描侧 id），语义是
@@ -24,7 +24,7 @@ import (
 //   - `repository_team_workers` 也只按仓库挂、`resource_name` 全局唯一；
 //   - `remotePrefix()` 只喂仓库 id → 两个项目送给远端的**队名完全相同**，互相覆盖。
 //
-// 这些用例都跑真实 PostgreSQL（迁移 0056 会由 testdb.Open 施加），
+// 这些用例都跑真实 PostgreSQL（迁移 0057 会由 testdb.Open 施加），
 // 远端 AgentTeams 用一个本进程的假控制面替身（Client.BaseURL 可注入）。
 
 // fakeController 是最小可用的 AgentTeams 控制面替身。
@@ -89,7 +89,7 @@ func sharedRepositoryFixture(t *testing.T, pool *pgxpool.Pool) (projectA, projec
 
 // 核心用例：同一份仓库挂到两个项目 → **两支队**，远端名与人员都不相同。
 //
-// 反例（0056 之前）：`repository_teams` 的主键只有 `repository_id`，
+// 反例（0057 之前）：`repository_teams` 的主键只有 `repository_id`，
 // 第二个项目的 Create 会撞主键；就算绕过去，`remotePrefix(repositoryID)`
 // 也会算出同一个远端队名，两支队在远端互相覆盖。
 func TestCreateKeepsSharedRepositoryTeamsIsolatedPerProject(t *testing.T) {
@@ -178,7 +178,7 @@ func TestCreateKeepsSharedRepositoryTeamsIsolatedPerProject(t *testing.T) {
 
 // 反向证伪：**第二个项目必须真的建出队**。
 //
-// 这正是用户报的那个 bug 的准确形态 —— 0056 之前 `EnsureForRepository` 的
+// 这正是用户报的那个 bug 的准确形态 —— 0057 之前 `EnsureForRepository` 的
 // EXISTS 判定是 `WHERE repository_id = $1`（不含项目），第二个项目走到这里判定
 // 「已有队」直接 `return false, nil`：不建、不报错、页面上就是"没有队"。
 // 把那一行改回只按仓库，本用例立刻红。
@@ -317,7 +317,7 @@ func TestRepositoryTeamPrimaryKeyIncludesProject(t *testing.T) {
 		t.Fatal("同一 (项目, 仓库) 插第二行应撞主键，居然成功了")
 	}
 
-	// 反过来：同仓库换项目就该插得进去（这正是 0056 放开的）。
+	// 反过来：同仓库换项目就该插得进去（这正是 0057 放开的）。
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO public.repository_teams
 			(project_id, repository_id, agentteams_team_name, leader_id, leader_resource_name)

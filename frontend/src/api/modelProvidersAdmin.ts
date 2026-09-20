@@ -127,15 +127,25 @@ export function closeSave(saveId: string): Promise<unknown> {
  *  体形状（internal/models/destination.go 的 ReadSnapshotTarget，三个都必填）：
  *   { providerId: uuid, providerRevision: string, modelRowId: uuid }
  *  —— modelRowId 是 provider 详情里 models[].id（模型行 id），不是 modelId 字符串。
- *  测试策略（预算/时限/出网白名单）在后端锁定，前端不参与解析。 */
+ *  测试策略（预算/时限/出网白名单）在后端锁定，前端不参与解析。
+ *
+ *  2026-09-20 线上实测：这里**漏发了 `confirmPotentialCharge`**，而服务端
+ *  validatePreviewForNewTest 把它当必填（缺了就 422 VALIDATION_FAILED，
+ *  fieldErrors=[{field:"confirmPotentialCharge",code:"REQUIRED"}]）——
+ *  于是**每一个中转站的连通性测试都必 422**，界面上看就是"点了没反应/一直报错"。
+ *  用户**点"测试"这个动作本身就是确认**（测试会产生一次真实调用，可能计费），
+ *  所以这里显式带上 true；这不是绕过闸门，而是把这个动作的语义补全。 */
 export function testModel(input: {
   providerId: string;
   providerRevision: string;
   modelRowId: string;
 }): Promise<Record<string, unknown>> {
-  return apiRequest<Record<string, unknown>>("POST", "/model-tests", input, {
-    "Idempotency-Key": crypto.randomUUID(),
-  });
+  return apiRequest<Record<string, unknown>>(
+    "POST",
+    "/model-tests",
+    { ...input, confirmPotentialCharge: true },
+    { "Idempotency-Key": crypto.randomUUID() },
+  );
 }
 
 /** GET /api/model-tests/{testId} —— 轮询测试结果。 */

@@ -21,10 +21,26 @@ type discoveryAutomator struct {
 	service *discovery.Service
 	pool    *pgxpool.Pool
 	backoff map[string]time.Time
+	// attempts 记"同一条 issue 的同一个 step 连续跑了几次"。
+	//
+	// 2026-09-20 线上实测：某条 issue 的 classification 在库里是 JSON `null`，于是
+	// `has_classification` 恒为 false —— 协调器**每 3 秒**重跑一次 Classification，
+	// 日志刷屏、库被反复写（另一条 issue 的 plan 步骤也一样：反复登记计划意图）。
+	// 判据与落库之间只要有这种不一致，就会形成空转环。3 秒地板只压频率，压不住根。
+	// 这里再加一条：**同一步连续 3 次都没换步**就退到 5 分钟一次，并把这件事**说出来**
+	// （一条 WARN，不再刷屏）—— 空转从"每秒"变成"每 5 分钟"，而且人能看见它在卡哪。
+	attempts map[string]int
+	// lastStep 记这条 issue 上一次走的是哪一步：换步了说明推进了，计数归零。
+	lastStep map[string]int
 }
 
 func newDiscoveryAutomator(service *discovery.Service, pool *pgxpool.Pool) *discoveryAutomator {
-	return &discoveryAutomator{service: service, pool: pool, backoff: map[string]time.Time{}}
+	return &discoveryAutomator{
+		service: service, pool: pool,
+		backoff:  map[string]time.Time{},
+		attempts: map[string]int{},
+		lastStep: map[string]int{},
+	}
 }
 
 type discoveryProgress struct {
@@ -75,12 +91,41 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 	}
 	delete(a.backoff, p.issueID)
 
+	step := autohostStep(p)
 	done := func(err error) bool {
 		if err != nil {
 			a.backoff[p.issueID] = time.Now().Add(10 * time.Second)
 			slog.Warn("autohost discovery step deferred", "issue", p.issueID, "reason", err.Error())
 			return false
 		}
+		// 同一步连续跑（判据没变）→ 计数；换步了 → 归零。
+		key := p.issueID + ":" + strconv.Itoa(step)
+		if last, ok := a.lastStep[p.issueID]; ok && last == step {
+			a.attempts[key]++
+		} else {
+			a.attempts[key] = 1
+		}
+		a.lastStep[p.issueID] = step
+		if a.attempts[key] >= 3 {
+			// 连续 3 次都没换步：判据与落库不一致（线上实例：classification 是 JSON
+			// null，has_classification 恒 false）。退到 5 分钟一次，并**说一次**是哪条
+			// issue、卡在第几步 —— 不再每秒刷屏，也不再假装它在推进。
+			a.backoff[p.issueID] = time.Now().Add(5 * time.Minute)
+			if a.attempts[key] == 3 {
+				slog.Warn("autohost: 同一步反复无进展，退到 5 分钟一次",
+					"issue", p.issueID, "step", step, "attempts", a.attempts[key])
+			}
+			return true
+		}
+		// 每步都留一道**地板间隔**（哪怕这一步"成功"了）。
+		//
+		// 2026-09-20 线上实测：一条 issue 的 classification 在库里是 JSON `null`，
+		// 于是 `has_classification` 恒为 false，协调器**每秒**重跑一次 Classification
+		// （日志 `autohost: classifying tiers` 刷屏、库被反复写），把机器白白烧掉。
+		// 只要"步骤判据"与"实际落库"之间有任何不一致，就会形成这种空转环 ——
+		// 这里给每次推进加 3 秒地板，把它从"每秒"压到"每 3 秒"，同时不影响正常节奏
+		// （正常一步是分钟级的）。
+		a.backoff[p.issueID] = time.Now().Add(3 * time.Second)
 		return true
 	}
 	idem := "autohost:" + p.issueID
@@ -143,6 +188,29 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 		return done(err)
 	}
 	return false
+}
+
+// autohostStep 把"这条 issue 现在该走哪一步"折成一个小整数，**只用于去重计数**
+// （判断协调器是不是在同一步上空转），与 discovery 的 PlanningXxx 常量无关。
+// 判据必须与下面 switch 的分支**逐一对应**，否则计数会错位。
+func autohostStep(p discoveryProgress) int {
+	switch {
+	case !p.hasAnalysis:
+		return 1 // ① 需求分析
+	case !p.sufficient && !p.forced:
+		return 2 // 分析不足 → 强制继续
+	case !p.hasCandidates:
+		return 3 // ② 候选评分
+	case !p.hasClassification:
+		return 4 // ③ 分档
+	case p.approvalState != "approved":
+		return 5 // ③ 审批
+	case !p.hasPlan:
+		return 6 // ④ 生成计划
+	case !p.hasMaterialization:
+		return 7 // ⑤ 物化
+	}
+	return 0
 }
 
 // pendingIssues 取还没走完发现链的 issue，**最旧优先**，一次多取几条。

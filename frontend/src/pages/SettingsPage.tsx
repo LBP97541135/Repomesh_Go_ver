@@ -14,6 +14,7 @@ import { AppInstallGuide } from "../components/AppInstallGuide";
 import { reconnectGithubConnection } from "../api/auth";
 import { LocalCliPage } from "./LocalCliPage";
 import { ModelUsageSettings } from "../components/ModelUsageSettings";
+import { ModelProvidersPage } from "./ModelProvidersPage";
 import { AgentsPage } from "./AgentsPage";
 import { SkillsPage } from "./SkillsPage";
 import { Bot, FileCheck, Info, KeyRound, Server, Settings2, SquareTerminal, Users, type LucideIcon } from "lucide-react";
@@ -487,7 +488,16 @@ export function SettingsPage({
             <LocalAccountsPanel account={account} />
           </>
         )}
-        {category === "models" && <ModelUsageSettings />}
+        {category === "models" && (
+          <>
+            <ModelUsageSettings />
+            {/* 供应商目录（模型来源 / Key / 连通性测试）从侧栏顶级入口收编到这里：
+                侧栏不再单列「模型」，模型配置面收在设置里（2026-09-20 用户裁定）。 */}
+            <div id="model-providers" className="mt-6 border-t border-line pt-4">
+              <ModelProvidersPage embedded />
+            </div>
+          </>
+        )}
         {category === "platform" && (
           <PlatformCategory
             setup={setup}

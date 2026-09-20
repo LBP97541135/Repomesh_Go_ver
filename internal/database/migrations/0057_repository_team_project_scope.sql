@@ -1,4 +1,4 @@
--- 0056: 团队层按 (项目, 仓库) 隔离 —— repository_teams 的主键从「仓库」改成「项目 + 仓库」。
+-- 0057: 团队层按 (项目, 仓库) 隔离 —— repository_teams 的主键从「仓库」改成「项目 + 仓库」。
 --
 -- 为什么改（2026-09-20）：
 --   业务链是 账号 → 项目 → issue → 仓库，同一份仓库允许挂到多个项目上。但
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS public.repository_teams_unresolved (
 );
 
 COMMENT ON TABLE public.repository_teams_unresolved IS
-  '0056 迁移时无法唯一判定项目归属的旧团队行。远端 AgentTeams 可能仍有对应真实资源（名为 agentteams_team_name），保留此表供人工清理；只增不改。';
+  '0057 迁移时无法唯一判定项目归属的旧团队行。远端 AgentTeams 可能仍有对应真实资源（名为 agentteams_team_name），保留此表供人工清理；只增不改。';
 
 -- ---------------------------------------------------------------------------
 -- 2) 加列
@@ -195,8 +195,8 @@ CREATE INDEX IF NOT EXISTS idx_repository_teams_repository
 -- 7) 注释
 -- ---------------------------------------------------------------------------
 COMMENT ON COLUMN public.repository_teams.project_id IS
-  '0056：团队归属的项目。与 repository_id 共同构成主键，保证同一仓库挂多个项目时各有一支队。';
+  '0057：团队归属的项目。与 repository_id 共同构成主键，保证同一仓库挂多个项目时各有一支队。';
 COMMENT ON COLUMN public.repository_team_workers.project_id IS
-  '0056：与所属团队的项目一致；唯一性与排序都在 (project_id, repository_id) 内生效。';
+  '0057：与所属团队的项目一致；唯一性与排序都在 (project_id, repository_id) 内生效。';
 COMMENT ON COLUMN public.repository_teams.agentteams_team_name IS
-  '远端 AgentTeams 队名。**以本列为准**，代码不再自行重算（0056）：存量队名保持原样（repomesh-r-<仓库hash>），新建队才用含项目的命名，避免改名产生孤儿。';
+  '远端 AgentTeams 队名。**以本列为准**，代码不再自行重算（0057）：存量队名保持原样（repomesh-r-<仓库hash>），新建队才用含项目的命名，避免改名产生孤儿。';

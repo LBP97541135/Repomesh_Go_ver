@@ -40,8 +40,8 @@ import (
 	"repomesh.local/repomesh/internal/observability"
 	"repomesh.local/repomesh/internal/projects"
 	"repomesh.local/repomesh/internal/reposcan"
-	"repomesh.local/repomesh/internal/responsibility"
 	"repomesh.local/repomesh/internal/repositoryteams"
+	"repomesh.local/repomesh/internal/responsibility"
 	"repomesh.local/repomesh/internal/scan"
 	"repomesh.local/repomesh/internal/scm"
 	"repomesh.local/repomesh/internal/secrets"
@@ -236,6 +236,17 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			}
 			if atClient.BaseURL == "" {
 				atClient = nil
+			}
+		}
+		// 房间消息走 AgentTeams 的 homeserver：控制器的 REST 里没有"按 roomID 读消息"
+		// 这条（只有 /projects/{id}/spawns/{sessionId}/messages，要求先有项目，而
+		// RepoMesh 不建项目）。凭据现换现用 —— 见 agentteams.MatrixSession。
+		//
+		// 缺任一环境变量就不装：房间消息端点返 503「没配」，而不是返空消息流让界面
+		// 以为"房间没人说话"。房间**关联**不受影响，那部分只读本库。
+		if atClient != nil {
+			if homeserver := strings.TrimRight(os.Getenv("MATRIX_HOMESERVER_URL"), "/"); homeserver != "" {
+				issuesAPI.Matrix = &agentteams.MatrixSession{Controller: atClient, Homeserver: homeserver}
 			}
 		}
 		pipelineAPI.HandoffDocs = web.HandoffDocs{Service: handoff.New(runtime.Pool())}
@@ -436,6 +447,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			BranchValid:       branchvalidation.New(pipelinePool, branchProvider()),
 			Observation:       observability.New(pipelinePool),
 			DeliveryManifests: deliverymanifest.New(pipelinePool),
+			// Pool 给"计划快照"这类薄读面用（只读 public.plans 的 jsonb，不值得为它再造 service）。
+			Pool: pipelinePool,
 			Extensions: web.PipelineExtensions{
 				Spec:  spec.New(pipelinePool),
 				Gates: gates.New(pipelinePool),
@@ -548,7 +561,28 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		// load 冲到 100+、登录被拖死；而每个 worker 都是**真 runtime**，不是纸面记录。
 		//
 		// 这里**没有**后台扫掠：历史积压的仓库不会自动补队 —— 需要就逐仓确认一次。
+		//
+		// 房间号收敛是这里唯一的后台循环，与上面那条裁定不冲突：它只**读**
+		//（对还没有房间号的行各发一个 GET），不建任何团队、不起任何 runtime ——
+		// 不补的话房间号恒空，"进房间看对话"永远是一间进不去的房。
 		teamService := agentTeamsAPI.RepositoryTeams
+		go func() {
+			timer := time.NewTimer(20 * time.Second)
+			defer timer.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-timer.C:
+				}
+				if filled, err := teamService.BackfillRooms(ctx); err != nil {
+					slog.Warn("repository team room backfill deferred", "reason", err.Error())
+				} else if filled > 0 {
+					slog.Info("repository team rooms backfilled", "count", filled)
+				}
+				timer.Reset(5 * time.Minute)
+			}
+		}()
 		projectAPI.OnRepositoriesConfirmed = func(ctx context.Context, projectID string, added []string) {
 			if len(added) != 1 {
 				slog.Info("repository team skipped: not a single-repository confirmation",

@@ -158,6 +158,22 @@ interface GoIssuePage {
   closedCount?: number;
 }
 
+/** 房间里的一条 Matrix 消息（Go `GET /api/issues/{id}/rooms/{roomId}/messages`）。 */
+export type MatrixRoomMessageView = {
+  /** Matrix 事件 id（`$…`），同时用作流条目的 payload_ref */
+  eventId: string;
+  /** Matrix user id（`@…:server`）。这一版没有可读的显示名，界面按 id 呈现 */
+  sender: string;
+  body: string;
+  at: string;
+};
+
+/** 房间消息响应。`messages` 从旧到新（后端已把 Matrix 的倒序翻正）。 */
+export interface IssueRoomMessagesResponse {
+  roomId: string;
+  messages: MatrixRoomMessageView[];
+}
+
 /** Go 列表行 → 控制台读模型（2026-09-19 方案 A）。
  *
  *  两种读模型不同源：Go 是薄行（id/number/title/repositoryIds/createdAt/revision
@@ -460,6 +476,24 @@ export function createApiClient(config: ApiClientConfig) {
     /** §5.1：未建团的 issue 返回 `{"rooms": []}` 且 HTTP 200，空态不是错误 */
     listRooms: (issueId: string, projectId: string) =>
       request<RoomListResponse>(config, "GET", `/issues/${issueId}/rooms?projectId=${encodeURIComponent(projectId)}`),
+
+    /** 房间消息。房间在 AgentTeams 的 homeserver 上，后端代理读取；
+     *  roomId 含 `!` 与 `:` 必须编码。只允许读该 issue 关联到的房（后端按关联校验，
+     *  无关房间返 404）。没配 Matrix 返 503，上游读不到返 502 —— 两者都不是"房间空"。 */
+    getIssueRoomMessages: (
+      issueId: string,
+      roomId: string,
+      projectId: string,
+      opts?: { limit?: number },
+    ) => {
+      const params = new URLSearchParams({ projectId });
+      if (opts?.limit !== undefined) params.set("limit", String(opts.limit));
+      return request<IssueRoomMessagesResponse>(
+        config,
+        "GET",
+        `/issues/${encodeURIComponent(issueId)}/rooms/${encodeURIComponent(roomId)}/messages?${params.toString()}`,
+      );
+    },
 
     /** §5.2：room_id 形如 `!repomesh-team-c-billing:matrix.local`，含 `!` 与 `:` 必须编码；
      *  cursor 语义同 §4.1 events；未知 room_id → 404 */

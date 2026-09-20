@@ -67,7 +67,7 @@ export function repositoryTeamBusyLabels(error: unknown): string[] {
   return Array.isArray(labels) ? labels.filter((label): label is string => typeof label === "string") : [];
 }
 
-/** 团队自 0056 起按 **(项目, 仓库)** 认：同一份仓库挂到两个项目时各有一支队，
+/** 团队自 0057 起按 **(项目, 仓库)** 认：同一份仓库挂到两个项目时各有一支队，
  *  所以这三个端点必须带上项目 —— 路径里的仓库 id 无法区分"要哪个项目的队"。
  *  路径形态跟随本仓惯例（`/projects/{projectId}/…`）。 */
 function teamPath(projectId: string, repositoryId: string): string {

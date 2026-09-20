@@ -34,7 +34,6 @@ import {
 export type NavKey =
   | "projects"
   | "skills"
-  | "models"
   | "issues"
   | "reviews"
   | "repositories"
@@ -46,7 +45,6 @@ export type NavKey =
 const NAV_ICON: Record<NavKey, LucideIcon> = {
   projects: FolderKanban,
   skills: FileCheck,
-  models: FolderKanban,
   issues: Inbox,
   reviews: FileCheck,
   repositories: FolderKanban,
@@ -59,7 +57,6 @@ const NAV_ICON: Record<NavKey, LucideIcon> = {
 const NAV_LABEL: Record<NavKey, string> = {
   projects: "项目",
   skills: "技能",
-  models: "模型",
   issues: "issue",
   reviews: "审核",
   repositories: "仓库",
@@ -76,8 +73,8 @@ const NAV_LABEL: Record<NavKey, string> = {
  *  not_implemented——先恢复入口，后端补齐即自动点亮。 */
 const NAV_GROUPS: Array<{ heading: string; keys: NavKey[] }> = [
   { heading: "工作台", keys: ["projects", "issues", "reviews", "repositories"] },
-  // 治理（2026-09-20 用户裁定）：历史决策归治理；智能体与技能已收编进设置
-  { heading: "治理", keys: ["models", "observe", "decision-chains"] },
+  // 治理（2026-09-20 用户裁定）：历史决策归治理；智能体、技能与模型已收编进设置
+  { heading: "治理", keys: ["observe", "decision-chains"] },
 ];
 /** 底部常驻项：设置（恢复原样——图标 + 文字的一行，不跟分组抢位置）。 */
 const NAV_BOTTOM: NavKey[] = ["settings"];

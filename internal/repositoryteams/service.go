@@ -94,7 +94,7 @@ func (s *Service) Get(ctx context.Context, projectID, repositoryID string) (Snap
 // number of active Workers. The repository ID, not its display name, owns all
 // local and remote associations.
 //
-// 2026-09-20（0056）：团队按 **(项目, 仓库)** 归属。同一份仓库挂到两个项目时，
+// 2026-09-20（0057）：团队按 **(项目, 仓库)** 归属。同一份仓库挂到两个项目时，
 // 各建一支自己的队；此前的键只有仓库，第二个项目会被判定"已有队"而**静默跳过**。
 func (s *Service) Create(ctx context.Context, projectID, repositoryID string, workerCount int) (Snapshot, error) {
 	tx, err := s.beginLocked(ctx, projectID, repositoryID)
@@ -182,6 +182,9 @@ func (s *Service) Create(ctx context.Context, projectID, repositoryID string, wo
 			return Snapshot{}, reconciliationError(fmt.Errorf("persist repository Worker: %w", err))
 		}
 	}
+	if err := s.persistRooms(ctx, tx, projectID, repositoryID, prefix); err != nil {
+		return Snapshot{}, reconciliationError(err)
+	}
 
 	snapshot, err := s.loadSnapshot(ctx, tx, projectID, repositoryID)
 	if err != nil {
@@ -206,7 +209,7 @@ func (s *Service) Create(ctx context.Context, projectID, repositoryID string, wo
 // 返回 true 表示这次真的建了一支；**本项目已经有队**、仓库没扫到、或远端拒绝都返回
 // false（远端拒绝会把原因带在 error 里，不吞）。
 //
-// 2026-09-20（0056）：幂等判定从"这个仓库有没有队"改成"**这个项目的**这个仓库有没有队"。
+// 2026-09-20（0057）：幂等判定从"这个仓库有没有队"改成"**这个项目的**这个仓库有没有队"。
 // 否则同一仓库挂到第二个项目时，这里判定"已有队"直接跳过，第二个项目**永远建不出队**
 // 而且不报错 —— 这就是"同仓两项目会串"的真实形态。
 func (s *Service) EnsureForRepository(ctx context.Context, projectID, projectRepositoryID string, workerCount int) (bool, error) {
@@ -340,6 +343,69 @@ func (s *Service) EnsureForProject(ctx context.Context, projectID string, worker
 	return created, firstErr
 }
 
+// BackfillRooms 给"已经有团队但还没记住房间号"的行补一次回读。返回补齐的条数。
+//
+// 为什么必须有这条：房间由 AgentTeams 控制器**异步**建，建队那一刻通常还没建好，
+// 于是 Create 里的 persistRooms 读到空、room_id 留 NULL；而建队路径会跳过"已经有
+// 团队"的仓库，那个 NULL 就再也没人来填。没有这条兜底，房间号恒空，"进房间看
+// 对话"永远是间进不去的房。
+//
+// 由组合根的独立低频循环调用（不走自动建队那道开关）：它只 GET、不写远端，
+// 不建任何东西，重演不了 2026-09-20 那场"灌爆 AgentTeams"的事故。
+//
+// 2026-09-20（0057）：团队改成按 **(项目, 仓库)** 归属，所以这一支也必须带上项目 ——
+// 只按 repository_id 读写，同一仓库挂到两个项目时会漏掉另一个项目的行（SELECT 端
+// 会把两支队的房间号互相覆盖到同一行上）。
+func (s *Service) BackfillRooms(ctx context.Context) (int, error) {
+	if s.pool == nil || s.client == nil {
+		return 0, nil
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT project_id::text, repository_id, agentteams_team_name
+		FROM public.repository_teams
+		WHERE COALESCE(team_room_id, '') = ''
+		ORDER BY project_id, repository_id`)
+	if err != nil {
+		return 0, fmt.Errorf("list teams without rooms: %w", err)
+	}
+	type pendingTeam struct{ projectID, repositoryID, teamName string }
+	pending := []pendingTeam{}
+	for rows.Next() {
+		var team pendingTeam
+		if err := rows.Scan(&team.projectID, &team.repositoryID, &team.teamName); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("scan team without room: %w", err)
+		}
+		pending = append(pending, team)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	filled := 0
+	for _, team := range pending {
+		view, status, err := s.client.GetTeam(ctx, team.teamName)
+		if err != nil || status != http.StatusOK {
+			continue
+		}
+		if view.TeamRoomID == "" && view.LeaderDMRoomID == "" {
+			// 房间还没建好。下一轮再来，不当作错误。
+			continue
+		}
+		if _, err := s.pool.Exec(ctx, `
+			UPDATE public.repository_teams
+			SET team_room_id = COALESCE(NULLIF($3, ''), team_room_id),
+			    leader_dm_room_id = COALESCE(NULLIF($4, ''), leader_dm_room_id),
+			    updated_at = now()
+			WHERE project_id = $1::uuid AND repository_id = $2`,
+			team.projectID, team.repositoryID, view.TeamRoomID, view.LeaderDMRoomID); err != nil {
+			return filled, fmt.Errorf("persist backfilled rooms: %w", err)
+		}
+		filled++
+	}
+	return filled, nil
+}
+
 // EnsureAll 扫**所有**项目，把还没建队的仓库补上。服务重启后、或本次改动之前接入的
 // 仓库，都靠它收敛（幂等，重复跑没有副作用）。
 //
@@ -403,7 +469,7 @@ func (s *Service) Change(ctx context.Context, projectID, repositoryID string, co
 	if err != nil {
 		return Snapshot{}, err
 	}
-	// 队名一律以库里存的那一行为准（0056），**不要重算**：存量队的名字不含项目维度，
+	// 队名一律以库里存的那一行为准（0057），**不要重算**：存量队的名字不含项目维度，
 	// 重算会指向一个不存在的远端队 —— 等于把存量队变成孤儿，且远端资源再也没人管。
 	teamName, err := loadTeamName(ctx, tx, projectID, repositoryID)
 	if err != nil {
@@ -429,7 +495,7 @@ func (s *Service) Change(ctx context.Context, projectID, repositoryID string, co
 
 // loadTeamName 读出**远端队名的唯一真相**。
 //
-// 0056 起代码不再自行 remotePrefix 重算：存量队（约 42 支，2026-09-20 自动建队事故留下）
+// 0057 起代码不再自行 remotePrefix 重算：存量队（约 42 支，2026-09-20 自动建队事故留下）
 // 的名字不含项目维度，重算就会指错远端队。新队建的时候把名字写进这一列，之后一律读它。
 func loadTeamName(ctx context.Context, db snapshotQuerier, projectID, repositoryID string) (string, error) {
 	var name string
@@ -455,7 +521,7 @@ func (s *Service) scaleUp(ctx context.Context, tx pgx.Tx, projectID, repositoryI
 		return Snapshot{}, fmt.Errorf("load Worker creation sequence: %w", err)
 	}
 
-	// 新 worker 的名字跟着**这支队已有的队名**走（0056）：存量队继续用旧命名，
+	// 新 worker 的名字跟着**这支队已有的队名**走（0057）：存量队继续用旧命名，
 	// 新队用含项目的命名。这样不会在同一支队里混出两套名字。
 	prefix := teamName
 	workers := make([]workerRecord, delta)
@@ -498,6 +564,9 @@ func (s *Service) scaleUp(ctx context.Context, tx pgx.Tx, projectID, repositoryI
 		}
 	}
 	if err := advanceRevision(ctx, tx, projectID, repositoryID, current.RosterRevision); err != nil {
+		return Snapshot{}, reconciliationError(err)
+	}
+	if err := s.persistRooms(ctx, tx, projectID, repositoryID, teamName); err != nil {
 		return Snapshot{}, reconciliationError(err)
 	}
 	updated, err := s.loadSnapshot(ctx, tx, projectID, repositoryID)
@@ -571,6 +640,9 @@ func (s *Service) scaleDown(ctx context.Context, tx pgx.Tx, projectID, repositor
 	if err := advanceRevision(ctx, tx, projectID, repositoryID, current.RosterRevision); err != nil {
 		return Snapshot{}, reconciliationError(err)
 	}
+	if err := s.persistRooms(ctx, tx, projectID, repositoryID, teamName); err != nil {
+		return Snapshot{}, reconciliationError(err)
+	}
 	updated, err := s.loadSnapshot(ctx, tx, projectID, repositoryID)
 	if err != nil {
 		return Snapshot{}, reconciliationError(fmt.Errorf("load reduced roster: %w", err))
@@ -589,7 +661,7 @@ func (s *Service) beginLocked(ctx context.Context, projectID, repositoryID strin
 	if err != nil {
 		return nil, fmt.Errorf("begin repository team transaction: %w", err)
 	}
-	// 锁粒度也跟着改成 (项目, 仓库)（0056）：只按仓库加锁的话，
+	// 锁粒度也跟着改成 (项目, 仓库)（0057）：只按仓库加锁的话，
 	// 两个项目对同一仓库的操作会**互相阻塞**，而它们本来互不相关。
 	lockKey := projectID + "/" + repositoryID
 	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtext($1))", lockKey); err != nil {
@@ -609,7 +681,8 @@ func (s *Service) loadSnapshot(ctx context.Context, db snapshotQuerier, projectI
 	var leaderID string
 	err := db.QueryRow(ctx, `
 		SELECT t.repository_id, r.name, t.roster_revision, t.runtime_status,
-		       t.leader_id::text, t.leader_resource_name
+		       t.leader_id::text, t.leader_resource_name,
+		       COALESCE(t.team_room_id, ''), COALESCE(t.leader_dm_room_id, '')
 		FROM public.repository_teams t
 		JOIN repomesh_scan.repositories r ON r.id = t.repository_id
 		WHERE t.project_id = $1::uuid AND t.repository_id = $2`, projectID, repositoryID,
@@ -620,6 +693,8 @@ func (s *Service) loadSnapshot(ctx context.Context, db snapshotQuerier, projectI
 		&snapshot.RuntimeStatus,
 		&leaderID,
 		&snapshot.Leader.ResourceName,
+		&snapshot.TeamRoomID,
+		&snapshot.LeaderDMRoomID,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Snapshot{}, fmt.Errorf("%w: repository %q", ErrNotFound, repositoryID)
@@ -790,6 +865,38 @@ func (s *Service) updateRemoteTeam(ctx context.Context, name string, members []a
 	return teamWriteResultError("replace Team membership", status, err)
 }
 
+// persistRooms 回读远端团队，把房间号落到本行。
+//
+// 房间由 AgentTeams 控制器**异步**建立 Matrix 房之后回填进 Team CR 的 status，
+// 所以 `POST/PUT /api/v1/teams` 的响应里根本没有它 —— 建完立刻回读通常也还是空的。
+// 因此这里读不到就当"还没建好"：不报错、不重试、不覆盖已有值，等下一次改编制再刷。
+// 房间号是观察事实，拿不到就保持 NULL，不拿团队名拼一个假的出来。
+//
+// 2026-09-20（0057）：落库条件跟着归属走 —— 同一个仓库可以被两个项目各建一支队，
+// 只按 repository_id 更新会把 A 项目的房间号写到 B 项目那一行上。
+func (s *Service) persistRooms(ctx context.Context, tx pgx.Tx, projectID, repositoryID, teamName string) error {
+	if s.client == nil {
+		return nil
+	}
+	view, status, err := s.client.GetTeam(ctx, teamName)
+	if err != nil || status != http.StatusOK {
+		return nil
+	}
+	if view.TeamRoomID == "" && view.LeaderDMRoomID == "" {
+		return nil
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE public.repository_teams
+		SET team_room_id = COALESCE(NULLIF($3, ''), team_room_id),
+		    leader_dm_room_id = COALESCE(NULLIF($4, ''), leader_dm_room_id),
+		    updated_at = now()
+		WHERE project_id = $1::uuid AND repository_id = $2`,
+		projectID, repositoryID, view.TeamRoomID, view.LeaderDMRoomID); err != nil {
+		return fmt.Errorf("persist repository team rooms: %w", err)
+	}
+	return nil
+}
+
 func (s *Service) workerPhase(ctx context.Context, name string) (string, error) {
 	if s.client == nil {
 		return "", fmt.Errorf("%w: controller client is nil", ErrControllerUnavailable)
@@ -906,7 +1013,7 @@ func validWorkerCount(workerCount int) bool {
 
 // remotePrefix 算**新建队**的远端名。
 //
-// 0056 起掺入项目 id：同一仓库可以被多个项目各建一支队，只喂仓库 id 会让两个项目算出
+// 0057 起掺入项目 id：同一仓库可以被多个项目各建一支队，只喂仓库 id 会让两个项目算出
 // **同一个名字**，在远端互相覆盖。分隔符用 NUL —— 与仓库里其它指纹的写法一致，
 // 也不会与 id 里可能出现的字符冲突。
 //

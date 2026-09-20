@@ -56,10 +56,10 @@ func registerRepositoryTeams(mux *http.ServeMux, auth Auth, api AgentTeams) {
 		})
 	}
 
-	// 2026-09-20（0056）：路径补上项目段。
+	// 2026-09-20（0057）：路径补上项目段。
 	//
 	// 旧路径 `/api/repositories/{repositoryId}/agent-team` 里**只有仓库没有项目**，
-	// 而团队自 0056 起按 (项目, 仓库) 认 —— 同一份仓库挂到两个项目时，路径无法表达
+	// 而团队自 0057 起按 (项目, 仓库) 认 —— 同一份仓库挂到两个项目时，路径无法表达
 	// "要哪一个项目的队"。本仓对"项目范围资源"的统一惯例就是把 projectId 放在路径里
 	// （`registerProjectRoute` + `/api/projects/{projectId}/…`，几十处如此），且壳层
 	// 的"当前项目"只存在浏览器内存里（`activeProject.ts`）——**没有任何 ambient 通道**

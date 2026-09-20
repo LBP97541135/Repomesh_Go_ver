@@ -87,7 +87,7 @@ export function RoomViewContainer({
         if (!found) throw new Error(`房间 ${roomId} 不在该 issue 的房间清单内`);
         convIdRef.current =
           found.conversationId ?? found.conversation_id ?? null;
-        const page = await fetchRoomStream(roomId, convIdRef.current);
+        const page = await fetchRoomStream(issueId, roomId);
         if (cancelled) return;
         setRoom(found);
         setStream(page);
@@ -153,7 +153,7 @@ export function RoomViewContainer({
       if (document.visibilityState !== "visible") return; // 后台标签页不空转打后端
       if (inFlight.current) return; // 上一轮未回来就跳过，不叠加
       inFlight.current = true;
-      fetchRoomStream(roomId, convIdRef.current)
+      fetchRoomStream(issueId, roomId)
         .then((page) => {
           if (cancelled) return;
           setStream(page);

@@ -8,6 +8,10 @@ export function ModelUsageSettings() {
   try { evaluationURL = observeWorkbenchURL("settings"); }
   catch (error) { addressError = error instanceof Error ? error.message : "工作台地址无效"; }
   const linkClass = "mt-4 inline-flex items-center gap-1 text-[12px] text-amber hover:text-amber-hi";
+  // 供应商目录（模型来源 / Key / 测试）就在同一分类的下方——SettingsPage 紧接着
+  // 渲染 ModelProvidersPage。收编时把「去 #/models」换成页内跳转（2026-09-20）。
+  const jumpToProviders = () =>
+    document.getElementById("model-providers")?.scrollIntoView({ behavior: "smooth", block: "start" });
   return (
     <section className="max-w-[760px]">
       <h2 className="text-[13.5px] font-semibold text-cream">模型与 API</h2>
@@ -19,13 +23,13 @@ export function ModelUsageSettings() {
           <h3 className="flex items-center gap-2 text-[13px] font-semibold text-cream"><GitBranch size={16} />仓库分析用模型</h3>
           <p className="mt-2 text-[11.5px] leading-relaxed text-tx2">用于需求与仓库名片的语义匹配、候选仓库召回。API 地址和 API Key 来自 RepoMesh 的模型供应商配置。</p>
           <p className="mt-2 text-[11px] text-tx3">未配置可用模型时，仓库发现会退回关键词分析。</p>
-          <a href="#/models" className={linkClass}>配置仓库分析 API / Key →</a>
+          <button type="button" onClick={jumpToProviders} className={linkClass}>配置仓库分析 API / Key →</button>
         </article>
         <article className="rounded-hard border border-line bg-panel p-5">
           <h3 className="flex items-center gap-2 text-[13px] font-semibold text-cream"><Bot size={16} />AgentTeams 用模型</h3>
           <p className="mt-2 text-[11.5px] leading-relaxed text-tx2">用于团队智能体的规划与执行。模型供应商保存 API 地址和 Key，项目执行配置决定实际采用的模型。</p>
           <p className="mt-2 text-[11px] text-tx3">保存供应商不会自动切换团队模型。原生 DSH 执行接入尚未完成。</p>
-          <a href="#/models" className={linkClass}>管理 AgentTeams 模型来源 →</a>
+          <button type="button" onClick={jumpToProviders} className={linkClass}>管理 AgentTeams 模型来源 →</button>
         </article>
         <article className="rounded-hard border border-line bg-panel p-5">
           <h3 className="flex items-center gap-2 text-[13px] font-semibold text-cream"><Activity size={16} />观测评估用模型</h3>

@@ -16,7 +16,6 @@ import { ObserveHome } from "./pages/observe/ObserveHome";
 import { RepositoriesPage } from "./pages/RepositoriesPage";
 import { RepositoryTeamPage } from "./pages/RepositoryTeamPage";
 import { ProjectSelectPage } from "./pages/ProjectSelectPage";
-import { ModelProvidersPage } from "./pages/ModelProvidersPage";
 import { beginProjectSession, clearActiveProject, setActiveProject } from "./api/activeProject";
 import { listAllProjects, type ProjectListItem } from "./api/projects";
 import { ReviewDeskPage } from "./pages/ReviewDeskPage";
@@ -531,7 +530,7 @@ export default function ConsoleShell() {
           }}
         />
       )}
-      {/* 团队页需要项目上下文（0056 起团队按 (项目, 仓库) 认）：没有选定项目就落到
+      {/* 团队页需要项目上下文（0057 起团队按 (项目, 仓库) 认）：没有选定项目就落到
           下面的项目选择页，而不是打一个必然 404 的请求。 */}
       {route.nav === "repositories" && teamRepositoryId !== null && activeProjectId !== null && (
         <RepositoryTeamPage
@@ -548,7 +547,6 @@ export default function ConsoleShell() {
         {(route.nav === "projects" || (activeProjectId === null && ["issues", "repositories", "reviews"].includes(route.nav))) && (
           <ProjectSelectPage key={account.id} projects={projects} activeProjectId={activeProjectId} error={projectsError} onRetry={() => setProjectsReload(n => n + 1)} onSelect={handleSelectProject} />
         )}
-        {route.nav === "models" && <ModelProvidersPage />}
         {route.nav === "observe" && <ObserveHome section={route.observeSection} />}
         {route.nav === "decision-chains" && (
           <DecisionChainPage organizationId={null} onToast={showToast} />
