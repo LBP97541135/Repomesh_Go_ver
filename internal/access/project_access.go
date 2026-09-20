@@ -81,9 +81,32 @@ func (s *Service) AuthenticateProjectRequest(ctx context.Context, cookie, csrf s
 }
 
 func (s *Service) LockProjectPrincipal(ctx context.Context, tx pgx.Tx, principal ProjectPrincipal) error {
+	return s.verifyProjectPrincipal(ctx, tx, principal, true)
+}
+
+// CheckProjectPrincipal 校验与 LockProjectPrincipal 完全相同的事实，但**不加行锁**。
+//
+// 2026-09-20 线上实测：读路径此前也走 FOR UPDATE，于是同一个人的并发轮询
+// （issue 详情 / 拓扑 / 计划 / 发现链 / 测试证据 会一起发）全都在同一批
+// bindings + sessions + accounts 行上排队；只要其中一个请求稍慢，排在后面的
+// 请求就撞上 lock_timeout=2s，被判成 503 RESULT_UNCONFIRMED —— 界面显示
+// "服务端暂时不可用"，而事实是服务好好的，只是被自己的读请求堵住了。
+//
+// 行锁对读没有意义：读不写任何东西，不需要"校验通过后到提交前会话不被吊销"
+// 这个保证。写路径继续用 LockProjectPrincipal，语义不变。
+func (s *Service) CheckProjectPrincipal(ctx context.Context, tx pgx.Tx, principal ProjectPrincipal) error {
+	return s.verifyProjectPrincipal(ctx, tx, principal, false)
+}
+
+func (s *Service) verifyProjectPrincipal(ctx context.Context, tx pgx.Tx, principal ProjectPrincipal, lock bool) error {
+	// 锁定与否只差一个后缀：两条路径必须校验同一批事实，不能各写一份 SQL 而漂移。
+	suffix := ""
+	if lock {
+		suffix = " FOR UPDATE"
+	}
 	var identity int64
 	var bindingExpires time.Time
-	if err := tx.QueryRow(ctx, `SELECT identity_generation,expires_at FROM repomesh_access.bindings WHERE hash=$1 FOR UPDATE`, principal.binding).Scan(&identity, &bindingExpires); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT identity_generation,expires_at FROM repomesh_access.bindings WHERE hash=$1`+suffix, principal.binding).Scan(&identity, &bindingExpires); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return failure(401, "AUTHENTICATION_REQUIRED")
 		}
@@ -93,14 +116,14 @@ func (s *Service) LockProjectPrincipal(ctx context.Context, tx pgx.Tx, principal
 	var generation int64
 	var expires, lastActive time.Time
 	var revoked bool
-	if err := tx.QueryRow(ctx, `SELECT actor,binding,generation,expires_at,last_active_at,revoked FROM repomesh_access.sessions WHERE hash=$1 FOR UPDATE`, principal.sessionHash).Scan(&actor, &binding, &generation, &expires, &lastActive, &revoked); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT actor,binding,generation,expires_at,last_active_at,revoked FROM repomesh_access.sessions WHERE hash=$1`+suffix, principal.sessionHash).Scan(&actor, &binding, &generation, &expires, &lastActive, &revoked); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return failure(401, "AUTHENTICATION_REQUIRED")
 		}
 		return unavailable()
 	}
 	var disabled bool
-	if err := tx.QueryRow(ctx, `SELECT disabled FROM repomesh_access.accounts WHERE id=$1 FOR UPDATE`, principal.actor).Scan(&disabled); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT disabled FROM repomesh_access.accounts WHERE id=$1`+suffix, principal.actor).Scan(&disabled); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return failure(401, "AUTHENTICATION_REQUIRED")
 		}
@@ -119,7 +142,10 @@ func (s *Service) RecheckProjectPrincipal(ctx context.Context, principal Project
 		return unavailable()
 	}
 	defer tx.Rollback(ctx)
-	if err := s.LockProjectPrincipal(ctx, tx, principal); err != nil {
+	// 非锁定校验：这里的事务在校验后立刻提交，行锁随之释放，它本来就保护不到
+	// 调用方后续的写入（那些写入在另一个事务里，并且自己会调
+	// LockProjectPrincipal）。所以对读、对写都只需要事实校验，不需要行锁。
+	if err := s.CheckProjectPrincipal(ctx, tx, principal); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {

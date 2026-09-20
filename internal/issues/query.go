@@ -88,7 +88,7 @@ func (s *Service) ListIssues(ctx context.Context, principal access.ProjectPrinci
 		return IssuePage{}, err
 	}
 	defer rollbackTx(tx)
-	if err := s.authorization.LockProjectPrincipal(ctx, tx, principal); err != nil {
+	if err := s.authorization.CheckProjectPrincipal(ctx, tx, principal); err != nil {
 		return IssuePage{}, err
 	}
 	if _, err := readProjectRow(ctx, tx, projectID, principal.ActorID()); err != nil {
@@ -341,7 +341,7 @@ func (s *Service) GetIssue(ctx context.Context, principal access.ProjectPrincipa
 		return IssueDetail{}, err
 	}
 	defer rollbackTx(tx)
-	if err := s.authorization.LockProjectPrincipal(ctx, tx, principal); err != nil {
+	if err := s.authorization.CheckProjectPrincipal(ctx, tx, principal); err != nil {
 		return IssueDetail{}, err
 	}
 	if _, err := readProjectRow(ctx, tx, projectID, principal.ActorID()); err != nil {
@@ -399,7 +399,7 @@ func (s *Service) GetIssueRooms(ctx context.Context, principal access.ProjectPri
 		return RoomsView{}, err
 	}
 	defer rollbackTx(tx)
-	if err := s.authorization.LockProjectPrincipal(ctx, tx, principal); err != nil {
+	if err := s.authorization.CheckProjectPrincipal(ctx, tx, principal); err != nil {
 		return RoomsView{}, err
 	}
 	if _, err := readProjectRow(ctx, tx, projectID, principal.ActorID()); err != nil {

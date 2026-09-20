@@ -70,7 +70,7 @@ func (s *Service) Options(ctx context.Context, principal access.ProjectPrincipal
 		return CreationOptions{}, err
 	}
 	defer rollbackTx(tx)
-	if err := s.authorization.LockProjectPrincipal(ctx, tx, principal); err != nil {
+	if err := s.authorization.CheckProjectPrincipal(ctx, tx, principal); err != nil {
 		return CreationOptions{}, err
 	}
 	fixedRevision, hasFixed, err := s.readCreationContext(ctx, tx, principal, projectID, &options)
@@ -155,7 +155,7 @@ func (s *Service) Options(ctx context.Context, principal access.ProjectPrincipal
 		return CreationOptions{}, err
 	}
 	defer rollbackTx(tx)
-	if err = s.authorization.LockProjectPrincipal(ctx, tx, principal); err != nil {
+	if err = s.authorization.CheckProjectPrincipal(ctx, tx, principal); err != nil {
 		return CreationOptions{}, err
 	}
 	current, err := s.projects.LockForConfiguration(ctx, tx, principal, projectID)
@@ -239,7 +239,7 @@ func (s *Service) Conversations(ctx context.Context, principal access.ProjectPri
 		return ConversationPage{}, err
 	}
 	defer rollbackTx(tx)
-	if err := s.authorization.LockProjectPrincipal(ctx, tx, principal); err != nil {
+	if err := s.authorization.CheckProjectPrincipal(ctx, tx, principal); err != nil {
 		return ConversationPage{}, err
 	}
 	rows, err := tx.Query(ctx, `SELECT id, COALESCE(title,'') FROM repomesh_issues.conversations

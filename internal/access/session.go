@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -13,18 +14,23 @@ func (s *Service) Session(ctx context.Context, cookie string) (Session, error) {
 		return Session{}, failure(401, "AUTHENTICATION_REQUIRED")
 	}
 	var view Session
-	err := s.pool.QueryRow(ctx, `UPDATE repomesh_access.sessions AS s SET last_active_at=now()
-		FROM repomesh_access.bindings b, repomesh_access.accounts a
+	var lastActive time.Time
+	hash := digest(cookie)
+	// 读事实用 SELECT：原来的写法是 UPDATE ... SET last_active_at=now() RETURNING，
+	// 也就是**每个请求都写一次同一行**（见 touchSession 的注释）。
+	err := s.pool.QueryRow(ctx, `SELECT a.id,a.display_name,a.github_id,a.is_admin,s.binding,s.generation,s.last_active_at
+		FROM repomesh_access.sessions s, repomesh_access.bindings b, repomesh_access.accounts a
 		WHERE s.hash=$1 AND s.binding=b.hash AND s.actor=a.id AND NOT s.revoked AND NOT a.disabled
 		AND s.expires_at>now() AND s.last_active_at>now()-interval '30 minutes'
-		AND b.expires_at>now() AND s.generation=b.identity_generation
-		RETURNING a.id,a.display_name,a.github_id,a.is_admin,s.binding,s.generation`, digest(cookie)).Scan(&view.User.ID, &view.User.DisplayName, &view.GitHubID, &view.User.IsAdmin, &view.Binding, &view.Generation)
+		AND b.expires_at>now() AND s.generation=b.identity_generation`, hash).
+		Scan(&view.User.ID, &view.User.DisplayName, &view.GitHubID, &view.User.IsAdmin, &view.Binding, &view.Generation, &lastActive)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Session{}, failure(401, "AUTHENTICATION_REQUIRED")
 	}
 	if err != nil {
 		return Session{}, unavailable()
 	}
+	s.touchSession(ctx, hash, lastActive)
 	view.CSRFToken = digest("repomesh-csrf:" + cookie)
 	view.GitHubConnection.Status = "missing"
 	err = s.pool.QueryRow(ctx, `SELECT CASE WHEN status='connected' AND (refresh_state<>'idle' OR access_expires_at<=now() OR observed_at<now()-interval '60 seconds') THEN 'unknown' ELSE status END,observed_at FROM repomesh_access.connections WHERE actor=$1`, view.User.ID).Scan(&view.GitHubConnection.Status, &view.GitHubConnection.ObservedAt)
@@ -32,6 +38,22 @@ func (s *Service) Session(ctx context.Context, cookie string) (Session, error) {
 		return Session{}, unavailable()
 	}
 	return view, nil
+}
+
+// touchSession 刷新 last_active_at，但**节流**到 30 秒一次。
+//
+// 2026-09-20 线上实测：此前每个 API 请求都 UPDATE 这一行，代价有两层——
+//  1. 每个读请求都变成写请求（而且写的是同一行），并发轮询互相排队；
+//  2. 排队叠上读路径里的 FOR UPDATE 之后，后面的请求撞上 lock_timeout=2s，
+//     整批被判成 503 RESULT_UNCONFIRMED（界面显示"服务端暂时不可用"）。
+//
+// 30 秒的刷新粒度对"30 分钟闲置即失效"这个语义没有影响，却把写放大压到近乎为零。
+// 写失败不改变本次请求的结果：它只是活跃度戳，不是授权事实。
+func (s *Service) touchSession(ctx context.Context, hash string, lastActive time.Time) {
+	if time.Since(lastActive) < 30*time.Second {
+		return
+	}
+	_, _ = s.pool.Exec(ctx, `UPDATE repomesh_access.sessions SET last_active_at=now() WHERE hash=$1`, hash)
 }
 
 // IsAdmin reports whether the authenticated actor's own account is an

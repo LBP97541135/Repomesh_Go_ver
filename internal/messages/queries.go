@@ -23,7 +23,7 @@ func (s *MessageService) ListMessages(ctx context.Context, principal access.Proj
 		return nil, err
 	}
 	defer rollbackTx(tx)
-	if err := s.authorization.LockProjectPrincipal(ctx, tx, principal); err != nil {
+	if err := s.authorization.CheckProjectPrincipal(ctx, tx, principal); err != nil {
 		return nil, err
 	}
 	var live bool
@@ -92,7 +92,7 @@ func (s *MessageService) GetSubmission(ctx context.Context, principal access.Pro
 		return SubmissionReceipt{}, err
 	}
 	defer rollbackTx(tx)
-	if err := s.authorization.LockProjectPrincipal(ctx, tx, principal); err != nil {
+	if err := s.authorization.CheckProjectPrincipal(ctx, tx, principal); err != nil {
 		return SubmissionReceipt{}, err
 	}
 	var receipt []byte
