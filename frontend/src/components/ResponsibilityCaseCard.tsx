@@ -406,10 +406,18 @@ function ConflictForm({
   actorId: string;
   onSubmit: (type: string) => void;
 }) {
-  const [type, setType] = useState("content_conflict");
+  // ⚠️ 只能从这三个里选：`conflict_resolutions.conflict_type` 有 CHECK 约束
+  // （graph_conflict / opinion_conflict / scope_conflict）。此前这里是自由文本、
+  // 默认值还是 `content_conflict` —— 提交必 500（23514 违反约束），
+  // 线上实测过。**让界面只给合法值**，比让用户撞一次约束再猜要好。
+  const [type, setType] = useState("opinion_conflict");
   return (
     <div className="mt-2 flex flex-col gap-1.5 rounded-[7px] border border-[var(--tree-hairline)] p-2">
-      <input className={input} placeholder="冲突类型（content_conflict / interface_mismatch …）" value={type} onChange={(e) => setType(e.target.value)} />
+      <select className={input} value={type} onChange={(e) => setType(e.target.value)}>
+        <option value="opinion_conflict">意见冲突（对同一件事的判断不一致）</option>
+        <option value="graph_conflict">依赖图冲突（图上有边、模型判排除）</option>
+        <option value="scope_conflict">范围冲突（谁该改这个仓）</option>
+      </select>
       <button
         type="button"
         disabled={busy || type === ""}
