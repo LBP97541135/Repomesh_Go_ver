@@ -166,10 +166,18 @@ func ParsePlanningArtifact(step int, raw []byte) (map[string]any, error) {
 	if trimmed == "" {
 		return nil, fmt.Errorf("产物为空文件")
 	}
-	// agent 有时会把 JSON 包在 ```json 里；只剥这一层，不做别的容错。
+	// agent 有时会把 JSON 包在 ```json 里，也可能把**思考过程**一起写进产物文件
+	// （2026-09-20 线上实测：MiniMax-M2 写出 `<think>…</think>` 后接 JSON，解析直接失败，
+	// 界面显示"候选评分失败"）。推理不是产物的一部分：先剥思考块，再取第一个配平的
+	// JSON 对象 —— 前后夹散文也救得回来。
+	trimmed = stripReasoning(trimmed)
 	trimmed = strings.TrimPrefix(trimmed, "```json")
 	trimmed = strings.TrimPrefix(trimmed, "```")
 	trimmed = strings.TrimSuffix(trimmed, "```")
+	trimmed = strings.TrimSpace(trimmed)
+	if candidate, ok := extractJSONObject(trimmed); ok {
+		trimmed = candidate
+	}
 	var artifact map[string]any
 	if err := json.Unmarshal([]byte(strings.TrimSpace(trimmed)), &artifact); err != nil {
 		return nil, fmt.Errorf("产物不是合法 JSON：%w", err)
@@ -753,4 +761,56 @@ func (s *Service) RepoSummaries(ctx context.Context, projectID string) ([]byte, 
 		return nil, fmt.Errorf("discovery: repo summaries: %w", err)
 	}
 	return json.Marshal(summaries)
+}
+
+// stripReasoning 去掉模型写进产物的思考块（<think>…</think>）。
+// 没闭合的思考块按"从这里到文件末尾都是推理"处理 —— 宁可丢掉后面，也不把推理
+// 当产物解析（那只会得到一个更晦涩的 JSON 报错）。
+func stripReasoning(text string) string {
+	for {
+		start := strings.Index(text, "<think>")
+		if start < 0 {
+			break
+		}
+		rest := text[start:]
+		end := strings.Index(rest, "</think>")
+		if end < 0 {
+			text = text[:start]
+			break
+		}
+		text = text[:start] + rest[end+len("</think>"):]
+	}
+	return text
+}
+
+// extractJSONObject 取第一个**配平的** JSON 对象（字符串与转义都算在内）。
+// 取不到就返回 false，调用方按原文去解析并如实报错 —— 不编一个空对象出来。
+func extractJSONObject(text string) (string, bool) {
+	start := strings.Index(text, "{")
+	if start < 0 {
+		return "", false
+	}
+	depth := 0
+	inString := false
+	escaped := false
+	for i := start; i < len(text); i++ {
+		switch {
+		case escaped:
+			escaped = false
+		case inString && text[i] == '\\':
+			escaped = true
+		case text[i] == '"':
+			inString = !inString
+		case inString:
+			// 字符串内的大括号不算层级
+		case text[i] == '{':
+			depth++
+		case text[i] == '}':
+			depth--
+			if depth == 0 {
+				return text[start : i+1], true
+			}
+		}
+	}
+	return "", false
 }
