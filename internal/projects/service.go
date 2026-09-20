@@ -225,6 +225,7 @@ func (s *Service) prepareUpdate(ctx context.Context, principal access.ProjectPri
 	if input.RepositoryIDsToAdd != nil {
 		requested = *input.RepositoryIDsToAdd
 	}
+	var urlLocators []access.RepositoryLocator
 	// URL 形态的接入（2026-09-20）：仓库页（扫描目录）只有 URL，给不出 `repo_` id。
 	// 这里把它换成 id —— 按 owner/name 去 GitHub 取数字 id、登记进项目注册表，
 	// 再拼进**同一份** requested：后面的参与权观测、校验、上限、幂等台账全都不变。
@@ -244,16 +245,40 @@ func (s *Service) prepareUpdate(ctx context.Context, principal access.ProjectPri
 			if persistErr := s.persistRepositoryRow(ctx, locator); persistErr != nil {
 				return updatePlan{}, persistErr
 			}
-			requested = append(requested, locator.ID)
+			// **不塞进 requested**：那条路要走 ResolveSelectedRepositories，而它要求
+			// 这个仓在**当前 connection revision/epoch** 的发现记录里有一行。
+			// 用户重新登录会换 epoch，旧发现记录全部失效 —— 线上实测：这个仓有 22 条
+			// 发现记录、属于当前 epoch 的 0 条，于是按名字解析出 id 之后仍被 404 挡回。
+			// 我们刚刚已经**用发起人的令牌现验过**这个仓（比一条陈旧的发现缓存更硬），
+			// 所以它的定位直接并进 additions，不再被"缓存热不热"卡一道。
+			urlLocators = append(urlLocators, locator)
 		}
 	}
 	addIDs := repositoryAdditions(existing, requested)
-	if len(existing)+len(addIDs) > 100 {
+	if len(existing)+len(addIDs)+len(urlLocators) > 100 {
 		return updatePlan{}, validation("repositoryIdsToAdd")
 	}
 	additions, err := s.access.ResolveSelectedRepositories(ctx, principal, addIDs)
 	if err != nil {
 		return updatePlan{}, err
+	}
+	for _, locator := range urlLocators {
+		dup := false
+		for _, item := range existing {
+			if item.ID == locator.ID {
+				dup = true
+				break
+			}
+		}
+		for _, item := range additions {
+			if item.ID == locator.ID {
+				dup = true
+				break
+			}
+		}
+		if !dup {
+			additions = append(additions, locator)
+		}
 	}
 	var observation access.ProjectObservation
 	if len(additions) > 0 {
