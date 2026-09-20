@@ -28,6 +28,23 @@ export function getCsrfToken(): string {
   return csrfToken;
 }
 
+/** 读后端自报版本：`GET /healthz`（**不在 /api 下**，无鉴权，返回
+ *  `{"status":…,"version":"<commit sha>"}`）。
+ *
+ *  为什么要它：部署页要能回答"线上跑的是哪个 commit"。前端自己那份
+ *  `__APP_VERSION__` 是**构建期**注入的，两者可能不一致（前端产物没换、后端换了，
+ *  或反过来）—— 分开显示才看得出这种不一致。 */
+export async function fetchBackendVersion(): Promise<string | null> {
+  try {
+    const res = await fetch("/healthz", { credentials: "same-origin" });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { version?: unknown };
+    return typeof body.version === "string" && body.version !== "" ? body.version : null;
+  } catch {
+    return null;
+  }
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly url: string;
