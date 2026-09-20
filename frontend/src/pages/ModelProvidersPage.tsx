@@ -59,6 +59,16 @@ export function ModelProvidersPage() {
     apiKey: "",
     modelId: "",
     displayName: "",
+    // 后端把模型的这四个字段都当**必填**校验（internal/models/input.go:224-235）：
+    // contextWindow / maxOutputTokens 必须是 1..2147483647 的正整数，且
+    // maxOutputTokens <= contextWindow；reasoning / vision 必须是布尔。
+    // 2026-09-20 线上实测：这个表单原来一个都不发，于是「新建中转站」**永远**
+    // 422 models.contextWindow INVALID —— 一条路都走不通。默认值只是表单里的
+    // 初值（人看得见、改得动），不是后端替谁编的数字。
+    contextWindow: "128000",
+    maxOutputTokens: "8192",
+    reasoning: false,
+    vision: false,
   });
 
   const submit = async () => {
@@ -69,6 +79,16 @@ export function ModelProvidersPage() {
     }
     if (form.apiKey.trim() === "") {
       setFormError("新建中转站必须提供 API Key（后端：providerId 缺席时 secret 必须 replace）。");
+      return;
+    }
+    const contextWindow = Number(form.contextWindow.trim());
+    const maxOutputTokens = Number(form.maxOutputTokens.trim());
+    if (!Number.isInteger(contextWindow) || contextWindow < 1) {
+      setFormError("上下文窗口必须是不小于 1 的整数。");
+      return;
+    }
+    if (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 1 || maxOutputTokens > contextWindow) {
+      setFormError("最大输出必须是不小于 1、且不大于上下文窗口的整数。");
       return;
     }
     setBusy(true);
@@ -82,6 +102,10 @@ export function ModelProvidersPage() {
           {
             modelId: form.modelId.trim(),
             displayName: form.displayName.trim() || form.modelId.trim(),
+            contextWindow,
+            maxOutputTokens,
+            reasoning: form.reasoning,
+            vision: form.vision,
           },
         ],
       });
@@ -215,6 +239,40 @@ export function ModelProvidersPage() {
                 onChange={(e) => setForm({ ...form, displayName: e.target.value })}
                 placeholder="例如：MiniMax M2"
               />
+            </label>
+            <label className="text-[12.5px] text-tx2">
+              上下文窗口（tokens，必填）
+              <input
+                className="mt-1 w-full rounded-hard border border-line bg-well px-2.5 py-[6px] font-mono text-[12.5px] text-tx"
+                value={form.contextWindow}
+                onChange={(e) => setForm({ ...form, contextWindow: e.target.value })}
+                placeholder="例如：128000"
+              />
+            </label>
+            <label className="text-[12.5px] text-tx2">
+              最大输出（tokens，必填，不得大于上下文窗口）
+              <input
+                className="mt-1 w-full rounded-hard border border-line bg-well px-2.5 py-[6px] font-mono text-[12.5px] text-tx"
+                value={form.maxOutputTokens}
+                onChange={(e) => setForm({ ...form, maxOutputTokens: e.target.value })}
+                placeholder="例如：8192"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-[12.5px] text-tx2">
+              <input
+                type="checkbox"
+                checked={form.reasoning}
+                onChange={(e) => setForm({ ...form, reasoning: e.target.checked })}
+              />
+              支持推理（reasoning）
+            </label>
+            <label className="flex items-center gap-2 text-[12.5px] text-tx2">
+              <input
+                type="checkbox"
+                checked={form.vision}
+                onChange={(e) => setForm({ ...form, vision: e.target.checked })}
+              />
+              支持视觉（vision）
             </label>
           </div>
           {formError && (
