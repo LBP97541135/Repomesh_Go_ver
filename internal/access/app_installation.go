@@ -26,8 +26,11 @@ type AppInstallTarget struct {
 	/** 没装时 = 安装链接（带 suggested_target_id，直接落在那个账号上）；
 	 *  已装时 = 那个 installation 的设置页（补勾仓库用）。 */
 	InstallURL string `json:"installUrl"`
-	/** 当前用户有没有权限在这个账号上装。**null = 问不到**——界面显示"不确定"，
-	 *  不冒充"你有权限"（那会让人点进去才发现装不了）。 */
+	/** 当前用户有没有权限在这个账号上装。
+	 *  **目前恒为 null**：判断组织角色要 `read:org` scope，而本部署的登录流程刻意
+	 *  不申请任何 scope；填一个必然失败的调用等于埋死代码。所以这件事交给**安装页
+	 *  自己**回答——GitHub 的 installations/new 只列出你能装的账号。
+	 *  字段保留在契约里，将来决定加 scope 时不用再改形状。 */
 	CanInstall   *bool    `json:"canInstall"`
 	Repositories []string `json:"repositories"`
 }
@@ -99,7 +102,8 @@ func (s *Service) AppInstallationStatus(ctx context.Context, principal ProjectPr
 		installedBy[strings.ToLower(installed.AccountLogin)] = installed
 	}
 
-	// 用户令牌只在判断组织角色时用得上；取不到不阻断（canInstall 留 null）。
+	// 用户令牌：`/users/{login}` 不能用 App JWT 调（线上探针实测被判 unauthorized），
+	// 所以带上用户的令牌；取不到就匿名调——那是公开数据，够这次引导用。
 	var userToken string
 	if credential, err := s.credential(ctx, principal.actor, false); err == nil {
 		userToken = credential.token
@@ -143,22 +147,16 @@ func (s *Service) AppInstallationStatus(ctx context.Context, principal ProjectPr
 			continue
 		}
 
-		// 没装：拼安装链接，并尽量判断这个人能不能自己装。
-		id, kind, profileErr := client.AccountProfile(ctx, login)
+		// 没装：拼安装链接。账号信息拿不到时退化成不带预选账号的通用链接——
+		// 只是让用户多挑一下账号，不影响能不能装。
+		id, kind, profileErr := client.AccountProfile(ctx, userToken, login)
 		if profileErr != nil {
-			// 账号信息问不到：链接仍然给（不带预选账号），状态如实留空。
 			target.InstallURL = "https://github.com/apps/" + url.PathEscape(slug) + "/installations/new"
 		} else {
 			if kind == "Organization" {
 				target.Kind = "organization"
 			}
 			target.InstallURL = installURL(id)
-			if target.Kind == "organization" && userToken != "" {
-				if role, roleErr := client.OrgRole(ctx, userToken, login); roleErr == nil && role != "" {
-					can := role == "admin"
-					target.CanInstall = &can
-				}
-			}
 		}
 		view.UncoveredCount += len(repositories)
 		view.Targets = append(view.Targets, target)

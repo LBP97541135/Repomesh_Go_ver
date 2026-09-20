@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
-	"strings"
 )
 
 // ── App 级只读读面（2026-09-20）─────────────────────────────────────────────
@@ -95,12 +94,19 @@ func (c *Client) AppInstallations(ctx context.Context) ([]AppInstallationSummary
 //
 // `suggested_target_id` 要的是**数字 id**，少了它用户还得在安装页自己从账号列表里挑
 // ——那正是我们想省掉的那一步。`/users/{login}` 对个人号和组织都返回这两个字段
-// （组织的 `type` 是 "Organization"），一次调用够用。
-func (c *Client) AccountProfile(ctx context.Context, login string) (int64, string, error) {
+// （组织的 `type` 是 "Organization"）。
+//
+// **必须用用户令牌或匿名调，不能用 App JWT**：JWT 只对 `/app`、`/app/installations`
+// 这类 App 级端点有效，打到 `/users/...` 会被 GitHub 判 unauthorized（线上探针实测
+// 就是这个错）。token 为空就匿名调（公开数据，60 次/小时够这一次引导用）。
+func (c *Client) AccountProfile(ctx context.Context, token, login string) (int64, string, error) {
 	if !pathSegment(login) {
 		return 0, "", &Error{Kind: "rejected"}
 	}
-	payload, err := c.appJSON(ctx, "https://api.github.com/users/"+url.PathEscape(login))
+	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+	payload, _, _, err := c.request(ctx, http.MethodGet,
+		"https://api.github.com/users/"+url.PathEscape(login), token, nil)
 	if err != nil {
 		return 0, "", err
 	}
@@ -117,32 +123,9 @@ func (c *Client) AccountProfile(ctx context.Context, login string) (int64, strin
 	return response.ID, response.Type, nil
 }
 
-// OrgRole 取这个用户在某个组织里的角色（admin / member）。
-//
-// 用**用户令牌**调（App JWT 读不到"某个人的组织角色"）。拿不到就返回空串——
-// 界面据此显示"不确定"，绝不冒充"你有权限"：那会让人点进安装页才发现装不了，
-// 比一开始就说清更糟。
-func (c *Client) OrgRole(ctx context.Context, token, org string) (string, error) {
-	if token == "" || !pathSegment(org) {
-		return "", &Error{Kind: "rejected"}
-	}
-	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
-	defer cancel()
-	payload, _, _, err := c.request(ctx, http.MethodGet,
-		"https://api.github.com/user/memberships/orgs/"+url.PathEscape(org), token, nil)
-	if err != nil {
-		return "", err
-	}
-	var response struct {
-		Role  string `json:"role"`
-		State string `json:"state"`
-	}
-	if err := decode(payload, &response); err != nil {
-		return "", err
-	}
-	// pending 的邀请不算能装——人还没真正进这个组织。
-	if response.State != "" && response.State != "active" {
-		return "", nil
-	}
-	return strings.ToLower(response.Role), nil
-}
+// 说明：这里**没有**「读某个用户在组织里的角色」的方法。
+// `GET /user/memberships/orgs/{org}` 需要 `read:org` scope，而本部署的登录流程
+// 刻意不申请任何 scope（AuthorizationURL 不带 scope 参数）。加一个必然失败的方法
+// 等于埋一节死代码，所以"你有没有权限装"这件事交给**安装页自己**回答：
+// GitHub 的 installations/new 只列出你能装的账号，点进去自然就知道。
+// 真要精确区分，得给 OAuth 加 read:org 并让所有人重登一次——那是产品决策。
