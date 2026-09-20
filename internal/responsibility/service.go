@@ -33,7 +33,10 @@ func (s *Service) RecordEvent(ctx context.Context, planID, issueID, projectID, a
 	blob, _ := json.Marshal(detail)
 	row := s.Pool.QueryRow(ctx, `
 		INSERT INTO public.case_events (plan_id, issue_id, project_id, actor_role, actor_id, event_kind, detail)
-		VALUES ($1, NULLIF($2,'')::uuid, $3, $4, $5, $6, $7::jsonb)
+		-- 注意：issue_id 不要加 ::uuid。issue id 形如 iss_xxx
+		-- （repomesh_issues.issues.id 是 text），加了就是 22P02；
+		-- 0059 迁移已把这一列改成 text。
+		VALUES ($1, NULLIF($2,''), $3, $4, $5, $6, $7::jsonb)
 		RETURNING id, plan_id::text, issue_id::text, project_id::text, actor_role, actor_id, event_kind, detail, created_at`,
 		planID, issueID, projectID, actorRole, actorID, eventKind, string(blob))
 	return scanCaseEvent(row)
