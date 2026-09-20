@@ -189,6 +189,55 @@ func (s *Service) Create(ctx context.Context, repositoryID string, workerCount i
 	return snapshot, nil
 }
 
+// EnsureForRepository 给**一个**仓库建队（幂等）。
+//
+// 这是"确认接入即建队"的唯一入口（2026-09-20 用户裁定）：
+//
+//	不是扫描就建队，是**确认接入**的时候才建队。
+//
+// 仓库页单仓「接入本项目」= 人在确认；扫描目录、批量「全部接入」都**不是**确认，
+// 不该建队。所以这里只接受"调用方明确点名的那一个仓库"，并且要先把项目侧 id
+// （repo_…）解析成扫描侧 id（32 位十六进制）—— 建队只认后者。
+//
+// 返回 true 表示这次真的建了一支；已有队伍、仓库没扫到、或远端拒绝都返回 false
+// （远端拒绝会把原因带在 error 里，不吞）。
+func (s *Service) EnsureForRepository(ctx context.Context, projectID, projectRepositoryID string, workerCount int) (bool, error) {
+	if s.pool == nil {
+		return false, fmt.Errorf("%w: database pool is nil", ErrControllerUnavailable)
+	}
+	if !validWorkerCount(workerCount) {
+		workerCount = minWorkers
+	}
+	var scanID, projectIDOut, projectSide string
+	if err := s.pool.QueryRow(ctx, repoTeamResolutionQuery+`
+		WHERE pr.project_id=$1 AND pr.repository_id=$2
+		LIMIT 1`, projectID, projectRepositoryID).Scan(&projectIDOut, &projectSide, &scanID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// 这个仓库还没被扫描到：没有扫描侧身份就建不了队，如实返回。
+			return false, nil
+		}
+		return false, fmt.Errorf("resolve repository %s: %w", projectRepositoryID, err)
+	}
+	if scanID == "" {
+		return false, nil
+	}
+	var exists bool
+	if err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM public.repository_teams WHERE repository_id=$1)`,
+		scanID).Scan(&exists); err != nil {
+		return false, err
+	}
+	if exists {
+		return false, nil
+	}
+	if _, err := s.Create(ctx, scanID, workerCount); err != nil {
+		if errors.Is(err, ErrConflict) || errors.Is(err, ErrNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 // repoTeamResolutionQuery 把**项目侧**仓库解析成**扫描侧**仓库（按 URL 对齐）。
 //
 // 两个 id 空间不同（项目侧 "repo_0000…"、扫描侧 32 位十六进制），而建队只认扫描侧

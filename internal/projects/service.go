@@ -492,7 +492,13 @@ func (s *Service) Update(ctx context.Context, principal access.ProjectPrincipal,
 	if err = tx.Commit(ctx); err != nil {
 		return UpdateReceipt{}, unavailable()
 	}
-	return updateReceipt(operation), nil
+	receipt := updateReceipt(operation)
+	// 本次真正新增的仓库（项目侧 id）带回收据：上层据此判断"这是不是一次**逐仓确认**
+	// 的接入"（恰好新增 1 个），而不是批量接入或扫描后自动挂载。
+	for _, addition := range plan.additions {
+		receipt.AddedRepositoryIDs = append(receipt.AddedRepositoryIDs, addition.ID)
+	}
+	return receipt, nil
 }
 
 func (s *Service) Creation(ctx context.Context, principal access.ProjectPrincipal, creationID string) (CreationReceipt, error) {

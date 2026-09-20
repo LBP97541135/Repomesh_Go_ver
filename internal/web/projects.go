@@ -22,23 +22,26 @@ import (
 
 type Projects struct {
 	Service *projects.Service
-	// OnRepositoriesAttached 在项目**新建/更新成功之后**被调用（best-effort，异步）。
+	// OnRepositoriesConfirmed 在项目更新**新增了仓库**之后被调用（best-effort，异步）。
 	//
-	// 2026-09-20（用户）：仓库接入的时候要自动为它建一支智能体团队，不该让人再去
-	// 仓库页点一次。这里只发一个"这个项目刚变过"的信号，具体做什么由装配方决定
-	// （main.go 接到 repositoryteams.EnsureForProject）——web 层不认识 AgentTeams。
-	// 失败不回滚项目：建队是后续动作，不是项目写入的一部分。
-	OnRepositoriesAttached func(ctx context.Context, projectID string)
+	// 2026-09-20 用户裁定："不是扫描就建队，是**确认接入**的时候才建队。"
+	// 判据就是 added 的数量：
+	//   · 恰好 1 个 = 人在仓库页**逐仓确认**接入（「接入本项目」）→ 该建队；
+	//   · 一次几十个 = 批量「全部接入本项目」/ 扫描后自动挂载 → **不是确认，不建队**。
+	// web 层只把事实交出去（新增了哪些仓库），要不要建队由装配方决定 —— web 不认识
+	// AgentTeams。失败不回滚项目：建队是后续动作，不是项目写入的一部分。
+	OnRepositoriesConfirmed func(ctx context.Context, projectID string, added []string)
 }
 
-// notifyRepositoriesAttached 异步通知装配方。用 context.WithoutCancel 保证请求
+// notifyRepositoriesConfirmed 异步通知装配方。用 context.WithoutCancel 保证请求
 // 返回后这次建队仍能跑完（它不该被 HTTP 的 15 秒超时打断）。
-func (p Projects) notifyRepositoriesAttached(ctx context.Context, projectID string) {
-	if p.OnRepositoriesAttached == nil || projectID == "" {
+func (p Projects) notifyRepositoriesConfirmed(ctx context.Context, projectID string, added []string) {
+	if p.OnRepositoriesConfirmed == nil || projectID == "" || len(added) == 0 {
 		return
 	}
-	hook := p.OnRepositoriesAttached
-	go hook(context.WithoutCancel(ctx), projectID)
+	hook := p.OnRepositoriesConfirmed
+	ids := append([]string(nil), added...)
+	go hook(context.WithoutCancel(ctx), projectID, ids)
 }
 type projectHandler func(http.ResponseWriter, *http.Request, access.ProjectPrincipal) error
 type projectErrorBody struct {
@@ -78,8 +81,9 @@ func registerProjects(mux *http.ServeMux, auth Auth, projectAPI Projects) {
 			status = http.StatusCreated
 		}
 		writeJSON(w, status, result.Receipt)
-		// 新建项目就把它的仓库接入同一件事：给每个仓库自动建一支智能体团队。
-		projectAPI.notifyRepositoriesAttached(r.Context(), result.Receipt.ProjectID)
+		// 新建项目**不建队**：用户裁定的是"确认接入才建队"，而项目创建时勾选的仓库
+		// 是"这个项目有哪些仓"，不是逐仓确认（线上正是"新建/批量接入一次 43 个仓"
+		// 把控制面灌爆的）。建队只发生在仓库页**逐仓「接入本项目」**那一步。
 		return nil
 	})
 	registerProjectRoute(mux, "GET /api/project-creations/{projectCreationId}", auth, func(w http.ResponseWriter, r *http.Request, principal access.ProjectPrincipal) error {
@@ -111,9 +115,9 @@ func registerProjects(mux *http.ServeMux, auth Auth, projectAPI Projects) {
 		result, err := projectAPI.Service.Update(r.Context(), principal, command)
 		if err == nil {
 			writeJSON(w, http.StatusOK, result)
-			// 更新项目也可能是在**追加仓库**（仓库页的"接入本项目"就走这条）：
-			// 成功之后同样给新仓库自动建队。幂等，已建过的会被跳过。
-			projectAPI.notifyRepositoriesAttached(r.Context(), result.ProjectID)
+			// 仓库页单仓「接入本项目」走的就是这条：新增恰好 1 个仓 = 人确认接入。
+			// 批量「全部接入」会一次新增几十个 —— 那不是逐仓确认，装配方会自己跳过。
+			projectAPI.notifyRepositoriesConfirmed(r.Context(), result.ProjectID, result.AddedRepositoryIDs)
 		}
 		return err
 	})

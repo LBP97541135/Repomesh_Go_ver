@@ -19,6 +19,14 @@ func TestScriptSyntaxIsValidBash(t *testing.T) {
 	if err != nil {
 		t.Skip("没有 bash，跳过语法自检")
 	}
+	// Windows 上 LookPath 常能找到一个 **WSL 的 bash 壳**，而它背后没有真的 /bin/bash
+	// （报 "execvpe(/bin/bash) failed: No such file or directory"）。先拿一段必然合法的
+	// 脚本试一次：跑不起来就说明这台机器没有可用的 bash，跳过 —— 不制造假失败。
+	probe := exec.Command(bash, "-n")
+	probe.Stdin = strings.NewReader("set -e\necho ok\n")
+	if out, err := probe.CombinedOutput(); err != nil {
+		t.Skipf("这台机器的 bash 不可用（%v：%s），跳过语法自检", err, strings.TrimSpace(string(out)))
+	}
 	delivery, err := buildAgentCommand("codex_cli", "MiniMax-M2",
 		"把运费改成满 900 免运费", "owner/name", "att_1", "标题", "iss_1", "技能原文")
 	if err != nil {

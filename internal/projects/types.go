@@ -97,6 +97,12 @@ type UpdateReceipt struct {
 	ProjectRevision string    `json:"projectRevision"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 	Links           Links     `json:"links"`
+	// AddedRepositoryIDs 是**本次更新真正新增**的仓库（项目侧 id，repo_…）。
+	//
+	// 2026-09-20 用户裁定："不是扫描就建队，是**确认接入**的时候才建队。" 判据就在
+	// 这里：一次更新新增了几个仓库。单仓「接入本项目」= 人确认了一个 → 恰好 1 个；
+	// 批量「全部接入本项目」= 不是逐仓确认 → 一次几十个。上层据此决定要不要建队。
+	AddedRepositoryIDs []string `json:"addedRepositoryIds,omitempty"`
 }
 
 type CreateResult struct {

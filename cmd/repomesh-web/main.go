@@ -536,53 +536,34 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	// 仓库作用域的团队管理（2026-09-20 并入）：只有拿到库池才建服务；
 	// 服务缺席时路由如实回 503 service_not_configured，不假装能用。
 	agentTeamsAPI := web.AgentTeams{Client: atClient}
-	// 2026-09-20 线上事故：自动建队把 embedded AgentTeams 灌爆了 —— 42 支队 / 124 个
-	// worker 挤在一台机器上，load 冲到 100+，连登录都被拖死（用户当场反馈"登录不上去"）。
-	// 远端队伍是**真资源**（每个 worker 一个 runtime），而"接入即建队"面对的是几十个
-	// 历史仓库；创建失败时远端可能已经建好、本地没落库，于是重试不断堆出孤儿队。
-	//
-	// 因此给它一个**总开关**，并且默认关掉：REPOMESH_REPOSITORY_TEAM_AUTOCREATE=on
-	// 才开。要用的人自己开，开了之后也要盯着控制面的容量。
-	if pipelinePool != nil && autoCreateRepositoryTeams() {
+	if pipelinePool != nil {
 		agentTeamsAPI.RepositoryTeams = repositoryteams.New(pipelinePool, atClient)
-		// 仓库接入即建队（2026-09-20 用户裁定）：项目新建/更新成功之后，异步给这个
-		// 项目里**还没有团队**的仓库各建一支（幂等，已建过的跳过）。失败不回滚项目
-		// ——建队是后续动作，不是项目写入的一部分；失败原因如实进日志，不吞。
+		// 建队**只发生在"逐仓确认接入"那一步**（2026-09-20 用户裁定 + 当天事故教训）：
+		//
+		//	"不是扫描就建队，是**确认接入**的时候才建队。"
+		//
+		// 判据：一次动作里**恰好新增 1 个仓库**（仓库页单仓「接入本项目」）。批量
+		// 「全部接入本项目」、扫描后自动挂载、新建项目一次勾几十个 —— 都不是逐仓确认，
+		// 一律不建队。线上正是它们把 embedded AgentTeams 灌到 42 队 / 124 个 worker，
+		// load 冲到 100+、登录被拖死；而每个 worker 都是**真 runtime**，不是纸面记录。
+		//
+		// 这里**没有**后台扫掠：历史积压的仓库不会自动补队 —— 需要就逐仓确认一次。
 		teamService := agentTeamsAPI.RepositoryTeams
-		projectAPI.OnRepositoriesAttached = func(ctx context.Context, projectID string) {
-			created, err := teamService.EnsureForProject(ctx, projectID, repositoryTeamWorkerCount())
-			if err != nil {
-				slog.Warn("repository team ensure deferred", "project", projectID, "reason", err.Error())
+		projectAPI.OnRepositoriesConfirmed = func(ctx context.Context, projectID string, added []string) {
+			if len(added) != 1 {
+				slog.Info("repository team skipped: not a single-repository confirmation",
+					"project", projectID, "added", len(added))
+				return
 			}
-			if len(created) > 0 {
-				slog.Info("repository teams created", "project", projectID, "count", len(created))
+			created, err := teamService.EnsureForRepository(ctx, projectID, added[0], repositoryTeamWorkerCount())
+			if err != nil {
+				slog.Warn("repository team ensure deferred",
+					"project", projectID, "repository", added[0], "reason", err.Error())
+			}
+			if created {
+				slog.Info("repository team created", "project", projectID, "repository", added[0])
 			}
 		}
-		// 兜底收敛：本次改动之前接入的仓库、以及上一轮因 AT 控制面不可用而没建成的
-		// 仓库，靠这条低频循环补上。服务重启后它同样会跑（幂等）。
-		go func() {
-			// 第一次扫掠只等 20 秒，之后每 5 分钟一次（每次最多 1 支，见 maxTeamsPerSweep）。
-			//
-			// 2026-09-20 线上实测：原先第一句就是 time.Sleep(2*time.Minute)，而部署
-			// 很频繁 —— 每次重启都把计时器清零，这条循环在反复部署期间一次都没跑到
-			// （repository_teams 一直停在 1 行、59 个已接入仓库全都"待建队"）。
-			timer := time.NewTimer(20 * time.Second)
-			defer timer.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-timer.C:
-				}
-				created, err := teamService.EnsureAll(ctx, repositoryTeamWorkerCount())
-				if err != nil {
-					slog.Warn("repository team sweep deferred", "reason", err.Error())
-				} else if len(created) > 0 {
-					slog.Info("repository teams created by sweep", "count", len(created))
-				}
-				timer.Reset(5 * time.Minute)
-			}
-		}()
 	}
 	if err := web.RunConfigured(ctx, *addr, *assets, auth, projectAPI, modelAPI, scanAPI, decisionAPI, skillsAPI, issuesAPI, messagesAPI, agentTeamsAPI, pipelineAPI, humanControlAPI, observeV1, discoveryAPI, consoleAPI, certFile, keyFile); err != nil {
 		fmt.Fprintln(stderr, "web stopped:", err)
@@ -593,22 +574,6 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 // repositoryTeamWorkerCount 是"仓库接入时自动建队"给每支队伍配几名执行者。
 //
-// autoCreateRepositoryTeams 是"仓库接入即自动建队"的**总开关**，默认关。
-//
-// 2026-09-20 线上事故：这个功能把 embedded AgentTeams 灌爆了 —— 42 支队 / 124 个
-// worker 挤在一台机器上，load 冲到 100+，用户当场反馈"登录不上去"。远端队伍是真资源
-// （每个 worker 一个 runtime），而创建失败时远端可能已经建好、本地没落库，重试会不断
-// 堆出孤儿队。所以在"接入即建队"的语义真正做完（按用量惰性建、带容量护栏）之前，
-// 默认关；要开就显式 REPOMESH_REPOSITORY_TEAM_AUTOCREATE=on，并盯着控制面容量。
-func autoCreateRepositoryTeams() bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("REPOMESH_REPOSITORY_TEAM_AUTOCREATE"))) {
-	case "on", "true", "1", "yes":
-		return true
-	default:
-		return false
-	}
-}
-
 //
 // 默认 **1**（2026-09-20 线上实测后从 2 降下来）：AgentTeams 的每个 worker 都是一个
 // 真实 runtime（embedded kube 里的一个 pod），而"接入即建队"面对的是几十个仓库 ——
