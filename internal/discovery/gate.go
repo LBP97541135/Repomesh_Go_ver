@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -45,11 +46,29 @@ type gateJSON struct {
 	ResolvedAt *time.Time `json:"resolved_at"`
 }
 
+// gateAutoDeadline 是 ai 模式选仓门的自动代选宽限(spec 2026-09-20 §1):
+// 开门时刻 + 10 分钟无人确认,协调器按建议集合代选。
+const gateAutoDeadline = 10 * time.Minute
+
 // OpenGate 打开选仓门:issue_discoveries 没有 scope_gate(行缺或列为空)才写,
 // 已有门(pending 或 resolved)一律不动——重复开门幂等且不覆盖。发现链行
 // 缺失时按 issue 现场补一行最小状态(与 ensureState 同思路),门不依赖
 // "① 已经跑过"。
 func (s *Service) OpenGate(ctx context.Context, issueID string, suggested []string, deadline *time.Time) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := openGateInTx(ctx, tx, issueID, suggested, deadline); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// openGateInTx 是同事务版:② 候选产物落库的事务里顺手开门(gate_flow),
+// 候选与门要么一起提交、要么一起回滚;单列写不受 save() 整行重写影响。
+func openGateInTx(ctx context.Context, tx pgx.Tx, issueID string, suggested []string, deadline *time.Time) error {
 	if suggested == nil {
 		suggested = []string{}
 	}
@@ -57,11 +76,6 @@ func (s *Service) OpenGate(ctx context.Context, issueID string, suggested []stri
 	if err != nil {
 		return err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	command, err := tx.Exec(ctx, `INSERT INTO repomesh_issues.issue_discoveries
 		(issue_id, project_id, requirement_text, scope_gate)
 		SELECT i.id, i.project_id, btrim(i.title || E'\n' || i.description), $2::jsonb
@@ -83,7 +97,7 @@ func (s *Service) OpenGate(ctx context.Context, issueID string, suggested []stri
 			return fmt.Errorf("%w: 开门失败,issue 不存在: %s", ErrConflict, issueID)
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 // ResolveGate 把 pending 的门翻成 resolved(单列 CAS UPDATE,不走 save())。
@@ -152,6 +166,33 @@ func (s *Service) Gate(ctx context.Context, issueID string) (*Gate, error) {
 		gate.Suggested = []string{}
 	}
 	return gate, nil
+}
+
+// openGateForCandidates 在②候选产物落库的事务里开选仓门:模式读 issues.hitl_mode
+// (0053),ai = 自动托管 → 截止 now+10 分钟;hitl = 人审 → 无截止,门无限等待。
+// 建议集合取候选块的 repository_name(全名),过滤空名。
+func (s *Service) openGateForCandidates(ctx context.Context, tx pgx.Tx, st *State, items []any) error {
+	var hitlMode string
+	if err := tx.QueryRow(ctx,
+		`SELECT COALESCE(hitl_mode,'hitl') FROM repomesh_issues.issues WHERE id=$1`, st.IssueID).
+		Scan(&hitlMode); err != nil {
+		return fmt.Errorf("discovery: 开选仓门前读 hitl 模式: %w", err)
+	}
+	var deadline *time.Time
+	if hitlMode == "ai" {
+		at := time.Now().UTC().Add(gateAutoDeadline)
+		deadline = &at
+	}
+	suggested := make([]string, 0, len(items))
+	for _, itemAny := range items {
+		item, _ := itemAny.(map[string]any)
+		name, _ := item["repository_name"].(string)
+		if strings.TrimSpace(name) == "" {
+			continue
+		}
+		suggested = append(suggested, name)
+	}
+	return openGateInTx(ctx, tx, st.IssueID, suggested, deadline)
 }
 
 // scopeLedgerKey 是范围确认在幂等账里的键:加前缀,免与发现链各步的

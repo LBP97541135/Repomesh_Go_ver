@@ -331,6 +331,13 @@ func (s *Service) ApplyPlanningArtifact(ctx context.Context, tx pgx.Tx, st *Stat
 				"run_id": prov.RunID, "agent_kind": prov.AgentKind,
 			},
 		}
+		// 候选落库即开选仓门(Task B1,spec §3.2):建议集合=候选全名;ai 模式带
+		// 10 分钟截止,hitl 模式无截止(门无限等待)。写在**同一事务**里——候选与门
+		// 要么一起提交、要么一起回滚;门是单列写,不会被本事务稍后的 save() 整行
+		// 重写抹掉。门已存在时 openGateInTx 幂等不覆盖,重复应用产物不开第二扇门。
+		if err := s.openGateForCandidates(ctx, tx, st, items); err != nil {
+			return err
+		}
 	case PlanningPlan:
 		tasks, _ := artifact["tasks"].([]any)
 		repositories, _ := artifact["repositories"].([]any)
