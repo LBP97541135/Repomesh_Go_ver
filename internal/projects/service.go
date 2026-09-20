@@ -232,30 +232,38 @@ func (s *Service) prepareUpdate(ctx context.Context, principal access.ProjectPri
 	// 再拼进**同一份** requested：后面的参与权观测、校验、上限、幂等台账全都不变。
 	if input.RepositoryURLsToAdd != nil {
 		// 2026-09-20：仓库页的「全部接入本项目」会把一整组仓的 URL 一次交上来
-		// （用户那次是 34 个）。这条循环里每个 URL 要打一次 GitHub，慢和错都发生
-		// 在这里，而它对上只留一个错误码 —— 所以把"第几个、哪个仓、花了多久"记下来。
+		// （用户那次 43 个）。当初写成逐仓循环，线上实测第 35 个就撞上 web 层的
+		// 15s 请求预算（`resolve repository url failed at 35/43 elapsed=14.997s`）——
+		// 每仓都要重做一遍凭据解封 + 一个登记事务，单仓成本被抬到 ~430ms。
+		// 现在：URL 先纯本地解析成三段，认领交给 access 批量做（凭据只取一次、
+		// 有界并发），登记合并成一个事务。
 		started := time.Now()
+		refs := make([]access.RepositoryRef, 0, len(*input.RepositoryURLsToAdd))
 		for _, raw := range *input.RepositoryURLsToAdd {
 			host, owner, name, parseErr := ParseRepositoryURL(raw)
 			if parseErr != nil {
-				log.Printf("projects: repository url rejected at %d/%d raw=%q", len(urlLocators)+1, len(*input.RepositoryURLsToAdd), raw)
+				log.Printf("projects: repository url rejected at %d/%d raw=%q", len(refs)+1, len(*input.RepositoryURLsToAdd), raw)
 				return updatePlan{}, validation("repositoryUrlsToAdd")
 			}
-			locator, resolveErr := s.access.ResolveRepositoryByName(ctx, principal, host, owner, name)
+			refs = append(refs, access.RepositoryRef{Host: host, Owner: owner, Name: name})
+		}
+		if len(refs) > 0 {
+			locators, resolveErr := s.access.ResolveRepositoriesByName(ctx, principal, refs)
 			if resolveErr != nil {
-				log.Printf("projects: resolve repository url failed at %d/%d owner=%s/%s elapsed=%s err=%v",
-					len(urlLocators)+1, len(*input.RepositoryURLsToAdd), owner, name, time.Since(started).Round(time.Millisecond), resolveErr)
+				// 一个仓认领不回来就整批失败。批量的错误码对用户只剩一个 404/503，
+				// 所以这里必须把"几个里失败、花了多久"记下来。
+				log.Printf("projects: resolve %d repository url(s) failed after %s: %v", len(refs), time.Since(started).Round(time.Millisecond), resolveErr)
 				return updatePlan{}, resolveErr
 			}
-			// 登记用**单独一个短事务**，只登记、不接入：接入仍在下面那条路径上（受观测
-			// 与上限约束）。若后面失败，留下的只是一行"这个部署认识这个仓"的目录记录
-			// —— 扫描目录本来就是这个性质，无害。
-			if persistErr := s.persistRepositoryRow(ctx, locator); persistErr != nil {
-				log.Printf("projects: persist repository row failed at %d/%d owner=%s/%s elapsed=%s err=%v",
-					len(urlLocators)+1, len(*input.RepositoryURLsToAdd), owner, name, time.Since(started).Round(time.Millisecond), persistErr)
+			log.Printf("projects: resolved %d repository url(s) in %s", len(locators), time.Since(started).Round(time.Millisecond))
+			// 登记用**一个短事务**（原先是每仓一个）：只登记、不接入 —— 接入仍在下面
+			// 那条路径上，受观测与上限约束。若后面失败，留下的只是一批"这个部署认识
+			// 这些仓"的目录记录，扫描目录本来就是这个性质，无害。
+			if persistErr := s.persistRepositoryRows(ctx, locators); persistErr != nil {
+				log.Printf("projects: persist %d repository row(s) failed after %s: %v", len(locators), time.Since(started).Round(time.Millisecond), persistErr)
 				return updatePlan{}, persistErr
 			}
-			urlLocators = append(urlLocators, locator)
+			urlLocators = locators
 		}
 		// **这些定位不塞进 requested**：那条路要走 ResolveSelectedRepositories，而它
 		// 要求这个仓在**当前 connection revision/epoch** 的发现记录里有一行。用户重新
@@ -263,7 +271,6 @@ func (s *Service) prepareUpdate(ctx context.Context, principal access.ProjectPri
 		// 属于当前 epoch 的 0 条，于是按名字解析出 id 之后仍被 404 挡回。我们刚刚已经
 		// **用发起人的令牌现验过**每一个仓（比一条陈旧的发现缓存更硬），所以它们的定位
 		// 直接并进 additions，不再被"缓存热不热"卡一道。
-		log.Printf("projects: resolved %d repository url(s) in %s", len(urlLocators), time.Since(started).Round(time.Millisecond))
 	}
 	addIDs := repositoryAdditions(existing, requested)
 	if len(existing)+len(addIDs)+len(urlLocators) > 100 {

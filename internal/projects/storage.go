@@ -242,22 +242,31 @@ func persistRepository(ctx context.Context, tx pgx.Tx, repository access.Reposit
 	return nil
 }
 
-// persistRepositoryRow 把一行仓库登记进项目注册表，单独一个短事务。
+// persistRepositoryRows 把一批仓库登记进项目注册表，**一个事务**登记完。
 //
 // 只给「URL 形态的接入」用（2026-09-20）：那条路要先拿到 `repo_` id 才能走下面的
 // 观测与校验，而 id 必须先有注册表行。**只登记、不接入** —— 接入受观测与上限约束，
-// 留在原有路径上。失败时留下的只是一行目录记录，与扫描目录同性质，无害。
-func (s *Service) persistRepositoryRow(ctx context.Context, repository access.RepositoryLocator) error {
+// 留在原有路径上。失败时留下的只是一批目录记录，与扫描目录同性质，无害。
+//
+// 2026-09-20 从「每仓一个事务」改成批量：批量接入 43 个仓时那是 43 个事务、每个
+// 6 次数据库往返，而每个事务里只写一行。单仓成本因此被抬到 ~430ms（裸调 GitHub
+// 只有 ~114ms），第 35 个仓就撞上请求预算。
+func (s *Service) persistRepositoryRows(ctx context.Context, repositories []access.RepositoryLocator) error {
+	if len(repositories) == 0 {
+		return nil
+	}
 	tx, err := s.beginWrite(ctx)
 	if err != nil {
 		return err
 	}
 	defer rollback(tx)
-	if err := persistRepository(ctx, tx, repository); err != nil {
-		return err
+	for _, repository := range repositories {
+		if err := persistRepository(ctx, tx, repository); err != nil {
+			return err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
-		log.Printf("projects: persist repository row commit failed id=%s owner=%s/%s: %v", repository.ID, repository.Owner, repository.Name, err)
+		log.Printf("projects: persist repository rows commit failed count=%d: %v", len(repositories), err)
 		return unavailable()
 	}
 	return nil
