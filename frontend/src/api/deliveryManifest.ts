@@ -29,6 +29,8 @@ export interface ManifestEntryView {
 }
 
 export interface DeliveryManifestView {
+  /** 恒为 materialized。"还没有清单"由 getLatestDeliveryManifest 折成 null。 */
+  state: "materialized";
   id: string;
   projectId: string;
   issueId: string;
@@ -42,16 +44,26 @@ export interface DeliveryManifestView {
   entries: ManifestEntryView[];
 }
 
+/** "还没有清单"的形状：读面不再回 404，而是回 200 + 这个状态。 */
+interface NotMaterializedView {
+  state: "not_materialized";
+  projectId: string;
+  issueId: string;
+}
+
 /** GET /api/projects/{pid}/issues/{iid}/delivery-manifest — 最近一份清单。
- *  404 = 还没有清单（不是错误）。 */
+ *
+ *  还没有清单时返回 **null**（不是异常）。服务端对这种正常态回
+ *  200 + {"state":"not_materialized"}：工作台每 5 秒轮询这个读面，
+ *  早先的 404 会在服务端日志里刷成"请求失败"，把真故障淹掉。 */
 export function getLatestDeliveryManifest(
   projectId: string,
   issueId: string,
-): Promise<DeliveryManifestView> {
-  return apiRequest<DeliveryManifestView>(
+): Promise<DeliveryManifestView | null> {
+  return apiRequest<DeliveryManifestView | NotMaterializedView>(
     "GET",
     `/projects/${encodeURIComponent(projectId)}/issues/${encodeURIComponent(issueId)}/delivery-manifest`,
-  );
+  ).then((view) => (view.state === "not_materialized" ? null : (view as DeliveryManifestView)));
 }
 
 /** POST /api/projects/{pid}/issues/{iid}/delivery-manifest — 建一份快照（幂等键必填）。 */

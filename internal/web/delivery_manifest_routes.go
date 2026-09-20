@@ -25,8 +25,18 @@ func registerDeliveryManifestRoutes(mux *http.ServeMux, auth Auth, pipeline Pipe
 			view, err := pipeline.DeliveryManifests.Latest(r.Context(),
 				r.PathValue("projectId"), r.PathValue("issueId"))
 			if errors.Is(err, pgx.ErrNoRows) {
-				// "还没有清单"不是错误：如实回 404，界面据此显示"还没有清单"。
-				return &access.Failure{Status: http.StatusNotFound, Code: "MANIFEST_NOT_FOUND"}
+				// "还没有清单"是**正常态**，不是错误 —— 所以不能回 404。
+				//
+				// 2026-09-20 线上实测：工作台每 5 秒轮询这个读面一次，而 404 会被
+				// writeProjectError 记成「project request failed ... MANIFEST_NOT_FOUND」，
+				// 35 分钟刷 444 条，把真故障淹掉。改成 200 + 明确状态，前端按状态渲染
+				// （state=not_materialized ⇒ 卡片显示"还没有清单"并给生成入口）。
+				writeJSON(w, http.StatusOK, map[string]string{
+					"state":     "not_materialized",
+					"projectId": r.PathValue("projectId"),
+					"issueId":   r.PathValue("issueId"),
+				})
+				return nil
 			}
 			if err != nil {
 				return err

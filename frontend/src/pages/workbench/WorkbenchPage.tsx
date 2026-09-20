@@ -394,7 +394,12 @@ export function WorkbenchPage({
   // ── 跨仓交付的一致版本清单（评委建议②）──
   //
   //  从一次交付展开完整版本清单：各仓提交/分支/PR、数据库迁移与基线、测试证据，
-  //  以及失败发生在哪个仓库、哪个阶段。404 = 还没有清单（不是错误）。
+  //  以及失败发生在哪个仓库、哪个阶段。"还没有清单"由 api 层折成 null（不是错误）。
+  //
+  //  2026-09-20：这里原先把 `reload`（每 5 秒 +1 的轮询计数器）也当依赖，于是
+  //  工作台开着的时候每 5 秒都去取一次清单 —— 而没有清单时后端回 404，服务端
+  //  日志 35 分钟刷 444 条"请求失败"。清单只由本页的"生成清单"按钮创建（它自己
+  //  会把结果写进 state），所以按 issue/物化状态取一次就够，不需要跟着轮询走。
   const [deliveryManifest, setDeliveryManifest] = useState<DeliveryManifestView | null>(null);
   useEffect(() => {
     if (!detail || !materialized) {
@@ -408,13 +413,13 @@ export function WorkbenchPage({
         if (!cancelled) setDeliveryManifest(manifest);
       })
       .catch(() => {
-        // 404（还没有清单）与真失败都按"没有清单"显示：卡片自己会给"生成清单"入口。
+        // 真失败按"没有清单"显示：卡片自己会给"生成清单"入口。
         if (!cancelled) setDeliveryManifest(null);
       });
     return () => {
       cancelled = true;
     };
-  }, [projectId, detail?.issue_id, materialized, reload]);
+  }, [projectId, detail?.issue_id, materialized]);
 
   // ── 仓库显示名（详情卡与步骤卡用） ──
   const [repoNameById, setRepoNameById] = useState<Record<string, string>>({});

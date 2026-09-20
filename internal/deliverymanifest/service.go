@@ -61,6 +61,14 @@ type EntryView struct {
 // ManifestView 是清单的读投影。
 type ManifestView struct {
 	ID              string      `json:"id"`
+	// State 区分"有一份清单"与"还没有清单"。
+	//
+	// 2026-09-20 线上实测：工作台每 5 秒轮询这个读面，而"还没有清单"此前回 404，
+	// 于是 web 日志 5 分钟刷 176 条（实测 35 分钟 444 条）
+	// 「project request failed ... MANIFEST_NOT_FOUND」，把真故障淹掉。
+	// "还没物化"是**正常态**不是错误，所以读面改回 200 + state，
+	// 真清单恒为 materialized（见 Get）。
+	State           string      `json:"state"`
 	ProjectID       string      `json:"projectId"`
 	IssueID         string      `json:"issueId"`
 	PlanID          string      `json:"planId,omitempty"`
@@ -171,7 +179,7 @@ func (s *Service) Latest(ctx context.Context, projectID, issueID string) (Manife
 
 // Get 读一份清单（含每个仓库那一行）。
 func (s *Service) Get(ctx context.Context, manifestID string) (ManifestView, error) {
-	view := ManifestView{}
+	view := ManifestView{State: "materialized"}
 	var planID *string
 	err := s.pool.QueryRow(ctx, `SELECT id::text, project_id::text, issue_id, plan_id::text,
 		   plan_version, requirement_text, status, failure_summary, created_at
