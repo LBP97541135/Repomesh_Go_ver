@@ -96,47 +96,62 @@ function CheckpointRow({
   };
 
   return (
-    <div className="rounded-hard border border-line bg-panel-2 px-3 py-2">
-      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-        <span className="pill pill-meta">{checkpointLabel(review.checkpoint)}</span>
-        <span className="min-w-0 flex-1 truncate text-[12.5px] text-tx" title={review.title}>
+    <div className="py-2">
+      {/* **写死列宽、单行不换行**。此前这里是一行 `flex-wrap`：标题一长，状态/证据/
+          按钮就被挤到第二行，而且每行的落点都不一样 —— 一列看下来右侧参差不齐
+          （2026-09-20 用户实测："按钮后面都是参差不齐的"）。
+          现在**每一列都写死宽度**（只有标题那列弹性 + truncate），连按钮列也是固定的、
+          按钮在其中右对齐 —— 这样"按钮数量不同"的行也不会把前面的列挤走，五个列的 x
+          在所有行里完全一致（实测：状态列、证据列、按钮右边缘逐行相同）。
+          窄屏藏掉"证据"那一列（md 以下），并给按钮列一个够用的固定宽度。 */}
+      <div className="grid grid-cols-[60px_minmax(0,1fr)_72px_140px] items-center gap-x-3 md:grid-cols-[68px_minmax(0,1fr)_76px_116px_176px]">
+        <span className="truncate text-[11px] text-tx2" title={checkpointLabel(review.checkpoint)}>
+          {checkpointLabel(review.checkpoint)}
+        </span>
+        <span className="min-w-0 truncate text-[12.5px] text-tx" title={review.title}>
           {review.title}
         </span>
-        <span className={STATUS_PILL[review.status]}>{STATUS_LABEL[review.status]}</span>
-        <span
-          className="font-mono text-[10.5px] text-tx3"
-          title={`证据版本 ${review.evidence_version}${review.repository_id ? ` · 仓库 ${review.repository_id}` : ""}`}
-        >
-          证据 {shortId(review.evidence_version)}
-          {review.repository_id !== null && ` · ${shortId(review.repository_id)}`}
-        </span>
-        {review.resolved_by_human_id !== null && (
-          <span className="font-mono text-[10.5px] text-tx3" title={`决策人 ${review.resolved_by_human_id}`}>
-            决策人 {shortId(review.resolved_by_human_id)} · {dayLabel(review.updated_at)}
+        <span className={`${STATUS_PILL[review.status]} justify-self-start`}>{STATUS_LABEL[review.status]}</span>
+        {/* 第四列按状态换事实：待审看证据版本（决策钉在它上面），已决看谁在什么时候决的。 */}
+        {review.resolved_by_human_id !== null ? (
+          <span
+            className="hidden truncate font-mono text-[10.5px] text-tx3 md:block"
+            title={`决策人 ${review.resolved_by_human_id} · ${dayLabel(review.updated_at)}`}
+          >
+            决策人 {shortId(review.resolved_by_human_id)}
+          </span>
+        ) : (
+          <span
+            className="hidden truncate font-mono text-[10.5px] text-tx3 md:block"
+            title={`证据版本 ${review.evidence_version}${review.repository_id ? ` · 仓库 ${review.repository_id}` : ""}`}
+          >
+            证据 {shortId(review.evidence_version)}
           </span>
         )}
-        {fromDiscovery && onOpenIssue && review.issue_id !== "" && (
-          <button className={chip} onClick={() => onOpenIssue(review.issue_id)}>
-            {pending ? "去 issue 处理" : "查看 issue"}
-          </button>
-        )}
-        {decidable && (
-          <span className="flex flex-none items-center gap-1.5">
-            <button className={chip} disabled={busy !== null} onClick={() => void decide("approved", "")}>
-              {busy === "approved" ? "提交中…" : "通过"}
+        <span className="flex items-center justify-end gap-1.5">
+          {fromDiscovery && onOpenIssue && review.issue_id !== "" && (
+            <button className={chip} onClick={() => onOpenIssue(review.issue_id)}>
+              {pending ? "去 issue 处理" : "查看 issue"}
             </button>
-            {(["changes_requested", "rejected"] as const).map((kind) => (
-              <button
-                key={kind}
-                className={chip}
-                disabled={busy !== null}
-                onClick={() => setAsking(asking === kind ? null : kind)}
-              >
-                {STATUS_LABEL[kind]}
+          )}
+          {decidable && (
+            <>
+              <button className={chip} disabled={busy !== null} onClick={() => void decide("approved", "")}>
+                {busy === "approved" ? "提交中…" : "通过"}
               </button>
-            ))}
-          </span>
-        )}
+              {(["changes_requested", "rejected"] as const).map((kind) => (
+                <button
+                  key={kind}
+                  className={chip}
+                  disabled={busy !== null}
+                  onClick={() => setAsking(asking === kind ? null : kind)}
+                >
+                  {STATUS_LABEL[kind]}
+                </button>
+              ))}
+            </>
+          )}
+        </span>
       </div>
 
       {/* 理由只在需要时说：通过不必填，要求修改/驳回点开才展开输入框。 */}
@@ -208,17 +223,19 @@ function GroupCard({
   onOpenIssue?: (issueId: string) => void;
 }) {
   return (
-    <section className="rounded-hard border border-line bg-panel px-4 py-3">
-      <div className="flex flex-wrap items-baseline gap-2.5">
+    <section className="rounded-hard border border-line bg-panel">
+      {/* 卡头一行：谁 + 有多少 + 什么时候。下面直接接清单，用发丝线分行 —— 先前是
+          "卡里再套一层带边框的小卡"，一层套一层显脏，也把那点信息挤成了两张皮。 */}
+      <div className="flex flex-wrap items-baseline gap-2.5 border-b border-line px-4 py-2.5">
         <span className="text-[12.5px] text-cream">
           {group.issueId !== "" ? `Issue ${shortId(group.issueId)}` : `项目 ${shortId(group.projectId)}`}
         </span>
-        <span className="pill pill-meta">{badge}</span>
+        <span className="text-[11px] text-tx3">{badge}</span>
         <span className="ml-auto font-mono text-[10.5px] text-tx3" title={`项目 ${group.projectId}`}>
           {dayLabel(group.latest)}
         </span>
       </div>
-      <div className="mt-2 grid gap-1.5">
+      <div className="divide-y divide-line px-4">
         {group.rows.map((review) => (
           <CheckpointRow key={review.id} review={review} onDecide={onDecide} onOpenIssue={onOpenIssue} />
         ))}
@@ -339,21 +356,23 @@ export function ReviewDeskPage({
           {mirrors.length > 0 && (
             <section className="mt-4">
               <button
-                className="flex w-full flex-wrap items-center gap-2 rounded-hard border border-line bg-panel px-3 py-2 text-left hover:border-line-strong"
+                className="flex w-full flex-wrap items-center gap-2.5 rounded-hard border border-line bg-panel px-4 py-2.5 text-left hover:border-line-strong"
                 onClick={() => setMirrorsOpen((v) => !v)}
                 aria-expanded={mirrorsOpen}
                 title={mirrorsOpen ? "收起登记区" : "展开看这些登记与出处 issue"}
               >
                 <span className="text-[10px] text-tx3">{mirrorsOpen ? "▼" : "▶"}</span>
                 <span className="text-[12.5px] text-tx2">发现链登记</span>
-                <span className="pill pill-meta">{mirrors.length} 条 · {mirrorGroups.length} 个 issue</span>
+                <span className="text-[11px] text-tx3">
+                  {mirrors.length} 条 · {mirrorGroups.length} 个 issue
+                </span>
                 <span className="min-w-0 flex-1 truncate text-[11px] text-tx3">
                   分档审批 / 物化确认在 issue 页面完成，这里只做登记与回看
                 </span>
-                <span className={chip}>{mirrorsOpen ? "收起" : "展开"}</span>
+                <span className="ml-auto flex-none text-[11.5px] text-amber">{mirrorsOpen ? "收起" : "展开"}</span>
               </button>
               {mirrorsOpen && (
-                <div className="mt-1.5 grid gap-2">
+                <div className="mt-2 grid gap-2">
                   {mirrorGroups.map((group) => (
                     <GroupCard
                       key={group.key}
@@ -380,7 +399,9 @@ export function ReviewDeskPage({
           ) : resolved.length === 0 ? (
             <p className="text-[11.5px] text-tx3">还没有已决事项。</p>
           ) : (
-            <div className="grid gap-1.5">
+            /* 已决是一条条回看用的，不再分组；但和上面一样放进一个带发丝线的面板里，
+               否则裸行会散在页面上（CheckpointRow 现在自己不画边框）。 */
+            <div className="divide-y divide-line rounded-hard border border-line bg-panel px-4">
               {resolved.map((review) => (
                 <CheckpointRow key={review.id} review={review} onDecide={decide} onOpenIssue={onOpenIssue} />
               ))}
