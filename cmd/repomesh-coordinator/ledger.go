@@ -49,10 +49,15 @@ func sanitizeSingleQuoted(text string) string {
 // request. The App installation token is read from the cache file refreshed
 // by repomesh-gh-token.timer — never embedded into the stored command.
 func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, issueTitle, issueID, skillContent string) (string, error) {
-	prompt := strings.TrimSpace(instruction)
-	if prompt == "" {
-		prompt = "Complete the assigned task in this repository. Implement the requirement, run the existing checks, commit your changes with a summary."
+	requirement := strings.TrimSpace(instruction)
+	if requirement == "" {
+		requirement = "Complete the assigned task in this repository. Implement the requirement and run the existing checks."
 	}
+	prompt := "## Execution workspace contract\n\n" +
+		"Repository: " + repoFullName + "\n" +
+		"The current directory is the prepared git worktree for this repository. Work only in this directory.\n" +
+		"Do not run git clone, git init, git commit, git push, gh pr create, or create pull requests. The platform owns delivery and will commit, push, and open the PR after you finish.\n\n" +
+		"## Requirement\n\n" + requirement
 	if strings.TrimSpace(skillContent) != "" {
 		prompt = "## 你的技能（技能库原文）\n\n" + skillContent + "\n\n---\n\n" + prompt
 	}

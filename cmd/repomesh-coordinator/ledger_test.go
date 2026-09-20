@@ -50,6 +50,11 @@ func TestBuildAgentCommandIncludesSkillContent(t *testing.T) {
 	if !strings.Contains(command, "task execution worker") {
 		t.Fatal("技能原文没有注入 prompt")
 	}
+	if !strings.Contains(command, "The current directory is the prepared git worktree") ||
+		!strings.Contains(command, "Do not run git clone") ||
+		!strings.Contains(command, "platform owns delivery") {
+		t.Fatalf("执行 prompt 缺少工作区契约：%s", command)
+	}
 }
 
 func TestBuildIntegrationCommandUsesWorktree(t *testing.T) {
