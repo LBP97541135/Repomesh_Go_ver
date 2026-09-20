@@ -1,0 +1,49 @@
+name: check
+
+# 仓库检查：迁移清单 + 编译 + 单元测试。
+#
+# 为什么需要它（2026-09-20 事故）：
+#   两条并发分支各加了一个 0053_*.sql，重号在**编译期完全不报错**；
+#   internal/database/migrations.go 的连续性校验只在**运行时**执行，
+#   而当时整个仓库只有 deploy.yml 一个 workflow，没有任何检查环节能拦住它。
+#   结果：一路推到 main → 生产机跑 `db migrate` 在解析期直接失败
+#   → deploy.yml 步骤 6 exit 1 → 部署失败（站点靠回滚保住）。
+#
+# ⚠️ 这个 workflow 跑在 **GitHub 托管的 runner**（ubuntu-latest）。
+#    绝不要改成 [self-hosted, ...] —— 那台自托管 runner 装在生产服务器上、
+#    以 root 运行，只有 deploy 该碰它（见 deploy.yml 顶部注释）。
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: 迁移编号必须从 0001 起连续、且不重号
+        run: |
+          set -euo pipefail
+          cd internal/database/migrations
+          ls *.sql | sed 's/_.*//' | sort > /tmp/actual.txt
+          total=$(wc -l < /tmp/actual.txt)
+          seq -f '%04g' 1 "$total" > /tmp/expected.txt
+          if ! diff -u /tmp/expected.txt /tmp/actual.txt; then
+            echo "::error::迁移编号必须是从 0001 开始、逐号 +1 的连续序列，且同一个号不得有两个文件。"
+            echo "::error::两条并发分支各取同一个号会把 db migrate 打挂（它只在运行时校验，编译期不报）。"
+            exit 1
+          fi
+          echo "迁移编号连续：0001..$(printf '%04d' "$total")，共 ${total} 个文件"
+
+      - name: 编译全部包
+        run: go build ./...
+
+      - name: 迁移清单单元测试（含真正嵌入的那一份）
+        run: go test ./internal/database/ -run 'Migration' -v
