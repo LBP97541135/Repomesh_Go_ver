@@ -85,3 +85,33 @@ AgentTeams 队房（TeamRoomID）◀──────────────�
   不响应则降级为"发 Manager 房间 + issue 标签前缀"。
 - `ManagerView.Room` 的 json 字段名（`room`）按调研 status 表先写，
   首次真实负载核对。
+
+## 9. 开工侦察记录（②③④ 实现前的现场事实，2026-09-20）
+
+- 消息提交链：`internal/messages/submit.go`（幂等 submission →
+  `repomesh_messages.message_submissions`，含 canonical/receipt/message_id）；
+  会话卡片落 `repomesh_issues.conversation_cards`（0017，source_id 唯一键，
+  FK 到 page_sources.operation_id）。**正向桥的"已送达"标记加在
+  message_submissions 或新桥表，不动 conversation_cards**（它是渲染投影）。
+- 桥宿主：`cmd/repomesh-coordinator/`（roomnotice.go 已有"往房间发通知"的
+  先例可抄：AgentTeams client 的构造、重试、A3/A4 退避节奏都在那）。
+- issue→team→房间：issue 详情带 `agentteams_team_name`（contract.ts:208）；
+  `GetTeam(name).TeamRoomID` 拿队房（workers.go:141）。Manager 兜底房：
+  `GetManager(name).Room`（本分支 ① 新增，managers.go）。
+- masquerade：`matrix.go:44 MasqueradeAs`（?user_id=，appservice 代指定身份），
+  由 `Service.ActAs` 注入（matrix.go:239）——部署配置需补一个"桥以谁的身份发言"。
+- 反向读：`RoomMessages`（GET /sync + room filter，直打 homeserver，
+  Controller REST 无按 roomID 读消息）——去重键 = Matrix event_id，新桥表。
+- 回写 ④ 的换代通道：`internal/plans`（全量快照替换 + revisions，
+  `pipeline.go:39` 注释确认"执行中换代会生成 v2"）。
+
+### ② 的最小落地形状（下一步直接照此写）
+
+1. 迁移 00XX：`repomesh_messages.bridge_deliveries`（submission_id PK、
+   matrix_event_id 唯一、方向 human→room / room→human、状态 pending/sent/
+   received、txnID）。同一张表兼做 ② 的送达标记与 ③ 的回声去重。
+2. 协调器加一个循环（抄 roomnotice 的退避）：扫 pending 的 human 消息 →
+   `GetTeam` 拿队房 → `SendMessage(masquerade=人)` → 成功置 sent+event_id。
+   物化前无队 → 留 pending（桥启动时自然补发，即 §5）。
+3. ③ 循环：轮询队房 → event_id 不在表里且 sender≠桥 → 写回会话流
+   （走 messages 包的既有落卡路径，标注来源 manager）+ 置 received。
