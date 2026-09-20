@@ -20,6 +20,13 @@ import (
 const (
 	minWorkers = 1
 	maxWorkers = 20
+	// maxTeamsPerEnsure 是**一次调用**最多建几支队伍。
+	//
+	// 建队会向 AgentTeams 控制面真的申请 runtime（每个 worker 是一个真实实例），
+	// 所以不能"一次接入 43 个仓就一口气建 43 支队"。每次最多 5 支，剩下的留给下一次
+	// （接入钩子之后还有 2 分钟一次的兜底收敛）—— 语义仍然是"接入即建队"，只是排队
+	// 建，不给控制面制造尖峰。
+	maxTeamsPerEnsure = 5
 )
 
 var (
@@ -214,6 +221,9 @@ func (s *Service) EnsureForProject(ctx context.Context, projectID string, worker
 	created := []string{}
 	var firstErr error
 	for _, id := range ids {
+		if len(created) >= maxTeamsPerEnsure {
+			break
+		}
 		if _, err := s.Create(ctx, id, workerCount); err != nil {
 			if errors.Is(err, ErrConflict) || errors.Is(err, ErrNotFound) {
 				// 并发下别人先建好了 / 仓库行已不在：都不是错误。
@@ -257,6 +267,10 @@ func (s *Service) EnsureAll(ctx context.Context, workerCount int) ([]string, err
 	created := []string{}
 	var firstErr error
 	for _, projectID := range projects {
+		if len(created) >= maxTeamsPerEnsure {
+			// 一次扫掠也有总量上限：收敛可以慢，但不能给控制面制造尖峰。
+			break
+		}
 		ids, err := s.EnsureForProject(ctx, projectID, workerCount)
 		created = append(created, ids...)
 		if err != nil && firstErr == nil {
