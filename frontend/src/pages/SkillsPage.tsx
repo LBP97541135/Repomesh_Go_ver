@@ -152,13 +152,12 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
 
   return (
     <div className={embedded ? "" : "max-w-[860px]"}>
-      <div className={`${embedded ? "mb-3 border-b border-line pb-2.5 " : "mb-6 "}flex flex-wrap items-baseline gap-3`}>
-        {!embedded && <h1 className="text-[16px] font-semibold text-cream">技能</h1>}
-        {skills && <span className="text-[11.5px] text-tx2">{skills.length} 个</span>}
-        <span className="text-[11.5px] text-tx3">
-          生命周期：草稿 → 评估中 → 金丝雀 → 晋升 / 回滚
-        </span>
-      </div>
+      {/* 2026-09-20 用户裁定：标题行只留标题——"N 个"与生命周期说明这行字去掉。 */}
+      {!embedded && (
+        <div className="mb-3 flex items-baseline border-b border-line pb-2.5">
+          <h1 className="text-[16px] font-semibold text-cream">技能</h1>
+        </div>
+      )}
 
       {error && (
         <p className="mb-4 rounded-hard border border-salmon/40 bg-salmon-well px-3 py-2 text-[11.5px] text-salmon">
