@@ -738,11 +738,11 @@ function StepCard({ slot, stepIndex }: { slot: StepSlot; stepIndex: number }) {
   const badge = actorBadge(current);
   const repos = Array.from(new Set(nodes.flatMap((n) => n.affected_repository_ids)));
   return (
-    <section id={`chain-step-${stepIndex}`} className="mt-4 rounded-hard border border-line bg-panel">
-      <div className="flex items-start justify-between gap-3 px-[18px] pt-3.5">
-        <div className="flex items-baseline gap-2.5">
-          <span className="font-mono text-[13px] font-bold text-amber">{stepIndex + 1}</span>
-          <span className="text-[14px] font-semibold text-cream">{decisionStepAction(step)}</span>
+    <section id={`chain-step-${stepIndex}`} className="mt-6 rounded-hard border border-line bg-panel">
+      <div className="flex items-start justify-between gap-3 px-6 pt-5">
+        <div className="flex items-baseline gap-3">
+          <span className="font-mono text-[14px] font-bold text-amber">{stepIndex + 1}</span>
+          <span className="text-[15px] font-semibold text-cream">{decisionStepAction(step)}</span>
         </div>
         <div className="flex flex-none flex-col items-end gap-1">
           <span
@@ -753,7 +753,7 @@ function StepCard({ slot, stepIndex }: { slot: StepSlot; stepIndex: number }) {
           {slot.date && <span className="font-mono text-[11px] text-tx2">{slot.date}</span>}
         </div>
       </div>
-      <div className="px-[18px] pb-4 pt-2.5">
+      <div className="px-6 pb-5 pt-3">
         {step === "classification" && <ClassificationBody p={payloadOf(current)} />}
         {step === "confirmation" && <ConfirmationBody node={current} />}
         {step === "integration" && <IntegrationBody p={payloadOf(current)} />}
@@ -761,7 +761,7 @@ function StepCard({ slot, stepIndex }: { slot: StepSlot; stepIndex: number }) {
         {step === "pr" && <PrBody nodes={nodes} />}
         {VERSIONED_STEPS.has(step) && <VersionHistory versions={nodes} />}
         {repos.length > 0 && (
-          <div className="mt-3.5">
+          <div className="mt-4">
             <span className="microlabel">影响仓库</span>
             <div className="mt-1 flex flex-wrap gap-1.5">
               {repos.map((r) => (
@@ -859,7 +859,7 @@ function SimilarSection({
       {view === null ? (
         <LoadingLine text="相似历史加载中…" />
       ) : view.hits.length === 0 ? (
-        <p className="mt-3 rounded-hard border border-line bg-panel px-4 py-6 text-center text-[11.5px] text-tx3">
+        <p className="mt-4 rounded-hard border border-line bg-panel px-5 py-8 text-center text-[11.5px] text-tx3">
           暂无相似历史（空命中是诚实数据，不是错误）
         </p>
       ) : (
@@ -1143,7 +1143,7 @@ export function DecisionChainPage({
   };
 
   return (
-    <div className="max-w-[980px]">
+    <div className="max-w-[1240px]">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
         <div className="flex items-center gap-3">
           <h1 className="text-[16px] font-semibold text-cream">历史决策</h1>
@@ -1176,7 +1176,7 @@ export function DecisionChainPage({
       {refreshNote && <p className="mt-2 text-[10.5px] text-tx3">{refreshNote}</p>}
 
       {/* 两种入口（样式同 Python 版：下划线 tab + 单输入框） */}
-      <div className="mt-4 rounded-hard border border-line bg-panel px-4 py-4">
+      <div className="mt-6 rounded-hard border border-line bg-panel px-5 py-5">
         <div className="flex gap-1 border-b border-line">
           {(
             [
@@ -1253,7 +1253,7 @@ export function DecisionChainPage({
                 </span>
               </div>
               {semanticHits.length === 0 ? (
-                <p className="mt-3 rounded-hard border border-line bg-panel px-4 py-6 text-center text-[11.5px] text-tx3">
+                <p className="mt-4 rounded-hard border border-line bg-panel px-5 py-8 text-center text-[11.5px] text-tx3">
                   没有命中——「还没有相似历史」是诚实数据，不是错误
                 </p>
               ) : (
@@ -1311,7 +1311,7 @@ export function DecisionChainPage({
                     </div>
                   </div>
                 ) : (
-                  <p className="mt-3 rounded-hard border border-line bg-panel px-4 py-6 text-center text-[11.5px] text-tx3">
+                  <p className="mt-4 rounded-hard border border-line bg-panel px-5 py-8 text-center text-[11.5px] text-tx3">
                     没有匹配的项目——换个关键词，或直接粘贴 issue 列表里的 #短id
                   </p>
                 )
@@ -1354,14 +1354,14 @@ export function DecisionChainPage({
           {!traceLoading && !traceError && trace && (
             <>
               {/* 链头卡：需求原文 + 终态徽章 + 全量审计 ids（读者第一眼=这条链是关于什么的、最后怎么样了） */}
-              <div className="rounded-hard border border-line bg-panel px-[22px] pb-4 pt-5">
+              <div className="rounded-hard border border-line bg-panel px-7 pb-6 pt-7">
                 <span className="eyebrow">决策链 · #{shortId(trace.project_id)}</span>
-                <p className="mt-2.5 text-[14px] leading-[1.65] text-cream">
+                <p className="mt-3 text-[15px] leading-[1.75] text-cream">
                   {trace.requirement?.text ?? "（读模型未给需求文本——链存在但需求根缺失）"}
                 </p>
                 {outcome && (
                   <span
-                    className={`mt-4 inline-block rounded border px-3 py-1 font-mono text-[12px] font-bold tracking-[0.08em] ${outcome.skin}`}
+                    className={`mt-5 inline-block rounded border px-4 py-1.5 font-mono text-[12.5px] font-bold tracking-[0.08em] ${outcome.skin}`}
                   >
                     {outcome.label}
                   </span>
@@ -1378,7 +1378,7 @@ export function DecisionChainPage({
 
               {/* 五步序列：实心卡=有记录（版本聚合），幽灵卡=缺口/未到达（如实占位） */}
               {trace.nodes.length === 0 ? (
-                <p className="mt-3 rounded-hard border border-line bg-panel px-4 py-6 text-center text-[11.5px] text-tx3">
+                <p className="mt-4 rounded-hard border border-line bg-panel px-5 py-8 text-center text-[11.5px] text-tx3">
                   该项目尚无决策单（投影器可能尚未排空）——空链是诚实数据
                 </p>
               ) : (
@@ -1434,11 +1434,11 @@ export function DecisionChainPage({
           </div>
         )}
         {nodes === null ? (
-          <div className="mt-3 rounded-hard border border-line bg-panel px-4 py-6 text-center text-[11.5px] text-tx3">
+          <div className="mt-4 rounded-hard border border-line bg-panel px-5 py-8 text-center text-[11.5px] text-tx3">
             加载中…
           </div>
         ) : nodes.length === 0 ? (
-          <div className="mt-3 rounded-hard border border-line bg-panel px-4 py-6 text-center text-[11.5px] text-tx3">
+          <div className="mt-4 rounded-hard border border-line bg-panel px-5 py-8 text-center text-[11.5px] text-tx3">
             暂无决策单——完成一次范围圈定后这里会出现第一条记录。
           </div>
         ) : (
@@ -1521,3 +1521,4 @@ export function DecisionChainPage({
     </div>
   );
 }
+
