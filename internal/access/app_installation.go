@@ -20,7 +20,10 @@ type AppInstallTarget struct {
 	/** user | organization —— 决定"这个人能不能自己装"。 */
 	Kind      string `json:"kind"`
 	Installed bool   `json:"installed"`
-	/** all | selected。selected = 只覆盖了部分仓，缺的要去安装设置里补。 */
+	/** all | selected。
+	 *  `selected` **不代表"缺了仓"**——只说明安装时是按仓库挑的，挑中的完全可能正好
+	 *  就是我要用的那些。账号级看不到"某个仓在不在里面"，所以界面对它只能说
+	 *  「按仓库挑选的安装，哪个仓不可选就去设置页把它加进来」，**不能断言"还差 N 个仓"**。 */
 	RepositorySelection string `json:"repositorySelection,omitempty"`
 	Suspended           bool   `json:"suspended,omitempty"`
 	/** 没装时 = 安装链接（带 suggested_target_id，直接落在那个账号上）；
@@ -37,7 +40,10 @@ type AppInstallTarget struct {
 
 type AppInstallationView struct {
 	Targets []AppInstallTarget `json:"targets"`
-	/** 还没被任何安装覆盖到的仓数。0 = 这件事不该再出现在界面上。 */
+	/** 仓所在账号**完全没装** App（或被挂起）的仓数——这两种情况下那些仓一个都用不了，
+	 *  是确定的。0 = 账号级没有缺口，这件事不该再出现在界面上。
+	 *  **`selected` 安装不计入**：账号级看不到逐仓归属，算它就是假报（见
+	 *  `RepositorySelection` 的说明）。 */
 	UncoveredCount int `json:"uncoveredCount"`
 	/** App 侧探测失败时的**如实说明**——既不假装已装好，也不假装没装。 */
 	Unavailable string `json:"unavailable,omitempty"`
@@ -138,9 +144,17 @@ func (s *Service) AppInstallationStatus(ctx context.Context, principal ProjectPr
 			target.RepositorySelection = installed.RepositorySelection
 			target.Suspended = installed.Suspended
 			target.InstallURL = accountURL(login, target.Kind, installed.ID)
-			// 只装到部分仓、或被挂起：这些仓算没覆盖。**具体是哪几个仓由逐仓的
-			// App 观测回答**（那才是权威），这里只给出"这一行还没好"的信号。
-			if installed.Suspended || installed.RepositorySelection != "all" {
+			// **只有**"被挂起"才计入未覆盖：那种情况下这个账号名下的仓一个都用不了，
+			// 是确定的。
+			//
+			// `repositorySelection == "selected"` **不计**——这一条我一开始写错了，
+			// 线上数据把它抓了出来：你的两个仓都归一个"装了但按仓库挑选"的账号，
+			// 硬算成"没覆盖"会得出 uncoveredCount=2，而那两个仓其实是好的（能在上面
+			// 建 issue）。账号级**看不到**"某个仓在不在选中列表里"，算它就是假报，
+			// 还会催人去补勾本来就好的仓。
+			// 逐仓的真相由**逐仓的 App 观测**回答（仓库页那列「App 工作授权就绪/不足」
+			// 就是它，`allProjectRepositories` 读的同一份结论），这里不重复猜。
+			if installed.Suspended {
 				view.UncoveredCount += len(repositories)
 			}
 			view.Targets = append(view.Targets, target)
