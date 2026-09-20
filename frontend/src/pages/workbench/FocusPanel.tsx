@@ -126,6 +126,108 @@ const KIND_LABEL: Record<string, string> = {
   cross_repo_regression: "跨仓库联调 + 回归",
 };
 
+/** 测试排期：**要跑什么、按什么顺序**，以及跑到哪了。
+ *
+ *  2026-09-20 用户反馈："测试组全程不展示任何规划和测试排期"。查下来是读面只有
+ *  **已发生的记录**（`public.test_evidence` 的三种 kind），没有"计划要跑什么"这一层，
+ *  界面上自然只有事后清单。
+ *
+ *  这里的排期**不是另编一份**，是从**计划本身**推出来的（计划就是排期）：
+ *   · 每条任务 → 一轮单点验收（任务跑完开发、过了经理门，就派测试 agent）；
+ *   · 每个 DAG 节点（仓库）→ 一轮本仓库集成验证（该仓全部任务过了之后）；
+ *   · 计划跨多个仓库时 → 再加一轮跨仓联调 + 回归。
+ *  每一行状态**只用真实记录**判定：记录里有 → 已跑（通过 / 未过）；没有 → 待跑，
+ *  并写清它在等什么。计划还没物化（tasks 为 null）时推不出排期，如实说推不出。 */
+function TestSchedule({ tasks, view }: { tasks: PlanTaskItem[] | null; view: TestEvidenceView | null }) {
+  if (tasks === null || tasks.length === 0) {
+    return (
+      <div className="border-b border-dashed border-[var(--tree-hairline)] px-4 py-3">
+        <p className="text-[12px] font-medium text-[var(--tree-ink)]">测试排期</p>
+        <p className="mt-1 text-[11px] leading-[1.8] text-[var(--tree-sub)]">
+          计划还没物化，推不出排期 —— 排期是从任务 DAG 推出来的，不是另编一份。
+        </p>
+      </div>
+    );
+  }
+  const items = view?.items ?? [];
+  const firstOf = (pred: (i: TestEvidenceItem) => boolean) => items.find(pred) ?? null;
+  const repos: string[] = [];
+  for (const t of tasks) {
+    if (t.repositoryId && !repos.includes(t.repositoryId)) repos.push(t.repositoryId);
+  }
+
+  type Row = { key: string; stage: string; what: string; state: "done" | "failed" | "todo"; note: string };
+  const rows: Row[] = [];
+  for (const t of tasks) {
+    const rec = firstOf((i) => i.kind === "task_single_point" && i.task_id === t.id);
+    rows.push({
+      key: `sp-${t.id}`,
+      stage: `批次${t.batchNo ?? "—"}`,
+      what: `单点验收 · ${t.title || t.taskUid || t.id}`,
+      state: rec ? (rec.passed ? "done" : "failed") : "todo",
+      note: rec ? (rec.summary || rec.command || "已产出记录") : `等 ${t.workerLabel || "执行者"} 跑完这条任务`,
+    });
+  }
+  for (const repo of repos) {
+    const rec = firstOf((i) => i.kind === "repo_integration" && i.repository_id === repo);
+    rows.push({
+      key: `ri-${repo}`,
+      stage: "节点级",
+      what: `仓库集成验证 · ${repo}`,
+      state: rec ? (rec.passed ? "done" : "failed") : "todo",
+      note: rec ? (rec.summary || "已产出记录") : "等该仓全部任务过了经理门",
+    });
+  }
+  if (repos.length > 1) {
+    const rec = firstOf((i) => i.kind === "cross_repo_regression");
+    rows.push({
+      key: "xr",
+      stage: "跨仓",
+      what: "跨仓库联调 + 回归",
+      state: rec ? (rec.passed ? "done" : "failed") : "todo",
+      note: rec ? (rec.summary || "已产出记录") : "等各仓节点集成都过了之后",
+    });
+  }
+  const done = rows.filter((r) => r.state === "done").length;
+  const failed = rows.filter((r) => r.state === "failed").length;
+  const tone: Record<Row["state"], string> = {
+    done: "border-olive/40 bg-olive-well text-olive",
+    failed: "border-salmon/40 bg-salmon-well text-salmon",
+    todo: "border-line bg-[var(--tree-zone)] text-[var(--tree-sub)]",
+  };
+  const label: Record<Row["state"], string> = { done: "已通过", failed: "未过", todo: "待跑" };
+  return (
+    <div className="border-b border-dashed border-[var(--tree-hairline)] px-4 py-3">
+      <div className="flex items-baseline gap-2">
+        <span className="text-[12px] font-medium text-[var(--tree-ink)]">测试排期</span>
+        <span className="text-[11px] text-[var(--tree-sub)]">
+          计划 {rows.length} 轮 · 已通过 {done}
+          {failed > 0 ? ` · 未过 ${failed}` : ""}
+          {rows.length - done - failed > 0 ? ` · 待跑 ${rows.length - done - failed}` : ""}
+        </span>
+      </div>
+      <p className="mt-1 text-[10.5px] leading-[1.7] text-[var(--tree-faint)]">
+        排期从任务 DAG 推出（每条任务一轮单点验收 · 每个仓库一轮集成 · 跨仓时加一轮联调回归）；
+        状态只按**真实记录**判定，没有记录就是"待跑"，不提前标通过。
+      </p>
+      <div className="mt-1.5 flex flex-col gap-1">
+        {rows.map((r) => (
+          <div key={r.key} className="flex items-start gap-2 text-[11px]">
+            <span className="mt-px w-12 flex-none text-[10px] text-[var(--tree-faint)]">{r.stage}</span>
+            <span className={`mt-px flex-none rounded-[5px] border px-1.5 py-px text-[10px] ${tone[r.state]}`}>
+              {label[r.state]}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="text-[var(--tree-ink)]">{r.what}</span>
+              <span className="block truncate text-[10.5px] text-[var(--tree-faint)]" title={r.note}>{r.note}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** 测试组的记录详情：三种 kind 各一段，逐条列出脚本、命令、退出码与结论。
  *
  *  2026-09-20：这些事实此前只以一个退出码的形式躺在 scm_commands 里，界面上
@@ -800,6 +902,10 @@ export function FocusPanel({
     if (entry.kind === "tests") {
       return (
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {/* 测试排期排在最前：先看"要跑什么、跑到哪了"，再看逐条记录。
+              2026-09-20 用户反馈"测试组全程不展示任何规划和测试排期"——
+              此前这一栏只有事后记录，没有计划那一层。 */}
+          <TestSchedule tasks={tasks} view={testEvidence} />
           {testEvidence === null ? (
             <div className="flex flex-1 items-center justify-center text-[11px] text-[var(--tree-faint)]">测试记录加载中…</div>
           ) : (
