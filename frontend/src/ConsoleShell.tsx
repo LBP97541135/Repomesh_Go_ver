@@ -268,13 +268,13 @@ export default function ConsoleShell() {
     setRoute({ nav: "issues", issueId, roomId: null, observeSection: null, settingsSection: null });
   };
 
-  const handleSelectProject = (projectId: string, destination: "repositories" | "issues" = "issues") => {
+  const handleSelectProject = (projectId: string) => {
     issuesEpoch.current += 1;
     setIssues(null);
     selectionRef.current = projectId;
     setActiveProject(projectId);
     setActiveProjectId(projectId);
-    navigate(destination);
+    navigate("issues");
     // Includes freshly created projects; the side bar and manager share one list.
     const epoch = ++projectListEpoch.current;
     listAllProjects().then(items => { if (epoch === projectListEpoch.current) setProjects(items); }).catch(e => { if (epoch === projectListEpoch.current) setProjectsError(errText(e)); });

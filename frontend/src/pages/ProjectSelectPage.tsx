@@ -37,7 +37,7 @@ export function ProjectSelectPage({ projects, activeProjectId, error, onRetry, o
   activeProjectId: string | null;
   error: string | null;
   onRetry: () => void;
-  onSelect: (id: string, destination: "repositories" | "issues") => void;
+  onSelect: (id: string) => void;
 }) {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
@@ -107,7 +107,7 @@ export function ProjectSelectPage({ projects, activeProjectId, error, onRetry, o
     setFailure(null);
     try {
       const receipt = await createProject(attempt.current.input, attempt.current.key);
-      onSelect(receipt.projectId, "repositories");
+      onSelect(receipt.projectId);
     } catch (error) {
       setFailure(errText(error));
       const status = (error as { status?: number }).status;
@@ -221,8 +221,7 @@ export function ProjectSelectPage({ projects, activeProjectId, error, onRetry, o
             {/* 「当前项目」用全站的 .pill 族，跟仓库页的「已接入本项目」同一套观感。 */}
             {p.id === activeProjectId && <span className="pill pill-done">当前项目</span>}
             <span className="flex flex-none items-center gap-1.5">
-              <button className={chip} onClick={() => onSelect(p.id, "repositories")}>管理仓库</button>
-              <button className={chip} onClick={() => onSelect(p.id, "issues")}>进入 Issue</button>
+              <button className={chip} onClick={() => onSelect(p.id)}>进入项目</button>
               <button className={chip} disabled={busyId !== null} onClick={() => void doArchive(p.id, p.name)}>归档</button>
             </span>
           </section>
