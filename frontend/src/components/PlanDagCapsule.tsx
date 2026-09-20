@@ -66,9 +66,11 @@ export function PlanDagCapsule({
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
-  // 没有图可看（absent / 首载中）时：有链路节点就只剩那一个词的读数胶囊，没有就整个不出现。
-  const stageOnly = state.status === "absent" || state.status === "loading";
-  if (stageOnly && !stageLabel) return null;
+  // 计划快照没就绪（absent / 首载中）也要能点开：胶囊里现在放的是 AgentTeams 的
+  // 任务级 DAG（9.16 原型，2026-09-20 用户裁定），它不依赖 RepoMesh 计划快照——
+  // 此前 absent 时整个禁用，用户的 issue 没生成计划就"点不开胶囊"，DAG 无从看起。
+  const noPlan = state.status === "absent" || state.status === "loading";
+  if (noPlan && !stageLabel) return null;
 
   const progress = capsuleProgress(execution);
 
@@ -86,10 +88,9 @@ export function PlanDagCapsule({
       >
         <button
           type="button"
-          disabled={stageOnly}
           onClick={() => setOpen((v) => !v)}
-          className="flex items-center gap-2 transition-colors hover:text-tx disabled:cursor-default"
-          title={stageOnly ? "计划快照未就绪，暂无可展开的 DAG" : open ? "收起计划 DAG" : "展开计划 DAG"}
+          className="flex items-center gap-2 transition-colors hover:text-tx"
+          title={open ? "收起任务 DAG" : "展开任务 DAG"}
         >
           <span
             className={`size-1.5 flex-none rounded-full ${state.status === "error" ? "bg-salmon" : stageLabel ? "bg-amber" : "bg-olive"}`}
@@ -99,8 +100,8 @@ export function PlanDagCapsule({
               v{state.plan.plan_version} · {state.plan.dag.nodes.length} 节点 · {state.plan.execution_batches.length} 批次
               {progress ? ` · ${progress}` : ""}
             </span>
-          ) : stageOnly ? null : (
-            <span className="text-tx3">取用失败</span>
+          ) : stageLabel ? null : (
+            <span className="text-tx3">任务 DAG</span>
           )}
           <span className="flex-none text-tx3"><ChevronDown size={12} strokeWidth={1.5} className={open ? "rotate-180" : ""} /></span>
         </button>
