@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Toast } from "./components/Toast";
+import { AppInstallGuide } from "./components/AppInstallGuide";
 import { AuthError, authApi, type Account } from "./api/auth";
 import { LoginPage } from "./components/LoginPage";
 import { SidebarV2, type NavKey } from "./components/SidebarV2";
@@ -433,6 +434,13 @@ export default function ConsoleShell() {
             : "min-w-0 flex-1 overflow-y-auto px-8 pt-5 pb-10"
         }
       >
+        {/* GitHub App 安装引导（2026-09-20）：在**动手之前**把「要装 App、点哪个链接」
+            说清，而不是等人建 issue 时撞上 NO_AVAILABLE_REPOSITORIES 再回头猜。
+            组件自己会在 uncoveredCount === 0、探测不可用之外的「已就绪」、
+            或用户点过「稍后再说」时返回 null，所以这里无条件挂即可。
+            唯一例外是工作台路由：那条路由的 main 是 flex 行（对话自带内滚与吸底输入框），
+            塞一个块级卡片进去会横向挤压对话区。 */}
+        {!isWorkbenchRoute && <AppInstallGuide variant="card" />}
         {route.nav === "issues" && activeProjectId !== null &&
           (route.issueId === null ? (
             <IssueListPage

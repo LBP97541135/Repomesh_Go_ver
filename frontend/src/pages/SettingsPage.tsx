@@ -10,6 +10,7 @@ import type {
 import { fetchConsoleAgents, gridSourceMode } from "../api/grid";
 import { fetchCodingAgents, fetchSetupStatus } from "../api/platformSetup";
 import { LocalAccountsPanel } from "../components/LocalAccountsPanel";
+import { AppInstallGuide } from "../components/AppInstallGuide";
 import { reconnectGithubConnection } from "../api/auth";
 import { LocalCliPage } from "./LocalCliPage";
 import { ModelUsageSettings } from "../components/ModelUsageSettings";
@@ -475,6 +476,14 @@ export function SettingsPage({
           <>
             <CategoryTitle>账号与权限</CategoryTitle>
             <GitHubConnectionRow onToast={onToast} />
+            {/* GitHub App 授权（2026-09-20）：**常驻入口**——全站别处（外壳顶部那张卡、
+                仓库页的就地提示）只在有缺口时出现，而「到底装没装、覆盖到哪几个仓」
+                必须有个地方随时能查，所以这里 showWhenReady。
+                respectDismissal=false：首页点过「稍后再说」不该把查状态的入口也关掉。 */}
+            <h3 className="pb-1 pt-5 text-[11px] font-semibold tracking-widest text-tx3 uppercase">
+              GitHub App 授权
+            </h3>
+            <AppInstallGuide variant="card" showWhenReady respectDismissal={false} />
             <LocalAccountsPanel account={account} />
           </>
         )}

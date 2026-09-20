@@ -65,6 +65,22 @@ import { errText } from "../../display";
 const DOC_ACCEPT = ".txt,.md,.docx,.pdf,.odt,.rtf";
 const POLL_MS = 5000;
 
+/** 创建阻断原因 code → 人话（2026-09-20）。
+ *
+ *  后端给的是机器 code（`blockingReasons`），原样打出来等于让人拿代号去猜；
+ *  而这里恰恰是「App 没装好」最容易被撞见的地方——用户原话就是别让它以一句
+ *  报错的形式冒出来。**只做措辞映射**：能不能提交仍由 `options.canSubmit` 决定，
+ *  这里不重算任何判定，认不出的 code 原样显示（不许吞）。 */
+const BLOCKING_LABEL: Record<string, string> = {
+  NO_AVAILABLE_REPOSITORIES: "没有可选的仓库——项目里的仓还没接入，或 GitHub App 授权不足",
+  APP_AUTHORIZATION_UNCONFIRMED: "GitHub App 未覆盖这个仓库",
+  CONFIGURATION_NOT_READY: "执行配置未完成",
+};
+
+/** App 相关的那两个 code：撞上它们时补一个去处（仓库页顶部有就地引导与直链）。
+ *  ALL_REPOSITORIES_UNCOVERED 之类的新 code 不在这里硬编码——认不出就只给文案。 */
+const APP_RELATED_BLOCKERS = new Set(["NO_AVAILABLE_REPOSITORIES", "APP_AUTHORIZATION_UNCONFIRMED"]);
+
 /** 发现链步号 → 触发端点的幂等键前缀（与发现链四步触发同一套键位）。 */
 const STEP_KEY_BY_STEP = {
   1: "analysis",
@@ -1137,7 +1153,27 @@ export function WorkbenchPage({
           <h2>本次 Issue 的仓库范围（已选 {selectedRepos.length} 个）</h2>
           {optionsError && <p role="alert" className="text-salmon-hi">{optionsError} <button onClick={() => setOptionsReload(n => n + 1)}>重试</button></p>}
           {!options && !optionsError && <p className="mt-2 text-tx2">{resolveDataSourceMode() === "replay" ? "回放模式不能创建 Issue" : "正在读取创建条件…"}</p>}
-          {options && !options.canSubmit && <p className="mt-2 text-salmon-hi">暂不能创建：{options.blockingReasons?.join("、")}。请先完成项目仓库接入、工作授权和执行配置。</p>}
+          {/* 阻断原因：机器 code 映射成人话，App 相关时补一个「去哪补」的入口。
+              判定逻辑一个字没动——`canSubmit` 仍由后端算。 */}
+          {options && !options.canSubmit && (
+            <div className="mt-2 text-salmon-hi">
+              <p>
+                暂不能创建：
+                {options.blockingReasons?.length
+                  ? options.blockingReasons.map((code) => BLOCKING_LABEL[code] ?? code).join("；")
+                  : "创建条件未就绪"}
+                。请先完成项目仓库接入、工作授权和执行配置。
+              </p>
+              {options.blockingReasons?.some((code) => APP_RELATED_BLOCKERS.has(code)) && (
+                <a
+                  className="mt-1 inline-block text-[11.5px] text-amber-hi underline-offset-2 hover:underline"
+                  href="#/repositories"
+                >
+                  去安装 GitHub App / 检查仓库授权 →
+                </a>
+              )}
+            </div>
+          )}
           <div className="mt-3 max-h-48 space-y-2 overflow-auto">{options?.repositories.map(r => <label key={r.repositoryId} className="flex items-center gap-2"><input type="checkbox" disabled={!r.selectable || creating || attempt.current !== null} checked={selectedRepos.includes(r.repositoryId)} onChange={e => setSelectedRepos(prev => e.target.checked ? [...prev, r.repositoryId] : prev.filter(id => id !== r.repositoryId))} />{r.displayName}<span className="text-xs text-tx3">{r.reasons.join("、")}</span></label>)}</div>
           <a className="mt-3 inline-block text-xs text-amber-hi" href="#/repositories">管理当前项目仓库</a>
           {attempt.current && <p className="mt-2 text-xs text-tx2">提交内容已固定，重试会查询或完成同一次创建。</p>}

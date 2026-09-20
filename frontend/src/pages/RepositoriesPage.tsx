@@ -5,6 +5,7 @@ import { allProjectRepositories, updateProject } from "../api/projects";
 import { gridSourceMode } from "../api/grid";
 import { dayLabel, errText } from "../display";
 import { AddRepositoryCard } from "../components/AddRepositoryCard";
+import { AppInstallGuide } from "../components/AppInstallGuide";
 
 import { ErrorPanel, LoadingLine } from "../components/StatusBlocks";
 
@@ -329,6 +330,10 @@ export function RepositoriesPage({
           {notice.text}
         </p>
       )}
+      {/* GitHub App 缺口就地提示（2026-09-20）：卡片上那行「App 工作授权不足」是**逐仓**
+          的结论，人看到它还得自己去找怎么补——这里给出账号级的原因和直链（安装页/安装
+          设置页由后端算好），点一下就能补上。没有缺口时组件自己返回 null。 */}
+      <AppInstallGuide variant="inline" />
       {/* 项目一个仓都没接入时把话说死：建 issue 会直接 0 个可选，别让人自己去猜 */}
       {attachedIds !== null && attachedIds.size === 0 && repos !== null && repos.length > 0 && (
         <p className="mt-2 rounded-hard border border-amber/40 bg-amber-well px-3 py-2 text-[11.5px] text-amber">
