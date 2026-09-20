@@ -30,6 +30,15 @@ export function deriveStepStates(d: DiscoveryView | null, hitl = false): StepSta
   if (!d) return states;
   const running = d.step_state === "running";
   const failed = d.step_state === "failed";
+  // ⚠️ 判定一律以「**产物在不在**」为准，**不要**拿 `d.step === N` 当条件。
+  //
+  // 2026-09-20 线上实测（人工参与的 issue 在 ① 之后整条链停死）：后端的
+  // `discovery.deriveStep` 返回的是「**已经完成**的那一步」——只有 candidates
+  // 在场时才返回 2。于是「candidates 还没产出」与「step 已经是 2」**永远不可能
+  // 同时成立**，② 的 `d.step === 2 && d.candidates === null` 恒假 → 那个
+  // 「待人选择」的门从来没显示过 → 人没有可点的东西、驱动器在人工参与下又不
+  // 越门 → ② 永远"等待前序"。同族的 `d.step === 3 && d.classification === null`
+  // （③）、`d.step === 4 && plan 为空`（④）也一起改掉。
   // ① 需求分析：分析不充分且还有待澄清问题时 → 停在「待人答」门
   //    （2026-09-20 移植主线 5743fbc2：此前只要 analysis 块在场就标 done，
   //     用户看不出自己需要补充回答，右栏也没有立即弹出追问）
@@ -59,12 +68,13 @@ export function deriveStepStates(d: DiscoveryView | null, hitl = false): StepSta
         : "wait";
   // ② 候选评分（分流步，2026-09-18 用户裁定）：人工参与且分析已过 → 停在
   // 「待人选」，等聊天室里的选择；自动托管 → 照常自动推进。
+  const cand = d.candidates;
   states[1] =
-    d.candidates !== null
-      ? d.candidates?.error
+    cand !== null
+      ? cand.error
         ? "failed"
         : "done"
-      : d.step === 2 && states[0] === "done"
+      : states[0] === "done"
         ? hitl
           ? "choose"
           : running
@@ -82,13 +92,13 @@ export function deriveStepStates(d: DiscoveryView | null, hitl = false): StepSta
         ? "confirm"
         : d.classification !== null
           ? "gate"
-          : d.step === 3 && states[1] === "done"
-          ? running
-            ? "run"
-            : failed
-              ? "failed"
-              : "wait"
-          : "wait";
+          : states[1] === "done"
+            ? running
+              ? "run"
+              : failed
+                ? "failed"
+                : "wait"
+            : "wait";
   // ④ 生成计划（物化在场也算——计划的 artifact 已消费）
   //
   // 2026-09-19 修正（用户实测："怎么先完成了 1 和 4"）：旧代码读 `d.plan`，而

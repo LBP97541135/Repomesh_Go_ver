@@ -273,6 +273,25 @@ export function WorkbenchPage({
   useEffect(() => {
     if (resolveDataSourceMode() === "replay") return;
     if (!discovery || !detail || !principal) return;
+    // 人工参与：③ 的**分档计算**不是人审门（人审门是它的**审批**）。候选一到就该跑，
+    // 但协调器只管 ai 模式的 issue，前端驱动器此前又只在 step_state==="idle" 时开火
+    // —— 而候选落库后 step_state 已经是 "done"，于是人工参与的链路在 ② 之后又停死
+    // 一次（线上实测：② 选完「让 AI 推断」，③ 永远"等待前序"）。
+    // 这里按**产物缺什么**补这一下，与 ② 的选择门（treeModel 里改成按 candidates
+    // 判定）配对：人选完 → 候选落库 → 这一步把分档算出来 → 停在 ③ 的人审门。
+    if (issueHitl === "hitl" && discovery.candidates !== null && discovery.classification === null) {
+      const key = `${discovery.issue_id}:classification`;
+      if (!autoTrigger.has(key)) {
+        autoTrigger.set(key, newIdempotencyKey("classification"));
+        triggerClassification(detail.issue_id, {
+          created_by_agent_id: principal.agentId,
+          idempotency_key: autoTrigger.get(key)!,
+        })
+          .then(() => setReload((n) => n + 1))
+          .catch((err: unknown) => setStepError({ step: 3, message: errText(err) }));
+      }
+      return;
+    }
     if (discovery.step_state !== "idle" || discovery.running_task_id !== null) return;
     // ④ 的 idle 有两义：分档未过（等人）或分档已过（该跑计划）——只有后者开火
     if (discovery.step === 4 && discovery.approval?.state !== "approved") return;
@@ -1271,8 +1290,8 @@ export function WorkbenchPage({
           </div>
           <p className="max-w-[420px] text-center text-[10.5px] leading-[1.6] text-tx3">
             {hitlMode === "ai"
-              ? "处理员自动通过分档审批与物化确认,全程不停顿"
-              : "人工把守:分档审批 · 物化确认 · PR 合并确认(策略卡点:范围/规格/执行/验证/交付/异常)"}
+              ? "处理员自动通过分档审批、生成计划与物化确认,全程不停顿"
+              : "人工把守:分档审批 · 生成计划 · 物化确认 · PR 合并确认(策略卡点:范围/规格/执行/验证/交付/异常)"}
           </p>
         </div>
         <div className="w-full max-w-[720px]">
@@ -1352,7 +1371,7 @@ export function WorkbenchPage({
           {detail && !isNew && (
             <span
               className="ml-1 flex flex-none items-center gap-1 rounded-hard border border-line px-1.5 py-px text-[9.5px] text-tx2"
-              title={issueHitl === "ai" ? "自动托管:分档审批与物化确认由处理员代行" : "人工参与:分档审批 · 物化确认 · PR 合并由人确认"}
+              title={issueHitl === "ai" ? "自动托管:分档审批、生成计划与物化确认由处理员代行" : "人工参与:分档审批 · 生成计划 · 物化确认 · PR 合并由人确认"}
             >
               {issueHitl === "ai" ? <IconBolt size={10} /> : <IconUser size={10} />}
               {issueHitl === "ai" ? "自动托管" : "人工参与"}
