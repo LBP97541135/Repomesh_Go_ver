@@ -312,3 +312,40 @@ func TestMatrixSessionReusesFreshlyRefreshedToken(t *testing.T) {
 		t.Fatalf("controller calls grew from %d to %d; want no extra refresh", after, calls)
 	}
 }
+
+// 直配凭据这条路：配了 MATRIX_ACCESS_TOKEN 就完全不碰控制器（Controller 为 nil
+// 也不报错），发送带 ?user_id= 代发身份。这是线上实测出的正路：admin 在控制器
+// 那边没有凭据记录，走换凭据必 500。
+func TestStaticTokenSkipsControllerAndMasquerades(t *testing.T) {
+	var sendPath string
+	homeserver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sendPath = r.URL.Path + "?" + r.URL.RawQuery
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"event_id":"$s"}`))
+	}))
+	defer homeserver.Close()
+
+	t.Setenv("MATRIX_HOMESERVER_URL", homeserver.URL)
+	t.Setenv("MATRIX_ACCESS_TOKEN", "syt_static")
+	t.Setenv("REPOMESH_MATRIX_ACT_AS", "@admin:matrix-local.agentteams.io:18080")
+
+	session := NewSessionFromEnv(nil) // 控制器就是 nil —— 不能因此走不下去
+	if session == nil {
+		t.Fatal("static token path must not require a controller")
+	}
+	if _, err := session.SendMessage(context.Background(), "!room:hs", "txn-1", "hi"); err != nil {
+		t.Fatalf("SendMessage: %v", err)
+	}
+	if !strings.Contains(sendPath, "user_id=%40admin%3Amatrix-local") {
+		t.Fatalf("send path missing masquerade: %q", sendPath)
+	}
+}
+
+// 什么都没配 → nil，调用方如实报"没配"，不拿空凭据去打 homeserver。
+func TestNewSessionFromEnvNilWhenUnconfigured(t *testing.T) {
+	t.Setenv("MATRIX_HOMESERVER_URL", "")
+	t.Setenv("MATRIX_ACCESS_TOKEN", "")
+	if NewSessionFromEnv(&Client{BaseURL: "http://c:8090"}) != nil {
+		t.Fatal("want nil when nothing is configured")
+	}
+}

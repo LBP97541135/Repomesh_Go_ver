@@ -34,21 +34,23 @@ func New(pool *pgxpool.Pool, matrix *agentteams.MatrixSession) *Notifier {
 	return &Notifier{pool: pool, matrix: matrix}
 }
 
-// NewFromEnv 按环境组装。缺任一环境变量返回 nil —— Notify 对 nil 是空操作，
-// 业务行为与没有房间观察时完全一致。
+// NewFromEnv 按环境组装（两条凭据路见 agentteams.NewSessionFromEnv 的说明：
+// 直配 MATRIX_ACCESS_TOKEN 优先，控制器换凭据兜底）。缺配置返回 nil —— Notify
+// 对 nil 是空操作，业务行为与没有房间观察时完全一致。
 func NewFromEnv(pool *pgxpool.Pool) *Notifier {
 	controllerURL := strings.TrimRight(os.Getenv("AGENTTEAMS_CONTROLLER_URL"), "/")
-	homeserver := strings.TrimRight(os.Getenv("MATRIX_HOMESERVER_URL"), "/")
-	if controllerURL == "" || homeserver == "" {
+	controller := &agentteams.Client{
+		BaseURL: controllerURL,
+		Token:   os.Getenv("AGENTTEAMS_CONTROLLER_TOKEN"),
+	}
+	if controllerURL == "" {
+		controller = nil
+	}
+	session := agentteams.NewSessionFromEnv(controller)
+	if session == nil {
 		return nil
 	}
-	return New(pool, &agentteams.MatrixSession{
-		Controller: &agentteams.Client{
-			BaseURL: controllerURL,
-			Token:   os.Getenv("AGENTTEAMS_CONTROLLER_TOKEN"),
-		},
-		Homeserver: homeserver,
-	})
+	return New(pool, session)
 }
 
 // Notify 找到该 issue 的仓库团队房并投一条消息。投不出去只记一行。

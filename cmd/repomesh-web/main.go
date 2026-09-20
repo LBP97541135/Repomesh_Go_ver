@@ -245,13 +245,13 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		//
 		// 缺任一环境变量就不装：房间消息端点返 503「没配」，而不是返空消息流让界面
 		// 以为"房间没人说话"。房间**关联**不受影响，那部分只读本库。
-		if atClient != nil {
-			if homeserver := strings.TrimRight(os.Getenv("MATRIX_HOMESERVER_URL"), "/"); homeserver != "" {
-				issuesAPI.Matrix = &agentteams.MatrixSession{Controller: atClient, Homeserver: homeserver}
-				// 建项成功 → 把"收到新需求"投进团队房。与上面同一套环境变量，
-				// 缺了就是 nil，Notify 静默空操作。
-				issuesAPI.Rooms = roomnotice.NewFromEnv(runtime.Pool())
-			}
+		// 房间凭据两条路：直配 MATRIX_ACCESS_TOKEN 优先，控制器换凭据兜底
+		//（admin 在控制器那边没有凭据记录，换必 500 —— 见 NewSessionFromEnv）。
+		if session := agentteams.NewSessionFromEnv(atClient); session != nil {
+			issuesAPI.Matrix = session
+			// 建项成功 → 把"收到新需求"投进团队房。同一套环境变量，
+			// 缺了就是 nil，Notify 静默空操作。
+			issuesAPI.Rooms = roomnotice.NewFromEnv(runtime.Pool())
 		}
 		pipelineAPI.HandoffDocs = web.HandoffDocs{Service: handoff.New(runtime.Pool())}
 		pipelineAPI.Extensions = web.PipelineExtensions{

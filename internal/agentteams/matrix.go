@@ -19,6 +19,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -42,6 +43,9 @@ type MatrixClient struct {
 	Token string
 	// HTTP 缺省 15s 超时；测试可注入。
 	HTTP *http.Client
+	// MasqueradeAs 非空时发送带 ?user_id=：appservice 凭据以此代指定身份发言
+	//（appservice 自己的身份不在房里，裸发 403）。只影响发送，读取不需要。
+	MasqueradeAs string
 }
 
 func (c *MatrixClient) httpClient() *http.Client {
@@ -160,6 +164,14 @@ func (c *MatrixClient) RoomMessages(ctx context.Context, roomID string, limit in
 	return messages, nil
 }
 
+// masqueradeQuery 把代发身份拼成查询串。空身份返回空串。
+func masqueradeQuery(userID string) string {
+	if userID == "" {
+		return ""
+	}
+	return "?user_id=" + url.QueryEscape(userID)
+}
+
 // SendMessage 往房间发一条文本消息（PUT /_matrix/client/v3/rooms/{roomId}/send/m.room.message/{txnID}）。
 // txnID 是幂等键：同一个 txnID 重发上游只认第一条，所以重试不会刷屏。
 func (c *MatrixClient) SendMessage(ctx context.Context, roomID, txnID, body string) (string, error) {
@@ -174,7 +186,7 @@ func (c *MatrixClient) SendMessage(ctx context.Context, roomID, txnID, body stri
 		EventID string `json:"event_id"`
 	}
 	if _, err := c.do(ctx, http.MethodPut,
-		"/_matrix/client/v3/rooms/"+url.PathEscape(roomID)+"/send/m.room.message/"+url.PathEscape(txnID),
+		"/_matrix/client/v3/rooms/"+url.PathEscape(roomID)+"/send/m.room.message/"+url.PathEscape(txnID)+masqueradeQuery(c.MasqueradeAs),
 		payload, &sent); err != nil {
 		return "", err
 	}
@@ -195,12 +207,20 @@ type MatrixSession struct {
 	// HTTP 透传给底下的 MatrixClient；测试可注入。
 	HTTP *http.Client
 
-	mu    sync.Mutex
-	token string
+	// 直配凭据（可选）：MATRIX_ACCESS_TOKEN，可选 REPOMESH_MATRIX_ACT_AS 代发身份。
+	// 控制器的换凭据接口只给 Worker/Manager 身份发 —— 服务账号（admin）在那边
+	// 没有凭据记录，POST credentials/matrix-token 恒 500「no credentials found」。
+	// 嵌入式部署里正路是直配 appservice token 并以房间创建者身份代发。
+	// 配了就完全不走控制器（Controller 可为 nil）。
+	Token string
+	ActAs string
+
+	mu          sync.Mutex
+	cachedToken string
 }
 
 func (s *MatrixSession) client(token string) *MatrixClient {
-	return &MatrixClient{BaseURL: s.Homeserver, Token: token, HTTP: s.HTTP}
+	return &MatrixClient{BaseURL: s.Homeserver, Token: token, HTTP: s.HTTP, MasqueradeAs: s.ActAs}
 }
 
 // accessToken 取当前凭据；没有就换一枚。**持锁换**：并发调用只有一个真去打控制器，
@@ -208,8 +228,11 @@ func (s *MatrixSession) client(token string) *MatrixClient {
 func (s *MatrixSession) accessToken(ctx context.Context) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.token != "" {
-		return s.token, nil
+	if s.Token != "" {
+		return s.Token, nil
+	}
+	if s.cachedToken != "" {
+		return s.cachedToken, nil
 	}
 	return s.refreshLocked(ctx, "")
 }
@@ -222,8 +245,8 @@ func (s *MatrixSession) accessToken(ctx context.Context) (string, error) {
 // stale 是调用方刚用过的那一枚：若它已不等于缓存里的值，说明别人刚换过，直接用新的，
 // 不要再换一次（这正是"并发 401 互相作废"的解法）。
 func (s *MatrixSession) refreshLocked(ctx context.Context, stale string) (string, error) {
-	if stale != "" && s.token != "" && s.token != stale {
-		return s.token, nil
+	if stale != "" && s.cachedToken != "" && s.cachedToken != stale {
+		return s.cachedToken, nil
 	}
 	if s.Controller == nil {
 		return "", fmt.Errorf("agentteams controller client is nil; cannot obtain a matrix token")
@@ -236,7 +259,7 @@ func (s *MatrixSession) refreshLocked(ctx context.Context, stale string) (string
 	if token == "" {
 		return "", fmt.Errorf("agentteams controller returned an empty matrix token")
 	}
-	s.token = token
+	s.cachedToken = token
 	return token, nil
 }
 
@@ -285,4 +308,33 @@ func (s *MatrixSession) SendMessage(ctx context.Context, roomID, txnID, body str
 		return inner
 	})
 	return eventID, err
+}
+
+// NewSessionFromEnv 按环境组装 MatrixSession，两条路二选一：
+//
+//  1. MATRIX_ACCESS_TOKEN（可选加 REPOMESH_MATRIX_ACT_AS 代发身份）—— 直配。
+//     控制器的换凭据接口只给 Worker/Manager 发，服务账号（admin）在那边没有
+//     凭据记录，POST 恒 500「no credentials found for admin」；嵌入式部署里
+//     正路是直配 appservice token、并以房间创建者身份代发（appservice 自己
+//     的身份不在房里，裸发 403 —— 实测过）。
+//  2. 控制器换凭据 —— AGENTTEAMS_CONTROLLER_URL + MATRIX_HOMESERVER_URL，
+//     适用于服务账号真有凭据记录的部署。
+//
+// 两条都配不上返回 nil：调用方如实报"没配"，而不是拿空凭据去打 homeserver。
+func NewSessionFromEnv(controller *Client) *MatrixSession {
+	homeserver := strings.TrimRight(os.Getenv("MATRIX_HOMESERVER_URL"), "/")
+	if homeserver == "" {
+		return nil
+	}
+	if token := strings.TrimSpace(os.Getenv("MATRIX_ACCESS_TOKEN")); token != "" {
+		return &MatrixSession{
+			Homeserver: homeserver,
+			Token:      token,
+			ActAs:      strings.TrimSpace(os.Getenv("REPOMESH_MATRIX_ACT_AS")),
+		}
+	}
+	if controller == nil {
+		return nil
+	}
+	return &MatrixSession{Controller: controller, Homeserver: homeserver}
 }
