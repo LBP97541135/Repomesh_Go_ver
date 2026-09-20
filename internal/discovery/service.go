@@ -120,6 +120,18 @@ type State struct {
 	Materialization map[string]any
 	Idempotency     map[string]any
 	UpdatedAt       time.Time
+	// RunningStep / RunningRunID 是**在途的规划步**（0 / nil = 没有在途）。
+	//
+	// 2026-09-20：读面此前**从来不报"进行中"** —— `deriveStep` 的三个返回值里
+	// 第三个恒为 nil，于是 `running_task_id` 永远是 null、`step_state` 也永远
+	// 不等于 "running"。后果是界面上「进行中」这个状态根本显示不出来：agent
+	// 真的在跑（planning_runs 有行、agent_runs 有 run），用户看到的却是"待开始"
+	// 或"等待前序"，只能干等 —— 这是「看不到进度」「没有实时 DAG」的共同上游。
+	//
+	// 事实来源是 `repomesh_issues.planning_runs`：`state='pending'` 就是在途
+	// （协调器派发时只写 run_id，不改 state；跑完才改 succeeded/failed）。
+	RunningStep int
+	RunningRunID *string
 }
 
 func nullMap(raw []byte) map[string]any {
@@ -286,13 +298,28 @@ func recordReceipt(st *State, key string, receipt map[string]any) {
 
 // View is the GET /issues/{id}/discovery read projection (contract 3.1).
 func (st *State) View() map[string]any {
-	step, state, running := deriveStep(st)
+	step, state, _ := deriveStep(st)
+	// `running_task_id` 此前恒为 nil（deriveStep 的第三个返回值永远是 nil），
+	// 于是前端"有东西在跑"的判断（`running_task_id !== null`）永远为假 ——
+	// 界面上「进行中」显示不出来。现在如实取自 planning_runs（见 fillRunning）。
+	// `running_step` 是新增的显式字段：让前端能按**产物缺哪一步 + 哪一步在途**
+	// 推导状态，而不是去猜 `step`/`step_state` 的语义（那两者表示的是
+	// "已完成到哪一步"，历史上已经被误用成"下一步该做什么"，见 treeModel.ts）。
+	running := st.RunningRunID
+	runningStep := 0
+	if st.RunningStep > 0 {
+		runningStep = st.RunningStep
+		if state != "failed" {
+			state = "running"
+		}
+	}
 	view := map[string]any{
 		"issue_id":                        st.IssueID,
 		"plan_version":                    1,
 		"step":                            step,
 		"step_state":                      state,
 		"running_task_id":                 running,
+		"running_step":                    runningStep,
 		"requirement_text":                st.RequirementText,
 		"analyzed_requirement":            st.AnalyzedText,
 		"analysis":                        st.Analysis,

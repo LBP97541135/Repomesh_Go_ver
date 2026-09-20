@@ -1300,6 +1300,13 @@ export interface DiscoveryView {
   step: 1 | 2 | 3 | 4;
   step_state: "idle" | "running" | "failed" | "done";
   running_task_id: string | null;
+  /** **在途的规划步**（0 = 没有在途）。事实来源是 `planning_runs.state='pending'`。
+   *
+   *  2026-09-20 新增：读面此前从来不报"进行中"——`running_task_id` 恒为 null、
+   *  `step_state` 也永不为 "running"，于是界面上「进行中」根本显示不出来，agent
+   *  真的在跑而用户只看到"待开始"。`step` / `step_state` 表示的是**已完成到哪一步**，
+   *  判断"下一步该做什么 / 哪一步在跑"要用**产物缺哪一步** + 这个字段。 */
+  running_step?: number;
   requirement_text: string;
   analyzed_requirement: string | null;
   /** 未跑过的步为 **null**，不填空对象冒充「跑过但没结果」（§3.1 诚实条款） */

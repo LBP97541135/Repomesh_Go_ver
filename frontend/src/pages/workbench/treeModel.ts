@@ -28,8 +28,11 @@ export const STEP_LABELS = ["需求分析", "候选评分", "分档审批", "生
 export function deriveStepStates(d: DiscoveryView | null, hitl = false): StepState[] {
   const states: StepState[] = ["wait", "wait", "wait", "wait", "wait"];
   if (!d) return states;
-  const running = d.step_state === "running";
   const failed = d.step_state === "failed";
+  // 「哪一步在跑」用 `running_step`（读面新增，来源 planning_runs.state='pending'），
+  // **不要**用 `d.step_state === "running"` —— 那是**整条链**的状态，一个在途的
+  // 规划步会把它置成 "running"，用它判断每一步会让所有未完成的步都显示"进行中"。
+  const runningAt = (n: number) => d.running_step === n;
   // ⚠️ 判定一律以「**产物在不在**」为准，**不要**拿 `d.step === N` 当条件。
   //
   // 2026-09-20 线上实测（人工参与的 issue 在 ① 之后整条链停死）：后端的
@@ -60,7 +63,7 @@ export function deriveStepStates(d: DiscoveryView | null, hitl = false): StepSta
           ? "gate"
           : "done"
       : d.step === 1
-        ? running
+        ? runningAt(1)
           ? "run"
           : failed
             ? "failed"
@@ -77,7 +80,7 @@ export function deriveStepStates(d: DiscoveryView | null, hitl = false): StepSta
       : states[0] === "done"
         ? hitl
           ? "choose"
-          : running
+          : runningAt(2)
             ? "run"
             : failed
               ? "failed"
@@ -93,7 +96,7 @@ export function deriveStepStates(d: DiscoveryView | null, hitl = false): StepSta
         : d.classification !== null
           ? "gate"
           : states[1] === "done"
-            ? running
+            ? runningAt(3)
               ? "run"
               : failed
                 ? "failed"
@@ -113,7 +116,9 @@ export function deriveStepStates(d: DiscoveryView | null, hitl = false): StepSta
   // 确认项，而且也不展示"）。此前它只由前端驱动器自动开火，人既看不到"该我点了"
   // 也点不了。现在：分档批准后停在「待人审」，等人点「生成计划」才派发；
   // 派发出去（running_task_id 非空 / step_state=running）就如实显示进行中。
-  const planRunning = d.step === 4 && (d.step_state === "running" || d.running_task_id !== null);
+  // 在途判断一律用 `running_step`（见文件头）：`step_state` 是整条链的状态，
+  // 拿它当"这一步在跑"用会让别的步一起亮。
+  const planRunning = runningAt(4);
   states[3] = planned
     ? "done"
     : states[2] === "done"
