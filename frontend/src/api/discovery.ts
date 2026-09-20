@@ -143,7 +143,7 @@ export function externalMembersNotReady(err: unknown): ExternalMembersNotReadyDe
  *
  *  前缀带步名只为让服务端审计日志可读，不参与去重语义。 */
 export function newIdempotencyKey(
-  step: "analysis" | "candidates" | "classification" | "plan" | "approval" | "materialize" | "selection" | "supplement" | "supplement-confirm",
+  step: "analysis" | "candidates" | "classification" | "plan" | "approval" | "materialize" | "selection" | "supplement" | "supplement-confirm" | "manifest",
 ): string {
   return `console-discovery-${step}-${crypto.randomUUID()}`;
 }

@@ -522,6 +522,8 @@ function StageHistory({
   planState,
   onInterruptPlan,
   planRevisions,
+  deliveryManifest,
+  onBuildManifest,
 }: {
   stage: 0 | 1 | 2 | 3;
   discovery: DiscoveryView | null;
@@ -541,6 +543,10 @@ function StageHistory({
   onInterruptPlan: (repository: string, note: string) => Promise<InterruptOutcomeView>;
   /** 计划换代历史（GET /plans/{id}/revisions）。null = 还没读到。 */
   planRevisions: PlanRevisionView[] | null;
+  /** 跨仓交付的一致版本清单（null = 还没有清单）。 */
+  deliveryManifest: DeliveryManifestView | null;
+  /** 生成一份清单快照（幂等键由页面持有）。 */
+  onBuildManifest: () => Promise<void>;
 }) {
   // A1 提交带进来的范围追加 props：本组件暂未消费（构建阻塞项），先显式忽略。
   void scopeRepoIds;
