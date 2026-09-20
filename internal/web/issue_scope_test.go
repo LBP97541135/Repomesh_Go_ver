@@ -68,7 +68,9 @@ func TestProjectDraftIssueReadinessAndScope(t *testing.T) {
 	}
 	pid := created.Receipt.ProjectID
 	options, err := issueService.Options(ctx, principal, pid, issues.ParsePageQuery("", 1))
-	if err != nil || options.CanSubmit || !slices.Contains(options.BlockingReasons, "NO_AVAILABLE_REPOSITORIES") {
+	// 建项不再选仓(2026-09-20):available=0 不再产生 NO_AVAILABLE_REPOSITORIES,
+	// 也不再把 CanSubmit 压成 false——能不能提交只看配置与 App 就绪。
+	if err != nil || options.CanSubmit || slices.Contains(options.BlockingReasons, "NO_AVAILABLE_REPOSITORIES") {
 		t.Fatalf("empty project options=%+v err=%v", options, err)
 	}
 	if !slices.Contains(options.BlockingReasons, "CONFIGURATION_NOT_READY") {
@@ -117,13 +119,15 @@ func TestProjectDraftIssueReadinessAndScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	options, err = issueService.Options(ctx, principal, pid, issues.ParsePageQuery("", 1))
-	if err != nil || options.CanSubmit || slices.Contains(options.BlockingReasons, "CONFIGURATION_NOT_READY") || !slices.Contains(options.BlockingReasons, "APP_AUTHORIZATION_UNCONFIRMED") || len(options.Repositories) != 1 || options.Repositories[0].RepositoryID != server.fixtures.RepositoryA {
+	if err != nil || options.CanSubmit || slices.Contains(options.BlockingReasons, "CONFIGURATION_NOT_READY") || slices.Contains(options.BlockingReasons, "NO_AVAILABLE_REPOSITORIES") || !slices.Contains(options.BlockingReasons, "APP_AUTHORIZATION_UNCONFIRMED") || len(options.Repositories) != 1 || options.Repositories[0].RepositoryID != server.fixtures.RepositoryA {
 		t.Fatalf("joined options=%+v err=%v", options, err)
 	}
 	deniedAuth := access.New(server.pool, server.store, appDeniedProvider{server.provider})
 	deniedService := issues.New(server.pool, deniedAuth, projectService, modelbudget.New())
 	denied, err := deniedService.Options(ctx, principal, pid, issues.ParsePageQuery("", 1))
-	if err != nil || denied.CanSubmit || len(denied.Repositories) != 1 || denied.Repositories[0].Selectable {
+	// 全部仓库 App 拒绝 = available 0:按旧逻辑会压 NO_AVAILABLE_REPOSITORIES,
+	// 现在仓库多少不再决定可提交性,这个 reason 必须消失。
+	if err != nil || denied.CanSubmit || slices.Contains(denied.BlockingReasons, "NO_AVAILABLE_REPOSITORIES") || len(denied.Repositories) != 1 || denied.Repositories[0].Selectable {
 		t.Fatalf("App denied options=%+v err=%v", denied, err)
 	}
 	create := func(repo, key string) (issues.CreationResult, error) {

@@ -55,8 +55,10 @@ func ParsePageQuery(cursor string, limit int) PageQuery {
 
 // Options returns the creation options projection: which repositories the
 // caller may select, the default conversation mode, and whether submission is
-// currently possible. Repositories not readable by the caller are hidden, and
-// repositories whose live observation is unknown collapse to a 503.
+// currently possible. Repositories not readable by the caller are hidden.
+// 2026-09-20 起建项不再选仓:CanSubmit 只看配置与 App 就绪(选仓挪到①之后的
+// 选仓门),凭据级观测失败也从 503 降级为非阻塞标记;逐仓 selectable 投影保留,
+// 选仓门用它渲染建议列表。
 func (s *Service) Options(ctx context.Context, principal access.ProjectPrincipal, projectID string, query PageQuery) (CreationOptions, error) {
 	options := CreationOptions{
 		ProjectID:                projectID,
@@ -108,12 +110,14 @@ func (s *Service) Options(ctx context.Context, principal access.ProjectPrincipal
 	if end > len(observed) {
 		end = len(observed)
 	}
-	// 凭据级失败(所有仓都 unknown)仍然整体失败;单仓 unknown 是数据漂移
-	// (external id 不匹配/单仓探测失败)——那个仓不可选即可,不该拖垮整个表单。
-	if observation.AuthorizationFailed() {
-		return CreationOptions{}, failure(503, "AUTHORIZATION_UNCONFIRMED")
+	// 凭据级失败(所有仓都 unknown)从 503 降级为非阻塞标记(2026-09-20):
+	// 建项不再选仓,表单能不能提交只看配置与 App 就绪;观测失败不再掀翻整个
+	// 表单。单仓 unknown 是数据漂移(external id 不匹配/单仓探测失败)——
+	// 那个仓不可选即可,同样不该拖垮整个表单。
+	observationFailed := observation.AuthorizationFailed()
+	if observationFailed {
+		options.BlockingReasons = append(options.BlockingReasons, "AUTHORIZATION_UNCONFIRMED")
 	}
-	available := 0
 	for index, item := range observed {
 		if item.ParticipationStatus != "allowed" {
 			continue
@@ -132,9 +136,6 @@ func (s *Service) Options(ctx context.Context, principal access.ProjectPrincipal
 			entry.Selectable = false
 			entry.Reasons = append(entry.Reasons, "AUTHORIZATION_UNCONFIRMED")
 		}
-		if entry.Selectable {
-			available++
-		}
 		if item.ObservedAt != nil {
 			entry.ObservedAt = item.ObservedAt.UTC().Format(time.RFC3339Nano)
 		}
@@ -145,10 +146,9 @@ func (s *Service) Options(ctx context.Context, principal access.ProjectPrincipal
 	if end < len(observed) {
 		options.NextCursor = observed[end-1].Locator.ID
 	}
-	options.CanSubmit = configurationReady && available > 0
-	if available == 0 {
-		options.BlockingReasons = append(options.BlockingReasons, "NO_AVAILABLE_REPOSITORIES")
-	}
+	// 建项不选仓(2026-09-20):能不能提交只看配置与 App 就绪;选几仓、有没有
+	// 可选仓是①之后"选仓门"的事,这里不再用 available>0 挡提交。
+	options.CanSubmit = configurationReady
 	// Network observations cannot outlive their session or project revision.
 	tx, err = s.beginCreate(ctx)
 	if err != nil {
@@ -165,8 +165,10 @@ func (s *Service) Options(ctx context.Context, principal access.ProjectPrincipal
 	if current.CreationContextRevision() != options.CreationContextRevision {
 		return CreationOptions{}, failure(409, "CREATION_CONTEXT_CHANGED")
 	}
-	if err = s.authorization.CheckProjectObservationCached(ctx, tx, principal, observation); err != nil {
-		return CreationOptions{}, err
+	if !observationFailed {
+		if err = s.authorization.CheckProjectObservationCached(ctx, tx, principal, observation); err != nil {
+			return CreationOptions{}, err
+		}
 	}
 	appReady, err := s.authorization.IssueAppCredentialReady(ctx, tx)
 	if err != nil {
