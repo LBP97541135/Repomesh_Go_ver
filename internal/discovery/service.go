@@ -254,7 +254,8 @@ func (s *Service) save(ctx context.Context, tx pgx.Tx, st *State) error {
 		'requirement_text',requirement_text,'analyzed_requirement',analyzed_requirement,
 		'analysis',analysis,'candidates',candidates,'classification',classification,
 		'plan',plan,'approval',approval,'classification_evidence_version',classification_evidence_version,
-		'effective_tiers',effective_tiers,'integration',integration,'materialization',materialization)
+		'effective_tiers',effective_tiers,'integration',integration,'materialization',materialization,
+		'scope_gate',scope_gate)
 		FROM repomesh_issues.issue_discoveries WHERE issue_id=$1`, st.IssueID, observability.DiscoverySourceVersion).Scan(&snapshot)
 	if err != nil {
 		return err
