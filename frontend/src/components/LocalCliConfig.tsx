@@ -54,8 +54,8 @@ function ConfigSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="mt-5">
-      <div className="eyebrow mb-2">{title}</div>
+    <section className="mt-4 rounded-hard border border-line bg-panel px-4 py-3.5">
+      <div className="eyebrow mb-2.5">{title}</div>
       {children}
     </section>
   );

@@ -234,7 +234,7 @@ export function IssueListPage({
       )}
 
 
-      {/* 归档确认（v0.5 §3）：写墓碑前把语义说清——不是删除，决策与审计全保留 */}
+      {/* 归档确认（2026-09-20 用户裁定：与删除弹窗同款，只问一句）。 */}
       <Modal
         open={pendingArchive !== null}
         onClose={() => setPendingArchive(null)}
@@ -244,13 +244,7 @@ export function IssueListPage({
           <div className="p-5">
             <div className="eyebrow mb-1 text-amber">归档 issue</div>
             <p className="text-[14px] font-semibold">{pendingArchive.title}</p>
-            <p className="mt-2 text-[12px] leading-relaxed text-tx2">
-              归档只是把它移出默认列表和 Open/Closed 计数——快照、决策链、checkpoint
-              决策与审计记录全部保留，按 issue id 直达详情仍可访问。这不是删除。
-            </p>
-            <p className="mt-1.5 text-[11.5px] text-tx3">
-              仍有进行中轮次的 issue 无法归档（后端会拒绝并说明原因）。
-            </p>
+            <p className="mt-2 text-[12px] leading-relaxed text-tx2">是否确认归档？</p>
             <div className="mt-4 flex justify-end gap-2">
               <button
                 className="rounded-hard border border-line px-3 py-1.5 text-[12px] text-tx2 hover:border-tx2 hover:text-tx"
