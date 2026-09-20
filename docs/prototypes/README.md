@@ -1,6 +1,6 @@
 # 页面原型导航
 
-更新：2026-09-12。先看[串联预览](index.html)，采用范围和机器契约以[页面交接](../current/HANDOFF-PAGE-API-DESIGN.md)及[首批候选包](../current/first-batch-complete-review.md)为准。原型均为内存演示，不接真实账号、密钥、数据库或运行服务。
+更新：2026-09-20。先看[串联预览](index.html)，采用范围和机器契约以[页面交接](../current/HANDOFF-PAGE-API-DESIGN.md)及[首批候选包](../current/first-batch-complete-review.md)为准。原型均为内存演示，不接真实账号、密钥、数据库或运行服务。
 
 ## 当前入口
 

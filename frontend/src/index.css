@@ -127,9 +127,10 @@ html[data-theme="light"] {
   --shadow-rail: 0 12px 30px rgba(24, 24, 27, 0.08);
   --shadow-card: 0 6px 16px rgba(24, 24, 27, 0.06);
 
-  /* 圆角只随浅色放软：深色保留 Variant D 的硬朗 2px，浅色 6px。
+  /* 圆角只随浅色放软：深色保留 Variant D 的硬朗 2px，浅色统一 8px
+     （2026-09-18 Linear 第一批：全局唯一圆角值，不再 4/6/12 混用）。
      弹窗/文件夹标签的原生硬圆角已收编进 rounded-hard，跟随本值。 */
-  --radius-hard: 6px;
+  --radius-hard: 8px;
 
   /* 新会话居中输入框：浅色大圆角 + 轻投影（用户选型） */
   --chat-radius: 12px;
@@ -184,7 +185,7 @@ button {
   /* 状态徽章：全站只允许这几种（3 基础 done/run/wait + 人审门 gate + 失败 fail
      + 中性元信息 meta）。统一高度 20px / 统一圆角 / 统一 10.5px 字号；
      禁止再为单个状态就地发明 border/px/py/text 样式。
-     圆角直接吃 --radius-hard（LBP 已有该令牌：深色 2px / 浅色 6px），不另立新值。 */
+     圆角直接吃 --radius-hard（深色 2px / 浅色 8px），不另立新值。 */
   .pill {
     display: inline-flex;
     align-items: center;

@@ -100,7 +100,7 @@
 | 入口 | 用途 |
 | --- | --- |
 | [领域语言](../../CONTEXT.md) · [ADR 索引](../adr/README.md) | 术语与全部架构决定；ADR 本次未归档。 |
-| [原型目录](../prototypes/README.md) | 当前 11 份原稿、串联源及 4 份历史归档。 |
+| [原型目录](../prototypes/README.md) | 当前 12 份原稿（11 份进串联、1 份独立单页）、串联源及 4 份历史归档。 |
 | [AgentTeams 调研](../agentteams-survey-2026-09-07/agentteams-survey.md) · [API／CLI 附录](../agentteams-survey-2026-09-07/agentteams-api-cli-survey-2026-09-07.md) | 后端需结合确定源码和后续实测核对，不能当作已集成。 |
 | [09-12 审查](../reviews/2026-09-12-design-readiness/README.md) · [修订检查](../reviews/2026-09-12-design-fixes/README.md) | 历史证据及限定检查，不代表真实业务通过。 |
 | [计划目录整理与旧任务提示](../archive/2026-09-13-plan-organization/README.md) · [全部历史](../archive/README.md) | 已过期 B03、B04 提示，整理前交接、计划、迁移映射与原始字节；更早归档从历史总导航进入。 |
