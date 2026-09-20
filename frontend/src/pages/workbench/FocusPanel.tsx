@@ -19,7 +19,7 @@ import type { ConversationMessage } from "../../api/conversations";
 import { STEP_LABELS, type FocusEntry, type StepState } from "./treeModel";
 import type { TestEvidenceItem, TestEvidenceView } from "../../api/testEvidence";
 import type { TrainCarSpec } from "./PrTrainCard";
-import type { InterruptOutcomeView } from "../../api/plans";
+import type { InterruptOutcomeView, PlanRevisionView } from "../../api/plans";
 import { documentTitleOf, splitRequirement } from "../../api/issues";
 import { SupervisionPolicyCard, type PolicyDraftState } from "../../components/SupervisionPolicyCard";
 
@@ -336,6 +336,39 @@ function IssueScopeCard({
  *
  *  结果如实显示：ready=false（扫描还没就绪，判定没做）、affectsPlan=false（与当前
  *  计划无耦合，暂定备用）、affectsPlan=true + replanQueued（已登记重排，等 Leader 产 v2）。 */
+/** 计划换代历史（A3）：v1→v2 的每一次全量快照替换。
+ *
+ *  这条历史一直落在 public.plans.revisions 里（含触发它的那一跳、增删的仓库、
+ *  创建/取代的任务数），但此前**只有落库没有读面** —— 计划换过几版、每版为什么换，
+ *  界面上看不到。空列表就说"还没有换代"，不摆假进度。 */
+function PlanRevisionsCard({ revisions }: { revisions: PlanRevisionView[] | null }) {
+  return (
+    <div className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+      <p className="text-[11.5px] text-[var(--tree-ink)]">计划换代历史{revisions === null ? "" : `（${revisions.length}）`}</p>
+      {revisions === null && (
+        <p className="mt-1 text-[10.5px] text-[var(--tree-faint)]">还没有读到换代记录。</p>
+      )}
+      {revisions !== null && revisions.length === 0 && (
+        <p className="mt-1 text-[10.5px] text-[var(--tree-faint)]">还没有换代 —— 计划仍是首版。</p>
+      )}
+      {(revisions ?? []).map((r) => (
+        <div key={r.revision} className="mt-1.5 border-t border-[var(--tree-hairline)] pt-1.5 text-[10.5px] leading-[1.7] text-[var(--tree-sub)]">
+          <p>{r.baseVersion} → {r.resultVersion} · 第 {r.revision} 次换代 · 触发者 {r.actor}</p>
+          {r.reason !== "" && <p className="break-all">原因：{r.reason}</p>}
+          {(r.addedRepositories ?? []).length > 0 && (
+            <p className="break-all">新增仓库：{(r.addedRepositories ?? []).join("、")}</p>
+          )}
+          {(r.removedRepositories ?? []).length > 0 && (
+            <p className="break-all">移出仓库：{(r.removedRepositories ?? []).join("、")}</p>
+          )}
+          <p>任务轴：新建 {r.createdTasks} · 取代 {r.supersededTasks}</p>
+          {r.upstreamRef ? <p className="break-all">触发跳：{r.upstreamRef}</p> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function PlanReplanCard({
   planState,
   onInterrupt,
@@ -424,6 +457,7 @@ function StageHistory({
   onAppendRepository,
   planState,
   onInterruptPlan,
+  planRevisions,
 }: {
   stage: 0 | 1 | 2 | 3;
   discovery: DiscoveryView | null;
@@ -441,6 +475,8 @@ function StageHistory({
   planState: { planVersion: string; replanState: string } | null;
   /** ③ 执行中人工打断：提交一个**人点名**的仓库，后端判定它是否影响当前计划。 */
   onInterruptPlan: (repository: string, note: string) => Promise<InterruptOutcomeView>;
+  /** 计划换代历史（GET /plans/{id}/revisions）。null = 还没读到。 */
+  planRevisions: PlanRevisionView[] | null;
 }) {
   // A1 提交带进来的范围追加 props：本组件暂未消费（构建阻塞项），先显式忽略。
   void scopeRepoIds;
@@ -487,6 +523,7 @@ function StageHistory({
         ))}
         <IssueScopeCard scopeRepoIds={scopeRepoIds} repoOptions={repoOptions} onAppend={onAppendRepository} />
         <PlanReplanCard planState={planState} onInterrupt={onInterruptPlan} />
+        <PlanRevisionsCard revisions={planRevisions} />
       </div>
     );
   }
@@ -620,6 +657,7 @@ export interface FocusPanelProps {
    *  这里补齐三处：接口、解构、StageHistory 调用点。 */
   planState: { planVersion: string; replanState: string } | null;
   /** ③ 执行中人工打断：提交一个**人点名**的仓库，后端判定它是否影响当前计划。 */
+  planRevisions: PlanRevisionView[] | null;
   onInterruptPlan: (repository: string, note: string) => Promise<InterruptOutcomeView>;
 }
 
@@ -656,6 +694,7 @@ export function FocusPanel({
   selectionBusy = false,
   planState,
   onInterruptPlan,
+  planRevisions,
 }: FocusPanelProps) {
   const body = (() => {
     if (entry === null) {
@@ -696,6 +735,7 @@ export function FocusPanel({
           onAppendRepository={onAppendRepository}
           planState={planState}
           onInterruptPlan={onInterruptPlan}
+          planRevisions={planRevisions}
         />
       );
     }

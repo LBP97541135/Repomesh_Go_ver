@@ -62,6 +62,36 @@ export function interruptPlan(
   );
 }
 
+/** 计划换代历史的一条(tasks.PlanRevision,pipeline_routes.go as-built)。
+ *  每一次全量快照替换都在 public.plans.revisions 里:换了哪一版、谁触发的、
+ *  增删了哪些仓库、创建/取代了多少任务。 */
+export interface PlanRevisionView {
+  revision: number;
+  baseVersion: string;
+  resultVersion: string;
+  actor: string;
+  reason: string;
+  addedRepositories: string[];
+  removedRepositories: string[];
+  createdTasks: number;
+  supersededTasks: number;
+  /** 触发本轮重排的那一跳(人工打断/升级梯的决策单 id)。 */
+  upstreamRef?: string;
+  idempotencyKey: string;
+}
+
+/** GET /api/projects/{projectId}/plans/{planId}/revisions — 计划换代历史。
+ *  这条历史此前只有落库没有读面:计划换过几版、每版为什么换,界面上看不到。 */
+export function listPlanRevisions(
+  projectId: string,
+  planId: string,
+): Promise<{ items: PlanRevisionView[] }> {
+  return apiRequest<{ items: PlanRevisionView[] }>(
+    "GET",
+    `/projects/${encodeURIComponent(projectId)}/plans/${encodeURIComponent(planId)}/revisions`,
+  );
+}
+
 /** 交接单(§5.4 数据库测试交接):创建入参(handoff.CreateCommand)。 */
 export interface HandoffCreateInput {
   repositoryId: string;

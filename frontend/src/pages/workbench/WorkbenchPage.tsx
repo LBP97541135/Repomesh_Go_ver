@@ -19,7 +19,7 @@ import { listConversationMessages, submitMessage, type ConversationMessage } fro
 import { listPlanTasks, type PlanTaskItem } from "../../api/taskTree";
 import { fetchTestEvidence, type TestEvidenceView } from "../../api/testEvidence";
 import { appendIssueRepository } from "../../api/issueScope";
-import { getPlan, interruptPlan, type InterruptOutcomeView } from "../../api/plans";
+import { getPlan, interruptPlan, listPlanRevisions, type InterruptOutcomeView, type PlanRevisionView } from "../../api/plans";
 import { approveTask, rejectTask } from "../../api/tasks";
 import {
   fetchDiscovery,
@@ -339,6 +339,31 @@ export function WorkbenchPage({
       })
       .catch(() => {
         if (!cancelled) setPlanState(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, planId, reload]);
+
+  // ── 计划换代历史（A3）：plans/{planId}/revisions ──
+  //
+  //  这条历史一直落在 public.plans.revisions 里，但此前**只有落库没有读面**：
+  //  计划换过几版、每版为什么换、增删了哪些仓库，界面上看不到。
+  const [planRevisions, setPlanRevisions] = useState<PlanRevisionView[] | null>(null);
+  useEffect(() => {
+    if (!planId) {
+      setPlanRevisions(null);
+      return;
+    }
+    let cancelled = false;
+    Promise.resolve(projectId)
+      .then((pid) => (pid ? listPlanRevisions(pid, planId) : null))
+      .then((page) => {
+        if (cancelled) return;
+        setPlanRevisions(page?.items ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setPlanRevisions(null);
       });
     return () => {
       cancelled = true;
@@ -1276,6 +1301,7 @@ export function WorkbenchPage({
               onAppendRepository={handleAppendRepository}
               planState={planState}
               onInterruptPlan={handleInterruptPlan}
+            planRevisions={planRevisions}
               stepStates={stepStates}
               task={taskEntry}
               messages={entryMessages}
