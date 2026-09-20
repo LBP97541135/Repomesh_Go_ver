@@ -166,22 +166,22 @@ func TestPostgresEmbeddingAndRecall(t *testing.T) {
 		t.Fatal("model mismatch must resurface the node")
 	}
 
-	hits, err := store.SemanticCandidates(ctx, "m1", vec, 5)
+	hits, err := store.SemanticCandidates(ctx, "m1", vec, 5, Scope{})
 	if err != nil || len(hits) != 1 || hits[0].Node.ID != node.ID {
 		t.Fatalf("semantic candidates: %d hits, err %v", len(hits), err)
 	}
 	if hits[0].Score < 0.999 {
 		t.Fatalf("identical vector score = %f, want ~1", hits[0].Score)
 	}
-	if hits, _ = store.SemanticCandidates(ctx, "m2", vec, 5); len(hits) != 0 {
+	if hits, _ = store.SemanticCandidates(ctx, "m2", vec, 5, Scope{}); len(hits) != 0 {
 		t.Fatal("model filter must hide other-model vectors")
 	}
 
-	structural, err := store.StructuralCandidates(ctx, []string{"repo-vec"}, 5)
+	structural, err := store.StructuralCandidates(ctx, []string{"repo-vec"}, 5, Scope{})
 	if err != nil || len(structural) != 1 || structural[0].ID != node.ID {
 		t.Fatalf("structural candidates: %d hits, err %v", len(structural), err)
 	}
-	if structural, _ = store.StructuralCandidates(ctx, []string{"no-such-repo"}, 5); len(structural) != 0 {
+	if structural, _ = store.StructuralCandidates(ctx, []string{"no-such-repo"}, 5, Scope{}); len(structural) != 0 {
 		t.Fatal("unmatched repository must not hit")
 	}
 
@@ -191,7 +191,7 @@ func TestPostgresEmbeddingAndRecall(t *testing.T) {
 	if err := store.UpsertEmbedding(ctx, node.ID, "m1", vec2, time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	hits, err = store.SemanticCandidates(ctx, "m1", vec2, 5)
+	hits, err = store.SemanticCandidates(ctx, "m1", vec2, 5, Scope{})
 	if err != nil || len(hits) != 1 || hits[0].Score < 0.999 {
 		t.Fatalf("re-embed should replace in place: %d hits, err %v", len(hits), err)
 	}

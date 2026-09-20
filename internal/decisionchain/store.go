@@ -24,6 +24,18 @@ type nodeWrite struct {
 	Source               NodeSource
 }
 
+// Scope is the read-isolation constraint threaded into every user-facing
+// store read: rows are confined to projects owned by ActorID. 当前阶段所有
+// 账号都按「只看自己的项目」处理，管理员不做特殊放权（2026-09-20 用户裁定），
+// 因此无 Admin 分支。零值 Scope 意为「不约束」，仅限内部调用（coordinator 侧
+// 召回）与测试——HTTP handler 必须总是从会话解析出真实 Scope。
+type Scope struct {
+	ActorID string
+}
+
+// constrained reports whether this scope actually restricts rows.
+func (sc Scope) constrained() bool { return sc.ActorID != "" }
+
 // Filter narrows List. Zero fields mean "no constraint".
 type Filter struct {
 	RequirementKey string
@@ -33,6 +45,7 @@ type Filter struct {
 	Keyword        string // substring match on requirement_text
 	Limit          int    // default 50, hard cap 200
 	Offset         int
+	Scope          Scope // read isolation; zero = unconstrained
 }
 
 // ScoredNode pairs a node with its recall score and, for structural hits,
@@ -61,11 +74,12 @@ type Store interface {
 	UpsertEmbedding(ctx context.Context, nodeID, model string, vec []float32, embeddedAt time.Time) error
 
 	// SemanticCandidates orders current-model embeddings by cosine distance
-	// to query (pgvector path); score = 1 - distance.
-	SemanticCandidates(ctx context.Context, model string, query []float32, limit int) ([]ScoredNode, error)
+	// to query (pgvector path); score = 1 - distance. scope confines hits to
+	// the caller's own projects (zero Scope = unconstrained).
+	SemanticCandidates(ctx context.Context, model string, query []float32, limit int, scope Scope) ([]ScoredNode, error)
 	// StructuralCandidates prescreens nodes sharing any repository name
-	// (GIN-backed); Jaccard is computed by the caller.
-	StructuralCandidates(ctx context.Context, names []string, limit int) ([]DecisionNode, error)
+	// (GIN-backed); Jaccard is computed by the caller. scope 同上。
+	StructuralCandidates(ctx context.Context, names []string, limit int, scope Scope) ([]DecisionNode, error)
 
 	// FeatureEnabled returns the toggle; a missing row counts as enabled.
 	FeatureEnabled(ctx context.Context, feature string) (bool, error)
