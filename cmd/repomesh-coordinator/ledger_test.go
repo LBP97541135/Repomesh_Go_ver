@@ -26,7 +26,7 @@ func TestBuildAgentCommandKeepsScriptQuotableAndUsesWorktree(t *testing.T) {
 		"worktree add --detach --force \"$BASE/repo\" FETCH_HEAD",
 		"_bases/$SLUG",
 		"rm -rf \"$BASE/repo\"",
-		"git push origin HEAD:$B",
+		"git push origin HEAD:refs/heads/$B",
 	} {
 		if !strings.Contains(inner, want) {
 			t.Fatalf("脚本缺少 %q：%s", want, inner)
@@ -71,5 +71,25 @@ func TestBuildIntegrationCommandUsesWorktree(t *testing.T) {
 	}
 	if !strings.Contains(inner, "cd \"$BASE/repo\"") || !strings.Contains(inner, `$(cat "$PROMPT")`) {
 		t.Fatalf("集成脚本必须进入 worktree 并读取任务工作区的 prompt：%s", inner)
+	}
+}
+
+func TestBuildTestCommandUsesSharedWorktree(t *testing.T) {
+	command, err := buildTestCommand("codex_cli", "MiniMax-M2", "add a file", "owner/name", "att_1", "title", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner := strings.TrimSuffix(strings.TrimPrefix(command, "bash -c '"), "'")
+	for _, want := range []string{
+		"_bases/$SLUG",
+		`cd "$BASE/repo"`,
+		"git status --short",
+	} {
+		if !strings.Contains(inner, want) {
+			t.Fatalf("测试脚本缺少 %q：%s", want, inner)
+		}
+	}
+	if strings.Contains(inner, "\ncd repo\n") {
+		t.Fatalf("测试脚本仍使用旧工作区路径：%s", inner)
 	}
 }

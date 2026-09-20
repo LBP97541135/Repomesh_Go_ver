@@ -115,7 +115,7 @@ func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, i
 		agentLine + "\n" +
 		"git add -A\n" +
 		"git diff --cached --quiet || git commit -m \"RepoMesh delivery " + issueID + ": " + safeTitle + "\"\n" +
-		"git push origin HEAD:$B\n" +
+		"git push origin HEAD:refs/heads/$B\n" +
 		"curl -sf -X POST -H \"Authorization: Bearer $T\" -H \"Accept: application/vnd.github+json\" " +
 		"https://api.github.com/repos/$R/pulls " +
 		"-d \"{\\\"title\\\":\\\"RepoMesh: " + safeTitle + "\\\",\\\"head\\\":\\\"$B\\\",\\\"base\\\":\\\"main\\\",\\\"body\\\":\\\"RepoMesh automated delivery for issue " + issueID + "\\\"}\" > pr.json\n" +
@@ -154,7 +154,7 @@ func buildTestCommand(agentKind, model, instruction, repoFullName, attemptID, is
 	// 单点验收从此可查：脚本是哪个、跑了什么命令、退出码、结论是什么。
 	testPrompt := "You are the test agent for this repository. " +
 		"Requirement: " + requirement + ". " +
-		"Inspect the change the development agent just delivered (git diff origin/main...HEAD). " +
+		"Inspect the uncommitted change the development agent just delivered (git status --short and git diff). " +
 		"Write a test script that verifies the requirement and run it. " +
 		"Then write the result to a file named " + execution.TestEvidenceFile + " in the current directory, " +
 		"as this exact JSON shape and nothing else: " +
@@ -182,7 +182,10 @@ func buildTestCommand(agentKind, model, instruction, repoFullName, attemptID, is
 		return "", fmt.Errorf("coordinator: unsupported test agent kind %q", agentKind)
 	}
 	script := "set -e\n" +
-		"cd repo\n" +
+		"R=" + repoFullName + "\n" +
+		"SLUG=$(printf %s \"$R\" | tr / _)\n" +
+		"BASE=$(dirname \"$PWD\")/_bases/$SLUG\n" +
+		"cd \"$BASE/repo\"\n" +
 		agentLine + "\n" +
 		"echo REPO_TESTS_DONE=" + repoFullName + ":" + attemptID
 	return "bash -c '" + script + "'", nil
