@@ -368,9 +368,24 @@ func (d *planningDispatcher) finishRun(ctx context.Context, id, _, state, reason
 // 的 JSON，而 buildAgentCommand 那道 sanitize 会把双引号抹掉 —— schema 就没法看了。
 func buildPlanningCommand(agentKind, model string) string {
 	var agentLine string
-	if agentKind == "claude_cli" {
+	switch agentKind {
+	case "claude_cli":
 		agentLine = fmt.Sprintf("claude -p \"$(cat prompt.txt)\" --model %s --dangerously-skip-permissions", model)
-	} else {
+	case "dsh":
+		// 2026-09-20 补：**规划 agent 此前没有 dsh 分支** —— 项目把 agent_kind
+		// 选成 dsh 之后，规划这一步照样走 else 去跑 codex，而且不告诉任何人。
+		// 那正是"切到 DSH"名不副实的地方。DSH 0.1.1-rc.2 的真实形状见 ledger.go
+		// 的注释（`dsh --profile headless "<任务>"`，模型由 profile 配置决定）。
+		dshCmd := os.Getenv("REPOMESH_DSH_COMMAND")
+		if dshCmd == "" {
+			dshCmd = "dsh --profile headless \"$(cat prompt.txt)\""
+		}
+		if strings.Count(dshCmd, "%s") == 1 {
+			agentLine = fmt.Sprintf(dshCmd, "$(cat prompt.txt)")
+		} else {
+			agentLine = dshCmd
+		}
+	default:
 		agentLine = fmt.Sprintf("codex exec -c model_provider=minimax -c model=%s --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox \"$(cat prompt.txt)\"", model)
 	}
 	return "bash -c '" + agentLine + "'"

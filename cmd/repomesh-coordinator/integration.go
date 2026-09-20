@@ -183,7 +183,10 @@ func (d *integrationDispatcher) dispatch(ctx context.Context, planID, issueID, p
 	var agentKind, model string
 	_ = d.pool.QueryRow(ctx, `SELECT COALESCE(agent_kind,''), COALESCE(model,'')
 		FROM repomesh_projects.agent_settings WHERE project_id=$1`, projectID).Scan(&agentKind, &model)
-	if agentKind != "codex_cli" && agentKind != "claude_cli" {
+	// 2026-09-20：这里此前只放行 codex_cli / claude_cli，**dsh 会被静默改成
+	// codex_cli** —— 项目把 agent_kind 选成 dsh 之后，节点级集成 agent 照样跑
+	// codex，而且不告诉任何人。那是"切到 DSH"名不副实的另一处。
+	if agentKind != "codex_cli" && agentKind != "claude_cli" && agentKind != "dsh" {
 		agentKind = "codex_cli"
 	}
 	if strings.TrimSpace(model) == "" {
