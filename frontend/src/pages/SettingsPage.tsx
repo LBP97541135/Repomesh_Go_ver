@@ -16,6 +16,7 @@ import { LocalCliPage } from "./LocalCliPage";
 import { TypeSafeSettings } from "../components/TypeSafeSettings";
 import { ModelUsageSettings } from "../components/ModelUsageSettings";
 import { ModelProvidersPage } from "./ModelProvidersPage";
+import { SupervisionPolicySettings } from "../components/SupervisionPolicySettings";
 import { AgentsPage } from "./AgentsPage";
 import { SkillsPage } from "./SkillsPage";
 import { Bot, FileCheck, Info, KeyRound, Server, Settings2, SquareTerminal, Users, type LucideIcon } from "lucide-react";
@@ -616,6 +617,7 @@ export function SettingsPage({
           </>
         )}
         {category === "platform" && (
+          <>
           <PlatformCategory
             setup={setup}
             setupError={setupError}
@@ -643,6 +645,16 @@ export function SettingsPage({
                       : "花名册里的每个成员都拿到了 Controller 观测值",
             }}
           />
+          {/* 监管策略（2026-09-21 用户要求搬进设置）：此前只有 issue 工作台的发现链
+              卡片一个入口，想调人工审核强度得先找一个还没物化的 issue 点进去。 */}
+          <CategoryTitle>监管策略</CategoryTitle>
+          <SupervisionPolicySettings
+            key={`policy:${projectId ?? "none"}`}
+            projectId={projectId}
+            projectName={projectName}
+            onToast={onToast}
+          />
+          </>
         )}
         {category === "agents" && (
           <>
