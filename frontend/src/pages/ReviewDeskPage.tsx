@@ -115,9 +115,9 @@ function CheckpointRow({
             决策人 {shortId(review.resolved_by_human_id)} · {dayLabel(review.updated_at)}
           </span>
         )}
-        {fromDiscovery && pending && onOpenIssue && review.issue_id !== "" && (
+        {fromDiscovery && onOpenIssue && review.issue_id !== "" && (
           <button className={chip} onClick={() => onOpenIssue(review.issue_id)}>
-            去 issue 处理
+            {pending ? "去 issue 处理" : "查看 issue"}
           </button>
         )}
         {decidable && (
@@ -191,6 +191,42 @@ function groupByIssue(rows: HumanReviewRequestView[]): Group[] {
   return [...map.values()];
 }
 
+/** 一个 issue（没有 issue_id 时是一个项目）的检查点合集，一张卡。
+ *
+ *  **待办与发现链登记共用它**：先前镜像区是一张张平铺的裸行，而线上 10 条全是镜像 ——
+ *  于是"按 issue 分类"在真页面上一次都没显示出来（2026-09-20 用户实测）。现在两边
+ *  都按同一个分组键归拢，只是卡头那句话不同（待审 / 登记）。 */
+function GroupCard({
+  group,
+  badge,
+  onDecide,
+  onOpenIssue,
+}: {
+  group: Group;
+  badge: string;
+  onDecide: (review: HumanReviewRequestView, decision: CheckpointDecisionKind, reason: string) => Promise<void>;
+  onOpenIssue?: (issueId: string) => void;
+}) {
+  return (
+    <section className="rounded-hard border border-line bg-panel px-4 py-3">
+      <div className="flex flex-wrap items-baseline gap-2.5">
+        <span className="text-[12.5px] text-cream">
+          {group.issueId !== "" ? `Issue ${shortId(group.issueId)}` : `项目 ${shortId(group.projectId)}`}
+        </span>
+        <span className="pill pill-meta">{badge}</span>
+        <span className="ml-auto font-mono text-[10.5px] text-tx3" title={`项目 ${group.projectId}`}>
+          {dayLabel(group.latest)}
+        </span>
+      </div>
+      <div className="mt-2 grid gap-1.5">
+        {group.rows.map((review) => (
+          <CheckpointRow key={review.id} review={review} onDecide={onDecide} onOpenIssue={onOpenIssue} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function ReviewDeskPage({
   rows,
   error,
@@ -247,6 +283,7 @@ export function ReviewDeskPage({
   const decidable = live.filter((row) => row.origin !== "discovery");
   const mirrors = live.filter((row) => row.origin === "discovery");
   const groups = groupByIssue(decidable);
+  const mirrorGroups = groupByIssue(mirrors);
 
   return (
     <div className="max-w-[860px]">
@@ -285,45 +322,46 @@ export function ReviewDeskPage({
           ) : (
             <div className="mt-3 grid gap-2">
               {groups.map((group) => (
-                <section key={group.key} className="rounded-hard border border-line bg-panel px-4 py-3">
-                  <div className="flex flex-wrap items-baseline gap-2.5">
-                    <span className="text-[12.5px] text-cream">
-                      {group.issueId !== "" ? `Issue ${shortId(group.issueId)}` : `项目 ${shortId(group.projectId)}`}
-                    </span>
-                    <span className="pill pill-meta">{group.rows.length} 个检查点待审</span>
-                    <span className="ml-auto font-mono text-[10.5px] text-tx3" title={`项目 ${group.projectId}`}>
-                      {dayLabel(group.latest)}
-                    </span>
-                  </div>
-                  <div className="mt-2 grid gap-1.5">
-                    {group.rows.map((review) => (
-                      <CheckpointRow key={review.id} review={review} onDecide={decide} onOpenIssue={onOpenIssue} />
-                    ))}
-                  </div>
-                </section>
+                <GroupCard
+                  key={group.key}
+                  group={group}
+                  badge={`${group.rows.length} 个检查点待审`}
+                  onDecide={decide}
+                  onOpenIssue={onOpenIssue}
+                />
               ))}
             </div>
           )}
 
           {/* 发现链登记：本页推不动（流水线在 issue 那边），所以它不属于待办。
-              那段说明从"每张卡各印一遍"改成这里说一次。 */}
+              那段说明从"每张卡各印一遍"改成这里说一次；展开后**同样按 issue 分组**
+              —— 线上此刻的数据全在这一区，不分组等于这一页没有分类。 */}
           {mirrors.length > 0 && (
             <section className="mt-4">
               <button
-                className="flex w-full items-baseline gap-2 rounded-hard px-1 py-1.5 text-left"
+                className="flex w-full flex-wrap items-center gap-2 rounded-hard border border-line bg-panel px-3 py-2 text-left hover:border-line-strong"
                 onClick={() => setMirrorsOpen((v) => !v)}
                 aria-expanded={mirrorsOpen}
+                title={mirrorsOpen ? "收起登记区" : "展开看这些登记与出处 issue"}
               >
                 <span className="text-[10px] text-tx3">{mirrorsOpen ? "▼" : "▶"}</span>
                 <span className="text-[12.5px] text-tx2">发现链登记</span>
-                <span className="text-[11px] text-tx3">
-                  {mirrors.length} 条 · 分档审批 / 物化确认在 issue 页面完成，这里只做登记与回看
+                <span className="pill pill-meta">{mirrors.length} 条 · {mirrorGroups.length} 个 issue</span>
+                <span className="min-w-0 flex-1 truncate text-[11px] text-tx3">
+                  分档审批 / 物化确认在 issue 页面完成，这里只做登记与回看
                 </span>
+                <span className={chip}>{mirrorsOpen ? "收起" : "展开"}</span>
               </button>
               {mirrorsOpen && (
-                <div className="mt-1.5 grid gap-1.5">
-                  {mirrors.map((review) => (
-                    <CheckpointRow key={review.id} review={review} onDecide={decide} onOpenIssue={onOpenIssue} />
+                <div className="mt-1.5 grid gap-2">
+                  {mirrorGroups.map((group) => (
+                    <GroupCard
+                      key={group.key}
+                      group={group}
+                      badge={`${group.rows.length} 条登记`}
+                      onDecide={decide}
+                      onOpenIssue={onOpenIssue}
+                    />
                   ))}
                 </div>
               )}
