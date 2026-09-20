@@ -19,9 +19,20 @@ import (
 // payload, same pattern as interface documents).
 type Service struct {
 	pool *pgxpool.Pool
+
+	// reviews 是审核台的写面（组合根接 humancontrol.Service）。
+	// Nil = 未接线：规格变更请求只落库、**不落审核台** —— 调用方据 Submission.ReviewID
+	// 为空如实告知"没人能批"，不假装已经进了人工队列。
+	reviews ReviewSink
 }
 
 func New(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
+
+// WithReviews attaches the review desk (composition root).
+func (s *Service) WithReviews(sink ReviewSink) *Service {
+	s.reviews = sink
+	return s
+}
 
 // CreateCommand submits one spec version.
 type CreateCommand struct {
@@ -31,6 +42,10 @@ type CreateCommand struct {
 	Title      string `json:"title"`
 	Content    string `json:"content"`
 	Supersedes string `json:"supersedes,omitempty"`
+	// Origin 记这一版规格**从哪来**（如 "spec-change-request:<evidence>"）——
+	// agent 提的变更经人批之后落成规格，出处必须留在规格本身里，否则
+	// "这版是谁提的"只能去审核台反查。
+	Origin string `json:"origin,omitempty"`
 }
 
 // SpecView is the read projection.
@@ -52,10 +67,14 @@ func (s *Service) Create(ctx context.Context, command CreateCommand) (SpecView, 
 	if err != nil {
 		return SpecView{}, err
 	}
+	version, err := s.NextVersion(ctx, command.ProjectID, command.Repository)
+	if err != nil {
+		return SpecView{}, err
+	}
 	payload := map[string]any{
-		"repository": command.Repository, "version": 1, "title": command.Title,
+		"repository": command.Repository, "version": version, "title": command.Title,
 		"content": command.Content, "author": command.AuthorID, "state": "draft",
-		"supersedes": command.Supersedes,
+		"supersedes": command.Supersedes, "origin": command.Origin,
 	}
 	if _, err := s.pool.Exec(ctx, `INSERT INTO repomesh_messages.control_operations
 		(command_slot_id, project_id, action, schema_version, canonical_input)
@@ -63,7 +82,7 @@ func (s *Service) Create(ctx context.Context, command CreateCommand) (SpecView, 
 		id, command.ProjectID, mustJSON(payload)); err != nil {
 		return SpecView{}, fmt.Errorf("spec: insert failed: %w", err)
 	}
-	return SpecView{ID: id, Version: 1, Title: command.Title, Content: command.Content, State: "draft", AuthorID: command.AuthorID}, nil
+	return SpecView{ID: id, Version: version, Title: command.Title, Content: command.Content, State: "draft", AuthorID: command.AuthorID}, nil
 }
 
 // Approve publishes a draft (manager action); the approved content becomes
@@ -92,6 +111,46 @@ func (s *Service) Approve(ctx context.Context, specID, approverID string) (SpecV
 		ID: specID, Version: intOf(payload["version"]), Title: toString(payload["title"]),
 		Content: toString(payload["content"]), State: "approved", AuthorID: toString(payload["author"]),
 	}, nil
+}
+
+// NextVersion 返回该仓库下一个规格版本号（该仓库已出现的最大版本 + 1；没有则 1）。
+//
+// 2026-09-20：Create 此前把 version 硬编码成 1 —— 于是"规格升版"这件事在数据上
+// 根本不成立：每一份新规格都是 v1，Current() 只按 repository 过滤、取版本最大的
+// 那一份，升版后界面也看不出换代。A2 的回路（人批 → 规格升版 → 触发重规划）要的
+// 正是这个版本轴，所以先把它补上。
+func (s *Service) NextVersion(ctx context.Context, projectID, repository string) (int, error) {
+	rows, err := s.pool.Query(ctx, `SELECT canonical_input, result FROM repomesh_messages.control_operations
+		WHERE project_id=$1 AND action='specification'`, projectID)
+	if err != nil {
+		return 0, fmt.Errorf("spec: version query failed: %w", err)
+	}
+	defer rows.Close()
+	max := 0
+	for rows.Next() {
+		var canonical, result []byte
+		if rows.Scan(&canonical, &result) != nil {
+			return 0, fmt.Errorf("spec: version scan failed")
+		}
+		source := canonical
+		if len(result) > 0 {
+			source = result
+		}
+		var payload map[string]any
+		if json.Unmarshal(source, &payload) != nil {
+			continue
+		}
+		if toString(payload["repository"]) != repository {
+			continue
+		}
+		if version := intOf(payload["version"]); version > max {
+			max = version
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("spec: version rows: %w", err)
+	}
+	return max + 1, nil
 }
 
 // Current returns the approved spec of one repository, if any.
