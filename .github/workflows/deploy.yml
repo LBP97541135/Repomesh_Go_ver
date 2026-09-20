@@ -18,6 +18,10 @@ concurrency:
 jobs:
   deploy:
     runs-on: [self-hosted, linux, repomesh-deploy]
+    # 2026-09-20 事故：此前没有超时，一次卡在「构建前端」的部署会一直占着
+    # concurrency 组（cancel-in-progress: false），后面的部署全部排队到天荒地老
+    # —— GitHub 的默认上限是 360 分钟。给个明确上界，卡住就快速失败让位。
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
