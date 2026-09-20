@@ -56,14 +56,27 @@ export function PlanDagCapsule({
   // 换 issue 即收起：A 单展开着切到 B 单，悬着的面板内容已换血，收起最诚实
   useEffect(() => setOpen(false), [resetKey]);
 
-  // 点外部收起（与吸底输入框同一套 mousedown 监听）
+  // 点外部收起（与吸底输入框同一套 mousedown 监听）+ Esc 收起。
+  //
+  // 2026-09-21 用户报「有时候会出现会话遮挡」：展开态是**视口居中的浮层**
+  // （fixed left-1/2 top-1/2，78vw），它是设计定稿的"看一张图"，但它确实压在
+  // 会话中间。既然压着，就必须有明确的、不用猜的退出方式 —— 此前只有"点面板外"
+  // 一条路，用户按 Esc 没反应只能以为卡死。这里补 Esc，并在面板右上角给一枚
+  // 显式的关闭按钮（点外部收起仍在，两条路都通）。
   useEffect(() => {
     if (!open) return;
     const onDown = (event: MouseEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) setOpen(false);
     };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
     document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
   // 计划快照没就绪（absent / 首载中）也要能点开：胶囊里现在放的是 AgentTeams 的
@@ -129,6 +142,19 @@ export function PlanDagCapsule({
         // 批次列排得下。阴影维持 shadow-float(主线中间态试过 shadow-pop 又调回)。
         // 面板仍是 wrapRef 的 DOM 子节点,点外收起的 contains 判定不受影响。
         <div className="fixed left-1/2 top-1/2 z-30 w-[min(880px,78vw)] -translate-x-1/2 -translate-y-1/2 rounded-hard border border-line bg-panel text-tx shadow-float">
+          {/* 显式关闭：浮层压在会话上，退出方式必须看得见（见上面 Esc 那段注释）。 */}
+          <div className="flex items-center justify-between border-b border-line px-3 py-1.5">
+            <span className="font-mono text-[10.5px] text-tx3">任务 DAG · 方案图</span>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="flex-none rounded-hard px-1.5 text-[12px] text-tx3 transition-colors hover:text-tx"
+              title="收起（Esc）"
+              aria-label="收起任务 DAG"
+            >
+              ✕
+            </button>
+          </div>
           <div className="max-h-[min(68vh,560px)] overflow-y-auto p-2">
             <ErrorBoundary block="计划 DAG" resetKey={resetKey}>
               {/* 2026-09-20 用户裁定：胶囊里放 9.16 原型（dag-plan-progress.html）的任务级

@@ -219,10 +219,40 @@ export function WorkbenchPage({
    *  而不是把界面撑成一条缝。 */
   const PANEL_MIN_WIDTH = 320;
   const PANEL_MAX_WIDTH = 900;
+  /** 会话栏保底宽度。
+   *
+   *  2026-09-21 用户报「有时候会出现会话遮挡」。实测根因不是浮层盖住，而是
+   *  **上限写死 900** 撞上可用宽度：1280 视口减去 236 侧栏只剩 1044，右栏拉到
+   *  900 时左栏被 `flex-1 min-w-0` 压到 ~138px —— 会话栏被挤成一条缝，看起来
+   *  就是"被盖住了"。上限改成按容器实测宽度算，左栏永远留得住 420px。 */
+  const CONVERSATION_MIN_WIDTH = 420;
+  const ROW_HANDLE_WIDTH = 6;
   const [panelWidth, setPanelWidth] = useState<number>(() => {
     const saved = Number(window.localStorage.getItem("repomesh.panel-width"));
     return Number.isFinite(saved) && saved >= 320 && saved <= 900 ? saved : 400;
   });
+  /** 左树+手柄+右栏这一行的实测宽度：右栏上限从它算，而不是从常量算。 */
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const [rowWidth, setRowWidth] = useState(0);
+  useEffect(() => {
+    const el = rowRef.current;
+    if (!el) return;
+    const measure = () => setRowWidth(el.clientWidth);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [detail]);
+  const panelMaxWidth =
+    rowWidth > 0
+      ? Math.max(PANEL_MIN_WIDTH, rowWidth - CONVERSATION_MIN_WIDTH - ROW_HANDLE_WIDTH)
+      : PANEL_MAX_WIDTH;
+  // 窗口变小 / 侧栏展开后，先前存下的宽度可能已经超过新上限 —— 拉回来，
+  // 而不是让会话栏继续被挤（"我的界面偏好"要留，但不能以压垮会话为代价）。
+  useEffect(() => {
+    setPanelWidth((prev) => Math.min(prev, panelMaxWidth));
+  }, [panelMaxWidth]);
   useEffect(() => {
     window.localStorage.setItem("repomesh.panel-width", String(panelWidth));
   }, [panelWidth]);
@@ -1531,7 +1561,7 @@ export function WorkbenchPage({
         </div>
       )}
       {!loading && !error && detail && (
-        <div className="flex min-h-0 flex-1">
+        <div ref={rowRef} className="flex min-h-0 flex-1">
           <div className="flex min-w-0 flex-1 flex-col">
             <div className="min-h-0 flex-1">
               <DispatchTree
@@ -1556,7 +1586,7 @@ export function WorkbenchPage({
               width={panelWidth}
               setWidth={setPanelWidth}
               min={PANEL_MIN_WIDTH}
-              max={PANEL_MAX_WIDTH}
+              max={panelMaxWidth}
             />
             <FocusPanel
               entry={activeEntry}
