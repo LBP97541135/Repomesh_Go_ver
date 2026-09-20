@@ -13,7 +13,9 @@ import { errText } from "../display";
 /** 共享模型供应商目录：仓库分析读取可用来源，项目执行引用固定模型配置。
  * 观测评估的模型与 Key 在独立本地工作台配置，不沿此保存路径写入。 */
 
-export function ModelProvidersPage() {
+/** `embedded`：收进设置页「模型与 API」分类时为 true——去掉页面级宽度与大标题，
+ *  与其他从侧栏收编进设置的页面（技能 / 智能体 / 本地 CLI）一致。 */
+export function ModelProvidersPage({ embedded = false }: { embedded?: boolean }) {
   const [providers, setProviders] = useState<ProviderSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ProviderSummary | null>(null);
@@ -149,9 +151,9 @@ export function ModelProvidersPage() {
   }, [selected]);
 
   return (
-    <div className="mx-auto max-w-[1040px] px-8 py-10">
-      <div className="mb-6 flex items-baseline gap-3">
-        <h1 className="text-[16px] font-semibold text-cream">模型供应商</h1>
+    <div className={embedded ? "" : "mx-auto max-w-[1040px] px-8 py-10"}>
+      <div className={`${embedded ? "mb-3 border-b border-line pb-2.5 " : "mb-6 "}flex flex-wrap items-baseline gap-3`}>
+        {!embedded && <h1 className="text-[16px] font-semibold text-cream">模型供应商</h1>}
         {providers && <span className="text-[11.5px] text-tx2">{providers.length} 个中转站</span>}
         <span className="text-[11.5px] text-tx3">仓库分析 / AgentTeams 模型来源</span>
         <button
@@ -168,7 +170,7 @@ export function ModelProvidersPage() {
       <section className="mb-5 rounded-hard border border-line bg-panel px-4 py-3 text-[11.5px] leading-relaxed text-tx2">
         <p><strong className="text-cream">仓库分析：</strong>用这里的 API 地址、模型和 Key 做需求与仓库的语义匹配。</p>
         <p className="mt-1"><strong className="text-cream">AgentTeams：</strong>这里管理模型来源，实际运行模型由项目执行配置决定；保存供应商不会自动切换团队模型。</p>
-        <p className="mt-1"><strong className="text-cream">观测评估：</strong>在<a className="text-amber hover:text-amber-hi" href="#/settings/models">设置 → 模型与 API</a>中进入本地工作台单独配置。</p>
+        <p className="mt-1"><strong className="text-cream">观测评估：</strong>在本地观测工作台单独配置（与这里的 Key 分开保存）。</p>
       </section>
 
       {notice && (

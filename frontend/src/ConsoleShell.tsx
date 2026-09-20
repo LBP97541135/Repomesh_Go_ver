@@ -16,7 +16,6 @@ import { ObserveHome } from "./pages/observe/ObserveHome";
 import { RepositoriesPage } from "./pages/RepositoriesPage";
 import { RepositoryTeamPage } from "./pages/RepositoryTeamPage";
 import { ProjectSelectPage } from "./pages/ProjectSelectPage";
-import { ModelProvidersPage } from "./pages/ModelProvidersPage";
 import { beginProjectSession, clearActiveProject, setActiveProject } from "./api/activeProject";
 import { listAllProjects, type ProjectListItem } from "./api/projects";
 import { ReviewDeskPage } from "./pages/ReviewDeskPage";
@@ -536,7 +535,6 @@ export default function ConsoleShell() {
         {(route.nav === "projects" || (activeProjectId === null && ["issues", "repositories"].includes(route.nav))) && (
           <ProjectSelectPage key={account.id} projects={projects} activeProjectId={activeProjectId} error={projectsError} onRetry={() => setProjectsReload(n => n + 1)} onSelect={handleSelectProject} />
         )}
-        {route.nav === "models" && <ModelProvidersPage />}
         {route.nav === "observe" && <ObserveHome section={route.observeSection} />}
         {route.nav === "decision-chains" && (
           <DecisionChainPage organizationId={null} onToast={showToast} />
