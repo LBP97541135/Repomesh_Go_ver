@@ -18,6 +18,9 @@ func registerPipelineRoutes(mux *http.ServeMux, auth Auth, pipeline Pipeline) {
 	// 跨仓交付的一致版本清单（评委建议②）：读最近一份 / 建一份快照。
 	registerDeliveryManifestRoutes(mux, auth, pipeline)
 	registerPlanSnapshotRoutes(mux, auth, pipeline)
+	// 「这条任务到底干了什么」：把工作区里 agent 的真实输出读出来（用户反复提的
+	// "看不到 worker 内部工作记录"）。
+	registerTaskOutputRoutes(mux, auth, pipeline)
 
 	// ---- M4: 编制组装 ----
 	//
