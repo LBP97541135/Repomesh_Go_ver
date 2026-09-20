@@ -262,7 +262,12 @@ function PlatformCategory({
       )}
 
       <h3 className="pb-1 pt-5 text-[11px] font-semibold tracking-widest text-tx3 uppercase">连接健康</h3>
-      <SettingRow title="AgentTeams Controller">
+      {/* ⚠️ 这个 note 必须接上：`controller.note` 由 SettingsPage 算好传进来，
+          但这里此前**只传了 title 与 children**，note 被整个丢掉 —— 于是无论
+          「不可达是契约规定的降级…」还是新加的"无事实：<成员名>"，**从来没有
+          显示过**。用户看到的就是孤零零三个数字，问"这个信息有什么用"，
+          根子在这。 */}
+      <SettingRow title="AgentTeams Controller" note={controller.note}>
         {controller.loading ? (
           <span className="text-[11.5px] text-tx3">探测中…</span>
         ) : (
