@@ -1,4 +1,4 @@
--- 0054: 回填 public.skills 的空间归属 —— 0039 漏了这一步
+-- 0055: 回填 public.skills 的空间归属 —— 0039 漏了这一步（0053/0054 让给了 hitl_mode/agent_project_scope）
 --
 -- 背景（0039 的原话）：`public.skills` 此前是全局一份，公有部署下任何登录账号都能
 -- 看到别人的技能，甚至能按名字覆盖别人的技能。0039 的解法是加 `organization_id`，
