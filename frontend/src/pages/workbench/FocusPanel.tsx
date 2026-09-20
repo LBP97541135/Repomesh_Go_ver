@@ -23,6 +23,7 @@ import type { InterruptOutcomeView, PlanRevisionView } from "../../api/plans";
 import type { DeliveryManifestView } from "../../api/deliveryManifest";
 import { documentTitleOf, splitRequirement } from "../../api/issues";
 import { SupervisionPolicyCard, type PolicyDraftState } from "../../components/SupervisionPolicyCard";
+import { TaskAgentOutput } from "./TaskAgentOutput";
 
 /** 消息作者 → 角色显示。先看 authorKind（user 是人），服务侧 agent 再按
  *  roster 命名约定（agent_<role>[_<name>]）推导；都推不出按系统条目样式。 */
@@ -517,6 +518,7 @@ function StageHistory({
   testEvidence,
   trainCars,
   scopeRepoIds,
+  projectId = null,
   repoOptions,
   onAppendRepository,
   planState,
@@ -533,6 +535,9 @@ function StageHistory({
   trainCars: TrainCarSpec[] | null;
   /** 本次 Issue 当前的仓库范围（issue 详情的 repositoryIds） */
   scopeRepoIds: string[];
+  /** 当前项目 id —— 「worker 工作内容」读面按 (projectId, taskId) 取，
+   *  而那条读面在服务端按「项目 owner 或 admin」授权。 */
+  projectId?: string | null;
   /** 本项目已挂的仓库（追加的候选只从这里来） */
   repoOptions: Array<{ id: string; name: string }>;
   /** 人确认追加一个仓库 */
@@ -839,6 +844,11 @@ export function FocusPanel({
           {task !== null && task.status === "blocked" && (
             <TaskGate task={task} onDecide={onDecideTask} />
           )}
+          {/* worker 的真实工作内容（agent-stdout/stderr 尾部）。
+              用户反复提过"看不到 worker 具体的工作内容 / 内部工作记录"——
+              此前右栏这一块**没有任何数据源**（public.log_entries 零生产者），
+              真正的产出一直躺在工作区的 agent-stdout.log 里没人读。 */}
+          {task !== null && <TaskAgentOutput projectId={projectId} taskId={task.id} />}
           <PlanHistory discovery={discovery} />
         </div>
       );
