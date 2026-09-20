@@ -3,7 +3,7 @@ import { ChevronLeft, FileText, PanelLeftOpen, X } from "lucide-react";
 import { PrTrainCard, type TrainCarSpec } from "./PrTrainCard";
 import { DispatchTree } from "./DispatchTree";
 import { FocusPanel } from "./FocusPanel";
-import { deriveStepStates } from "./treeModel";
+import { deriveStepStates, STEP_LABELS } from "./treeModel";
 import type { FocusEntry } from "./treeModel";
 import { IconBolt, IconUser } from "./treeIcons";
 import type { DagExecutionView } from "../../types";
@@ -845,6 +845,8 @@ export function WorkbenchPage({
   const flow = useIssueFlowState(projectId, issueId ?? "", planId, detail, reload);
   const stepStates = deriveStepStates(discovery, issueHitl === "hitl");
   const doneSteps = stepStates.filter((s) => s === "done").length;
+  /** 规划五步链条（喂给 DAG 计划板）。标签用 treeModel 的唯一那份，不在这里另抄一遍。 */
+  const stepChain = STEP_LABELS.map((label, i) => ({ label, state: stepStates[i] as string }));
   const allTasksDone = !!tasks && tasks.length > 0 && tasks.every((t) => t.status === "done");
   /** 等经理批的任务数（审核段的唯一信号）。 */
   const blockedTasks = tasks?.filter((t) => t.status === "blocked").length ?? 0;
@@ -1186,6 +1188,7 @@ export function WorkbenchPage({
               resetKey={issueId ?? "new"}
               stageLabel={stageLabel}
               onOpenStage={() => setActiveEntry({ kind: "stage", stage: stageIdx as 0 | 1 | 2 | 3 })}
+              steps={stepChain}
             />
           </div>
         </div>

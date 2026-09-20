@@ -32,6 +32,7 @@ export function PlanDagCapsule({
   resetKey,
   stageLabel,
   onOpenStage,
+  steps,
 }: {
   state: PlanDagState;
   /** C-4 执行态着色与胶囊进度读数的输入；null = 尚未物化。 */
@@ -46,6 +47,9 @@ export function PlanDagCapsule({
   stageLabel?: string;
   /** 点链路节点那一个词 → 打开那一段的阶段历史。不传就只当读数、不可点。 */
   onOpenStage?: () => void;
+  /** 规划五步链条（name+state）。2026-09-20 用户裁定：五步放在 DAG 计划板上。
+   *  这里只做透传——步骤态的唯一推导在 workbench/treeModel，本组件不重算。 */
+  steps?: Array<{ label: string; state: string }>;
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -127,7 +131,7 @@ export function PlanDagCapsule({
         <div className="fixed left-1/2 top-1/2 z-30 w-[min(880px,78vw)] -translate-x-1/2 -translate-y-1/2 rounded-hard border border-line bg-panel text-tx shadow-float">
           <div className="max-h-[min(68vh,560px)] overflow-y-auto p-2">
             <ErrorBoundary block="计划 DAG" resetKey={resetKey}>
-              <PlanDagPanel state={state} execution={execution} onRetry={onRetry} />
+              <PlanDagPanel state={state} execution={execution} onRetry={onRetry} steps={steps} />
             </ErrorBoundary>
           </div>
         </div>
