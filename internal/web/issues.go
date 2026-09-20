@@ -3,6 +3,7 @@ package web
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"log"
@@ -18,6 +19,7 @@ import (
 	"repomesh.local/repomesh/internal/docparse"
 	"repomesh.local/repomesh/internal/issues"
 	"repomesh.local/repomesh/internal/projects"
+	"repomesh.local/repomesh/internal/roomnotice"
 )
 
 // Issues carries the issue creation service into the web layer; the zero value
@@ -27,6 +29,8 @@ type Issues struct {
 	// Matrix 读 AgentTeams 房间消息用。为 nil 时房间消息端点返 503（如实说"没配"），
 	// 不影响房间关联本身（那部分只读本库）。
 	Matrix *agentteams.MatrixSession
+	// Rooms 把"建项成功"这类事件投进团队房。nil 时静默不投，建项行为不变。
+	Rooms *roomnotice.Notifier
 }
 
 func registerIssues(mux *http.ServeMux, auth Auth, issueAPI Issues) {
@@ -34,7 +38,7 @@ func registerIssues(mux *http.ServeMux, auth Auth, issueAPI Issues) {
 		return
 	}
 	registerProjectRoute(mux, "POST /api/projects/{projectId}/issue-creations", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {
-		return createIssue(w, r, issueAPI.Service, claims)
+		return createIssue(w, r, issueAPI.Service, claims, issueAPI.Rooms)
 	})
 	registerProjectRoute(mux, "GET /api/projects/{projectId}/issue-creations/{creationId}", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {
 		return getIssueCreation(w, r, issueAPI.Service, claims)
@@ -115,7 +119,7 @@ func writeParseError(w http.ResponseWriter, status int, code, message string) er
 	return nil
 }
 
-func createIssue(w http.ResponseWriter, r *http.Request, service *issues.Service, claims access.ProjectPrincipal) error {
+func createIssue(w http.ResponseWriter, r *http.Request, service *issues.Service, claims access.ProjectPrincipal, rooms *roomnotice.Notifier) error {
 	projectID := r.PathValue("projectId")
 	key, err := projectIdempotencyKey(r)
 	if err != nil {
@@ -140,7 +144,33 @@ func createIssue(w http.ResponseWriter, r *http.Request, service *issues.Service
 		status = http.StatusOK
 	}
 	writeIssueCreation(w, status, result)
+	// 需求进房（B 第二片）：建项成功后把"人发来了需求"如实投进该 issue 的仓库
+	// 团队房。重放（同幂等键再来一次）不重投；仓库还没建队就静默跳过 ——
+	// 房间号都没有，谈不上"投进房"。Notify 自己带 goroutine，不占这个请求的时间。
+	if rooms != nil && !result.Replayed {
+		rooms.Notify(r.Context(), result.Receipt.IssueID(),
+			"issue-created:"+result.Receipt.IssueID(), requirementOpeningNotice(input))
+	}
 	return nil
+}
+
+// requirementOpeningNotice 是进房的那句"我这边发来了需求"。
+// 正文带需求首行（截断），发送者身份是 RepoMesh 的服务账号 —— 不冒充用户，
+// 也不冒充 Manager，正文自报家门说清是谁在转述。
+func requirementOpeningNotice(createBody []byte) string {
+	var input struct {
+		Description string `json:"description"`
+	}
+	_ = json.Unmarshal(createBody, &input)
+	firstLine := strings.TrimSpace(strings.SplitN(input.Description, "\n", 2)[0])
+	if firstLine == "" {
+		return "【RepoMesh】收到新需求（正文为空，见 issue 页）。"
+	}
+	runes := []rune(firstLine)
+	if len(runes) > 80 {
+		firstLine = string(runes[:80]) + "…"
+	}
+	return "【RepoMesh】收到新需求：" + firstLine
 }
 
 func newIssueRequestID() string {
