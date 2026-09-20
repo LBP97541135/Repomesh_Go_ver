@@ -1556,7 +1556,7 @@ function PlanHistory({ discovery }: { discovery: DiscoveryView | null }) {
       body: k ? (
         <span>
           必改 {k.required.length} · 可能 {k.maybe.length} · 排除 {k.excluded.length} ·{" "}
-          {discovery.approval.state === "approved" ? "已批准" : "待批准"}
+          {discovery.approval?.state === "approved" ? "已批准" : "待批准"}
         </span>
       ) : (
         <span>未跑</span>
