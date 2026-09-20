@@ -23,7 +23,7 @@ func TestBuildAgentCommandKeepsScriptQuotableAndUsesWorktree(t *testing.T) {
 		t.Fatal("脚本内出现单引号：外层引号会提前闭合，交付序列被截断")
 	}
 	for _, want := range []string{
-		"worktree add --detach --force repo FETCH_HEAD",
+		"worktree add --detach --force \"$BASE/repo\" FETCH_HEAD",
 		"_bases/$SLUG",
 		"git push origin HEAD:$B",
 	} {
@@ -33,6 +33,9 @@ func TestBuildAgentCommandKeepsScriptQuotableAndUsesWorktree(t *testing.T) {
 	}
 	if strings.Contains(inner, "git clone --depth 5 https://x-access-token:$T@github.com/$R.git repo\n") {
 		t.Fatal("还在用整仓 clone 建工作区（应改为共享基础克隆 + worktree add）")
+	}
+	if !strings.Contains(inner, "cd \"$BASE/repo\"") {
+		t.Fatalf("必须进入基础仓库中的 worktree：%s", inner)
 	}
 }
 
@@ -57,7 +60,10 @@ func TestBuildIntegrationCommandUsesWorktree(t *testing.T) {
 	if strings.Contains(inner, "'") {
 		t.Fatal("脚本内出现单引号：外层引号会提前闭合")
 	}
-	if !strings.Contains(inner, "worktree add --detach --force repo FETCH_HEAD") {
+	if !strings.Contains(inner, "worktree add --detach --force \"$BASE/repo\" FETCH_HEAD") {
 		t.Fatalf("集成脚本没有走 worktree：%s", inner)
+	}
+	if !strings.Contains(inner, "cd \"$BASE/repo\"") || !strings.Contains(inner, `$(cat "$PROMPT")`) {
+		t.Fatalf("集成脚本必须进入 worktree 并读取任务工作区的 prompt：%s", inner)
 	}
 }

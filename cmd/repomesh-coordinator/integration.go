@@ -260,9 +260,9 @@ func integrationPrompt(kind, repository string, allRepos []string) string {
 // 现场铸该仓库的 installation token（同交付 run）。
 func buildIntegrationCommand(agentKind, model, repository string) string {
 	agent := "codex exec -c model_provider=minimax -c model=" + model +
-		" --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox \"$(cat ../prompt.txt)\""
+		" --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox \"$(cat \"$PROMPT\")\""
 	if agentKind == "claude_cli" {
-		agent = "claude -p \"$(cat ../prompt.txt)\" --model " + model + " --dangerously-skip-permissions"
+		agent = "claude -p \"$(cat \"$PROMPT\")\" --model " + model + " --dangerously-skip-permissions"
 	}
 	script := "set -e\n" +
 		"T=${REPOMESH_GH_TOKEN:?missing installation token}\n" +
@@ -276,8 +276,9 @@ func buildIntegrationCommand(agentKind, model, repository string) string {
 		"git -C \"$BASE\" remote set-url origin \"https://x-access-token:$T@github.com/$R.git\"\n" +
 		"git -C \"$BASE\" fetch --depth 5 origin main\n" +
 		"git -C \"$BASE\" worktree prune\n" +
-		"git -C \"$BASE\" worktree add --detach --force repo FETCH_HEAD\n" +
-		"cd repo\n" +
+		"PROMPT=\"$PWD/prompt.txt\"\n" +
+		"git -C \"$BASE\" worktree add --detach --force \"$BASE/repo\" FETCH_HEAD\n" +
+		"cd \"$BASE/repo\"\n" +
 		agent + "\n" +
 		"cp " + execution.TestEvidenceFile + " ../" + execution.TestEvidenceFile + " 2>/dev/null || true"
 	return "bash -c '" + script + "'"

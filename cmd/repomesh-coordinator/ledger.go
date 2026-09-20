@@ -102,8 +102,8 @@ func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, i
 		"git -C \"$BASE\" remote set-url origin \"https://x-access-token:$T@github.com/$R.git\"\n" +
 		"git -C \"$BASE\" fetch --depth 5 origin main\n" +
 		"git -C \"$BASE\" worktree prune\n" +
-		"git -C \"$BASE\" worktree add --detach --force repo FETCH_HEAD\n" +
-		"cd repo\n" +
+		"git -C \"$BASE\" worktree add --detach --force \"$BASE/repo\" FETCH_HEAD\n" +
+		"cd \"$BASE/repo\"\n" +
 		"git config user.name \"repomesh-bot[bot]\"\n" +
 		"git config user.email \"repomesh-bot@users.noreply.github.com\"\n" +
 		agentLine + "\n" +
