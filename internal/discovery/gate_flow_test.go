@@ -112,3 +112,56 @@ func TestApplyPlanningCandidatesOpensGatePerHitlMode(t *testing.T) {
 		t.Fatalf("候选块应按新产物换代: %s", string(raw))
 	}
 }
+
+// 门超时代选(Task B2 的 discovery 侧,A3 服务层等价物):到期后 CAS 置 timeout、
+// 建议集合双表落范围、整组同一把 scope_revision;同键重放 200 不重写;
+// 门已 resolved 时换新键也不得重写范围。
+func TestResolveGateTimeoutReplayAndNoop(t *testing.T) {
+	pool := testdb.Open(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	const issueID = "iss_gate_timeout_idem"
+	fixture := testdb.SeedProject(t, pool, "", "", "acme/checkout", "acme/shared-lib")
+	testdb.SeedIssue(t, pool, fixture, issueID, "acme/checkout")
+	service := New(pool)
+	past := time.Now().UTC().Add(-time.Minute)
+	if err := service.OpenGate(ctx, issueID, []string{"acme/checkout", "acme/shared-lib", "acme/not-in-project"}, &past); err != nil {
+		t.Fatalf("open gate: %v", err)
+	}
+	const key = "autohost:" + issueID + ":gate-timeout"
+	receipt, err := service.ResolveGateTimeout(ctx, issueID, key)
+	if err != nil {
+		t.Fatalf("ResolveGateTimeout: %v", err)
+	}
+	if receipt.Status != "committed" || receipt.RepositoryCount != 2 {
+		t.Fatalf("应 committed 且只落项目内 2 仓: %+v", receipt)
+	}
+	gate, err := service.Gate(ctx, issueID)
+	if err != nil || gate == nil || gate.State != GateResolved || gate.DecidedBy != "timeout" {
+		t.Fatalf("超时应 CAS 置 resolved(timeout): %+v %v", gate, err)
+	}
+	var revision string
+	if err := pool.QueryRow(ctx, `SELECT scope_revision FROM repomesh_issues.issue_repository_scope
+		WHERE issue_id=$1 AND repository_id=$2`, issueID, fixture.Repositories["acme/checkout"]).Scan(&revision); err != nil {
+		t.Fatalf("读范围: %v", err)
+	}
+	// 同键重放:status=replayed,范围 revision 原样。
+	replay, err := service.ResolveGateTimeout(ctx, issueID, key)
+	if err != nil || replay.Status != "replayed" || replay.RepositoryCount != 2 {
+		t.Fatalf("同键重放应 replayed(2): %+v %v", replay, err)
+	}
+	var after string
+	if err := pool.QueryRow(ctx, `SELECT scope_revision FROM repomesh_issues.issue_repository_scope
+		WHERE issue_id=$1 AND repository_id=$2`, issueID, fixture.Repositories["acme/checkout"]).Scan(&after); err != nil || after != revision {
+		t.Fatalf("重放不得重写范围 revision: %q 期望 %q %v", after, revision, err)
+	}
+	// 门已 resolved:换新键也是 noop,不重写。
+	noop, err := service.ResolveGateTimeout(ctx, issueID, key+"-again")
+	if err != nil || noop.Status != "noop" {
+		t.Fatalf("resolved 门换新键应 noop: %+v %v", noop, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT scope_revision FROM repomesh_issues.issue_repository_scope
+		WHERE issue_id=$1 AND repository_id=$2`, issueID, fixture.Repositories["acme/checkout"]).Scan(&after); err != nil || after != revision {
+		t.Fatalf("noop 不得重写范围 revision: %q 期望 %q %v", after, revision, err)
+	}
+}

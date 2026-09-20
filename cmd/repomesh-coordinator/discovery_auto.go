@@ -9,6 +9,7 @@ import (
 	"log/slog"
 
 	"repomesh.local/repomesh/internal/discovery"
+	"repomesh.local/repomesh/internal/roomnotice"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -20,6 +21,9 @@ import (
 type discoveryAutomator struct {
 	service *discovery.Service
 	pool    *pgxpool.Pool
+	// rooms 把门事件(超时代选)投进 issue 的仓库团队房(spec §3.4);
+	// nil 时是安全空操作——房间是观察面,缺它不改行为。
+	rooms *roomnotice.Notifier
 	backoff map[string]time.Time
 	// attempts 记"同一条 issue 的同一个 step 连续跑了几次"。
 	//
@@ -34,9 +38,9 @@ type discoveryAutomator struct {
 	lastStep map[string]int
 }
 
-func newDiscoveryAutomator(service *discovery.Service, pool *pgxpool.Pool) *discoveryAutomator {
+func newDiscoveryAutomator(service *discovery.Service, pool *pgxpool.Pool, rooms *roomnotice.Notifier) *discoveryAutomator {
 	return &discoveryAutomator{
-		service: service, pool: pool,
+		service: service, pool: pool, rooms: rooms,
 		backoff:  map[string]time.Time{},
 		attempts: map[string]int{},
 		lastStep: map[string]int{},
@@ -58,6 +62,12 @@ type discoveryProgress struct {
 	// hitl = 门等真人。**自动托管循环只处理 ai 的 issue** —— 此前它不看这个字段，
 	// 于是人工参与模式下 ③ 分档审批与 ⑤ 物化确认也被无条件代行，人审门形同不存在。
 	hitlMode string
+	// gatePending / gateExpired 是选仓门投影(Task B2,spec §3.2)。WHERE 已排除
+	// 「有截止且未到期」的门,剩下的 pending 只有两种:gatePending=无截止的门
+	// (hitl 语义,等待分支兜住),gateExpired=有截止且已到期的门(超时代选)。
+	// 两个谓词互斥,switch 先判谁都不会吞掉另一支。
+	gatePending bool
+	gateExpired bool
 }
 
 // Several discovery columns (created_by_agent_id, decided_by_agent_id) are
@@ -149,6 +159,23 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 		forceKey := idem + ":analysis-force:" + strconv.FormatInt(time.Now().UnixNano(), 36)
 		_, err = a.service.Analysis(ctx, p.issueID, autohostAgent, forceKey, nil, true)
 		return done(err)
+	case p.gatePending:
+		// 门等待(被捡到时):pendingIssues 的 WHERE 已排除「有截止且未到期」,
+		// 走到这里的是无截止的门(hitl 语义)。不动状态、**不经 done()**、不进
+		// 熔断计数——门在等人,不是发现链在空转。
+		slog.Info("autohost: 选仓门等待确认", "issue", p.issueID)
+		return false
+	case p.gateExpired:
+		// 门超时:CAS 置 timeout + 按建议集合代选落范围(A3 服务层等价物:
+		// 双表、整组同一把 scope_revision)+ roomnotice 通知(spec §3.4,
+		// 幂等键 gate:{issue}:timeout,重投不刷屏)。
+		slog.Info("autohost: 选仓门超时,按建议代选", "issue", p.issueID)
+		receipt, err := a.service.ResolveGateTimeout(ctx, p.issueID, idem+":gate-timeout")
+		if err != nil {
+			return done(err)
+		}
+		a.rooms.Notify(ctx, p.issueID, "gate:"+p.issueID+":timeout", gateTimeoutNotice(receipt.RepositoryCount))
+		return done(nil)
 	case !p.hasCandidates:
 		// 2026-09-20：② 候选评分也交给 Organization Leader agent（带仓库名片）。
 		slog.Info("autohost: enqueue planning candidates", "issue", p.issueID)
@@ -192,23 +219,27 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 
 // autohostStep 把"这条 issue 现在该走哪一步"折成一个小整数，**只用于去重计数**
 // （判断协调器是不是在同一步上空转），与 discovery 的 PlanningXxx 常量无关。
-// 判据必须与下面 switch 的分支**逐一对应**，否则计数会错位。
+// 判据必须与上面 switch 的分支**逐一对应**，否则计数会错位。
 func autohostStep(p discoveryProgress) int {
 	switch {
 	case !p.hasAnalysis:
 		return 1 // ① 需求分析
 	case !p.sufficient && !p.forced:
 		return 2 // 分析不足 → 强制继续
+	case p.gatePending:
+		return 3 // 选仓门等待(无截止的门)
+	case p.gateExpired:
+		return 4 // 选仓门超时 → 代选
 	case !p.hasCandidates:
-		return 3 // ② 候选评分
+		return 5 // ② 候选评分
 	case !p.hasClassification:
-		return 4 // ③ 分档
+		return 6 // ③ 分档
 	case p.approvalState != "approved":
-		return 5 // ③ 审批
+		return 7 // ③ 审批
 	case !p.hasPlan:
-		return 6 // ④ 生成计划
+		return 8 // ④ 生成计划
 	case !p.hasMaterialization:
-		return 7 // ⑤ 物化
+		return 9 // ⑤ 物化
 	}
 	return 0
 }
@@ -227,13 +258,23 @@ func (a *discoveryAutomator) pendingIssues(ctx context.Context) ([]discoveryProg
 		       COALESCE(d.classification_evidence_version, '')                             AS evidence_version,
 		       (d.plan IS NOT NULL AND d.plan <> 'null'::jsonb)                            AS has_plan,
 		       (d.materialization IS NOT NULL AND d.materialization <> 'null'::jsonb)      AS has_materialization,
-		       COALESCE(i.hitl_mode, 'hitl')                                               AS hitl_mode
+		       COALESCE(i.hitl_mode, 'hitl')                                               AS hitl_mode,
+		       (d.scope_gate->>'state' = 'pending'
+		          AND d.scope_gate->>'deadline_at' IS NULL)                           AS gate_pending,
+		       (d.scope_gate->>'state' = 'pending'
+		          AND d.scope_gate->>'deadline_at' IS NOT NULL
+		          AND now() >= (d.scope_gate->>'deadline_at')::timestamptz)              AS gate_expired
 		FROM repomesh_issues.issue_discoveries d
 		JOIN repomesh_issues.issues i ON i.id = d.issue_id
 		WHERE i.removed_at IS NULL
 		  -- 自动托管只处理 ai 模式的 issue：人工参与（hitl）的 issue 由人自己推门，
 		  -- 这里连一步都不代行（0053 之前它无条件代行 ③ 与 ⑤）。
 		  AND COALESCE(i.hitl_mode, 'hitl') = 'ai'
+		  -- 选仓门未到期直接排除(Task B2,spec §3.2):门在等人时连 tick 都不捡,
+		  -- 不入队、不空转。无截止的门(hitl 语义)不排除,由 switch 的等待分支兜住。
+		  AND NOT (d.scope_gate->>'state' = 'pending'
+		      AND d.scope_gate->>'deadline_at' IS NOT NULL
+		      AND now() < (d.scope_gate->>'deadline_at')::timestamptz)
 		  AND NOT (d.analysis IS NOT NULL AND d.analysis <> 'null'::jsonb
 		  AND (COALESCE((d.analysis->>'sufficient')::bool, false) OR jsonb_typeof(d.analysis->'forced_continue') = 'object')
 		           AND d.candidates IS NOT NULL AND d.candidates <> 'null'::jsonb
@@ -253,7 +294,7 @@ func (a *discoveryAutomator) pendingIssues(ctx context.Context) ([]discoveryProg
 		if err := rows.Scan(
 			&p.issueID, &p.hasAnalysis, &p.sufficient, &p.forced, &p.hasCandidates,
 			&p.hasClassification, &p.approvalState, &p.evidenceVersion, &p.hasPlan, &p.hasMaterialization,
-			&p.hitlMode); err != nil {
+			&p.hitlMode, &p.gatePending, &p.gateExpired); err != nil {
 			return nil, err
 		}
 		pending = append(pending, p)
