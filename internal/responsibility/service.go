@@ -11,7 +11,31 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type Service struct{ Pool *pgxpool.Pool }
+type Service struct {
+	Pool *pgxpool.Pool
+	// RecordReview 在「仓库 Owner 确认」成功后补记交付闸门的 review 事件。
+	//
+	// 2026-09-21 用户裁定：**仓库 Owner 确认 = 交付闸门四项里的 review**。
+	// 此前 review 只有"经理审批通过"一个来源（pipeline_routes.go 的 approve），
+	// 线上实测 19 个有 PR 的变更集里只有 9 个有 review —— 其余 10 个闸门永远关着，
+	// 用户在交付列车上点合并必然失败，而界面只回一句"合并 0 个；1 个失败"。
+	//
+	// nil = 不接线（保持老行为：确认照常落库，只是不补记闸门）。
+	RecordReview ReviewRecorder
+}
+
+// ReviewRecorder 是「Owner 确认 → 交付闸门 review」这条桥。
+//
+// planID 是 `public.plans.id`（uuid）；repositoryID 是**项目仓 id**（`repo_…`）。
+// 接线方负责把后者解析成 tasks 里那套全名（`owner/name`）—— 这个库两套口径并存，
+// 直接拿去 join 会**静默匹配 0 条**（tasks.repository_id 存的是全名）。
+type ReviewRecorder func(ctx context.Context, planID, repositoryID, actor string) error
+
+// WithReviewRecorder 装上那条桥（链式，便于在组合根一行接完）。
+func (s *Service) WithReviewRecorder(recorder ReviewRecorder) *Service {
+	s.RecordReview = recorder
+	return s
+}
 
 func New(pool *pgxpool.Pool) *Service { return &Service{Pool: pool} }
 
@@ -100,6 +124,15 @@ func (s *Service) ConfirmOwner(ctx context.Context, planID, repoID, ownerGithub,
 	// 而"三者交接可见"正是这一块的全部意义。
 	s.recordEventForPlan(ctx, planID, "human", confirmedBy, "owner_confirmed",
 		map[string]any{"repository_id": repoID, "owner_github_id": ownerGithub})
+	// 交付闸门的 review 那一项：Owner 确认是**人的决定**，正是闸门要的那个信号。
+	//
+	// **fail-open**：确认本身已经落库（上面那条 INSERT 成功返回了），补记闸门失败
+	// 不能回滚它 —— 那会让人以为自己没确认成功，再点一次。日志由接线方打
+	// （本包不引日志依赖，见 ReviewRecorder 的注释）。
+	// nil 时整段跳过：没接线就等于老行为，不假装记过。
+	if s.RecordReview != nil {
+		_ = s.RecordReview(ctx, planID, repoID, confirmedBy)
+	}
 	return owner, nil
 }
 

@@ -526,7 +526,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		humanControlAPI = web.HumanControl{Service: humancontrol.New(pipelinePool)}
 		observeV1 = web.ObserveV1{Service: observability.New(pipelinePool)}
 		web.SetAgentSettingsPool(pipelinePool)
-		web.SetResponsibilityService(responsibility.New(pipelinePool))
+		// 「仓库 Owner 确认 = 交付闸门的 review」这条桥（2026-09-21 用户裁定）。
+		// 没接这条桥时：Owner 确认照常落库，但闸门的 review 那一项永远不亮，
+		// 交付列车上点合并必然失败（线上 19 个有 PR 的变更集里 10 个卡在这里）。
+		web.SetResponsibilityService(responsibility.New(pipelinePool).WithReviewRecorder(
+			ownerConfirmReviewRecorder(pipelinePool, scm.New(pipelinePool, os.Getenv("REPOMESH_WEBHOOK_SECRET")))))
 		// The discovery chain audits approval + materialize decisions into
 		// the same decision chain as the scan scope seam (B3 wiring); its
 		// embedding config mirrors the main decision service.
