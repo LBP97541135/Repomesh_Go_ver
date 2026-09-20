@@ -1447,8 +1447,9 @@ export function DecisionChainPage({
               <tr className="text-left text-tx3">
                 <th className="px-2 py-1">决策单</th>
                 <th className="px-2 py-1">需求</th>
-                <th className="px-2 py-1">步骤/版本</th>
-                <th className="px-2 py-1">状态</th>
+                <th className="px-2.5 py-1">步骤</th>
+                <th className="px-2 py-1">版本</th>
+                <th className="px-3 py-1">状态</th>
                 <th className="px-2 py-1">仓库</th>
                 <th className="px-2 py-1">时间</th>
               </tr>
@@ -1464,9 +1465,10 @@ export function DecisionChainPage({
                   <td className="px-2 py-1.5">
                     <div className="max-w-[380px] truncate text-cream">{n.requirementText}</div>
                   </td>
-                  <td className="px-2 py-1.5">{decisionStepAction(n.step)}</td>
-                  <td className="px-2 py-1.5">
-                    <span className={nodeStatusChip(n.status)}>{decisionStatusLabel(n.status)}</span>
+                  <td className="px-2.5 py-1.5 text-cream">{decisionStepAction(n.step)}</td>
+                  <td className="px-2 py-1.5 font-mono text-[11px] text-tx2">v{n.version}</td>
+                  <td className="px-3 py-1.5">
+                  <span className={nodeStatusChip(n.status)}>{decisionStatusLabel(n.status)}</span>
                   </td>
                   <td className="px-2 py-1.5 text-[10.5px] text-tx2">{n.affectedRepositories.join("、") || "—"}</td>
                   <td className="px-2 py-1.5 font-mono text-[10.5px] text-tx3">{nodeShortTime(n.createdAt)}</td>
@@ -1521,4 +1523,5 @@ export function DecisionChainPage({
     </div>
   );
 }
+
 
