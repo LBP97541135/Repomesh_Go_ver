@@ -82,11 +82,29 @@ func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, i
 		// 不经过 codex CLI → MiniMax 间接层。API key 走 DEEPSEEK_API_KEY 环境变量。
 		// 命令模板可通过 REPOMESH_DSH_COMMAND 覆盖（%s 为 prompt 占位符），
 		// 便于适配不同 DSH 版本的 CLI 接口而不重新编译。
+		//
+		// ⚠️ 2026-09-20 兼容性验证实测（这条模板此前是**错的**）：
+		// DSH 0.1.1-rc.2 的真实 CLI 是
+		//     dsh [options] [command] [args...]
+		//       --profile <name>   boot the profile under $DSH_HOME/profiles
+		//       web | plugin       两个子命令
+		//     一次性任务：dsh --profile headless "任务文本"
+		// 而旧模板写的 `dsh run --model %s --prompt "%s" --auto-approve` 里
+		// **run / --model / --prompt / --auto-approve 四个东西都不存在** ——
+		// 真跑立刻 `error: --profile <name> is required`。
+		// 也就是说"把 codex 换成 DSH"这件事，在命令这一层从来没通过过。
+		// 现在按实测形状改对（模型由 profile 配置决定，不再从命令行传）。
 		dshCmd := os.Getenv("REPOMESH_DSH_COMMAND")
 		if dshCmd == "" {
-			dshCmd = "dsh run --model %s --prompt \"%s\" --auto-approve"
+			dshCmd = "dsh --profile headless \"%s\""
 		}
-		agentLine = fmt.Sprintf(dshCmd, model, prompt)
+		// 占位符只有一个（任务文本）。旧模板有两个（model + prompt），
+		// 所以覆盖模板的老用法也会在这里被显式拒绝，而不是静默少一个参数。
+		if strings.Count(dshCmd, "%s") == 1 {
+			agentLine = fmt.Sprintf(dshCmd, prompt)
+		} else {
+			agentLine = fmt.Sprintf(dshCmd, model, prompt)
+		}
 	default:
 		return "", fmt.Errorf("coordinator: unsupported agent kind %q", agentKind)
 	}
@@ -217,11 +235,18 @@ func buildTestCommand(agentKind, model, instruction, repoFullName, attemptID, is
 	case "claude_cli":
 		agentLine = fmt.Sprintf("claude -p \"%s\" --model %s --dangerously-skip-permissions", testPrompt, model)
 	case "dsh":
+		// 与上面开发 agent 同一处修正（2026-09-20 兼容性验证）：DSH 0.1.1-rc.2
+		// 没有 run/--model/--prompt/--auto-approve，一次性任务就是
+		// `dsh --profile headless "<任务文本>"`。
 		dshCmd := os.Getenv("REPOMESH_DSH_COMMAND")
 		if dshCmd == "" {
-			dshCmd = "dsh run --model %s --prompt \"%s\" --auto-approve"
+			dshCmd = "dsh --profile headless \"%s\""
 		}
-		agentLine = fmt.Sprintf(dshCmd, model, testPrompt)
+		if strings.Count(dshCmd, "%s") == 1 {
+			agentLine = fmt.Sprintf(dshCmd, testPrompt)
+		} else {
+			agentLine = fmt.Sprintf(dshCmd, model, testPrompt)
+		}
 	default:
 		return "", fmt.Errorf("coordinator: unsupported test agent kind %q", agentKind)
 	}

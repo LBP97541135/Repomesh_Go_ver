@@ -392,6 +392,21 @@ export function AgentsPage({
                       保存
                     </button>
                   </div>
+                  {/* dsh 的限制必须写在**选它的地方**（2026-09-20 兼容性验证）：
+                      官方标注 experimental、只认固定 rc 版本、不支持 Matrix E2EE，
+                      而且需要机器上装了 dsh CLI 并给了 DEEPSEEK_API_KEY —— 缺任何一样，
+                      run 会以非零退出（如实失败，不静默降级）。回退开关就是上面这个
+                      下拉：改回 codex_cli 即回退，不用重新部署。 */}
+                  {draft.cliKind === "dsh" && (
+                    <p className="mt-1.5 rounded-hard border border-amber/40 bg-amber-well px-2.5 py-1.5 text-[11px] leading-[1.7] text-amber">
+                      dsh 是**实验性**通道（官方标注 experimental）：只认
+                      <span className="font-mono"> @deepseek-ai/dsh@0.1.1-rc.2</span>、
+                      **不支持 Matrix E2EE**，且需要这台机器装了 dsh CLI 并配好
+                      <span className="font-mono"> DEEPSEEK_API_KEY</span>（走 deepseek-official 路由）。
+                      缺任一项时 run 会以非零退出并在右栏显示原文 —— 不会假装成功。
+                      要回退，把这里改回 <span className="font-mono">codex_cli</span> 即可，无需重新部署。
+                    </p>
+                  )}
 
                   {/* 技能绑定：agent_skill_bindings + /api/skills/bindings。
                       version_id 是**技能版本** id（技能页可查），source 用后端枚举。 */}
