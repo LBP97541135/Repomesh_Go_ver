@@ -3,6 +3,7 @@ package skill
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 // abeval.go 是技能版本的 **A/B 评估执行器**。
@@ -73,24 +74,53 @@ func (s *Store) ListQuestions(ctx context.Context, skillID string) ([]TestQuesti
 	return out, rows.Err()
 }
 
-// expectedText 把 expected 块压成一段可比较的文本。
-// 形状是自由的 jsonb（种子题里是 {"must_mention":[…]}/{"must_not":[…]}/文本），
-// 所以这里只做一件事：把里面所有字符串取出来拼起来。**不解释语义**。
-func expectedText(expected map[string]any) string {
-	out := ""
-	for _, value := range expected {
-		switch v := value.(type) {
-		case string:
-			out += " " + v
-		case []any:
-			for _, item := range v {
-				if s, ok := item.(string); ok {
-					out += " " + s
-				}
+// rubric 是种子题 `expected` 的真实形状 —— **结构化评分规则**，不是一段期望文本。
+//
+// 2026-09-20 实测（第一次实现读错了语义）：种子题里它是
+//     {"min_answer_chars": 50, "required_keywords": ["workflow", "steps"]}
+//     {"min_answer_chars": 30, "required_keywords": ["refuse", "outside"]}
+// 我最初把它拍平成一串文本再跟技能正文做相似度 —— 于是永远算不出分，
+// 每次评估都恒返回 0、结论恒为 lose。**一个恒返回 0 的裁判比没有裁判更糟**：
+// 它看起来在工作，实际上什么都没判。
+type rubric struct {
+	MinChars         int
+	RequiredKeywords []string
+}
+
+func parseRubric(expected map[string]any) rubric {
+	out := rubric{}
+	if v, ok := expected["min_answer_chars"].(float64); ok {
+		out.MinChars = int(v)
+	}
+	if list, ok := expected["required_keywords"].([]any); ok {
+		for _, item := range list {
+			if s, ok := item.(string); ok && s != "" {
+				out.RequiredKeywords = append(out.RequiredKeywords, s)
 			}
 		}
 	}
 	return out
+}
+
+// judgeAnswer 按规则判一条答案：字数够 **且** 关键词全部出现（大小写不敏感）。
+// 返回 (是否通过, 覆盖度)。覆盖度 = 命中的关键词比例 × 字数达标系数 —— 只用于展示，
+// 通过与否只看上面那条硬规则。
+func judgeAnswer(answer string, r rubric) (bool, float64) {
+	if r.MinChars > 0 && len([]rune(answer)) < r.MinChars {
+		return false, 0
+	}
+	if len(r.RequiredKeywords) == 0 {
+		return true, 1
+	}
+	lower := strings.ToLower(answer)
+	hit := 0
+	for _, keyword := range r.RequiredKeywords {
+		if strings.Contains(lower, strings.ToLower(keyword)) {
+			hit++
+		}
+	}
+	score := float64(hit) / float64(len(r.RequiredKeywords))
+	return hit == len(r.RequiredKeywords), score
 }
 
 // RunABEvaluation 对一个处于 evaluating / canary 的版本跑完整 A/B 评估并记录结果。
@@ -124,26 +154,27 @@ func (svc *Service) RunABEvaluation(ctx context.Context, versionID, judgedBy str
 		if err != nil {
 			return ABEvaluationSummary{}, err
 		}
-		want := expectedText(q.Expected)
-		// 带技能臂：以**待评版本的内容**作为上下文；不带技能臂：上下文为空。
-		withScore := TokenSimilarity(version.Content, want)
-		withoutScore := TokenSimilarity("", want)
+		// 按**规则本意**判：字数够 + 关键词齐。带技能臂以**待评版本正文**作答，
+		// 不带技能臂没有上下文（空答案）。
+		r := parseRubric(q.Expected)
+		withPass, withScore := judgeAnswer(version.Content, r)
+		withoutPass, withoutScore := judgeAnswer("", r)
 		withResult := "fail"
-		if withScore >= abPassThreshold {
+		if withPass {
 			withResult = "pass"
 			summary.WithPass++
 		}
 		withoutResult := "fail"
-		if withoutScore >= abPassThreshold {
+		if withoutPass {
 			withoutResult = "pass"
 			summary.WithoutPass++
 		}
 		if _, err := svc.Store.RecordRun(ctx, versionID, q.ID, "with_skill", withLabel,
-			map[string]any{"text": version.Content, "score": withScore, "expected": want}, &judge, withResult); err != nil {
+			map[string]any{"text": version.Content, "score": withScore, "rubric": q.Expected}, &judge, withResult); err != nil {
 			return ABEvaluationSummary{}, err
 		}
 		if _, err := svc.Store.RecordRun(ctx, versionID, q.ID, "without_skill", withoutLabel,
-			map[string]any{"text": "", "score": withoutScore, "expected": want}, &judge, withoutResult); err != nil {
+			map[string]any{"text": "", "score": withoutScore, "rubric": q.Expected}, &judge, withoutResult); err != nil {
 			return ABEvaluationSummary{}, err
 		}
 		summary.Questions = append(summary.Questions, ABQuestionResult{
