@@ -207,6 +207,26 @@ func (s *Store) GetSkillByName(ctx context.Context, organizationID, name string)
 	return sk, nil
 }
 
+// getSkillByIDScoped 按 id 取技能，**带组织作用域**（全局种子或调用者自己空间）。
+//
+// 为什么需要它：`getSkillByID` 不带作用域（它只按 id 查），拿它做写路径会绕过
+// 空间隔离 —— 别处调用点自带守卫，这里不能假设。2026-09-20：控制台的
+// 「登记新版本」传的是 **skill_id（uuid）**，而 `RegisterVersion` 按**名字**查
+// （`GetSkillByName`），于是必 `skill_not_found` → 409，A/B 评估这条路走不到。
+// 修法是两种口径都收，但按 id 收时必须同样过作用域。
+func (s *Store) getSkillByIDScoped(ctx context.Context, organizationID, id string) (*Skill, error) {
+	row := s.Pool.QueryRow(ctx,
+		`SELECT id, name, scenario, target_agent_role, created_by, created_at
+		 FROM public.skills
+		 WHERE id = $1 AND (organization_id IS NULL OR organization_id = $2::uuid)`,
+		id, nullableUUID(organizationID))
+	sk := &Skill{}
+	if err := row.Scan(&sk.ID, &sk.Name, &sk.Scenario, &sk.TargetAgentRole, &sk.CreatedBy, &sk.CreatedAt); err != nil {
+		return nil, err
+	}
+	return sk, nil
+}
+
 // ListSkills 返回「全局种子 + 调用者自己空间」的技能（此前是全库一份）。
 func (s *Store) ListSkills(ctx context.Context, organizationID string) ([]Skill, error) {
 	rows, err := s.Pool.Query(ctx,

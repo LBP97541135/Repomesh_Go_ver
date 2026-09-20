@@ -39,7 +39,15 @@ func (svc *Service) RegisterVersion(ctx context.Context, organizationID, skillNa
 	}
 	sk, err := svc.Store.GetSkillByName(ctx, organizationID, skillName)
 	if err != nil {
-		return nil, Refused("skill_not_found", "skill %q is not registered", skillName)
+		// 调用方给的可能是 **id**（控制台就是：路由体里的字段叫 skill_id，前端自然
+		// 传 uuid）—— 上面按**名字**查必然 not_found，于是整条"登记新版本 → 送评估"
+		// 永远走不到（2026-09-20 实测：POST /api/skills/versions 固定 409，
+		// evaluation_runs 至今 0 行）。这里再按 id 查一次，**同样过组织作用域**。
+		byID, idErr := svc.Store.getSkillByIDScoped(ctx, organizationID, skillName)
+		if idErr != nil {
+			return nil, Refused("skill_not_found", "skill %q is not registered", skillName)
+		}
+		sk = byID
 	}
 	return svc.Store.RegisterVersion(ctx, sk.ID, version, content, createdBy)
 }
