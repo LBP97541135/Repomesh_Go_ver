@@ -286,7 +286,7 @@ func TestGetAndChangeAreProjectScoped(t *testing.T) {
 	var teamNameA string
 	if err := pool.QueryRow(ctx, `
 		SELECT agentteams_team_name FROM public.repository_teams
-		WHERE project_id = $1::uuid AND repository_id = $2`, projectA, scanID).Scan(&teamNameA); err != nil {
+		WHERE project_id = $1 AND repository_id = $2`, projectA, scanID).Scan(&teamNameA); err != nil {
 		t.Fatalf("回读队名失败：%v", err)
 	}
 	if got, want := remotePrefix(projectA, scanID), teamNameA; got == want {
@@ -312,7 +312,7 @@ func TestRepositoryTeamPrimaryKeyIncludesProject(t *testing.T) {
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO public.repository_teams
 			(project_id, repository_id, agentteams_team_name, leader_id, leader_resource_name)
-		VALUES ($1::uuid, $2, 'dup-team-name', gen_random_uuid(), 'dup-leader')`,
+		VALUES ($1, $2, 'dup-team-name', gen_random_uuid(), 'dup-leader')`,
 		projectA, scanID); err == nil {
 		t.Fatal("同一 (项目, 仓库) 插第二行应撞主键，居然成功了")
 	}

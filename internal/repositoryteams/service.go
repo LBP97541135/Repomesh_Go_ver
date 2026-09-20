@@ -169,14 +169,14 @@ func (s *Service) Create(ctx context.Context, projectID, repositoryID string, wo
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO public.repository_teams
 		(project_id, repository_id, agentteams_team_name, leader_id, leader_resource_name)
-		VALUES ($1::uuid, $2, $3, $4::uuid, $5)`, projectID, repositoryID, prefix, leaderID, leaderName); err != nil {
+		VALUES ($1, $2, $3, $4::uuid, $5)`, projectID, repositoryID, prefix, leaderID, leaderName); err != nil {
 		return Snapshot{}, reconciliationError(fmt.Errorf("persist repository team: %w", err))
 	}
 	for _, worker := range workers {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO public.repository_team_workers
 			(project_id, id, repository_id, resource_name, creation_sequence, display_order)
-			VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6)`,
+			VALUES ($1, $2::uuid, $3, $4, $5, $6)`,
 			projectID, worker.id, repositoryID, worker.resourceName, worker.creationSequence, worker.displayOrder,
 		); err != nil {
 			return Snapshot{}, reconciliationError(fmt.Errorf("persist repository Worker: %w", err))
@@ -397,7 +397,7 @@ func (s *Service) BackfillRooms(ctx context.Context) (int, error) {
 			SET team_room_id = COALESCE(NULLIF($3, ''), team_room_id),
 			    leader_dm_room_id = COALESCE(NULLIF($4, ''), leader_dm_room_id),
 			    updated_at = now()
-			WHERE project_id = $1::uuid AND repository_id = $2`,
+			WHERE project_id = $1 AND repository_id = $2`,
 			team.projectID, team.repositoryID, view.TeamRoomID, view.LeaderDMRoomID); err != nil {
 			return filled, fmt.Errorf("persist backfilled rooms: %w", err)
 		}
@@ -501,7 +501,7 @@ func loadTeamName(ctx context.Context, db snapshotQuerier, projectID, repository
 	var name string
 	err := db.QueryRow(ctx, `
 		SELECT agentteams_team_name FROM public.repository_teams
-		WHERE project_id = $1::uuid AND repository_id = $2`, projectID, repositoryID).Scan(&name)
+		WHERE project_id = $1 AND repository_id = $2`, projectID, repositoryID).Scan(&name)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", fmt.Errorf("%w: repository %q", ErrNotFound, repositoryID)
 	}
@@ -516,7 +516,7 @@ func (s *Service) scaleUp(ctx context.Context, tx pgx.Tx, projectID, repositoryI
 	if err := tx.QueryRow(ctx, `
 		SELECT COALESCE(MAX(creation_sequence), 0)
 		FROM public.repository_team_workers
-		WHERE project_id = $1::uuid AND repository_id = $2`, projectID, repositoryID,
+		WHERE project_id = $1 AND repository_id = $2`, projectID, repositoryID,
 	).Scan(&highestSequence); err != nil {
 		return Snapshot{}, fmt.Errorf("load Worker creation sequence: %w", err)
 	}
@@ -557,7 +557,7 @@ func (s *Service) scaleUp(ctx context.Context, tx pgx.Tx, projectID, repositoryI
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO public.repository_team_workers
 			(project_id, id, repository_id, resource_name, creation_sequence, display_order)
-			VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6)`,
+			VALUES ($1, $2::uuid, $3, $4, $5, $6)`,
 			projectID, worker.id, repositoryID, worker.resourceName, worker.creationSequence, worker.displayOrder,
 		); err != nil {
 			return Snapshot{}, reconciliationError(fmt.Errorf("persist scaled Worker: %w", err))
@@ -632,7 +632,7 @@ func (s *Service) scaleDown(ctx context.Context, tx pgx.Tx, projectID, repositor
 		if _, err := tx.Exec(ctx, `
 			UPDATE public.repository_team_workers
 			SET status = 'disabled', display_order = NULL, disabled_at = now()
-			WHERE id = $1::uuid AND project_id = $2::uuid AND repository_id = $3 AND status = 'active'`,
+			WHERE id = $1::uuid AND project_id = $2 AND repository_id = $3 AND status = 'active'`,
 			worker.id, projectID, repositoryID); err != nil {
 			return Snapshot{}, reconciliationError(fmt.Errorf("disable Worker: %w", err))
 		}
@@ -685,7 +685,7 @@ func (s *Service) loadSnapshot(ctx context.Context, db snapshotQuerier, projectI
 		       COALESCE(t.team_room_id, ''), COALESCE(t.leader_dm_room_id, '')
 		FROM public.repository_teams t
 		JOIN repomesh_scan.repositories r ON r.id = t.repository_id
-		WHERE t.project_id = $1::uuid AND t.repository_id = $2`, projectID, repositoryID,
+		WHERE t.project_id = $1 AND t.repository_id = $2`, projectID, repositoryID,
 	).Scan(
 		&snapshot.RepositoryID,
 		&snapshot.RepositoryName,
@@ -708,7 +708,7 @@ func (s *Service) loadSnapshot(ctx context.Context, db snapshotQuerier, projectI
 	rows, err := db.Query(ctx, `
 		SELECT id::text, resource_name, display_order
 		FROM public.repository_team_workers
-		WHERE project_id = $1::uuid AND repository_id = $2 AND status = 'active'
+		WHERE project_id = $1 AND repository_id = $2 AND status = 'active'
 		ORDER BY display_order`, projectID, repositoryID,
 	)
 	if err != nil {
@@ -782,7 +782,7 @@ func selectedWorkers(ctx context.Context, tx pgx.Tx, projectID, repositoryID str
 	rows, err := tx.Query(ctx, `
 		SELECT id::text, resource_name, creation_sequence, display_order
 		FROM public.repository_team_workers
-		WHERE project_id = $1::uuid AND repository_id = $2 AND status = 'active'
+		WHERE project_id = $1 AND repository_id = $2 AND status = 'active'
 		ORDER BY display_order DESC
 		LIMIT $3`, projectID, repositoryID, count)
 	if err != nil {
@@ -810,7 +810,7 @@ func advanceRevision(ctx context.Context, tx pgx.Tx, projectID, repositoryID str
 	result, err := tx.Exec(ctx, `
 		UPDATE public.repository_teams
 		SET roster_revision = roster_revision + 1, updated_at = now()
-		WHERE project_id = $1::uuid AND repository_id = $2 AND roster_revision = $3`,
+		WHERE project_id = $1 AND repository_id = $2 AND roster_revision = $3`,
 		projectID, repositoryID, expectedRevision)
 	if err != nil {
 		return fmt.Errorf("advance roster revision: %w", err)
@@ -890,7 +890,7 @@ func (s *Service) persistRooms(ctx context.Context, tx pgx.Tx, projectID, reposi
 		SET team_room_id = COALESCE(NULLIF($3, ''), team_room_id),
 		    leader_dm_room_id = COALESCE(NULLIF($4, ''), leader_dm_room_id),
 		    updated_at = now()
-		WHERE project_id = $1::uuid AND repository_id = $2`,
+		WHERE project_id = $1 AND repository_id = $2`,
 		projectID, repositoryID, view.TeamRoomID, view.LeaderDMRoomID); err != nil {
 		return fmt.Errorf("persist repository team rooms: %w", err)
 	}

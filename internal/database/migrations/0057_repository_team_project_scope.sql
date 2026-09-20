@@ -61,8 +61,18 @@ COMMENT ON TABLE public.repository_teams_unresolved IS
 -- ---------------------------------------------------------------------------
 -- 2) 加列
 -- ---------------------------------------------------------------------------
-ALTER TABLE public.repository_teams        ADD COLUMN IF NOT EXISTS project_id uuid;
-ALTER TABLE public.repository_team_workers ADD COLUMN IF NOT EXISTS project_id uuid;
+-- 类型必须是 **text**，与库内既有的项目标识口径一致：
+--   · `repomesh_projects.projects.id`        是 text（不是 uuid）；
+--   · `repomesh_projects.project_repositories.project_id` 是 text；
+--   · `public.agents.project_id`（0054 的编制作用域）也是 text。
+-- 2026-09-20 事故：这里原先写成 uuid，导致**每一个部署都失败**（迁移报
+-- SQLSTATE 42883，deploy 一直回滚到上一版）：
+--   ① 第 5 步 `t.project_id IS DISTINCT FROM r.project_id` 是 uuid = text，
+--      42883「operator does not exist: uuid = text」；
+--   ② 就算绕过 ①，第 6d 步的外键 `project_id(uuid) → projects.id(text)`
+--      也建不起来（42804，incompatible types）。
+ALTER TABLE public.repository_teams        ADD COLUMN IF NOT EXISTS project_id text;
+ALTER TABLE public.repository_team_workers ADD COLUMN IF NOT EXISTS project_id text;
 
 -- ---------------------------------------------------------------------------
 -- 3) 判定归属：扫描侧仓库 → 项目（沿用 repoTeamResolutionQuery 的 URL 对齐规则，反向）
