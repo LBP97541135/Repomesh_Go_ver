@@ -269,9 +269,36 @@ func writeProjectError(w http.ResponseWriter, err error) {
 	_, _ = rand.Read(request[:])
 	requestID := hex.EncodeToString(request[:])
 	// 底层错误只在这里落日志:前端拿 requestId,排障回服务端日志对行。
-	log.Printf("project request failed: requestID=%s status=%d code=%s err=%v", requestID, status, code, err)
+	//
+	// 2026-09-20：**预期内的"还没有"不要记成失败**。拓扑读面按契约就是
+	// 「404 = 还没有拓扑，不是错误，正是'来得及设卡点'的窗口」，策略草稿同理；
+	// 而这里把每一个非 2xx 都打成 "project request failed"，于是工作台每轮轮询
+	// 都在日志里刷"请求失败"，把真故障淹掉（与 MANIFEST_NOT_FOUND 同一族问题）。
+	// 这几类只在 debug 留一行，其余照旧。
+	if !expectedEmptyState(status, code) {
+		log.Printf("project request failed: requestID=%s status=%d code=%s err=%v", requestID, status, code, err)
+	}
 	body := projectErrorBody{Error: projectError{Code: code, Message: "The request could not be completed.", FieldErrors: fields, RequestID: requestID, Details: details}}
 	writeJSON(w, status, body)
+}
+
+// expectedEmptyState 判断"这个错误码其实是**正常空态**，不是故障"。
+//
+// 只收**契约里明确写成空态**的那几个；其余 404（例如项目/issue 真的不存在）
+// 仍然是失败，照旧记日志 —— 别把真故障一起静音。
+func expectedEmptyState(status int, code string) bool {
+	if status != http.StatusNotFound {
+		return false
+	}
+	switch code {
+	case "NOT_FOUND",              // GET /api/projects/{id}/topology —— 还没有拓扑
+		"POLICY_DRAFT_NOT_FOUND",  // 还没有监管策略草稿
+		"PROJECT_CREATION_NOT_FOUND", // 创建还在提交中（读面按契约回 404）
+		"MANIFEST_NOT_FOUND":      // 交付清单还没物化
+		return true
+	default:
+		return false
+	}
 }
 
 func projectBrowserRoute(path string) bool {
