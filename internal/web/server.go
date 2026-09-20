@@ -99,6 +99,7 @@ func handlerConfigured(assets fs.FS, auth Auth, projectAPI Projects, modelAPI Mo
 	registerHumanControl(mux, auth, humanControlAPI)
 	registerPolicyDraftRoutes(mux, auth, humanControlAPI)
 	registerAccountDirectory(mux, auth)
+	registerAppInstallation(mux, auth) // App 安装状态读面（只读，2026-09-20）
 	registerObserveV1(mux, auth, observeV1)
 	registerDiscoveryRoutes(mux, auth, discoveryAPI)
 	registerEventsRoutes(mux, auth, discoveryAPI)
