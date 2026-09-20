@@ -1567,6 +1567,8 @@ export function WorkbenchPage({
               trainCars={trainCars}
               scopeRepoIds={(detail.repositories ?? []).map((r) => r.repository_id)}
               projectId={projectId}
+              planId={planId}
+              actorId={principal?.agentId ?? ""}
               repoOptions={Object.entries(repoNameById).map(([id, name]) => ({ id, name }))}
               onAppendRepository={handleAppendRepository}
               planState={planState}

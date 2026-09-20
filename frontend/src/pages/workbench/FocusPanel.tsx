@@ -25,6 +25,7 @@ import type { DeliveryManifestView } from "../../api/deliveryManifest";
 import { documentTitleOf, splitRequirement } from "../../api/issues";
 import { SupervisionPolicyCard, type PolicyDraftState } from "../../components/SupervisionPolicyCard";
 import { TaskAgentOutput } from "./TaskAgentOutput";
+import { ResponsibilityCaseCard } from "../../components/ResponsibilityCaseCard";
 
 /** 消息作者 → 角色显示。先看 authorKind（user 是人），服务侧 agent 再按
  *  roster 命名约定（agent_<role>[_<name>]）推导；都推不出按系统条目样式。 */
@@ -638,6 +639,11 @@ function StageHistory({
   /** 当前项目 id —— 「worker 工作内容」读面按 (projectId, taskId) 取，
    *  而那条读面在服务端按「项目 owner 或 admin」授权。 */
   projectId?: string | null;
+  /** 当前计划 id —— E 的案例时间线按 plan 记录（`case_events.plan_id`）。
+   *  还没有计划时为 null，卡片如实说"无从取起"。 */
+  planId?: string | null;
+  /** 当前登录者 id —— E 的动作要写进 confirmed_by / requester_id / from_id。 */
+  actorId?: string;
   /** 本项目已挂的仓库（追加的候选只从这里来） */
   repoOptions: Array<{ id: string; name: string }>;
   /** 人确认追加一个仓库 */
@@ -874,6 +880,8 @@ export function FocusPanel({
   trainCars,
   scopeRepoIds,
   projectId = null,
+  planId = null,
+  actorId = "",
   repoOptions,
   onAppendRepository,
   onChooseManual,
@@ -986,6 +994,16 @@ export function FocusPanel({
         <TestStream view={testEvidence} />
         <TypeSafeEvaluations projectId={projectId} issueId={testEvidence?.issue_id} />
         <PlanHistory discovery={discovery} />
+        {/* E 跨仓职责 / 授权 / 冲突：案例时间线 + 动作入口。
+            2026-09-20：后端 `internal/responsibility` 早就完整（时间线 / Owner 确认 /
+            授权申请·批准·撤销 / 责任转移 / 冲突上报·裁决 / 平台状态同步），路由也挂了，
+            但**前端一个入口都没有** —— 这一整块能力在界面上等于不存在。 */}
+        <ResponsibilityCaseCard
+          projectId={projectId}
+          planId={planId}
+          actorId={actorId}
+          repoOptions={repoOptions}
+        />
         <GateStack
           stepStates={stepStates}
           mergePending={mergePending}
