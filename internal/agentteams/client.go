@@ -6,6 +6,7 @@ package agentteams
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -55,4 +56,29 @@ func (c *Client) Workflow(ctx context.Context, projectID, team string) ([]byte, 
 		return nil, http.StatusBadGateway, err
 	}
 	return body, resp.StatusCode, nil
+}
+
+// MatrixToken 取一枚用于 Matrix 的 access token
+// （POST /api/v1/credentials/matrix-token）。
+//
+// 上游按**调用者身份**签发，不是任意用户：RepoMesh 用服务 token 调，拿到的就是
+// 服务身份自己的 token，而它正是这些房间的创建者。这不是"偷控制器凭据"，
+// 是控制器自己给的取凭据接口（上游注释：Workers/Managers 收到 401 时用它换新）。
+//
+// 房间消息只能直接打 homeserver —— 控制器的 REST 里没有"按 roomID 读消息"这条。
+func (c *Client) MatrixToken(ctx context.Context) (string, int, error) {
+	body, status, err := c.write(ctx, http.MethodPost, "/api/v1/credentials/matrix-token", map[string]any{})
+	if err != nil || status != http.StatusOK {
+		return "", status, err
+	}
+	var issued struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(body, &issued); err != nil {
+		return "", status, fmt.Errorf("agentteams matrix token: decode response: %w", err)
+	}
+	if issued.AccessToken == "" {
+		return "", status, fmt.Errorf("agentteams matrix token: response carried no access_token")
+	}
+	return issued.AccessToken, status, nil
 }
