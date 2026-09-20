@@ -363,6 +363,36 @@ export function LocalCliPage({ embedded = false }: { embedded?: boolean }) {
             <span className="mt-0.5 block font-mono text-[10.5px] break-all text-tx3">{launcher.message}</span>
           </p>
         )}
+        {/* 2026-09-20：把"没有应答"补成**可照做的一步**。
+            用户报的就是这一屏："连不上本机启动器 http://127.0.0.1:8121：Failed to fetch"。
+            原因只有两种（未运行 / 来源不在白名单），而第二种最常见、也最难自己想到
+            —— 所以这里直接把**当前控制台来源**印出来，让人知道该往白名单里填什么；
+            再给出配置位置、必需键与启动命令。不猜他的名册路径（那是他自己的数据）。 */}
+        {launcher?.kind === "launcher_unavailable" && (
+          <div className="mt-2.5 rounded-hard border border-line bg-panel-2 px-3 py-2.5">
+            <p className="microlabel pb-1">要让它连上，两步</p>
+            <ol className="list-decimal space-y-1 pl-4 text-[11.5px] leading-[1.75] text-tx2">
+              <li>
+                <span className="text-tx">把当前控制台来源加进启动器配置的 allowedOrigins</span>
+                <span className="mt-0.5 block font-mono text-[10.5px] break-all text-amber">
+                  {typeof window !== "undefined" ? window.location.origin : "（当前页面来源）"}
+                </span>
+                配置文件在启动器仓库的 <span className="font-mono text-[10.5px]">output/local-launcher/config.json</span>
+                （gitignored）。必需键：<span className="font-mono text-[10.5px]">membersFile · enrollmentDir · envFile · runtimeDir · rosterVersion · allowedOrigins · port</span>。
+                这些路径都是**这台机器上的绝对路径**，是操作者自己的名册与凭据 —— 控制台不猜、也不代填。
+              </li>
+              <li>
+                <span className="text-tx">启动它（它是一次性进程，没有安装器、也没有服务注册）</span>
+                <span className="mt-0.5 block font-mono text-[10.5px] break-all text-tx3">
+                  powershell -NoProfile -File .\scripts\start-local-launcher.ps1
+                </span>
+              </li>
+            </ol>
+            <p className="mt-1.5 text-[10.5px] leading-[1.7] text-tx3">
+              只改配置里的名册/密钥（本页下半部分）不需要启动器 —— 那条路走的是控制台自己的接口。
+            </p>
+          </div>
+        )}
         {launcher?.kind === "refused" && (
           <p className="mt-2.5 text-[11.5px] leading-[1.7] text-salmon">
             启动器返回了错误，原文如下：

@@ -1,0 +1,87 @@
+{
+  "checkedAt": "2026-09-20T12:48:21Z",
+  "codexVersion": "codex-cli 0.153.4",
+  "connectionCheck": "ready",
+  "passed": false,
+  "skillHash": "99423554e7b1e1469d159d7692339550cf53036b0c5b20136eca7dcbcd9c006c",
+  "sourceCommit": "65a39f393687675ce170e6094757de20370365b9",
+  "test_agent": {
+    "evaluation": {
+      "purpose": "test",
+      "taskId": "fixture-task",
+      "id": "bfe1ab6c-4651-42be-8491-6c7eb99cbda0",
+      "projectId": "f97919cf-1636-4f7f-97d9-fbbf635f8413",
+      "issueId": "typesafe-web-issue",
+      "runId": "live-test_agent",
+      "requestId": "codex-synthetic-v1",
+      "revision": 1,
+      "skillHash": "99423554e7b1e1469d159d7692339550cf53036b0c5b20136eca7dcbcd9c006c",
+      "templateVersion": "repomesh-evidence-v1",
+      "input": {
+        "requestId": "codex-synthetic-v1",
+        "claims": [
+          {
+            "id": "positive",
+            "text": "The synthetic test observed a result of 80 for price 100 and discount 20 percent."
+          },
+          {
+            "id": "negative",
+            "text": "The synthetic test observed a result of 90 for price 100 and discount 20 percent."
+          },
+          {
+            "id": "missing",
+            "text": "项目数据库已开启自动备份。"
+          }
+        ],
+        "evidence": "Synthetic test output: test_discount_20_percent PASS: input 100, discount 20, expected 80, observed 80. Process exit code: 0. No shipping, tax or concurrency tests were executed.\nSynthetic reviewed source (discount.py:1-2):\ndef discounted_price(price, percent):\n    return price * (1 - percent / 100)",
+        "commit": "84b376e7f797b1efa614b395fdfa6d0db21cd3c1"
+      },
+      "inputHash": "ce02cf14dffa655a47f02954730d6ec1b31b493a878c58d6ba9a1c6edc4257ea",
+      "status": "completed",
+      "errorCode": "",
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "missing": {
+            "type": "choice",
+            "choice": "insufficient",
+            "probabilities": {
+              "contradicted": 0,
+              "insufficient": 1,
+              "supported": 0
+            },
+            "confidence": 1
+          },
+          "negative": {
+            "type": "choice",
+            "choice": "contradicted",
+            "probabilities": {
+              "contradicted": 1,
+              "insufficient": 0,
+              "supported": 0
+            },
+            "confidence": 1
+          },
+          "positive": {
+            "type": "choice",
+            "choice": "supported",
+            "probabilities": {
+              "contradicted": 0,
+              "insufficient": 0,
+              "supported": 1
+            },
+            "confidence": 1
+          }
+        },
+        "usage": {
+          "input_tokens": 852,
+          "output_tokens": 132
+        }
+      },
+      "latencyMs": 411,
+      "createdAt": "2026-09-20T12:48:48.25367Z"
+    },
+    "helperCalled": true,
+    "skillRead": true
+  }
+}

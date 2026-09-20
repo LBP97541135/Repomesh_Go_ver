@@ -552,10 +552,12 @@ export default function ConsoleShell() {
         )}
         {route.nav === "observe" && <ObserveHome section={route.observeSection} />}
         {route.nav === "decision-chains" && (
-          <DecisionChainPage organizationId={null} onToast={showToast} />
+          <DecisionChainPage organizationId={null} projectId={activeProjectId} onToast={showToast} />
         )}
         {route.nav === "settings" && (
           <SettingsPage
+            projectId={activeProjectId}
+            projectName={projects?.find(p => p.id === activeProjectId)?.name}
             key={route.settingsSection ?? "general"}
             account={account}
             onConfigure={() => setSetupRequested(true)}

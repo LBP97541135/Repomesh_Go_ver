@@ -1,3 +1,4 @@
+import { TypeSafeEvaluations } from "../../components/TypeSafeEvaluations";
 /** 右栏·焦点详情（方案 A）：点哪显示哪。
  *
  *  - 规划步骤：详情卡（关键词/候选/三档/批次）+ 人工门按钮（批准分档、确认物化）
@@ -24,6 +25,8 @@ import type { DeliveryManifestView } from "../../api/deliveryManifest";
 import { documentTitleOf, splitRequirement } from "../../api/issues";
 import { SupervisionPolicyCard, type PolicyDraftState } from "../../components/SupervisionPolicyCard";
 import { TaskAgentOutput } from "./TaskAgentOutput";
+import { ResponsibilityCaseCard } from "../../components/ResponsibilityCaseCard";
+import { BranchValidationCard } from "../../components/BranchValidationCard";
 
 /** 消息作者 → 角色显示。先看 authorKind（user 是人），服务侧 agent 再按
  *  roster 命名约定（agent_<role>[_<name>]）推导；都推不出按系统条目样式。 */
@@ -93,9 +96,6 @@ function MessageTimeline({ messages }: { messages: ConversationMessage[] }) {
   }, [messages]);
   return (
     <div ref={ref} className="flex flex-col gap-3 overflow-y-auto px-4 py-3.5">
-      {messages.length === 0 && (
-        <p className="pl-[31px] text-[10.5px] text-[var(--tree-faint)]">这个房间还没有消息。</p>
-      )}
       {messages.map((m) => {
         const actor = actorOf(m.authorKind, m.actorId);
         return (
@@ -125,6 +125,108 @@ const KIND_LABEL: Record<string, string> = {
   repo_integration: "仓库集成验证",
   cross_repo_regression: "跨仓库联调 + 回归",
 };
+
+/** 测试排期：**要跑什么、按什么顺序**，以及跑到哪了。
+ *
+ *  2026-09-20 用户反馈："测试组全程不展示任何规划和测试排期"。查下来是读面只有
+ *  **已发生的记录**（`public.test_evidence` 的三种 kind），没有"计划要跑什么"这一层，
+ *  界面上自然只有事后清单。
+ *
+ *  这里的排期**不是另编一份**，是从**计划本身**推出来的（计划就是排期）：
+ *   · 每条任务 → 一轮单点验收（任务跑完开发、过了经理门，就派测试 agent）；
+ *   · 每个 DAG 节点（仓库）→ 一轮本仓库集成验证（该仓全部任务过了之后）；
+ *   · 计划跨多个仓库时 → 再加一轮跨仓联调 + 回归。
+ *  每一行状态**只用真实记录**判定：记录里有 → 已跑（通过 / 未过）；没有 → 待跑，
+ *  并写清它在等什么。计划还没物化（tasks 为 null）时推不出排期，如实说推不出。 */
+function TestSchedule({ tasks, view }: { tasks: PlanTaskItem[] | null; view: TestEvidenceView | null }) {
+  if (tasks === null || tasks.length === 0) {
+    return (
+      <div className="border-b border-dashed border-[var(--tree-hairline)] px-4 py-3">
+        <p className="text-[12px] font-medium text-[var(--tree-ink)]">测试排期</p>
+        <p className="mt-1 text-[11px] leading-[1.8] text-[var(--tree-sub)]">
+          计划还没物化，推不出排期 —— 排期是从任务 DAG 推出来的，不是另编一份。
+        </p>
+      </div>
+    );
+  }
+  const items = view?.items ?? [];
+  const firstOf = (pred: (i: TestEvidenceItem) => boolean) => items.find(pred) ?? null;
+  const repos: string[] = [];
+  for (const t of tasks) {
+    if (t.repositoryId && !repos.includes(t.repositoryId)) repos.push(t.repositoryId);
+  }
+
+  type Row = { key: string; stage: string; what: string; state: "done" | "failed" | "todo"; note: string };
+  const rows: Row[] = [];
+  for (const t of tasks) {
+    const rec = firstOf((i) => i.kind === "task_single_point" && i.task_id === t.id);
+    rows.push({
+      key: `sp-${t.id}`,
+      stage: `批次${t.batchNo ?? "—"}`,
+      what: `单点验收 · ${t.title || t.taskUid || t.id}`,
+      state: rec ? (rec.passed ? "done" : "failed") : "todo",
+      note: rec ? (rec.summary || rec.command || "已产出记录") : `等 ${t.workerLabel || "执行者"} 跑完这条任务`,
+    });
+  }
+  for (const repo of repos) {
+    const rec = firstOf((i) => i.kind === "repo_integration" && i.repository_id === repo);
+    rows.push({
+      key: `ri-${repo}`,
+      stage: "节点级",
+      what: `仓库集成验证 · ${repo}`,
+      state: rec ? (rec.passed ? "done" : "failed") : "todo",
+      note: rec ? (rec.summary || "已产出记录") : "等该仓全部任务过了经理门",
+    });
+  }
+  if (repos.length > 1) {
+    const rec = firstOf((i) => i.kind === "cross_repo_regression");
+    rows.push({
+      key: "xr",
+      stage: "跨仓",
+      what: "跨仓库联调 + 回归",
+      state: rec ? (rec.passed ? "done" : "failed") : "todo",
+      note: rec ? (rec.summary || "已产出记录") : "等各仓节点集成都过了之后",
+    });
+  }
+  const done = rows.filter((r) => r.state === "done").length;
+  const failed = rows.filter((r) => r.state === "failed").length;
+  const tone: Record<Row["state"], string> = {
+    done: "border-olive/40 bg-olive-well text-olive",
+    failed: "border-salmon/40 bg-salmon-well text-salmon",
+    todo: "border-line bg-[var(--tree-zone)] text-[var(--tree-sub)]",
+  };
+  const label: Record<Row["state"], string> = { done: "已通过", failed: "未过", todo: "待跑" };
+  return (
+    <div className="border-b border-dashed border-[var(--tree-hairline)] px-4 py-3">
+      <div className="flex items-baseline gap-2">
+        <span className="text-[12px] font-medium text-[var(--tree-ink)]">测试排期</span>
+        <span className="text-[11px] text-[var(--tree-sub)]">
+          计划 {rows.length} 轮 · 已通过 {done}
+          {failed > 0 ? ` · 未过 ${failed}` : ""}
+          {rows.length - done - failed > 0 ? ` · 待跑 ${rows.length - done - failed}` : ""}
+        </span>
+      </div>
+      <p className="mt-1 text-[10.5px] leading-[1.7] text-[var(--tree-faint)]">
+        排期从任务 DAG 推出（每条任务一轮单点验收 · 每个仓库一轮集成 · 跨仓时加一轮联调回归）；
+        状态只按**真实记录**判定，没有记录就是"待跑"，不提前标通过。
+      </p>
+      <div className="mt-1.5 flex flex-col gap-1">
+        {rows.map((r) => (
+          <div key={r.key} className="flex items-start gap-2 text-[11px]">
+            <span className="mt-px w-12 flex-none text-[10px] text-[var(--tree-faint)]">{r.stage}</span>
+            <span className={`mt-px flex-none rounded-[5px] border px-1.5 py-px text-[10px] ${tone[r.state]}`}>
+              {label[r.state]}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="text-[var(--tree-ink)]">{r.what}</span>
+              <span className="block truncate text-[10.5px] text-[var(--tree-faint)]" title={r.note}>{r.note}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /** 测试组的记录详情：三种 kind 各一段，逐条列出脚本、命令、退出码与结论。
  *
@@ -518,6 +620,7 @@ function StageHistory({
   testEvidence,
   trainCars,
   scopeRepoIds,
+  projectId = null,
   repoOptions,
   onAppendRepository,
   planState,
@@ -631,12 +734,11 @@ function StageHistory({
 
   if (stage === 2) {
     const decided = (tasks ?? []).filter((t) => t.resultSummary);
-    if (decided.length === 0) {
-      return empty("审核");
-    }
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-4 py-3">
         <p className="text-[12px] font-medium text-[var(--tree-ink)]">审核 · 经理门决策</p>
+        <TypeSafeEvaluations projectId={projectId} issueId={testEvidence?.issue_id} purpose="code_review" />
+        {decided.length === 0 && <p className="text-[11px] text-[var(--tree-faint)]">尚无经理门决策。</p>}
         {decided.map((t) => (
           <div key={t.id} className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2 transition-colors hover:bg-[var(--tree-zone)]">
             <p className="text-[11.5px] text-[var(--tree-ink)]">{t.title}</p>
@@ -672,6 +774,7 @@ function StageHistory({
 }
 
 export interface FocusPanelProps {
+  width?: number;
   entry: FocusEntry | null;
   discovery: DiscoveryView | null;
   /** 需求正文（issue 的 description，缺失时回退发现链的 requirement_text）。
@@ -728,6 +831,11 @@ export interface FocusPanelProps {
   /** 当前项目 id —— 「worker 工作内容」读面按 (projectId, taskId) 取，
    *  而那条读面在服务端按「项目 owner 或 admin」授权。 */
   projectId?: string | null;
+  /** 当前计划 id —— E 的案例时间线按 plan 记录（`case_events.plan_id`）。
+   *  还没有计划时为 null，卡片如实说"无从取起"。 */
+  planId?: string | null;
+  /** 当前登录者 id —— E 的动作要写进 confirmed_by / requester_id / from_id。 */
+  actorId?: string;
   /** 人确认把一个仓库追加进本次 Issue 的范围 */
   onAppendRepository: (repositoryId: string) => Promise<void>;
   /** 计划换代状态（GET /plans/{id}）：当前版本号与收集窗状态。null = 还没有计划。
@@ -746,6 +854,7 @@ export interface FocusPanelProps {
 }
 
 export function FocusPanel({
+  width = 400,
   entry,
   discovery,
   requirementText,
@@ -772,6 +881,8 @@ export function FocusPanel({
   trainCars,
   scopeRepoIds,
   projectId = null,
+  planId = null,
+  actorId = "",
   repoOptions,
   onAppendRepository,
   onChooseManual,
@@ -799,11 +910,16 @@ export function FocusPanel({
     if (entry.kind === "tests") {
       return (
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {/* 测试排期排在最前：先看"要跑什么、跑到哪了"，再看逐条记录。
+              2026-09-20 用户反馈"测试组全程不展示任何规划和测试排期"——
+              此前这一栏只有事后记录，没有计划那一层。 */}
+          <TestSchedule tasks={tasks} view={testEvidence} />
           {testEvidence === null ? (
             <div className="flex flex-1 items-center justify-center text-[11px] text-[var(--tree-faint)]">测试记录加载中…</div>
           ) : (
             <TestStream view={testEvidence} />
           )}
+          <TypeSafeEvaluations projectId={projectId} issueId={testEvidence?.issue_id} purpose="test" />
           <TestEvidenceDetail view={testEvidence} />
         </div>
       );
@@ -845,6 +961,7 @@ export function FocusPanel({
           {/* 经理门（审核段）：agent 跑完把任务置 blocked 等经理批 —— 此前后端有
               approve/reject 端点、前端也有调用封装，但**界面上没有任何入口**，
               于是任务永远停在 blocked，整条链看起来"卡住"。 */}
+          <TypeSafeEvaluations projectId={projectId} issueId={testEvidence?.issue_id} purpose="code_review" taskId={task?.id} />
           {task !== null && task.status === "blocked" && (
             <TaskGate task={task} onDecide={onDecideTask} />
           )}
@@ -876,7 +993,22 @@ export function FocusPanel({
         {/* 测试组的产出也进房间流（2026-09-20）：此前它只在自己的条目里有记录，
             Manager 主房间里看不到"验收过了没有"，得自己切过去翻。 */}
         <TestStream view={testEvidence} />
+        <TypeSafeEvaluations projectId={projectId} issueId={testEvidence?.issue_id} />
         <PlanHistory discovery={discovery} />
+        {/* E 跨仓职责 / 授权 / 冲突：案例时间线 + 动作入口。
+            2026-09-20：后端 `internal/responsibility` 早就完整（时间线 / Owner 确认 /
+            授权申请·批准·撤销 / 责任转移 / 冲突上报·裁决 / 平台状态同步），路由也挂了，
+            但**前端一个入口都没有** —— 这一整块能力在界面上等于不存在。 */}
+        <ResponsibilityCaseCard
+          projectId={projectId}
+          planId={planId}
+          actorId={actorId}
+          repoOptions={repoOptions}
+        />
+        {/* 评委建议①：数据库分支验证的可演示入口。后端早已完整、路由也挂了，
+            但此前**没有任何界面能触发它** —— 线上 database_branch_validations
+            至今 0 行。 */}
+        <BranchValidationCard projectId={projectId} repoOptions={repoOptions} />
         <GateStack
           stepStates={stepStates}
           mergePending={mergePending}
@@ -947,7 +1079,7 @@ export function FocusPanel({
   })();
 
   return (
-    <aside className="flex h-full w-[400px] flex-none flex-col border-l border-line bg-[var(--tree-card)]">
+    <aside style={{ width }} className="flex h-full flex-none flex-col border-l border-line bg-[var(--tree-card)]">
       {/* 门牌（房间样式提案 E，2026-09-18）：房檐条 = 房间图标 + 房间名 + mono 门牌号，
           右侧住户头像堆叠 + 在线点——房间有地址、有住户。 */}
       <div className="flex items-center gap-2.5 border-b border-[var(--tree-hairline)] bg-[var(--tree-zone)] px-4 py-2.5">

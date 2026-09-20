@@ -1,5 +1,9 @@
 # RepoMesh 当前交接
 
+## 2026-09-20 观测增量跟进最新 main
+
+观测提交 `431ddb6` 已在本任务分支与远端 `35ea41a` 完成兼容处理：保留项目级 TypeSafe 与本机观测 Jev／DeepSeek 的独立用途，四处文本冲突已处理，主线新页面的类型缺口已修复。合并结果 Go 729 通过、5 条件跳过，构建／vet／相关 race、两套前端及设置共存浏览器检查通过。详见[合并检查](../development/2026-09-20-observation-main-merge/README.md)。独立观测服务仍需按使用说明在目标机运行，现有 main 自动部署不会替它安装或迁移本机 Key。
+
 ## 2026-09-20 观测模型配置收进主设置页
 
 主控制台「设置 → 模型与 API」现在直接维护 Jev／DeepSeek 的模型及 Key，提供保存、真实模型列表／连接测试、重新读取；原供应商目录仍在同页。设置 API 经管理员会话和 Origin／CSRF 校验，写入实际工作台配置；Web 目标由 `REPOMESH_OBSERVE_WORKBENCH_URL` 指定，默认 18090。平台未就绪时模型设置仍可访问，启动向导有入口。
@@ -17,6 +21,15 @@
 按用户要求新增[观测平台增量功能 Spec](observation-platform-expansion-spec.md)和[验收与实验计划](../plan/observation-platform-validation-and-experiments.md)。基于独立 worktree 的 `86f63e53ed67f231c1abfbe03793d30114e93bf3` 核对现有代码，细化真实调用链、TTFT／Token、接入状态、AgentLoop 在线评估与聚类归因、数据集标注及交付审核关联；列出代码改动边界、G0—G3 门槛、28 项验收和 E0—E4 后续实验。
 
 继续保留 ADR 0024 的本地默认能力；显式配置的 AgentLoop 集成承担本轮平台分析／评估／标注，全量回应评委建议须另过真实平台门槛。此次仅交付设计与文档检查，不修改产品代码、运行服务或启动真实任务／云端评测；不将原工作区未提交的运行时改造并入本分支。新增功能与实验均未实施，历史验收结论保持原范围。
+
+## 2026-09-20 TypeSafe / Jev 测试与代码审查
+
+本次独立 worktree 基于 `801f9ea` 实现 [TypeSafe Spec](typesafe-verification-spec.md)：设置中按项目一个开关同时启用测试团队和仓库负责人的辅助代码审查；Key 信封加密，执行器仅持短期 run 凭证，官方 Skill 固定随产品发布。新任务开启时追加独立 review_agent，不改写经理批准或合并许可。迁移为 `0058_typesafe_verification.sql`。
+
+本地 Go 构建、带隔离 PG 的全量测试、vet、相关包 race、web 类型/35 项测试/构建和 frontend 构建/lint 均通过。真实 Codex 0.153.4 读取官方 Skill，经产品 helper / Web broker 调用 jev-1.13.0，测试与审查两个用途均通过三类合成判断；浏览器验证统一开关、Key 操作、结果展示与跨项目拒绝通过。失败与复验记录、旧检查器的 52 项基线失败、截图及范围见[实施记录](../development/2026-09-20-typesafe-verification/README.md)。
+
+状态为 LOCAL_VERIFIED，尚未部署或迁移现有业务实例。部署需三个配套二进制、0058 迁移、已配置的 Web 密钥库及执行器 `REPOMESH_TYPESAFE_BROKER_URL`，再由用户在项目设置保存 Key。既有跨仓执行未绑定候选提交组合的限制保留；合成验证不替代真实 GitHub / AgentTeams 交付验收。
+
 
 ## 2026-09-19 与最新 main 集成
 

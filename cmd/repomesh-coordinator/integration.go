@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"repomesh.local/repomesh/internal/execution"
+	"repomesh.local/repomesh/internal/typesafe"
 )
 
 // integrationDispatcher 负责**节点级**的测试：一个 DAG 节点（一个仓库）的所有任务
@@ -249,7 +250,7 @@ func integrationPrompt(kind, repository string, allRepos []string) string {
 		"然后把结论写进当前目录下的 " + execution.TestEvidenceFile + "，只写这个 JSON：\n" +
 		"{\"script\":\"<你写的验证脚本路径，没写脚本就填空串>\",\"command\":\"<你实际跑的命令>\"," +
 		"\"exit_code\":<整数>,\"passed\":<true|false>,\"summary\":\"<一行，你实际观察到了什么>\"}\n\n" +
-		"验证不过就 passed=false 并说清哪里不过 —— 不要编结果，也不要为了通过而放宽检查。\n"
+		"验证不过就 passed=false 并说清哪里不过 —— 不要编结果，也不要为了通过而放宽检查。\n" + typesafe.RuntimePrompt
 }
 
 // buildIntegrationCommand 与交付脚本同一约定：先铸令牌克隆**目标仓库**，再在工作区
@@ -284,6 +285,7 @@ func buildIntegrationCommand(agentKind, model, repository string) string {
 		"  git -C \"$BASE\" worktree add --detach --force \"$WORK\" FETCH_HEAD\n" +
 		") 9>\"$(dirname \"$BASE\")/.lock-$SLUG\"\n" +
 		"cd \"$WORK\"\n" +
+		typesafe.PrepareScript +
 		agent + "\n" +
 		"cp " + execution.TestEvidenceFile + " ../" + execution.TestEvidenceFile + " 2>/dev/null || true"
 	return "bash -c '" + script + "'"

@@ -89,6 +89,9 @@ export function DispatchTree({
    *  推导 —— 人工参与模式下右栏明明写着「待人审」，左栏却显示"未开始"，两边
    *  对不上。模式是服务端事实，两边必须同源。 */
   hitl?: boolean;
+  /* 2026-09-20 用户最终裁定：DAG 按 9.16 原型做、放顶栏胶囊里（本树不再内联
+     DAG——先前内联的仓库批次图与胶囊里的原型任务图重复，且 5s 整块刷新会闪）。
+     planState / dagExecution / onRetryPlan / steps 四个 props 一并退役。 */
 }) {
   const [openLeader, setOpenLeader] = useState<string | null>(null);
   const stepStates = deriveStepStates(discovery, hitl);

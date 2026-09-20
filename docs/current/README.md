@@ -8,6 +8,7 @@
 
 | 文档 | 用途与范围 |
 | --- | --- |
+| [TypeSafe / Jev 测试与代码审查](typesafe-verification-spec.md) | 本次采用的项目级统一开关、加密 Key、固定 Skill、受限工具和辅助判断；验证见当前交接。 |
 | [Agent 全局阅读指南](AGENT-READING-GUIDE.md) | 首次接手的阅读顺序、产品全貌、架构边界、实现与证据核对，以及按任务深入的入口。 |
 | [B04 验收报告](../development/2026-09-13-b04-acceptance-01/README.md) | 已合入 `main` 的 D01—D04／U04.1—U04.4 验收；`INTEGRATED_LOCAL_VERIFIED`，非整批 VERIFIED。 |
 | [B05/B06 五项设计收口](../development/2026-09-14-b05-b06-design-closeout-01/README.md) | 固定测试预览与handler、unknown关闭、逐路径锁序与共同owner account边界、schema2 execution及窗口scope设计；产品未实施，运行未验收，其余候选未采用。 |

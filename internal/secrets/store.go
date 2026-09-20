@@ -1,10 +1,10 @@
 package secrets
 
 import (
-	"fmt"
 	"context"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -28,6 +28,7 @@ const (
 	GitHubAppClientSecret Purpose = "github-app-client-secret"
 	GitHubAppPrivateKey   Purpose = "github-app-private-key"
 	ModelProviderKey      Purpose = "model-provider-key"
+	TypeSafeAPIKey        Purpose = "typesafe-api-key"
 	OperationInput        Purpose = "operation-input"
 )
 
@@ -86,6 +87,8 @@ func validOwnerPurpose(owner Owner, purpose Purpose) bool {
 		return true
 	case ModelProviderKey:
 		return owner.Kind == "model-provider"
+	case TypeSafeAPIKey:
+		return owner.Kind == "typesafe-project"
 	case OperationInput:
 		return owner.Kind == "provider-save-input"
 	default:

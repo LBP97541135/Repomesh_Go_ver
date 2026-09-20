@@ -13,6 +13,7 @@ import { LocalAccountsPanel } from "../components/LocalAccountsPanel";
 import { AppInstallGuide } from "../components/AppInstallGuide";
 import { reconnectGithubConnection } from "../api/auth";
 import { LocalCliPage } from "./LocalCliPage";
+import { TypeSafeSettings } from "../components/TypeSafeSettings";
 import { ModelUsageSettings } from "../components/ModelUsageSettings";
 import { ModelProvidersPage } from "./ModelProvidersPage";
 import { AgentsPage } from "./AgentsPage";
@@ -262,7 +263,12 @@ function PlatformCategory({
       )}
 
       <h3 className="pb-1 pt-5 text-[11px] font-semibold tracking-widest text-tx3 uppercase">连接健康</h3>
-      <SettingRow title="AgentTeams Controller">
+      {/* ⚠️ 这个 note 必须接上：`controller.note` 由 SettingsPage 算好传进来，
+          但这里此前**只传了 title 与 children**，note 被整个丢掉 —— 于是无论
+          「不可达是契约规定的降级…」还是新加的"无事实：<成员名>"，**从来没有
+          显示过**。用户看到的就是孤零零三个数字，问"这个信息有什么用"，
+          根子在这。 */}
+      <SettingRow title="AgentTeams Controller" note={controller.note}>
         {controller.loading ? (
           <span className="text-[11.5px] text-tx3">探测中…</span>
         ) : (
@@ -283,22 +289,32 @@ function PlatformCategory({
 
 /* ── 智能体 ──────────────────────────────────────────────────────────────── */
 
-const AUTH_LABEL: Record<CodingAgentAdapterView["auth_status"], string> = {
-  authorized: "已授权",
-  unauthorized: "未授权",
-  // 「探不出来」不是「没认上」：合并这两态会把探测失败读成配置错误
-  unknown: "无法判定",
-};
-
 function AdapterRow({ adapter }: { adapter: CodingAgentAdapterView }) {
+  // 「已装但没验过授权态」与「装了且验过」是两件事，与「没装」也是两件事。
+  // 此前一律显示"无法判定"——那句话既没说清是哪种情况，也没说清下一步做什么，
+  // 用户原话就是"这里需要优化"。现在按事实分三档说。
+  const label = !adapter.installed
+    ? "未安装"
+    : adapter.auth_status === "authorized"
+      ? "已安装 · 已授权"
+      : adapter.auth_status === "unauthorized"
+        ? "已安装 · 未授权"
+        : "已安装 · 授权态未验证";
+  const hint = !adapter.installed
+    ? `在这台机器上没找到 ${adapter.adapter_id} 的可执行文件（${adapter.detail ?? "binary_not_found"}）`
+    : adapter.auth_status === "unknown"
+      ? `可执行文件：${adapter.executable ?? "—"}；授权态要实际跑一次才能判定，这里如实为"未验证"，不是"没认上"`
+      : `可执行文件：${adapter.executable ?? "—"}`;
   return (
     <SettingRow title={adapter.display_name}>
       {/* 未安装就没有「认没认上」这回事：auth 恒为 unknown，是
           binary_not_found 的必然结果而不是第二个事实。 */}
-      <StatusDot
-        tone={!adapter.installed ? "idle" : adapter.auth_status === "authorized" ? "ok" : adapter.auth_status === "unauthorized" ? "bad" : "idle"}
-        label={adapter.installed ? AUTH_LABEL[adapter.auth_status] : "未安装"}
-      />
+      <span title={hint}>
+        <StatusDot
+          tone={!adapter.installed ? "idle" : adapter.auth_status === "authorized" ? "ok" : adapter.auth_status === "unauthorized" ? "bad" : "idle"}
+          label={label}
+        />
+      </span>
     </SettingRow>
   );
 }
@@ -309,19 +325,36 @@ function AgentsCategory({
   kinds,
   agentsPhase,
   agentsError,
+  runtimeObservable,
+  rosterSize,
 }: {
   probe: CodingAgentsProbe | null;
   probeFailure: string | null;
   kinds: RuntimeKind[];
   agentsPhase: string;
   agentsError: string | null;
+  /** 拿到 Controller 观测值的成员数（= 「连接健康」里的「可达」）。 */
+  runtimeObservable: number;
+  /** 花名册成员总数。 */
+  rosterSize: number;
 }) {
   return (
     <>
       <CategoryTitle>智能体</CategoryTitle>
       <SettingRow
         title="运行时种类"
-        note={agentsPhase === "loading" ? "探测中…" : undefined}
+        note={
+          agentsPhase === "loading"
+            ? "探测中…"
+            : kinds.length === 0 && !agentsError && rosterSize > 0
+              ? // 用户原话："运行时种类 无回报" —— 光写"无回报"等于没说。两种成因要分开：
+                //  · 有观测值、但回报的 runtime_kind 是空的 → 是**上游没回报种类**；
+                //  · 一个观测值都没有 → 与「平台 · 连接健康」的「可达 0」是同一件事。
+                runtimeObservable > 0
+                ? `有 ${runtimeObservable} 个成员拿到了 Controller 观测值，但它们回报的 runtime_kind 是空的 —— 上游没有给出种类，不是探测失败，也不是这里没取。`
+                : `种类取自**拿到 Controller 观测值的**成员；当前花名册 ${rosterSize} 个成员里 0 个有观测值（见「平台 · 连接健康」）—— 所以这里没有可回报的种类，不是探测失败。`
+              : undefined
+        }
       >
         {kinds.length > 0 ? (
           <span className="flex flex-wrap justify-end gap-1.5">
@@ -339,6 +372,14 @@ function AgentsCategory({
       <h3 className="pb-1 pt-5 text-[11px] font-semibold tracking-widest text-tx3 uppercase">
         Coding Agent 适配器
       </h3>
+      {/* 探测口径必须写在脸上：这些结论是**在 API 进程所在的环境里**得到的，
+          而 agent 实际跑在 host-executor 里。不写清这一点，"Codex CLI 无法判定"
+          就会被读成"codex 坏了"，而事实往往是"这台机器上装了、但没验过授权态"。 */}
+      {probe !== null && (
+        <p className="pb-1 text-[10.5px] leading-[1.7] text-tx3">
+          探测环境：<span className="font-mono">{probe.environment}</span> · {probe.note}
+        </p>
+      )}
       {probeFailure ? (
         <p className="py-2 text-[11.5px] text-salmon">适配器探测取用失败：{probeFailure}</p>
       ) : probe === null ? (
@@ -384,6 +425,8 @@ function AboutCategory({ account, base }: { account: Account; base: string }) {
 
 export function SettingsPage({
   account,
+  projectId = null,
+  projectName,
   onConfigure,
   initialCategory = "general",
   onToast = () => undefined,
@@ -391,6 +434,8 @@ export function SettingsPage({
 }: {
   account: Account;
   onConfigure: () => void;
+  projectId?: string | null;
+  projectName?: string;
   /** 深链（#/settings/<section>）落到对应分类；仅挂载时生效 */
   initialCategory?: CategoryKey;
   /** 收编进来的智能体/技能子页要用的两个回调（由外壳注入） */
@@ -424,12 +469,36 @@ export function SettingsPage({
   const reachable = rows?.filter((a) => a.runtime !== null && a.runtime.reachable).length ?? 0;
   const unreachable = rows?.filter((a) => a.runtime !== null && !a.runtime.reachable).length ?? 0;
   const absent = rows?.filter((a) => a.runtime === null).length ?? 0;
+  // 三态各自的**是谁** —— 只给计数等于让人拿着"不可达 1"去花名册里猜。
+  // 用户原话："这个信息有什么用" —— 有用之处就在于能立刻指出是哪个成员、哪种态。
+  //
+  // ⚠️ 标识不能只取 `agentteams_resource_name`：线上实测「无事实」那 5 行的
+  // **资源名就是空字符串**（后端拿空名去探上游，自然无事实 —— 它们是本地花名册里
+  // 有、上游从未建过资源的行）。只取它的话会渲染成「无事实：、、、、」。
+  // 回退到角色又会**重名**（实测渲染出 `leader、manager、manager、worker、worker`，
+  // 还是认不出是谁），所以角色后面缀上 agent_id 末 4 位 —— 短、但唯一可辨。
+  const labelOf = (a: ConsoleAgentView) => {
+    if (a.agentteams_resource_name) return a.agentteams_resource_name;
+    if (a.repository_name) return a.repository_name;
+    const shortID = (a.agent_id ?? "").slice(-4);
+    return shortID ? `${a.role || "agent"}·${shortID}` : a.role || "agent";
+  };
+  const unreachableNames = (rows ?? [])
+    .filter((a) => a.runtime !== null && !a.runtime.reachable)
+    .map(labelOf);
+  const absentNames = (rows ?? [])
+    .filter((a) => a.runtime === null)
+    .map(labelOf);
 
   const kinds = [
     ...new Set(
       (rows ?? [])
         .map((a) => (a.runtime !== null && a.runtime.reachable ? a.runtime.runtime_kind : null))
-        .filter((k): k is RuntimeKind => k !== null),
+        // ⚠️ **空串也要滤掉**。线上实测（DOM 取证）：那唯一一个"可达"的成员回报的
+        // `runtime_kind` 是**空字符串**（不是 null），只滤 null 的话 kinds = [""] →
+        // 界面上渲染出一个**空白胶囊**（有边框、没字）。看起来像"无回报"，
+        // 其实"有值、值为空" —— 用户报的「运行时种类 无回报」根子在这。
+        .filter((k): k is RuntimeKind => typeof k === "string" && k.length > 0),
     ),
   ];
 
@@ -491,6 +560,7 @@ export function SettingsPage({
         {category === "models" && (
           <>
             <ModelUsageSettings isAdmin={account.is_admin} />
+            <TypeSafeSettings key={`${account.id}:${projectId}`} projectId={projectId} projectName={projectName} />
             {/* 供应商目录（模型来源 / Key / 连通性测试）从侧栏顶级入口收编到这里：
                 侧栏不再单列「模型」，模型配置面收在设置里（2026-09-20 用户裁定）。 */}
             <div id="model-providers" className="mt-6 border-t border-line pt-4">
@@ -519,8 +589,10 @@ export function SettingsPage({
                 phase === "failed" && probeError
                   ? probeError.slice(0, 90)
                   : unreachable > 0
-                    ? "不可达是契约规定的降级（HTTP 仍 200），持久化花名册不受影响，不等于团队故障"
-                    : "「无事实」= AgentTeams 未配置，或 Controller 报告没有这个资源（404）",
+                    ? `不可达：${unreachableNames.join("、")}（探测失败或超时 —— 契约规定这是**降级**：HTTP 仍 200、持久化花名册不受影响，不等于团队故障）`
+                    : absent > 0
+                      ? `无事实：${absentNames.slice(0, 6).join("、")}${absentNames.length > 6 ? ` 等 ${absentNames.length} 个` : ""}（AgentTeams 未配置，或 Controller 报 404 —— 本地花名册有这一行、上游没有对应资源）`
+                      : "花名册里的每个成员都拿到了 Controller 观测值",
             }}
           />
         )}
@@ -532,6 +604,8 @@ export function SettingsPage({
               kinds={kinds}
               agentsPhase={phase}
               agentsError={error}
+              runtimeObservable={reachable}
+              rosterSize={rows?.length ?? 0}
             />
             {/* 智能体花名册与写面（新建/删除）从侧栏顶级入口收编到这里 */}
             <div className="mt-6 border-t border-line pt-4">

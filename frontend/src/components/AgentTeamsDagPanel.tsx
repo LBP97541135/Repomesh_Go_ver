@@ -25,8 +25,10 @@ const ICON_DIM = '<svg width="8" height="8" viewBox="0 0 16 16" fill="none"><cir
 const iconOf = (status: string) =>
   status === "completed" ? ICON_CHECK : status === "in-progress" || status === "submitted" ? ICON_RUN : ICON_DIM;
 
-export function AgentTeamsDagPanel({ issueId }: { issueId: string }) {
-  const [open, setOpen] = useState(false);
+/** `embedded`：被计划 DAG 胶囊收编时为 true——不渲染自己的折叠框与标题行，
+ *  内容（输入行 + 图）直接铺开（2026-09-20 用户裁定：DAG 按原型做、放胶囊里）。 */
+export function AgentTeamsDagPanel({ issueId, embedded = false }: { issueId: string; embedded?: boolean }) {
+  const [open, setOpen] = useState(embedded);
   const [projectId, setProjectId] = useState(() => localStorage.getItem("at.project") ?? "");
   const [team, setTeam] = useState(() => localStorage.getItem("at.team") ?? "");
   const [tasks, setTasks] = useState<AtTask[] | null>(null);
@@ -53,6 +55,33 @@ export function AgentTeamsDagPanel({ issueId }: { issueId: string }) {
     }
   };
 
+  const body = (
+    <>
+      <div className="flex flex-wrap items-center gap-2 text-[12px]">
+        <span className="text-tx3">project id</span>
+        <input
+          value={projectId}
+          onChange={(e) => setProjectId(e.target.value)}
+          className="w-56 rounded-md border border-line bg-base px-2 py-1 text-cream"
+          placeholder="pricing-discount-20260916"
+        />
+        <span className="text-tx3">team(可选)</span>
+        <input
+          value={team}
+          onChange={(e) => setTeam(e.target.value)}
+          className="w-40 rounded-md border border-line bg-base px-2 py-1 text-cream"
+        />
+        <button onClick={load} disabled={busy} className="rounded-md border border-line px-3 py-1 text-cream disabled:opacity-50">
+          {busy ? "加载中…" : "加载"}
+        </button>
+      </div>
+      {error && <p className="mt-2 text-[12px] text-salmon-hi">{error}</p>}
+      {tasks && <DagGraph tasks={tasks} selected={selected} onSelect={setSelected} />}
+    </>
+  );
+
+  if (embedded) return <div className="px-4 py-3">{body}</div>;
+
   return (
     <div className="mt-2 rounded-hard border border-line bg-panel">
       <button
@@ -63,30 +92,7 @@ export function AgentTeamsDagPanel({ issueId }: { issueId: string }) {
         AgentTeams 执行进度({issueId.slice(0, 8)}…)
         <span className="ml-auto text-[10px] text-tx3">数据源:上游 workflow API 只读透传</span>
       </button>
-      {open && (
-        <div className="relative border-t border-line px-4 py-3">
-          <div className="flex flex-wrap items-center gap-2 text-[12px]">
-            <span className="text-tx3">project id</span>
-            <input
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              className="w-56 rounded-md border border-line bg-base px-2 py-1 text-cream"
-              placeholder="pricing-discount-20260916"
-            />
-            <span className="text-tx3">team(可选)</span>
-            <input
-              value={team}
-              onChange={(e) => setTeam(e.target.value)}
-              className="w-40 rounded-md border border-line bg-base px-2 py-1 text-cream"
-            />
-            <button onClick={load} disabled={busy} className="rounded-md border border-line px-3 py-1 text-cream disabled:opacity-50">
-              {busy ? "加载中…" : "加载"}
-            </button>
-          </div>
-          {error && <p className="mt-2 text-[12px] text-salmon-hi">{error}</p>}
-          {tasks && <DagGraph tasks={tasks} selected={selected} onSelect={setSelected} />}
-        </div>
-      )}
+      {open && <div className="relative border-t border-line px-4 py-3">{body}</div>}
     </div>
   );
 }

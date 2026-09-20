@@ -11,6 +11,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"repomesh.local/repomesh/internal/execution"
+	skill "repomesh.local/repomesh/internal/skills"
+	"repomesh.local/repomesh/internal/typesafe"
 )
 
 // coordinatorLedger adapts the coordinator to the tasks.ExecutionFacade: it
@@ -207,7 +209,7 @@ func buildTestCommand(agentKind, model, instruction, repoFullName, attemptID, is
 	if strings.TrimSpace(testSkillContent) != "" {
 		testPrompt = "## 你的技能（技能库原文）\n\n" + testSkillContent + "\n\n---\n\n" + testPrompt
 	}
-	testPrompt = sanitizeSingleQuoted(testPrompt)
+	testPrompt = sanitizeSingleQuoted(testPrompt + typesafe.RuntimePrompt)
 	var agentLine string
 	switch agentKind {
 	case "codex_cli":
@@ -230,6 +232,7 @@ func buildTestCommand(agentKind, model, instruction, repoFullName, attemptID, is
 		// repo/ —— 被交付的改动就在眼前。修正前它跟着基础克隆走
 		// （`$BASE/repo`），而那棵树是所有 attempt 共用的。
 		"cd \"$PWD/repo\"\n" +
+		typesafe.PrepareScript +
 		agentLine + "\n" +
 		"echo REPO_TESTS_DONE=" + repoFullName + ":" + attemptID
 	return "bash -c '" + script + "'", nil
@@ -354,8 +357,10 @@ func (l *coordinatorLedger) ReserveForTask(ctx context.Context, workerID, taskID
 	if err != nil {
 		return "", err
 	}
-	testSkill, _ := sb.ForRole(ctx, "worker")
-	testCommand, err := buildTestCommand(agentKind, configuredModel, instruction, repoFullName, attemptID, issueTitle, testSkill.Content)
+	// Test responsibilities are explicit; a role-only lookup could select a
+	// different project's latest Worker binding or replace the test capability.
+	testSkillContent := skill.SeedDoc("test-review") + "\n\n" + skill.SeedDoc("self-test")
+	testCommand, err := buildTestCommand(agentKind, configuredModel, instruction, repoFullName, attemptID, issueTitle, testSkillContent)
 	if err != nil {
 		return "", err
 	}
@@ -365,6 +370,9 @@ func (l *coordinatorLedger) ReserveForTask(ctx context.Context, workerID, taskID
 		testRunID, testAttemptID, testCommand,
 		"/opt/repomesh/workspaces/"+attemptID, taskID); err != nil {
 		return "", fmt.Errorf("coordinator: test run insert failed: %w", err)
+	}
+	if err := enqueueTypeSafeReview(ctx, tx, projectID, issueID, revision, workerID, taskID, attemptID, agentKind, configuredModel, instruction+"\n"+issueTitle); err != nil {
+		return "", fmt.Errorf("coordinator: code review run insert failed: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return "", fmt.Errorf("coordinator: reserve commit failed: %w", err)

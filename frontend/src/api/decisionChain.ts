@@ -287,6 +287,7 @@ export interface GoNodeListFilter {
   keyword?: string;
   repository?: string;
   step?: string;
+  projectId?: string;
   limit?: number;
   offset?: number;
 }
@@ -297,6 +298,7 @@ export function fetchGoDecisionNodes(filter: GoNodeListFilter = {}): Promise<{ n
   if (filter.keyword) params.set("keyword", filter.keyword);
   if (filter.repository) params.set("repository", filter.repository);
   if (filter.step) params.set("step", filter.step);
+  if (filter.projectId) params.set("projectId", filter.projectId);
   if (filter.limit !== undefined) params.set("limit", String(filter.limit));
   if (filter.offset !== undefined) params.set("offset", String(filter.offset));
   const q = params.toString();

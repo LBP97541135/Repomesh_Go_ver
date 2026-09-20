@@ -15,6 +15,7 @@ import (
 	"repomesh.local/repomesh/internal/access"
 	"repomesh.local/repomesh/internal/models"
 	"repomesh.local/repomesh/internal/projects"
+	"repomesh.local/repomesh/internal/typesafe"
 )
 
 type Models struct {
@@ -22,6 +23,7 @@ type Models struct {
 	Service      *models.Service
 	Tests        *models.TestService
 	Applications *models.ApplicationService
+	TypeSafe     *typesafe.Service
 }
 
 type modelHandler func(http.ResponseWriter, *http.Request, access.ProjectPrincipal) error

@@ -115,6 +115,17 @@ func registerHumanControl(mux *http.ServeMux, auth Auth, control HumanControl) {
 			case <-r.Context().Done():
 				timer.Stop()
 				return
+			case <-shuttingDown():
+				// 进程在关停（部署重启）：主动收摊。
+				//
+				// 2026-09-20 实测：**这条流就是关停卡满期限的元凶** ——
+				// 关停超时日志点名 `in_flight=/api/v1/review-requests/events×1`，
+				// 而 `http.Server.Shutdown` 不会取消在途请求的 context，它等请求
+				// 自己结束；这条流设计上永不结束（靠客户端断开才退），于是每次
+				// 部署都要耗满 shutdown 期限再强杀 —— 那段等待就是站点 502 的窗口。
+				// 前端 EventSource 会自动重连，重连时新进程通常已经起来了。
+				timer.Stop()
+				return
 			case <-timer.C:
 			}
 		}

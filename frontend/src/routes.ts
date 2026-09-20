@@ -133,6 +133,17 @@ export function parseRoute(hash: string): Route {
     return { nav: "settings", issueId: null, roomId: null, observeSection: null, settingsSection: "models" };
   }
 
+  // #/agents 与 #/skills：与 #/models 同一批收编进设置（见上面 SETTINGS_SECTIONS 注释），
+  // 但**当时漏了这两条重定向** —— 2026-09-20 全量走查实测：打开 `#/agents` / `#/skills`
+  // 只有侧栏、正文**一片空白**（74 字符），老书签与外部链接直接落到死页。
+  // 补上，与 models 同一条口径：落到同一个分类，不留空白页。
+  if (/^\/agents(?:[/?#]|$)/.test(h)) {
+    return { nav: "settings", issueId: null, roomId: null, observeSection: null, settingsSection: "agents" };
+  }
+  if (/^\/skills(?:[/?#]|$)/.test(h)) {
+    return { nav: "settings", issueId: null, roomId: null, observeSection: null, settingsSection: "skills" };
+  }
+
   // 观测板块子页：#/observe/usage|logs|alerts|trace（未知段回落门户）
   const observe = h.match(/^\/observe\/([^/?]+)/);
   if (observe) {

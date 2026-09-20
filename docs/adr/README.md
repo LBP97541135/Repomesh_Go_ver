@@ -2,6 +2,8 @@
 
 更新：2026-09-15。ADR 保存“为什么作出决定”及确认来源；详细规则见[现行专题](../current/README.md)，当前工作状态见 [HANDOFF](../current/HANDOFF.md)。下列决定均为设计，不代表产品实现或上游运行验收。
 
+2026-09-20 补充：ADR 0009 的 [TypeSafe 有限恢复范围](0009-skill-engineering-deferred.md#2026-09-20typesafe-有限恢复范围) 采用固定第三方 Skill 的测试/代码审查接入；其他旧暂缓范围保持原记录。
+
 ## 阅读状态
 
 2026-09-12 的[设计审查修订](../current/design-readiness-revisions.md)补充 Key 恢复、Issue 配置归属和页面契约，并澄清 Skill 证据适用范围。新协议和绑定时点仍为候选，没有替代本索引的已采用架构决定。真实运行的未决协议另见[接入门槛](../current/execution-integration-gates.md)，不能把架构方向已采用等同于运行接口已闭合。

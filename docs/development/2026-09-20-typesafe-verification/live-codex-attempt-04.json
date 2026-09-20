@@ -1,0 +1,166 @@
+{
+  "checkedAt": "2026-09-20T12:51:15Z",
+  "codexVersion": "codex-cli 0.153.4",
+  "connectionCheck": "ready",
+  "passed": false,
+  "review_agent": {
+    "evaluation": {
+      "purpose": "code_review",
+      "taskId": "fixture-task",
+      "id": "72c099fc-fc35-4f8d-97be-ac906bab3ff4",
+      "projectId": "9ddcd4ae-0ba4-445c-b8bc-a5c68244a5db",
+      "issueId": "typesafe-web-issue",
+      "runId": "live-review_agent",
+      "requestId": "codex-synthetic-v1",
+      "revision": 1,
+      "skillHash": "99423554e7b1e1469d159d7692339550cf53036b0c5b20136eca7dcbcd9c006c",
+      "templateVersion": "repomesh-evidence-v1",
+      "input": {
+        "requestId": "codex-synthetic-v1",
+        "claims": [
+          {
+            "id": "positive",
+            "text": "The synthetic test observed a result of 80 for price 100 and discount 20 percent."
+          },
+          {
+            "id": "negative",
+            "text": "The synthetic test observed a result of 90 for price 100 and discount 20 percent."
+          },
+          {
+            "id": "missing",
+            "text": "项目数据库已开启自动备份。"
+          }
+        ],
+        "evidence": "Synthetic test output: test_discount_20_percent PASS: input 100, discount 20, expected 80, observed 80. Process exit code: 0. No shipping, tax or concurrency tests were executed.\nSynthetic reviewed source (discount.py:1-2):\ndef discounted_price(price, percent):\n    return price * (1 - percent / 100)",
+        "commit": "705a3492db8532c3b826dd7ff1bd89304eab6996"
+      },
+      "inputHash": "6910fe150d1e24b81bf147137bb53f0e9876c6749d2021f6e2cba50c530a0d4a",
+      "status": "completed",
+      "errorCode": "",
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "missing": {
+            "type": "choice",
+            "choice": "insufficient",
+            "probabilities": {
+              "contradicted": 0,
+              "insufficient": 1,
+              "supported": 0
+            },
+            "confidence": 1
+          },
+          "negative": {
+            "type": "choice",
+            "choice": "contradicted",
+            "probabilities": {
+              "contradicted": 1,
+              "insufficient": 0,
+              "supported": 0
+            },
+            "confidence": 1
+          },
+          "positive": {
+            "type": "choice",
+            "choice": "supported",
+            "probabilities": {
+              "contradicted": 0,
+              "insufficient": 0,
+              "supported": 1
+            },
+            "confidence": 1
+          }
+        },
+        "usage": {
+          "input_tokens": 852,
+          "output_tokens": 132
+        }
+      },
+      "latencyMs": 317,
+      "createdAt": "2026-09-20T12:52:26.585804Z"
+    },
+    "helperCalled": true,
+    "skillRead": true
+  },
+  "skillHash": "99423554e7b1e1469d159d7692339550cf53036b0c5b20136eca7dcbcd9c006c",
+  "sourceCommit": "65a39f393687675ce170e6094757de20370365b9",
+  "test_agent": {
+    "evaluation": {
+      "purpose": "test",
+      "taskId": "fixture-task",
+      "id": "3f63d534-cec3-40d0-a7ec-a55f23727504",
+      "projectId": "9ddcd4ae-0ba4-445c-b8bc-a5c68244a5db",
+      "issueId": "typesafe-web-issue",
+      "runId": "live-test_agent",
+      "requestId": "codex-synthetic-v1",
+      "revision": 1,
+      "skillHash": "99423554e7b1e1469d159d7692339550cf53036b0c5b20136eca7dcbcd9c006c",
+      "templateVersion": "repomesh-evidence-v1",
+      "input": {
+        "requestId": "codex-synthetic-v1",
+        "claims": [
+          {
+            "id": "positive",
+            "text": "The synthetic test observed a result of 80 for price 100 and discount 20 percent."
+          },
+          {
+            "id": "negative",
+            "text": "The synthetic test observed a result of 90 for price 100 and discount 20 percent."
+          },
+          {
+            "id": "missing",
+            "text": "项目数据库已开启自动备份。"
+          }
+        ],
+        "evidence": "Synthetic test output: test_discount_20_percent PASS: input 100, discount 20, expected 80, observed 80. Process exit code: 0. No shipping, tax or concurrency tests were executed.\nSynthetic reviewed source (discount.py:1-2):\ndef discounted_price(price, percent):\n    return price * (1 - percent / 100)",
+        "commit": "2d77a847dd171ba94af1d2011c153bba0dd3aa1e"
+      },
+      "inputHash": "81e10ff84df4a7256f1dfb573100a51e885fe799815b344d6aac5f3566185016",
+      "status": "completed",
+      "errorCode": "",
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "missing": {
+            "type": "choice",
+            "choice": "insufficient",
+            "probabilities": {
+              "contradicted": 0,
+              "insufficient": 1,
+              "supported": 0
+            },
+            "confidence": 1
+          },
+          "negative": {
+            "type": "choice",
+            "choice": "contradicted",
+            "probabilities": {
+              "contradicted": 1,
+              "insufficient": 0,
+              "supported": 0
+            },
+            "confidence": 1
+          },
+          "positive": {
+            "type": "choice",
+            "choice": "supported",
+            "probabilities": {
+              "contradicted": 0,
+              "insufficient": 0,
+              "supported": 1
+            },
+            "confidence": 1
+          }
+        },
+        "usage": {
+          "input_tokens": 852,
+          "output_tokens": 132
+        }
+      },
+      "latencyMs": 332,
+      "createdAt": "2026-09-20T12:51:41.355154Z"
+    },
+    "helperCalled": true,
+    "skillRead": true
+  }
+}

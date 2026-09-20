@@ -44,6 +44,16 @@ func (s *Service) guarded(handler http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// readScope resolves the isolation scope for user-facing reads. 当前阶段所有
+// 账号同等对待（无管理员放权），返回的 Scope 只带 ActorID；ActorID 注入缺失
+// 时回退零值 Scope（仅测试）。
+func (s *Service) readScope(r *http.Request) Scope {
+	if s.ActorID == nil {
+		return Scope{}
+	}
+	return Scope{ActorID: s.ActorID(r)}
+}
+
 func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -72,6 +82,7 @@ func (s *Service) handleList(w http.ResponseWriter, r *http.Request) {
 		RequirementKey: query.Get("requirementKey"),
 		Keyword:        query.Get("keyword"),
 		Repository:     query.Get("repository"),
+		Scope:          s.readScope(r),
 	}
 	if raw := query.Get("projectId"); raw != "" {
 		if !uuid4Pattern.MatchString(raw) {
@@ -139,6 +150,7 @@ func (s *Service) handleSimilar(w http.ResponseWriter, r *http.Request) {
 	q := SimilarQuery{
 		Requirement: query.Get("requirement"),
 		Mode:        query.Get("mode"),
+		Scope:       s.readScope(r),
 	}
 	if raw := query.Get("repositoryIds"); raw != "" {
 		for _, id := range strings.Split(raw, ",") {
@@ -198,7 +210,7 @@ func (s *Service) handleSemanticSearch(w http.ResponseWriter, r *http.Request) {
 		}
 		minSimilarity = parsed
 	}
-	hits, err := s.SemanticSearch(r.Context(), query.Get("queryText"), topK, minSimilarity)
+	hits, err := s.SemanticSearch(r.Context(), query.Get("queryText"), topK, minSimilarity, s.readScope(r))
 	switch {
 	case errors.Is(err, ErrBadArgument):
 		writeError(w, http.StatusBadRequest, "queryText is required")

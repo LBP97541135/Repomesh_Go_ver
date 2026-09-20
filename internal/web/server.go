@@ -13,12 +13,90 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"repomesh.local/repomesh/internal/access"
 	"repomesh.local/repomesh/internal/buildinfo"
 )
+
+// shutdownSignal 在进程收到退出信号（serve 的 ctx 结束）时被关闭，供**长连接
+// handler** 监听 —— 关闭后它们应尽快返回。
+//
+// 为什么需要它：`http.Server.Shutdown` **不会取消在途请求的 context**，它等请求
+// 自己结束；而 SSE（/api/issues/events）是**永不结束**的流（设计如此：靠客户端
+// 断开才退）。于是每次 `systemctl restart` 都要耗满 shutdown 期限再强杀 ——
+// 线上日志固定是 `graceful shutdown: context deadline exceeded` + `status=1/FAILURE`，
+// 而那段等待正是站点 502 的窗口（2026-09-20 实测：当天 3220 条 502 全部落在
+// 部署那一分钟里，systemd 日志里 stop→start 恰好 5 秒）。
+var (
+	shutdownSignal     = make(chan struct{})
+	shutdownSignalOnce sync.Once
+)
+
+// shuttingDown 给长连接 handler 用：这个 channel 关闭后应尽快收摊。
+func shuttingDown() <-chan struct{} { return shutdownSignal }
+
+func signalShutdown() {
+	shutdownSignalOnce.Do(func() { close(shutdownSignal) })
+}
+
+// activeRequests 是在途 HTTP 请求数（含 SSE 这类长连接）。
+//
+// 为什么要数它：Shutdown 超时时日志只说明"超时了"，不说明"在等谁"。
+// 2026-09-20 实测：关停窗口稳定 5 秒、每次都是 context deadline exceeded，
+// 而当时 8080 上只有 4 条连接、没有任何 SSE —— 也就是"被长连接拖住"这个
+// 假设是错的。要有数字才能继续查。
+var activeRequests int64
+
+// inFlightPaths 记在途请求的**路径计数**，供关停超时时点名。
+//
+// 2026-09-20：光有"active_requests=1"还不够 —— 知道有 1 个卡着，但不知道是哪个。
+// nginx 只在请求**结束**时才写 access log，所以在途的长连接在那边根本看不见
+// （我先前据此判断"没有 SSE"，是错的）。这里自己记。
+var (
+	inFlightMu    sync.Mutex
+	inFlightPaths = map[string]int{}
+)
+
+func noteInFlight(path string, delta int) {
+	inFlightMu.Lock()
+	defer inFlightMu.Unlock()
+	inFlightPaths[path] += delta
+	if inFlightPaths[path] <= 0 {
+		delete(inFlightPaths, path)
+	}
+}
+
+func snapshotInFlight() string {
+	inFlightMu.Lock()
+	defer inFlightMu.Unlock()
+	if len(inFlightPaths) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(inFlightPaths))
+	for path, count := range inFlightPaths {
+		parts = append(parts, fmt.Sprintf("%s×%d", path, count))
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, ", ")
+}
+
+// countingRequests 把每个请求计进 activeRequests（只计数，不改行为）。
+func countingRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&activeRequests, 1)
+		noteInFlight(r.URL.Path, 1)
+		defer func() {
+			atomic.AddInt64(&activeRequests, -1)
+			noteInFlight(r.URL.Path, -1)
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
 
 func Run(ctx context.Context, addr, assets string) error {
 	return RunAuthenticated(ctx, addr, assets, Auth{}, "", "")
@@ -49,7 +127,7 @@ func RunConfigured(ctx context.Context, addr, assets string, auth Auth, projectA
 		listener = tls.NewListener(listener, &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{certificate}})
 	}
 	server := &http.Server{
-		Handler:           handlerConfigured(root, auth, projectAPI, modelAPI, scan, decision, skills, issueAPI, messagesAPI, agentTeams, pipeline, humanControlAPI, observeV1, discoveryAPI, consoleAPI),
+		Handler:           countingRequests(handlerConfigured(root, auth, projectAPI, modelAPI, scan, decision, skills, issueAPI, messagesAPI, agentTeams, pipeline, humanControlAPI, observeV1, discoveryAPI, consoleAPI)),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 		WriteTimeout:      90 * time.Second,
@@ -66,15 +144,36 @@ func serve(ctx context.Context, server *http.Server, listener net.Listener) erro
 	select {
 	case err = <-result:
 	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		// 先通知长连接（SSE）收摊，再走 Shutdown。
+		//
+		// 为什么必须这样：`http.Server.Shutdown` **不会取消在途请求的 context**
+		// —— 它等请求自己结束。而 SSE（/api/issues/events）是**永不结束**的流
+		// （设计如此：靠客户端断开才退）。于是每次部署 `systemctl restart` 都要
+		// 耗满下面这个 5 秒期限再强杀，线上日志固定是
+		// `graceful shutdown: context deadline exceeded` + `status=1/FAILURE`。
+		// **那 5 秒正是站点 502 的窗口**（2026-09-20 实测：当天 3220 条 502 全部
+		// 落在部署那一分钟里，而 systemd 日志里 stop→start 恰好 5 秒）。
+		signalShutdown()
+		// 期限从 5 秒收到 2 秒：这段等待**整段都是站点不可用**（nginx 没有上游
+		// 就回 502），而 5 秒是每次部署都稳定耗满的值。2 秒仍足够让正在收尾的
+		// 普通请求跑完（绝大多数端点远快于此），同时把窗口砍掉一多半。
+		// 剩下的"到底在等谁"由下面那行日志回答：超时时报出在途请求数，
+		// 有数字才能继续查（此前只有一句"超时了"）。
+		shutdownStart := time.Now()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		// Shutdown closes the listener before draining requests. Wait for the
 		// drain itself, not just Serve, before allowing main to exit.
 		if shutdownErr := server.Shutdown(shutdownCtx); shutdownErr != nil {
+			slog.Warn("graceful shutdown timed out",
+				"after", time.Since(shutdownStart).String(),
+				"active_requests", atomic.LoadInt64(&activeRequests),
+				"in_flight", snapshotInFlight())
 			_ = server.Close()
 			<-result
 			return fmt.Errorf("graceful shutdown: %w", shutdownErr)
 		}
+		slog.Info("graceful shutdown done", "after", time.Since(shutdownStart).String())
 		err = <-result
 	}
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -116,6 +215,7 @@ func handlerConfigured(assets fs.FS, auth Auth, projectAPI Projects, modelAPI Mo
 	registerDispatchGate(mux, auth, agentTeams) // Phase 2 派发闸(2026-09-18)
 	registerAgentTeams(mux, auth, agentTeams)
 	registerModels(mux, auth, modelAPI)
+	registerTypeSafe(mux, auth, modelAPI.TypeSafe)
 	registerScanRoutes(mux, scan)
 	registerDecisionRoutes(mux, decision)
 	registerSkillRoutes(mux, skills)

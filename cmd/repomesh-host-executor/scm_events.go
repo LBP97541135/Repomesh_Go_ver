@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -79,7 +78,7 @@ func readTestEvidence(workspace string) (testEvidence, bool) {
 // "plan:<planID>:kind:<kind>:repo:<repository>"。解析不出就什么都不写。
 func (e *executor) recordIntegrationEvidence(ctx context.Context, runID, ref, workspace string, exitCode int) {
 	parts := strings.Split(ref, ":")
-	if len(parts) != 7 || parts[0] != "plan" || parts[2] != "kind" || parts[4] != "repo" {
+	if len(parts) != 6 || parts[0] != "plan" || parts[2] != "kind" || parts[4] != "repo" {
 		return
 	}
 	planID, kind, repository := parts[1], parts[3], parts[5]
@@ -91,7 +90,7 @@ func (e *executor) recordIntegrationEvidence(ctx context.Context, runID, ref, wo
 		return
 	}
 	// 进程退出码非 0 时无论 agent 自述什么，都按不通过记 —— 事实优先于自述。
-	passed := *evidence.Passed && exitCode == 0
+	passed := testEvidencePassed(evidence, exitCode)
 	code := exitCode
 	if evidence.ExitCode != nil {
 		code = *evidence.ExitCode
@@ -200,6 +199,9 @@ func (e *executor) recordDeliveryFacts(ctx context.Context, runID, workspace str
 	// 集成 run 的引用是约定形状 "plan:<planID>:kind:<kind>:repo:<repository>"
 	// （见 coordinator 的 integrationDispatcher.dispatch）：它不属于任何一条任务，
 	// 所以走自己那条记账路，不能拿去 ensureChangeSet（那不是 uuid）。
+	if agentKind == "review_agent" {
+		return
+	}
 	if strings.HasPrefix(taskRef, "plan:") {
 		e.recordIntegrationEvidence(ctx, runID, taskRef, workspace, exitCode)
 		return
@@ -211,7 +213,7 @@ func (e *executor) recordDeliveryFacts(ctx context.Context, runID, workspace str
 		fmt.Fprintf(os.Stderr, "executor: 交付记账跳过非任务引用 kind=%s ref=%q\n", agentKind, taskRef)
 		return
 	}
-	// A2：执行中的 agent 只能"提"规格变更请求 —— 产物在这里被**收走**（落库 + 
+	// A2：执行中的 agent 只能"提"规格变更请求 —— 产物在这里被**收走**（落库 +
 	// 落审核台），**不应用**。人批之后才升版并触发重规划（web 侧的审核台）。
 	// 只对开发 run 收（测试 run 不产规格变更；集成 run 走上面那条 plan: 分支）。
 	if agentKind != "test_agent" {
@@ -222,10 +224,12 @@ func (e *executor) recordDeliveryFacts(ctx context.Context, runID, workspace str
 		return
 	}
 	if agentKind == "test_agent" {
-		status, params := "recorded", `{"source":"test_agent","exitCode":0}`
-		if exitCode != 0 {
-			status, params = "failed", `{"source":"test_agent","exitCode":`+strconv.Itoa(exitCode)+`}`
+		evidence, found := readTestEvidence(workspace)
+		status := "failed"
+		if found && testEvidencePassed(evidence, exitCode) {
+			status = "recorded"
 		}
+		params, _ := json.Marshal(map[string]any{"source": "test_agent", "exitCode": exitCode, "testExitCode": evidence.ExitCode, "evidenceAvailable": found})
 		_, _ = e.pool.Exec(ctx, `INSERT INTO public.scm_commands (id, change_set_id, command_type, params, status)
 			VALUES (gen_random_uuid(), $1::uuid, 'ci', $2::jsonb, $3)`, changeSetID, params, status)
 		// 2026-09-20：退出码之外还要留下**可查的单点验收记录**（脚本、命令、结论）。
@@ -279,7 +283,7 @@ func (e *executor) recordTestEvidence(ctx context.Context, runID, taskRef, works
 	}
 	// 进程退出码非 0 时，无论 agent 在文件里写了什么，都按不通过记 ——
 	// 事实优先于自述。
-	passed := *evidence.Passed && exitCode == 0
+	passed := testEvidencePassed(evidence, exitCode)
 	code := exitCode
 	if evidence.ExitCode != nil {
 		code = *evidence.ExitCode
@@ -321,4 +325,9 @@ func (e *executor) recordTestEvidence(ctx context.Context, runID, taskRef, works
 	}
 	e.recordRoomMessage(ctx, taskRef, "test_agent",
 		"单点验收："+verdict+" —— "+summary+"（脚本 "+evidence.Script+"，命令 "+evidence.Command+"）")
+}
+
+// A successful agent process cannot turn a failing or missing test exit into a pass.
+func testEvidencePassed(e testEvidence, processExit int) bool {
+	return e.Passed != nil && *e.Passed && processExit == 0 && e.ExitCode != nil && *e.ExitCode == 0
 }

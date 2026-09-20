@@ -49,12 +49,34 @@ async function errorFromResponse(
   path: string,
 ): Promise<{ message: string; detail: unknown }> {
   const raw = await res.text().catch(() => "");
+  // 网关类状态（502/503/504）几乎总是**代理层**回的，不是应用回的：
+  // 线上实测 3220 条 502 全部落在部署窗口内（nginx 在 `systemctl stop` 到
+  // `start` 之间没有上游）。此时 body 是 nginx 的 HTML 错误页，把它截 200 字
+  // 拼进提示，人看到的就是一坨 `<html><head><title>502 Bad Gateway…`。
+  // 那既不好读、也没告诉人该做什么。这里换成人话 + 下一步动作。
+  if (res.status === 502 || res.status === 503 || res.status === 504) {
+    const hint =
+      res.status === 503
+        ? "服务端暂时不可用"
+        : "服务暂时不可达（网关没拿到上游应答）";
+    return {
+      message:
+        `${method} ${path} → HTTP ${res.status} · ${hint}。` +
+        "通常是正在部署/重启（窗口约 5 秒），稍后重试即可；" +
+        "若持续超过 1 分钟仍不通，那不是部署窗口，请看服务器上的 repomesh-web 服务状态。",
+      detail: { gateway: res.status },
+    };
+  }
   let detail: unknown = raw;
   try {
     const parsed = JSON.parse(raw) as { detail?: unknown };
     if (parsed.detail !== undefined) detail = parsed.detail;
   } catch {
-    /* 非 JSON 体，原样展示 */
+    // 非 JSON 体：**HTML 不原样展示**（多半是代理错误页，见上）。
+    // 其它文本照旧 —— 有些端点的错误就是纯文本。
+    if (/^\s*<(!doctype|html)/i.test(raw)) {
+      detail = "（服务端返回了 HTML 错误页，已省略原文）";
+    }
   }
   const text = typeof detail === "string" ? detail : JSON.stringify(detail);
   return {

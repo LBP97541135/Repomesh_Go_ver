@@ -50,6 +50,7 @@ import (
 	skills "repomesh.local/repomesh/internal/skills"
 	"repomesh.local/repomesh/internal/spec"
 	"repomesh.local/repomesh/internal/tasks"
+	"repomesh.local/repomesh/internal/typesafe"
 	"repomesh.local/repomesh/internal/web"
 )
 
@@ -216,7 +217,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		applyService := models.NewApplicationService(runtime.Pool(), runtime.Service, projectService, runtime.SecretStore())
 		runtime.Service.SetModelTestDestinationResolver(testService.ResolveDestination)
 		runtime.Service.SetModelApplyDestinationResolver(applyService.ResolveDestination)
-		modelAPI = web.Models{Service: modelService, Tests: testService, Applications: applyService}
+		modelAPI = web.Models{Service: modelService, Tests: testService, Applications: applyService, TypeSafe: typesafe.New(runtime.Pool(), runtime.SecretStore())}
 		// B06: atomic issue creation shares the pool, authorization surface and
 		// budget store; its destination resolver maps an issue_create operation
 		// destination back to the browser creation page.
@@ -307,6 +308,15 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 
 		decisionService.ActorName = func(r *http.Request) string {
+			if principal, err := runtime.Service.AuthenticateProjectRequest(
+				r.Context(), web.SessionCookie(r), r.Header.Get("X-CSRF-Token"), false); err == nil {
+				return principal.ActorID()
+			}
+			return ""
+		}
+		// 读隔离：列表 / 相似 / 语义检索都只返回该账号自己项目下的决策节点。
+		// 当前阶段所有账号同等对待、无管理员放权（2026-09-20 用户裁定）。
+		decisionService.ActorID = func(r *http.Request) string {
 			if principal, err := runtime.Service.AuthenticateProjectRequest(
 				r.Context(), web.SessionCookie(r), r.Header.Get("X-CSRF-Token"), false); err == nil {
 				return principal.ActorID()

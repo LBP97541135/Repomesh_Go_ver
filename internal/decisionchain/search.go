@@ -16,6 +16,7 @@ type SimilarQuery struct {
 	TopK            int
 	MinSimilarity   float64
 	Mode            string
+	Scope           Scope // read isolation; zero = unconstrained (internal/coordinator)
 }
 
 // SimilarHit is one recalled decision sheet with its score and, for
@@ -76,7 +77,7 @@ func (s *Service) Similar(ctx context.Context, q SimilarQuery) (SimilarResult, e
 	if (mode == "auto" || mode == "semantic") && s.cfg.EmbeddingBaseURL != "" {
 		vectors, err := s.embed(ctx, []string{NormalizeRequirement(q.Requirement)})
 		if err == nil {
-			hits, err := s.semanticHits(ctx, vectors[0], topK, q.MinSimilarity)
+			hits, err := s.semanticHits(ctx, vectors[0], topK, q.MinSimilarity, q.Scope)
 			if err == nil && len(hits) > 0 {
 				return SimilarResult{Mode: "semantic", Hits: hits}, nil
 			}
@@ -86,8 +87,8 @@ func (s *Service) Similar(ctx context.Context, q SimilarQuery) (SimilarResult, e
 	return s.similarStructural(ctx, q, topK)
 }
 
-func (s *Service) semanticHits(ctx context.Context, query []float32, topK int, minSimilarity float64) ([]SimilarHit, error) {
-	candidates, err := s.store.SemanticCandidates(ctx, s.cfg.EmbeddingModel, query, topK)
+func (s *Service) semanticHits(ctx context.Context, query []float32, topK int, minSimilarity float64, scope Scope) ([]SimilarHit, error) {
+	candidates, err := s.store.SemanticCandidates(ctx, s.cfg.EmbeddingModel, query, topK, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +103,7 @@ func (s *Service) semanticHits(ctx context.Context, query []float32, topK int, m
 }
 
 func (s *Service) similarStructural(ctx context.Context, q SimilarQuery, topK int) (SimilarResult, error) {
-	candidates, err := s.store.StructuralCandidates(ctx, q.RepositoryNames, structuralPrescreen)
+	candidates, err := s.store.StructuralCandidates(ctx, q.RepositoryNames, structuralPrescreen, q.Scope)
 	if err != nil {
 		return SimilarResult{}, err
 	}
@@ -138,7 +139,7 @@ func (s *Service) similarStructural(ctx context.Context, q SimilarQuery, topK in
 // unconfigured endpoint is ErrNotConfigured (503), a provider failure is
 // ErrUpstream (502) — silently returning structural hits here would mislead
 // the caller about what was searched.
-func (s *Service) SemanticSearch(ctx context.Context, queryText string, topK int, minSimilarity float64) ([]SimilarHit, error) {
+func (s *Service) SemanticSearch(ctx context.Context, queryText string, topK int, minSimilarity float64, scope Scope) ([]SimilarHit, error) {
 	if strings.TrimSpace(queryText) == "" {
 		return nil, ErrBadArgument
 	}
@@ -146,7 +147,7 @@ func (s *Service) SemanticSearch(ctx context.Context, queryText string, topK int
 	if err != nil {
 		return nil, err
 	}
-	return s.semanticHits(ctx, vectors[0], clampTopK(topK), minSimilarity)
+	return s.semanticHits(ctx, vectors[0], clampTopK(topK), minSimilarity, scope)
 }
 
 // scoreOverlap returns the intersecting names and the Jaccard score

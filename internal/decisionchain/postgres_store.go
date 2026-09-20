@@ -176,28 +176,38 @@ func (p *PostgresStore) Get(ctx context.Context, id string) (*DecisionNode, erro
 }
 
 // List applies the filter; newest first.
+//
+// 隔离（2026-09-20）：f.Scope.constrained() 时只返回调用者自己项目下的节点
+// （JOIN repomesh_projects.projects 按 owner 过滤）。当前阶段所有账号同等对待，
+// 无管理员放权；零值 Scope 不加约束（仅内部/测试）。
 func (p *PostgresStore) List(ctx context.Context, f Filter) ([]DecisionNode, error) {
 	where := []string{"true"}
+	join := ""
 	args := []any{}
+	if f.Scope.constrained() {
+		join = ` JOIN repomesh_projects.projects p ON p.id = n.project_id::text`
+		args = append(args, f.Scope.ActorID)
+		where = append(where, fmt.Sprintf("p.owner = $%d", len(args)))
+	}
 	if f.RequirementKey != "" {
 		args = append(args, f.RequirementKey)
-		where = append(where, fmt.Sprintf("requirement_key = $%d", len(args)))
+		where = append(where, fmt.Sprintf("n.requirement_key = $%d", len(args)))
 	}
 	if f.Step != nil && *f.Step != "" {
 		args = append(args, string(*f.Step))
-		where = append(where, fmt.Sprintf("step = $%d", len(args)))
+		where = append(where, fmt.Sprintf("n.step = $%d", len(args)))
 	}
 	if f.ProjectID != "" {
 		args = append(args, f.ProjectID)
-		where = append(where, fmt.Sprintf("project_id = $%d::uuid", len(args)))
+		where = append(where, fmt.Sprintf("n.project_id = $%d::uuid", len(args)))
 	}
 	if f.Repository != "" {
 		args = append(args, f.Repository)
-		where = append(where, fmt.Sprintf("affected_repositories ? $%d", len(args)))
+		where = append(where, fmt.Sprintf("n.affected_repositories ? $%d", len(args)))
 	}
 	if f.Keyword != "" {
 		args = append(args, "%"+f.Keyword+"%")
-		where = append(where, fmt.Sprintf("requirement_text ILIKE $%d", len(args)))
+		where = append(where, fmt.Sprintf("n.requirement_text ILIKE $%d", len(args)))
 	}
 	limit := f.Limit
 	if limit <= 0 {
@@ -207,7 +217,7 @@ func (p *PostgresStore) List(ctx context.Context, f Filter) ([]DecisionNode, err
 		limit = 200
 	}
 	args = append(args, limit, f.Offset)
-	rows, err := p.pool.Query(ctx, `SELECT `+nodeColumns+` FROM public.decision_chain_nodes n
+	rows, err := p.pool.Query(ctx, `SELECT `+nodeColumns+` FROM public.decision_chain_nodes n`+join+`
 		WHERE `+strings.Join(where, " AND ")+`
 		ORDER BY n.created_at DESC, n.id DESC LIMIT $`+strconv.Itoa(len(args)-1)+` OFFSET $`+strconv.Itoa(len(args)),
 		args...)
@@ -274,18 +284,28 @@ func (p *PostgresStore) UpsertEmbedding(ctx context.Context, nodeID, model strin
 }
 
 // SemanticCandidates orders current-model embeddings by cosine distance to
-// the query vector (pgvector HNSW path); score = 1 - distance.
-func (p *PostgresStore) SemanticCandidates(ctx context.Context, model string, query []float32, limit int) ([]ScoredNode, error) {
+// the query vector (pgvector HNSW path); score = 1 - distance. scope confines
+// hits to the caller's own projects (zero Scope = unconstrained).
+func (p *PostgresStore) SemanticCandidates(ctx context.Context, model string, query []float32, limit int, scope Scope) ([]ScoredNode, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
+	join := ""
+	args := []any{model, formatVector(query)}
+	where := `e.model = $1 AND e.embedding_vec IS NOT NULL`
+	if scope.constrained() {
+		join = ` JOIN repomesh_projects.projects p ON p.id = n.project_id::text`
+		args = append(args, scope.ActorID)
+		where += fmt.Sprintf(" AND p.owner = $%d", len(args))
+	}
+	args = append(args, limit)
 	rows, err := p.pool.Query(ctx, `SELECT `+nodeColumns+`,
 		  1 - (e.embedding_vec OPERATOR(public.<=>) $2::public.vector) AS score
 		FROM public.decision_chain_nodes n
-		JOIN public.decision_embeddings e ON e.node_id = n.id
-		WHERE e.model = $1 AND e.embedding_vec IS NOT NULL
+		JOIN public.decision_embeddings e ON e.node_id = n.id`+join+`
+		WHERE `+where+`
 		ORDER BY e.embedding_vec OPERATOR(public.<=>) $2::public.vector
-		LIMIT $3`, model, formatVector(query), limit)
+		LIMIT $`+strconv.Itoa(len(args)), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -293,16 +313,25 @@ func (p *PostgresStore) SemanticCandidates(ctx context.Context, model string, qu
 }
 
 // StructuralCandidates prescreens nodes sharing any of the given repository
-// names via the GIN index; scoring (Jaccard) is the caller's job.
-func (p *PostgresStore) StructuralCandidates(ctx context.Context, names []string, limit int) ([]DecisionNode, error) {
+// names via the GIN index; scoring (Jaccard) is the caller's job. scope 同 SemanticCandidates。
+func (p *PostgresStore) StructuralCandidates(ctx context.Context, names []string, limit int, scope Scope) ([]DecisionNode, error) {
 	if len(names) == 0 {
 		return nil, nil
 	}
+	join := ""
+	args := []any{names}
+	where := `n.affected_repositories ?| $1::text[]`
+	if scope.constrained() {
+		join = ` JOIN repomesh_projects.projects p ON p.id = n.project_id::text`
+		args = append(args, scope.ActorID)
+		where += fmt.Sprintf(" AND p.owner = $%d", len(args))
+	}
+	args = append(args, limit)
 	rows, err := p.pool.Query(ctx, `SELECT `+nodeColumns+`
-		FROM public.decision_chain_nodes n
-		WHERE n.affected_repositories ?| $1::text[]
+		FROM public.decision_chain_nodes n`+join+`
+		WHERE `+where+`
 		ORDER BY n.created_at DESC
-		LIMIT $2`, names, limit)
+		LIMIT $`+strconv.Itoa(len(args)), args...)
 	if err != nil {
 		return nil, err
 	}
