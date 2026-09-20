@@ -85,3 +85,39 @@ func matrixConfigured(view *SetupStatusView) bool {
 	})
 	return false
 }
+
+// runtimeFor 探一个 agent 的**运行时**（AgentTeams Controller 的 worker status）。
+//
+// 2026-09-20：`Agents(with_runtime=true)` 此前把 `runtime` 一律置 nil —— 于是设置页
+// 的「连接健康」对 6 个 worker 只显示"可达 0 · 不可达 0 · 无事实 6"。Controller
+// 明明可达（宿主机实测 200），runtime 却一个字节都没有。这里真探：
+//
+//	资源名缺失 → nil（问不出运行时，不编）；
+//	探到 200 → reachable=true + Controller 回报的 phase（没回报就 phase=null）；
+//	错误 / 非 200 → reachable=false + 具体原因。
+//
+// 前端 runtimeDisplay 读的就是 reachable / phase（+ 可选 kind），字段名逐字对齐。
+func (s *Service) runtimeFor(ctx context.Context, name string) *map[string]any {
+	if s.agentteams == nil || strings.TrimSpace(name) == "" {
+		return nil
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	body, status, err := s.agentteams.WorkerStatus(probeCtx, name)
+	switch {
+	case err != nil:
+		block := map[string]any{"reachable": false, "phase": nil, "detail": err.Error()}
+		return &block
+	case status != http.StatusOK:
+		block := map[string]any{"reachable": false, "phase": nil, "detail": fmt.Sprintf("HTTP %d", status)}
+		return &block
+	}
+	block := map[string]any{"reachable": true, "source": "agentteams-controller", "phase": nil}
+	parsed := map[string]any{}
+	if json.Unmarshal(body, &parsed) == nil {
+		if phase, ok := parsed["phase"].(string); ok && strings.TrimSpace(phase) != "" {
+			block["phase"] = phase
+		}
+	}
+	return &block
+}

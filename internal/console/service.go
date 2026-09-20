@@ -27,6 +27,9 @@ func New(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
 // AgentTeamsProbe 是 Controller 健康探针（组合根接 agentteams.Client）。
 type AgentTeamsProbe interface {
 	ControllerHealth(ctx context.Context) ([]byte, int, error)
+	// WorkerStatus 读一个 worker 的运行时（GET /api/v1/workers/{name}/status）。
+	// 用来把"连接健康"里那几行从"无事实"变成真探结果。
+	WorkerStatus(ctx context.Context, name string) ([]byte, int, error)
 }
 
 // WithAgentTeams 注入 Controller 探针（组合根）。
@@ -190,7 +193,11 @@ func (s *Service) Agents(ctx context.Context, actor string, withRuntime bool) (A
 		if len(paths) > 0 {
 			_ = json.Unmarshal(paths, &agent.ResponsibilityPaths)
 		}
+		// with_runtime=true 时**真探** Controller（此前一律 nil → 界面 6 行"无事实"）。
 		agent.Runtime = nil
+		if withRuntime {
+			agent.Runtime = s.runtimeFor(ctx, agent.AgentteamsResourceRef)
+		}
 		out.Agents = append(out.Agents, agent)
 	}
 	return out, rows.Err()
