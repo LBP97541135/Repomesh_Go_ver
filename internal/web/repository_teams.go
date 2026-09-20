@@ -56,8 +56,16 @@ func registerRepositoryTeams(mux *http.ServeMux, auth Auth, api AgentTeams) {
 		})
 	}
 
-	register("GET /api/repositories/{repositoryId}/agent-team", false, func(w http.ResponseWriter, r *http.Request) {
-		snapshot, err := api.RepositoryTeams.Get(r.Context(), r.PathValue("repositoryId"))
+	// 2026-09-20（0056）：路径补上项目段。
+	//
+	// 旧路径 `/api/repositories/{repositoryId}/agent-team` 里**只有仓库没有项目**，
+	// 而团队自 0056 起按 (项目, 仓库) 认 —— 同一份仓库挂到两个项目时，路径无法表达
+	// "要哪一个项目的队"。本仓对"项目范围资源"的统一惯例就是把 projectId 放在路径里
+	// （`registerProjectRoute` + `/api/projects/{projectId}/…`，几十处如此），且壳层
+	// 的"当前项目"只存在浏览器内存里（`activeProject.ts`）——**没有任何 ambient 通道**
+	// 让后端自己推断项目。所以这里跟随惯例补路径段，而不是另造一套上下文传递。
+	register("GET /api/projects/{projectId}/repositories/{repositoryId}/agent-team", false, func(w http.ResponseWriter, r *http.Request) {
+		snapshot, err := api.RepositoryTeams.Get(r.Context(), r.PathValue("projectId"), r.PathValue("repositoryId"))
 		if err != nil {
 			writeRepositoryTeamError(w, err)
 			return
@@ -65,13 +73,13 @@ func registerRepositoryTeams(mux *http.ServeMux, auth Auth, api AgentTeams) {
 		writeJSON(w, http.StatusOK, snapshot)
 	})
 
-	register("POST /api/repositories/{repositoryId}/agent-team", true, func(w http.ResponseWriter, r *http.Request) {
+	register("POST /api/projects/{projectId}/repositories/{repositoryId}/agent-team", true, func(w http.ResponseWriter, r *http.Request) {
 		var input createRepositoryTeamRequest
 		if !decodeRepositoryTeamRequest(w, r, &input) || input.WorkerCount == nil || !validRepositoryTeamWorkerCount(*input.WorkerCount) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request"})
 			return
 		}
-		snapshot, err := api.RepositoryTeams.Create(r.Context(), r.PathValue("repositoryId"), *input.WorkerCount)
+		snapshot, err := api.RepositoryTeams.Create(r.Context(), r.PathValue("projectId"), r.PathValue("repositoryId"), *input.WorkerCount)
 		if err != nil {
 			writeRepositoryTeamError(w, err)
 			return
@@ -79,13 +87,13 @@ func registerRepositoryTeams(mux *http.ServeMux, auth Auth, api AgentTeams) {
 		writeJSON(w, http.StatusCreated, snapshot)
 	})
 
-	register("PATCH /api/repositories/{repositoryId}/agent-team", true, func(w http.ResponseWriter, r *http.Request) {
+	register("PATCH /api/projects/{projectId}/repositories/{repositoryId}/agent-team", true, func(w http.ResponseWriter, r *http.Request) {
 		var input changeRepositoryTeamRequest
 		if !decodeRepositoryTeamRequest(w, r, &input) || input.WorkerCount == nil || input.RosterRevision == nil || !validRepositoryTeamWorkerCount(*input.WorkerCount) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request"})
 			return
 		}
-		snapshot, err := api.RepositoryTeams.Change(r.Context(), r.PathValue("repositoryId"), repositoryteams.ChangeCommand{
+		snapshot, err := api.RepositoryTeams.Change(r.Context(), r.PathValue("projectId"), r.PathValue("repositoryId"), repositoryteams.ChangeCommand{
 			WorkerCount: *input.WorkerCount, RosterRevision: *input.RosterRevision,
 		})
 		if err != nil {

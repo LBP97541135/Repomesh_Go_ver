@@ -67,34 +67,32 @@ export function repositoryTeamBusyLabels(error: unknown): string[] {
   return Array.isArray(labels) ? labels.filter((label): label is string => typeof label === "string") : [];
 }
 
-export function getRepositoryTeam(repositoryId: string): Promise<RepositoryTeamSnapshot> {
-  return apiRequest<RepositoryTeamSnapshot>(
-    "GET",
-    `/repositories/${encodeURIComponent(repositoryId)}/agent-team`,
-  );
+/** 团队自 0056 起按 **(项目, 仓库)** 认：同一份仓库挂到两个项目时各有一支队，
+ *  所以这三个端点必须带上项目 —— 路径里的仓库 id 无法区分"要哪个项目的队"。
+ *  路径形态跟随本仓惯例（`/projects/{projectId}/…`）。 */
+function teamPath(projectId: string, repositoryId: string): string {
+  return `/projects/${encodeURIComponent(projectId)}/repositories/${encodeURIComponent(repositoryId)}/agent-team`;
+}
+
+export function getRepositoryTeam(projectId: string, repositoryId: string): Promise<RepositoryTeamSnapshot> {
+  return apiRequest<RepositoryTeamSnapshot>("GET", teamPath(projectId, repositoryId));
 }
 
 export function createRepositoryTeam(
+  projectId: string,
   repositoryId: string,
   payload: Pick<RepositoryTeamCapacityChange, "worker_count">,
 ): Promise<RepositoryTeamSnapshot> {
-  return apiRequest<RepositoryTeamSnapshot>(
-    "POST",
-    `/repositories/${encodeURIComponent(repositoryId)}/agent-team`,
-    payload,
-  );
+  return apiRequest<RepositoryTeamSnapshot>("POST", teamPath(projectId, repositoryId), payload);
 }
 
 export async function changeRepositoryTeam(
+  projectId: string,
   repositoryId: string,
   payload: RepositoryTeamCapacityChange,
 ): Promise<RepositoryTeamSnapshot> {
   try {
-    return await apiRequest<RepositoryTeamSnapshot>(
-      "PATCH",
-      `/repositories/${encodeURIComponent(repositoryId)}/agent-team`,
-      payload,
-    );
+    return await apiRequest<RepositoryTeamSnapshot>("PATCH", teamPath(projectId, repositoryId), payload);
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
       const detail = detailObject(error.detail);

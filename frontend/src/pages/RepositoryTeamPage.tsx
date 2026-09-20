@@ -32,11 +32,13 @@ function MemberRow({ member, label }: { member: RepositoryTeamMember; label: str
 }
 
 export function RepositoryTeamPage({
+  projectId,
   repositoryId,
   isAdmin,
   onBack,
   onToast,
 }: {
+  projectId: string;
   repositoryId: string;
   isAdmin: boolean;
   onBack: () => void;
@@ -64,7 +66,7 @@ export function RepositoryTeamPage({
     setMutationState("idle");
     setBusyLabels([]);
     setCatalogRepositoryName(null);
-  }, [repositoryId]);
+  }, [projectId, repositoryId]);
 
   const loadTeam = useCallback(async () => {
     const requestGeneration = ++teamRequestGeneration.current;
@@ -76,7 +78,7 @@ export function RepositoryTeamPage({
     setMutationState("idle");
     setBusyLabels([]);
     try {
-      const snapshot = await getRepositoryTeam(repositoryId);
+      const snapshot = await getRepositoryTeam(projectId, repositoryId);
       if (requestGeneration !== teamRequestGeneration.current) return;
       setTeam(snapshot);
       setCapacity(snapshot.workers.length);
@@ -94,7 +96,7 @@ export function RepositoryTeamPage({
         setPageState("error");
       }
     }
-  }, [repositoryId]);
+  }, [projectId, repositoryId]);
 
   useEffect(() => {
     void loadTeam();
@@ -114,7 +116,7 @@ export function RepositoryTeamPage({
     return () => {
       cancelled = true;
     };
-  }, [repositoryId]);
+  }, [projectId, repositoryId]);
 
   const submitCreate = async () => {
     if (!isAdmin || capacity < 1 || capacity > 20 || !Number.isInteger(capacity)) {
@@ -125,7 +127,7 @@ export function RepositoryTeamPage({
     setMutationState("submitting");
     const requestGeneration = teamRequestGeneration.current;
     try {
-      const snapshot = await createRepositoryTeam(repositoryId, { worker_count: capacity });
+      const snapshot = await createRepositoryTeam(projectId, repositoryId, { worker_count: capacity });
       if (requestGeneration !== teamRequestGeneration.current) return;
       setTeam(snapshot);
       setCapacity(snapshot.workers.length);
@@ -157,7 +159,7 @@ export function RepositoryTeamPage({
     setMutationState("submitting");
     const requestGeneration = teamRequestGeneration.current;
     try {
-      const snapshot = await changeRepositoryTeam(repositoryId, {
+      const snapshot = await changeRepositoryTeam(projectId, repositoryId, {
         worker_count: capacity,
         roster_revision: team.roster_revision,
       });

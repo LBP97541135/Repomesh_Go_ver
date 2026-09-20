@@ -71,11 +71,11 @@ func New(pool *pgxpool.Pool, client *agentteams.Client) *Service {
 
 // Get returns the stored roster, live controller phases, and active task
 // counts. It does not create or mutate any controller resource.
-func (s *Service) Get(ctx context.Context, repositoryID string) (Snapshot, error) {
+func (s *Service) Get(ctx context.Context, projectID, repositoryID string) (Snapshot, error) {
 	if s.pool == nil {
 		return Snapshot{}, fmt.Errorf("%w: database pool is nil", ErrControllerUnavailable)
 	}
-	snapshot, err := s.loadSnapshot(ctx, s.pool, repositoryID)
+	snapshot, err := s.loadSnapshot(ctx, s.pool, projectID, repositoryID)
 	if err != nil {
 		return Snapshot{}, err
 	}
@@ -93,8 +93,11 @@ func (s *Service) Get(ctx context.Context, repositoryID string) (Snapshot, error
 // Create creates one remote Team with exactly one Leader and the requested
 // number of active Workers. The repository ID, not its display name, owns all
 // local and remote associations.
-func (s *Service) Create(ctx context.Context, repositoryID string, workerCount int) (Snapshot, error) {
-	tx, err := s.beginLocked(ctx, repositoryID)
+//
+// 2026-09-20（0056）：团队按 **(项目, 仓库)** 归属。同一份仓库挂到两个项目时，
+// 各建一支自己的队；此前的键只有仓库，第二个项目会被判定"已有队"而**静默跳过**。
+func (s *Service) Create(ctx context.Context, projectID, repositoryID string, workerCount int) (Snapshot, error) {
+	tx, err := s.beginLocked(ctx, projectID, repositoryID)
 	if err != nil {
 		return Snapshot{}, err
 	}
@@ -115,7 +118,8 @@ func (s *Service) Create(ctx context.Context, repositoryID string, workerCount i
 	}
 	var exists bool
 	if err := tx.QueryRow(ctx,
-		"SELECT EXISTS (SELECT 1 FROM public.repository_teams WHERE repository_id = $1)", repositoryID,
+		"SELECT EXISTS (SELECT 1 FROM public.repository_teams WHERE project_id = $1 AND repository_id = $2)",
+		projectID, repositoryID,
 	).Scan(&exists); err != nil {
 		return Snapshot{}, fmt.Errorf("check repository team: %w", err)
 	}
@@ -123,7 +127,7 @@ func (s *Service) Create(ctx context.Context, repositoryID string, workerCount i
 		return Snapshot{}, fmt.Errorf("%w: repository team already exists", ErrConflict)
 	}
 
-	prefix := remotePrefix(repositoryID)
+	prefix := remotePrefix(projectID, repositoryID)
 	leaderID, err := randomUUID()
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("create Leader identity: %w", err)
@@ -164,22 +168,22 @@ func (s *Service) Create(ctx context.Context, repositoryID string, workerCount i
 
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO public.repository_teams
-		(repository_id, agentteams_team_name, leader_id, leader_resource_name)
-		VALUES ($1, $2, $3::uuid, $4)`, repositoryID, prefix, leaderID, leaderName); err != nil {
+		(project_id, repository_id, agentteams_team_name, leader_id, leader_resource_name)
+		VALUES ($1::uuid, $2, $3, $4::uuid, $5)`, projectID, repositoryID, prefix, leaderID, leaderName); err != nil {
 		return Snapshot{}, reconciliationError(fmt.Errorf("persist repository team: %w", err))
 	}
 	for _, worker := range workers {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO public.repository_team_workers
-			(id, repository_id, resource_name, creation_sequence, display_order)
-			VALUES ($1::uuid, $2, $3, $4, $5)`,
-			worker.id, repositoryID, worker.resourceName, worker.creationSequence, worker.displayOrder,
+			(project_id, id, repository_id, resource_name, creation_sequence, display_order)
+			VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6)`,
+			projectID, worker.id, repositoryID, worker.resourceName, worker.creationSequence, worker.displayOrder,
 		); err != nil {
 			return Snapshot{}, reconciliationError(fmt.Errorf("persist repository Worker: %w", err))
 		}
 	}
 
-	snapshot, err := s.loadSnapshot(ctx, tx, repositoryID)
+	snapshot, err := s.loadSnapshot(ctx, tx, projectID, repositoryID)
 	if err != nil {
 		return Snapshot{}, reconciliationError(fmt.Errorf("load created roster: %w", err))
 	}
@@ -199,8 +203,12 @@ func (s *Service) Create(ctx context.Context, repositoryID string, workerCount i
 // 不该建队。所以这里只接受"调用方明确点名的那一个仓库"，并且要先把项目侧 id
 // （repo_…）解析成扫描侧 id（32 位十六进制）—— 建队只认后者。
 //
-// 返回 true 表示这次真的建了一支；已有队伍、仓库没扫到、或远端拒绝都返回 false
-// （远端拒绝会把原因带在 error 里，不吞）。
+// 返回 true 表示这次真的建了一支；**本项目已经有队**、仓库没扫到、或远端拒绝都返回
+// false（远端拒绝会把原因带在 error 里，不吞）。
+//
+// 2026-09-20（0056）：幂等判定从"这个仓库有没有队"改成"**这个项目的**这个仓库有没有队"。
+// 否则同一仓库挂到第二个项目时，这里判定"已有队"直接跳过，第二个项目**永远建不出队**
+// 而且不报错 —— 这就是"同仓两项目会串"的真实形态。
 func (s *Service) EnsureForRepository(ctx context.Context, projectID, projectRepositoryID string, workerCount int) (bool, error) {
 	if s.pool == nil {
 		return false, fmt.Errorf("%w: database pool is nil", ErrControllerUnavailable)
@@ -222,14 +230,15 @@ func (s *Service) EnsureForRepository(ctx context.Context, projectID, projectRep
 		return false, nil
 	}
 	var exists bool
-	if err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM public.repository_teams WHERE repository_id=$1)`,
-		scanID).Scan(&exists); err != nil {
+	if err := s.pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM public.repository_teams WHERE project_id=$1 AND repository_id=$2)`,
+		projectID, scanID).Scan(&exists); err != nil {
 		return false, err
 	}
 	if exists {
 		return false, nil
 	}
-	if _, err := s.Create(ctx, scanID, workerCount); err != nil {
+	if _, err := s.Create(ctx, projectID, scanID, workerCount); err != nil {
 		if errors.Is(err, ErrConflict) || errors.Is(err, ErrNotFound) {
 			return false, nil
 		}
@@ -265,6 +274,9 @@ const repoTeamResolutionQuery = `
 // 2026-09-20（用户）：仓库**接入的时候**就该自动建队，不该让人再去仓库页点一次。
 // 幂等：已经有团队的仓库直接跳过；Create 自己会撞 ErrConflict，所以并发/重试也安全。
 //
+// ⚠️ 当前**没有调用方**（20c63ba1 把"批量接入/扫描/新建项目也建队"和后台扫掠都撤了，
+// 只留逐仓确认接入 → EnsureForRepository）。保留它是为了收敛逻辑，别误以为它还在跑。
+//
 // 返回真正新建了团队的仓库 id 列表。单个仓库建失败不吞掉原因 —— 记在返回的错误里，
 // 但**不阻断其它仓库**（一个仓的 AT 配额问题不该让整批接入失败）。
 func (s *Service) EnsureForProject(ctx context.Context, projectID string, workerCount int) ([]string, error) {
@@ -284,7 +296,8 @@ func (s *Service) EnsureForProject(ctx context.Context, projectID string, worker
 	rows, err := s.pool.Query(ctx, repoTeamResolutionQuery+`
 		WHERE pr.project_id=$1
 		  AND s.id IS NOT NULL
-		  AND NOT EXISTS (SELECT 1 FROM public.repository_teams t WHERE t.repository_id=s.id)
+		  AND NOT EXISTS (SELECT 1 FROM public.repository_teams t
+		                  WHERE t.project_id=$1 AND t.repository_id=s.id)
 		ORDER BY s.id`, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("list repositories without team: %w", err)
@@ -312,7 +325,7 @@ func (s *Service) EnsureForProject(ctx context.Context, projectID string, worker
 		if len(created) >= maxTeamsPerEnsure {
 			break
 		}
-		if _, err := s.Create(ctx, id, workerCount); err != nil {
+		if _, err := s.Create(ctx, projectID, id, workerCount); err != nil {
 			if errors.Is(err, ErrConflict) || errors.Is(err, ErrNotFound) {
 				// 并发下别人先建好了 / 仓库行已不在：都不是错误。
 				continue
@@ -329,6 +342,9 @@ func (s *Service) EnsureForProject(ctx context.Context, projectID string, worker
 
 // EnsureAll 扫**所有**项目，把还没建队的仓库补上。服务重启后、或本次改动之前接入的
 // 仓库，都靠它收敛（幂等，重复跑没有副作用）。
+//
+// ⚠️ 当前**没有调用方**：20c63ba1 已把后台扫掠撤掉（它正是把机器压到 load 100+ 的那条
+// 路径之一）。保留但不接线，见 EnsureForProject 的说明。
 func (s *Service) EnsureAll(ctx context.Context, workerCount int) ([]string, error) {
 	if s.pool == nil {
 		return nil, fmt.Errorf("%w: database pool is nil", ErrControllerUnavailable)
@@ -338,7 +354,9 @@ func (s *Service) EnsureAll(ctx context.Context, workerCount int) ([]string, err
 	rows, err := s.pool.Query(ctx, `SELECT DISTINCT resolved.project_id
 		FROM (`+repoTeamResolutionQuery+`) resolved
 		WHERE resolved.scan_side <> ''
-		  AND NOT EXISTS (SELECT 1 FROM public.repository_teams t WHERE t.repository_id=resolved.scan_side)`)
+		  AND NOT EXISTS (SELECT 1 FROM public.repository_teams t
+		                  WHERE t.project_id=resolved.project_id
+		                    AND t.repository_id=resolved.scan_side)`)
 	if err != nil {
 		return nil, fmt.Errorf("list projects with teamless repositories: %w", err)
 	}
@@ -374,14 +392,20 @@ func (s *Service) EnsureAll(ctx context.Context, workerCount int) ([]string, err
 // Change applies one explicitly versioned capacity change. It never retries a
 // stale request: the caller receives the current roster and decides whether to
 // submit another change.
-func (s *Service) Change(ctx context.Context, repositoryID string, command ChangeCommand) (Snapshot, error) {
-	tx, err := s.beginLocked(ctx, repositoryID)
+func (s *Service) Change(ctx context.Context, projectID, repositoryID string, command ChangeCommand) (Snapshot, error) {
+	tx, err := s.beginLocked(ctx, projectID, repositoryID)
 	if err != nil {
 		return Snapshot{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	current, err := s.loadSnapshot(ctx, tx, repositoryID)
+	current, err := s.loadSnapshot(ctx, tx, projectID, repositoryID)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	// 队名一律以库里存的那一行为准（0056），**不要重算**：存量队的名字不含项目维度，
+	// 重算会指向一个不存在的远端队 —— 等于把存量队变成孤儿，且远端资源再也没人管。
+	teamName, err := loadTeamName(ctx, tx, projectID, repositoryID)
 	if err != nil {
 		return Snapshot{}, err
 	}
@@ -397,23 +421,43 @@ func (s *Service) Change(ctx context.Context, repositoryID string, command Chang
 	case delta == 0:
 		return current, nil
 	case delta > 0:
-		return s.scaleUp(ctx, tx, repositoryID, current, delta)
+		return s.scaleUp(ctx, tx, projectID, repositoryID, teamName, current, delta)
 	default:
-		return s.scaleDown(ctx, tx, repositoryID, current, -delta)
+		return s.scaleDown(ctx, tx, projectID, repositoryID, teamName, current, -delta)
 	}
 }
 
-func (s *Service) scaleUp(ctx context.Context, tx pgx.Tx, repositoryID string, current Snapshot, delta int) (Snapshot, error) {
+// loadTeamName 读出**远端队名的唯一真相**。
+//
+// 0056 起代码不再自行 remotePrefix 重算：存量队（约 42 支，2026-09-20 自动建队事故留下）
+// 的名字不含项目维度，重算就会指错远端队。新队建的时候把名字写进这一列，之后一律读它。
+func loadTeamName(ctx context.Context, db snapshotQuerier, projectID, repositoryID string) (string, error) {
+	var name string
+	err := db.QueryRow(ctx, `
+		SELECT agentteams_team_name FROM public.repository_teams
+		WHERE project_id = $1::uuid AND repository_id = $2`, projectID, repositoryID).Scan(&name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("%w: repository %q", ErrNotFound, repositoryID)
+	}
+	if err != nil {
+		return "", fmt.Errorf("load team name: %w", err)
+	}
+	return name, nil
+}
+
+func (s *Service) scaleUp(ctx context.Context, tx pgx.Tx, projectID, repositoryID, teamName string, current Snapshot, delta int) (Snapshot, error) {
 	var highestSequence int
 	if err := tx.QueryRow(ctx, `
 		SELECT COALESCE(MAX(creation_sequence), 0)
 		FROM public.repository_team_workers
-		WHERE repository_id = $1`, repositoryID,
+		WHERE project_id = $1::uuid AND repository_id = $2`, projectID, repositoryID,
 	).Scan(&highestSequence); err != nil {
 		return Snapshot{}, fmt.Errorf("load Worker creation sequence: %w", err)
 	}
 
-	prefix := remotePrefix(repositoryID)
+	// 新 worker 的名字跟着**这支队已有的队名**走（0056）：存量队继续用旧命名，
+	// 新队用含项目的命名。这样不会在同一支队里混出两套名字。
+	prefix := teamName
 	workers := make([]workerRecord, delta)
 	for i := range workers {
 		workerID, err := randomUUID()
@@ -436,7 +480,7 @@ func (s *Service) scaleUp(ctx context.Context, tx pgx.Tx, repositoryID string, c
 			return Snapshot{}, s.compensateWorkers(ctx, cleanupResourcesAfterWorkerCreate(createdResources, err), err)
 		}
 	}
-	if err := s.updateRemoteTeam(ctx, remotePrefix(repositoryID), teamMembers(current.Leader.ResourceName, current.Workers, workers)); err != nil {
+	if err := s.updateRemoteTeam(ctx, teamName, teamMembers(current.Leader.ResourceName, current.Workers, workers)); err != nil {
 		if errors.Is(err, ErrReconciliationRequired) {
 			return Snapshot{}, err
 		}
@@ -446,17 +490,17 @@ func (s *Service) scaleUp(ctx context.Context, tx pgx.Tx, repositoryID string, c
 	for _, worker := range workers {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO public.repository_team_workers
-			(id, repository_id, resource_name, creation_sequence, display_order)
-			VALUES ($1::uuid, $2, $3, $4, $5)`,
-			worker.id, repositoryID, worker.resourceName, worker.creationSequence, worker.displayOrder,
+			(project_id, id, repository_id, resource_name, creation_sequence, display_order)
+			VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6)`,
+			projectID, worker.id, repositoryID, worker.resourceName, worker.creationSequence, worker.displayOrder,
 		); err != nil {
 			return Snapshot{}, reconciliationError(fmt.Errorf("persist scaled Worker: %w", err))
 		}
 	}
-	if err := advanceRevision(ctx, tx, repositoryID, current.RosterRevision); err != nil {
+	if err := advanceRevision(ctx, tx, projectID, repositoryID, current.RosterRevision); err != nil {
 		return Snapshot{}, reconciliationError(err)
 	}
-	updated, err := s.loadSnapshot(ctx, tx, repositoryID)
+	updated, err := s.loadSnapshot(ctx, tx, projectID, repositoryID)
 	if err != nil {
 		return Snapshot{}, reconciliationError(fmt.Errorf("load scaled roster: %w", err))
 	}
@@ -466,8 +510,8 @@ func (s *Service) scaleUp(ctx context.Context, tx pgx.Tx, repositoryID string, c
 	return updated, nil
 }
 
-func (s *Service) scaleDown(ctx context.Context, tx pgx.Tx, repositoryID string, current Snapshot, delta int) (Snapshot, error) {
-	selected, err := selectedWorkers(ctx, tx, repositoryID, delta)
+func (s *Service) scaleDown(ctx context.Context, tx pgx.Tx, projectID, repositoryID, teamName string, current Snapshot, delta int) (Snapshot, error) {
+	selected, err := selectedWorkers(ctx, tx, projectID, repositoryID, delta)
 	if err != nil {
 		return Snapshot{}, err
 	}
@@ -507,7 +551,7 @@ func (s *Service) scaleDown(ctx context.Context, tx pgx.Tx, repositoryID string,
 			remaining = append(remaining, worker)
 		}
 	}
-	if err := s.updateRemoteTeam(ctx, remotePrefix(repositoryID), teamMembers(current.Leader.ResourceName, remaining, nil)); err != nil {
+	if err := s.updateRemoteTeam(ctx, teamName, teamMembers(current.Leader.ResourceName, remaining, nil)); err != nil {
 		return Snapshot{}, err
 	}
 	for _, worker := range selected {
@@ -519,14 +563,15 @@ func (s *Service) scaleDown(ctx context.Context, tx pgx.Tx, repositoryID string,
 		if _, err := tx.Exec(ctx, `
 			UPDATE public.repository_team_workers
 			SET status = 'disabled', display_order = NULL, disabled_at = now()
-			WHERE id = $1::uuid AND repository_id = $2 AND status = 'active'`, worker.id, repositoryID); err != nil {
+			WHERE id = $1::uuid AND project_id = $2::uuid AND repository_id = $3 AND status = 'active'`,
+			worker.id, projectID, repositoryID); err != nil {
 			return Snapshot{}, reconciliationError(fmt.Errorf("disable Worker: %w", err))
 		}
 	}
-	if err := advanceRevision(ctx, tx, repositoryID, current.RosterRevision); err != nil {
+	if err := advanceRevision(ctx, tx, projectID, repositoryID, current.RosterRevision); err != nil {
 		return Snapshot{}, reconciliationError(err)
 	}
-	updated, err := s.loadSnapshot(ctx, tx, repositoryID)
+	updated, err := s.loadSnapshot(ctx, tx, projectID, repositoryID)
 	if err != nil {
 		return Snapshot{}, reconciliationError(fmt.Errorf("load reduced roster: %w", err))
 	}
@@ -536,7 +581,7 @@ func (s *Service) scaleDown(ctx context.Context, tx pgx.Tx, repositoryID string,
 	return updated, nil
 }
 
-func (s *Service) beginLocked(ctx context.Context, repositoryID string) (pgx.Tx, error) {
+func (s *Service) beginLocked(ctx context.Context, projectID, repositoryID string) (pgx.Tx, error) {
 	if s.pool == nil {
 		return nil, fmt.Errorf("database pool is nil")
 	}
@@ -544,7 +589,10 @@ func (s *Service) beginLocked(ctx context.Context, repositoryID string) (pgx.Tx,
 	if err != nil {
 		return nil, fmt.Errorf("begin repository team transaction: %w", err)
 	}
-	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtext($1))", repositoryID); err != nil {
+	// 锁粒度也跟着改成 (项目, 仓库)（0056）：只按仓库加锁的话，
+	// 两个项目对同一仓库的操作会**互相阻塞**，而它们本来互不相关。
+	lockKey := projectID + "/" + repositoryID
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtext($1))", lockKey); err != nil {
 		_ = tx.Rollback(ctx)
 		return nil, fmt.Errorf("lock repository team: %w", err)
 	}
@@ -556,7 +604,7 @@ type snapshotQuerier interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
-func (s *Service) loadSnapshot(ctx context.Context, db snapshotQuerier, repositoryID string) (Snapshot, error) {
+func (s *Service) loadSnapshot(ctx context.Context, db snapshotQuerier, projectID, repositoryID string) (Snapshot, error) {
 	var snapshot Snapshot
 	var leaderID string
 	err := db.QueryRow(ctx, `
@@ -564,7 +612,7 @@ func (s *Service) loadSnapshot(ctx context.Context, db snapshotQuerier, reposito
 		       t.leader_id::text, t.leader_resource_name
 		FROM public.repository_teams t
 		JOIN repomesh_scan.repositories r ON r.id = t.repository_id
-		WHERE t.repository_id = $1`, repositoryID,
+		WHERE t.project_id = $1::uuid AND t.repository_id = $2`, projectID, repositoryID,
 	).Scan(
 		&snapshot.RepositoryID,
 		&snapshot.RepositoryName,
@@ -585,8 +633,8 @@ func (s *Service) loadSnapshot(ctx context.Context, db snapshotQuerier, reposito
 	rows, err := db.Query(ctx, `
 		SELECT id::text, resource_name, display_order
 		FROM public.repository_team_workers
-		WHERE repository_id = $1 AND status = 'active'
-		ORDER BY display_order`, repositoryID,
+		WHERE project_id = $1::uuid AND repository_id = $2 AND status = 'active'
+		ORDER BY display_order`, projectID, repositoryID,
 	)
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("load active repository Workers: %w", err)
@@ -655,13 +703,13 @@ type workerRecord struct {
 	displayOrder     int
 }
 
-func selectedWorkers(ctx context.Context, tx pgx.Tx, repositoryID string, count int) ([]workerRecord, error) {
+func selectedWorkers(ctx context.Context, tx pgx.Tx, projectID, repositoryID string, count int) ([]workerRecord, error) {
 	rows, err := tx.Query(ctx, `
 		SELECT id::text, resource_name, creation_sequence, display_order
 		FROM public.repository_team_workers
-		WHERE repository_id = $1 AND status = 'active'
+		WHERE project_id = $1::uuid AND repository_id = $2 AND status = 'active'
 		ORDER BY display_order DESC
-		LIMIT $2`, repositoryID, count)
+		LIMIT $3`, projectID, repositoryID, count)
 	if err != nil {
 		return nil, fmt.Errorf("select Workers to remove: %w", err)
 	}
@@ -683,11 +731,12 @@ func selectedWorkers(ctx context.Context, tx pgx.Tx, repositoryID string, count 
 	return workers, nil
 }
 
-func advanceRevision(ctx context.Context, tx pgx.Tx, repositoryID string, expectedRevision int64) error {
+func advanceRevision(ctx context.Context, tx pgx.Tx, projectID, repositoryID string, expectedRevision int64) error {
 	result, err := tx.Exec(ctx, `
 		UPDATE public.repository_teams
 		SET roster_revision = roster_revision + 1, updated_at = now()
-		WHERE repository_id = $1 AND roster_revision = $2`, repositoryID, expectedRevision)
+		WHERE project_id = $1::uuid AND repository_id = $2 AND roster_revision = $3`,
+		projectID, repositoryID, expectedRevision)
 	if err != nil {
 		return fmt.Errorf("advance roster revision: %w", err)
 	}
@@ -855,8 +904,16 @@ func validWorkerCount(workerCount int) bool {
 	return workerCount >= minWorkers && workerCount <= maxWorkers
 }
 
-func remotePrefix(repositoryID string) string {
-	digest := sha256.Sum256([]byte(repositoryID))
+// remotePrefix 算**新建队**的远端名。
+//
+// 0056 起掺入项目 id：同一仓库可以被多个项目各建一支队，只喂仓库 id 会让两个项目算出
+// **同一个名字**，在远端互相覆盖。分隔符用 NUL —— 与仓库里其它指纹的写法一致，
+// 也不会与 id 里可能出现的字符冲突。
+//
+// ⚠️ 已存在的队**不重算**（队名以库里的 agentteams_team_name 为准，见 loadTeamName）：
+// 存量队名仍是老的 `repomesh-r-<仓库hash>` 形状，改名会让它们变成孤儿。
+func remotePrefix(projectID, repositoryID string) string {
+	digest := sha256.Sum256([]byte(projectID + "\x00" + repositoryID))
 	return "repomesh-r-" + hex.EncodeToString(digest[:8])
 }
 

@@ -522,9 +522,12 @@ export default function ConsoleShell() {
           }}
         />
       )}
-      {route.nav === "repositories" && teamRepositoryId !== null && (
+      {/* 团队页需要项目上下文（0056 起团队按 (项目, 仓库) 认）：没有选定项目就落到
+          下面的项目选择页，而不是打一个必然 404 的请求。 */}
+      {route.nav === "repositories" && teamRepositoryId !== null && activeProjectId !== null && (
         <RepositoryTeamPage
-          key={teamRepositoryId}
+          key={`${activeProjectId}:${teamRepositoryId}`}
+          projectId={activeProjectId}
           repositoryId={teamRepositoryId}
           isAdmin={account.is_admin}
           onBack={() => {
