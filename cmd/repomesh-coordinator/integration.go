@@ -266,20 +266,24 @@ func buildIntegrationCommand(agentKind, model, repository string) string {
 	}
 	script := "set -e\n" +
 		"T=${REPOMESH_GH_TOKEN:?missing installation token}\n" +
-		// 与交付 run 同一条约定（2026-09-20 用户裁定：每个 task 一棵新 worktree）：
-		// 共享每仓库一份浅基础克隆，本次只 worktree add 一棵新树。
+		// 与交付 run 同一条约定（2026-09-20 用户裁定：每个 task 一棵新 worktree；
+		// 当天修正：这棵树必须落在**本次 attempt 的工作区**里，不能建在共享基础克隆
+		// 里面，否则所有 attempt 共用一棵树、互相踩）。基础克隆只用于 fetch。
 		"R=" + repository + "\n" +
 		"SLUG=$(printf %s \"$R\" | tr / _)\n" +
 		"BASE=$(dirname \"$PWD\")/_bases/$SLUG\n" +
+		"WORK=\"$PWD/repo\"\n" +
+		"PROMPT=\"$PWD/prompt.txt\"\n" +
 		"mkdir -p \"$(dirname \"$BASE\")\"\n" +
 		"if [ ! -d \"$BASE/.git\" ]; then git clone --depth 5 \"https://x-access-token:$T@github.com/$R.git\" \"$BASE\"; fi\n" +
-		"git -C \"$BASE\" remote set-url origin \"https://x-access-token:$T@github.com/$R.git\"\n" +
-		"git -C \"$BASE\" fetch --depth 5 origin main\n" +
-		"git -C \"$BASE\" worktree prune\n" +
-		"rm -rf \"$BASE/repo\"\n" +
-		"PROMPT=\"$PWD/prompt.txt\"\n" +
-		"git -C \"$BASE\" worktree add --detach --force \"$BASE/repo\" FETCH_HEAD\n" +
-		"cd \"$BASE/repo\"\n" +
+		"( flock 9\n" +
+		"  git -C \"$BASE\" remote set-url origin \"https://x-access-token:$T@github.com/$R.git\"\n" +
+		"  git -C \"$BASE\" fetch --depth 5 origin main\n" +
+		"  git -C \"$BASE\" worktree prune\n" +
+		"  rm -rf \"$WORK\"\n" +
+		"  git -C \"$BASE\" worktree add --detach --force \"$WORK\" FETCH_HEAD\n" +
+		") 9>\"$(dirname \"$BASE\")/.lock-$SLUG\"\n" +
+		"cd \"$WORK\"\n" +
 		agent + "\n" +
 		"cp " + execution.TestEvidenceFile + " ../" + execution.TestEvidenceFile + " 2>/dev/null || true"
 	return "bash -c '" + script + "'"

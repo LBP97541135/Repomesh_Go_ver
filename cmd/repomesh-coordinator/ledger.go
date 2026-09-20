@@ -95,26 +95,47 @@ func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, i
 		"T=${REPOMESH_GH_TOKEN:?missing installation token}\n" +
 		"R=" + repoFullName + "\n" +
 		"B=repomesh/auto-" + attemptID + "\n" +
-		// 每个 task 一个**新的 git worktree**（2026-09-20 用户裁定）：每个仓库在
-		// workspace 根下共享一份**浅基础克隆**，每个 attempt 只 worktree add 一棵新树 ——
-		// 隔离性与"每次整仓 clone"一样（各自的 HEAD 与工作区互不影响），但省掉每次的
-		// 整仓下载。基础克隆里的 origin 每轮重设（installation token 会轮转）。
+		// 每个 task 一个**自己的 git worktree**（2026-09-20 用户裁定 + 当天修正）：
+		// 每个仓库共享一份**浅基础克隆**（只做 clone/fetch），每个 attempt 在自己的
+		// 工作区里 worktree add 一棵新树 —— 隔离性与"每次整仓 clone"一样（各自的
+		// HEAD 与工作区互不影响），但省掉每次的整仓下载。
+		//
+		// 修正前这里把 worktree 建在 `$BASE/repo`（基础克隆**里面**），于是所有
+		// attempt 共用同一棵树、互相踩，而且测试 agent 写的 test-evidence.json 落在
+		// 基础目录下，executor 按 attempt 工作区去找 → 单点验收记录恒 0 条。
+		// 现在 worktree 落在 `$PWD/repo`（本次 attempt 的工作区）—— BASE 只读用于
+		// fetch/worktree add。
+		//
+		// BASE 上的 clone/fetch/prune/worktree add 用一把 per-repo 的 flock 串起来：
+		// 同一仓库的并发 attempt 不再互相打断 git 的索引/引用写。锁只护这几条命令，
+		// 不护 agent 执行段（否则同仓库的任务会被串行化）。
 		// 注意：整段脚本被 bash -c '...' 包着，脚本内不能出现单引号。
 		"SLUG=$(printf %s \"$R\" | tr / _)\n" +
 		"BASE=$(dirname \"$PWD\")/_bases/$SLUG\n" +
+		"WORK=\"$PWD/repo\"\n" +
 		"mkdir -p \"$(dirname \"$BASE\")\"\n" +
 		"if [ ! -d \"$BASE/.git\" ]; then git clone --depth 5 \"https://x-access-token:$T@github.com/$R.git\" \"$BASE\"; fi\n" +
-		"git -C \"$BASE\" remote set-url origin \"https://x-access-token:$T@github.com/$R.git\"\n" +
-		"git -C \"$BASE\" fetch --depth 5 origin main\n" +
-		"git -C \"$BASE\" worktree prune\n" +
-		"rm -rf \"$BASE/repo\"\n" +
-		"git -C \"$BASE\" worktree add --detach --force \"$BASE/repo\" FETCH_HEAD\n" +
-		"cd \"$BASE/repo\"\n" +
+		"( flock 9\n" +
+		"  git -C \"$BASE\" remote set-url origin \"https://x-access-token:$T@github.com/$R.git\"\n" +
+		"  git -C \"$BASE\" fetch --depth 5 origin main\n" +
+		"  git -C \"$BASE\" worktree prune\n" +
+		"  rm -rf \"$WORK\"\n" +
+		"  git -C \"$BASE\" worktree add --detach --force \"$WORK\" FETCH_HEAD\n" +
+		") 9>\"$(dirname \"$BASE\")/.lock-$SLUG\"\n" +
+		"cd \"$WORK\"\n" +
 		"git config user.name \"repomesh-bot[bot]\"\n" +
 		"git config user.email \"repomesh-bot@users.noreply.github.com\"\n" +
 		agentLine + "\n" +
+		// bug B（2026-09-20）：交付前先清掉构建产物 —— 线上出现过"0 insertions,
+		// 0 deletions"的空提交里只躺着一个 tests/__pycache__/*.pyc。然后**确认真的
+		// 还有改动**：没有就明确失败（exit 3 + REPO_DELIVERY_EMPTY），而不是推一个
+		// 空分支、开一个空 PR 让下游以为交付成功了。
+		"find . -type d -name __pycache__ -prune -exec rm -rf {} +\n" +
+		"find . -type f -name \"*.pyc\" -delete\n" +
+		"rm -rf .pytest_cache\n" +
 		"git add -A\n" +
-		"git diff --cached --quiet || git commit -m \"RepoMesh delivery " + issueID + ": " + safeTitle + "\"\n" +
+		"if git diff --cached --quiet; then echo REPO_DELIVERY_EMPTY=1; exit 3; fi\n" +
+		"git commit -m \"RepoMesh delivery " + issueID + ": " + safeTitle + "\"\n" +
 		"git push origin HEAD:refs/heads/$B\n" +
 		"curl -sf -X POST -H \"Authorization: Bearer $T\" -H \"Accept: application/vnd.github+json\" " +
 		"https://api.github.com/repos/$R/pulls " +
@@ -183,9 +204,11 @@ func buildTestCommand(agentKind, model, instruction, repoFullName, attemptID, is
 	}
 	script := "set -e\n" +
 		"R=" + repoFullName + "\n" +
-		"SLUG=$(printf %s \"$R\" | tr / _)\n" +
-		"BASE=$(dirname \"$PWD\")/_bases/$SLUG\n" +
-		"cd \"$BASE/repo\"\n" +
+		// 测试 agent 跑在**开发 run 的那棵 worktree** 里（executor 把两条 run 的
+		// workspace 都指向开发 attempt 的工作区），所以这里直接进本次工作区的
+		// repo/ —— 被交付的改动就在眼前。修正前它跟着基础克隆走
+		// （`$BASE/repo`），而那棵树是所有 attempt 共用的。
+		"cd \"$PWD/repo\"\n" +
 		agentLine + "\n" +
 		"echo REPO_TESTS_DONE=" + repoFullName + ":" + attemptID
 	return "bash -c '" + script + "'", nil
