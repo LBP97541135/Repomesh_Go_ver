@@ -81,6 +81,15 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 			slog.Warn("autohost discovery step deferred", "issue", p.issueID, "reason", err.Error())
 			return false
 		}
+		// 每步都留一道**地板间隔**（哪怕这一步"成功"了）。
+		//
+		// 2026-09-20 线上实测：一条 issue 的 classification 在库里是 JSON `null`，
+		// 于是 `has_classification` 恒为 false，协调器**每秒**重跑一次 Classification
+		// （日志 `autohost: classifying tiers` 刷屏、库被反复写），把机器白白烧掉。
+		// 只要"步骤判据"与"实际落库"之间有任何不一致，就会形成这种空转环 ——
+		// 这里给每次推进加 3 秒地板，把它从"每秒"压到"每 3 秒"，同时不影响正常节奏
+		// （正常一步是分钟级的）。
+		a.backoff[p.issueID] = time.Now().Add(3 * time.Second)
 		return true
 	}
 	idem := "autohost:" + p.issueID
