@@ -956,7 +956,12 @@ export function FocusPanel({
     }
     if (entry.kind === "task") {
       return (
-        <div className="flex min-h-0 flex-1 flex-col">
+        // 2026-09-21 用户实测：「worker 工作内容」的正文被底部「发消息到该任务房间」
+        // **挡住**。根因就是这里少了一个 `overflow-y-auto` —— 同文件另外 7 个房间
+        // 容器（steps / tests / mgr / stage）都有，只有任务房间漏了。
+        // 没有它时：内容超高不滚动，直接**溢出到容器外面**；而输入框在 DOM 里排在
+        // 正文之后，于是盖在溢出的那段文字上 —— 看起来就是"被输入框挡住"。
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           {/* Worker 恢复卡（Phase 2+3，2026-09-20 并入）：派工门判定 + 恢复动作 */}
           <WorkerHealthGate workerName={task?.workerLabel ?? null} />
           {task === null ? (
