@@ -299,16 +299,25 @@ export function AddRepositoryCard({
         贴组织链接批量扫描，或贴单个仓库链接。
       </p>
 
-      <input
-        className="mt-2.5 w-full rounded-hard border border-line bg-ink px-2.5 py-[6px] font-mono text-[12px] text-tx placeholder:text-tx3 focus:border-amber focus:outline-none"
-        placeholder="https://github.com/acme-corp 或 https://github.com/acme-corp/checkout"
-        value={url}
-        spellCheck={false}
-        onChange={(e) => setUrl(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") submit();
-        }}
-      />
+      <div className="mt-2.5 flex items-center gap-1.5 rounded-hard border border-line bg-ink px-2.5 py-[4px] focus-within:border-amber">
+        <input
+          className="w-full flex-1 bg-transparent py-[2px] font-mono text-[12px] text-tx placeholder:text-tx3 focus:outline-none"
+          placeholder="https://github.com/acme-corp 或 https://github.com/acme-corp/checkout"
+          value={url}
+          spellCheck={false}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit();
+          }}
+        />
+        <button
+          className="flex-none rounded-hard bg-amber px-3.5 py-[6px] text-[12px] font-extrabold text-on-amber hover:bg-amber-hi disabled:opacity-60"
+          disabled={!canSubmit}
+          onClick={submit}
+        >
+          {submitting ? "提交中…" : "扫描并添加"}
+        </button>
+      </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <VerdictBadge
@@ -317,13 +326,6 @@ export function AddRepositoryCard({
           verdict={verdict}
           identifyError={identifyError}
         />
-        <button
-          className="ml-auto rounded-hard bg-amber px-3.5 py-[6px] text-[12px] font-extrabold text-on-amber hover:bg-amber-hi disabled:opacity-60"
-          disabled={!canSubmit}
-          onClick={submit}
-        >
-          {submitting ? "提交中…" : "扫描并添加"}
-        </button>
       </div>
 
       {/* 两种「提交按钮点不动」都说出原因：判定拿不到时前端不替后端选端点，

@@ -93,9 +93,6 @@ function MessageTimeline({ messages }: { messages: ConversationMessage[] }) {
   }, [messages]);
   return (
     <div ref={ref} className="flex flex-col gap-3 overflow-y-auto px-4 py-3.5">
-      {messages.length === 0 && (
-        <p className="pl-[31px] text-[10.5px] text-[var(--tree-faint)]">这个房间还没有消息。</p>
-      )}
       {messages.map((m) => {
         const actor = actorOf(m.authorKind, m.actorId);
         return (
@@ -170,21 +167,12 @@ function TestSchedule({ tasks, view }: { tasks: PlanTaskItem[] | null; view: Tes
   }
   for (const repo of repos) {
     const rec = firstOf((i) => i.kind === "repo_integration" && i.repository_id === repo);
-    // "待跑"的**理由**要按事实说：如果该仓的任务都已经完成（经理门也过了），
-    // 那它就不是"在等上游"，而是"上游到了、这一步还没有记录" —— 这两件事
-    // 对排障完全不同（前者等着就行，后者得去看这条链路跑没跑）。
-    const repoTasks = tasks.filter((t) => t.repositoryId === repo);
-    const allDone = repoTasks.length > 0 && repoTasks.every((t) => t.status === "done");
     rows.push({
       key: `ri-${repo}`,
       stage: "节点级",
       what: `仓库集成验证 · ${repo}`,
       state: rec ? (rec.passed ? "done" : "failed") : "todo",
-      note: rec
-        ? rec.summary || "已产出记录"
-        : allDone
-          ? `该仓 ${repoTasks.length} 条任务都已过经理门，但**还没有**集成验证记录（这一步可能没跑）`
-          : `等该仓剩余任务过经理门（${repoTasks.filter((t) => t.status !== "done").length}/${repoTasks.length} 条未完成）`,
+      note: rec ? (rec.summary || "已产出记录") : "等该仓全部任务过了经理门",
     });
   }
   if (repos.length > 1) {
@@ -649,10 +637,6 @@ function StageHistory({
   /** 当前项目 id —— 「worker 工作内容」读面按 (projectId, taskId) 取，
    *  而那条读面在服务端按「项目 owner 或 admin」授权。 */
   projectId?: string | null;
-  /** 右栏宽度（px）。2026-09-20 用户要求："聊天框、信息框、测试框的大小和比例
-   *  都不能调整，需要有个动态调整的能力" —— 此前这里是写死的 `w-[400px]`。
-   *  宽度由承载方（WorkbenchPage 的分栏拖拽）决定并持久化，本组件只消费。 */
-  width?: number;
   /** 本项目已挂的仓库（追加的候选只从这里来） */
   repoOptions: Array<{ id: string; name: string }>;
   /** 人确认追加一个仓库 */
@@ -899,7 +883,6 @@ export function FocusPanel({
   planRevisions,
   deliveryManifest,
   onBuildManifest,
-  width = 400,
 }: FocusPanelProps) {
   const body = (() => {
     if (entry === null) {
@@ -1068,10 +1051,7 @@ export function FocusPanel({
   })();
 
   return (
-    <aside
-      className="flex h-full flex-none flex-col border-l border-line bg-[var(--tree-card)]"
-      style={{ width }}
-    >
+    <aside className="flex h-full w-[400px] flex-none flex-col border-l border-line bg-[var(--tree-card)]">
       {/* 门牌（房间样式提案 E，2026-09-18）：房檐条 = 房间图标 + 房间名 + mono 门牌号，
           右侧住户头像堆叠 + 在线点——房间有地址、有住户。 */}
       <div className="flex items-center gap-2.5 border-b border-[var(--tree-hairline)] bg-[var(--tree-zone)] px-4 py-2.5">
