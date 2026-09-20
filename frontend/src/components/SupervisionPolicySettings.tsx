@@ -50,7 +50,7 @@ export function SupervisionPolicySettings({
     setDraft({ kind: "loading" });
     try {
       const view = await fetchPolicyDraft(projectId);
-      setDraft(view.frozen ? { kind: "sealed" } : { kind: "set", draft: view });
+      setDraft(view.frozen ? { kind: "sealed", draft: view } : { kind: "set", draft: view });
     } catch (err) {
       // 四态分开呈现的理由见 SupervisionPolicyCard 顶部的注释：404 不是错误，
       // 401 重试没有意义，403 是「存在但读不到」——三者的界面动作完全不同。
@@ -138,7 +138,13 @@ export function SupervisionPolicySettings({
         onClose={() => setDialogOpen(false)}
         onSaved={(saved) => {
           setDialogOpen(false);
-          setDraft(saved === null ? { kind: "unset" } : saved.frozen ? { kind: "sealed" } : { kind: "set", draft: saved });
+          setDraft(
+            saved === null
+              ? { kind: "unset" }
+              : saved.frozen
+                ? { kind: "sealed", draft: saved }
+                : { kind: "set", draft: saved },
+          );
           onToast?.(saved === null ? "监管策略已撤回" : "监管策略已保存");
         }}
       />

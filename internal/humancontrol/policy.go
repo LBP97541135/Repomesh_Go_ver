@@ -96,6 +96,12 @@ type PolicyDraftView struct {
 	// Frozen = 已随首次物化定死，改不动了。界面据此把「修改」换成只读——
 	// 定死与否是存储层的事实（frozen_at），不是界面的判断。
 	Frozen bool `json:"frozen"`
+	// FrozenAt = 盖章那一刻（NULL = 还没冻结）。
+	//
+	// 2026-09-21 补：设置页要如实写出「这份策略是什么时候被冻的」，而此前读面只给
+	// 一个布尔 —— 界面只能写「已冻结」，写不出时间，等于让用户自己去翻日志。
+	// 只多给一个事实，不改任何判定：改不改得动仍然只看 Frozen。
+	FrozenAt *time.Time `json:"frozen_at"`
 }
 
 // PolicyDraftCommand 是整份覆盖写的入参。三个字段都允许缺省
@@ -167,10 +173,10 @@ func (s *Service) PolicyDraft(ctx context.Context, projectID string) (PolicyDraf
 	var view PolicyDraftView
 	var checkpoints, grants []byte
 	err := s.pool.QueryRow(ctx, `SELECT project_id::text, created_by, execution_mode,
-		 required_checkpoints, human_grants, created_at, updated_at, frozen_at IS NOT NULL
+		 required_checkpoints, human_grants, created_at, updated_at, frozen_at IS NOT NULL, frozen_at
 		 FROM public.project_policy_drafts WHERE project_id=$1::uuid`, projectID).
 		Scan(&view.ProjectID, &view.CreatedBy, &view.ExecutionMode,
-			&checkpoints, &grants, &view.CreatedAt, &view.UpdatedAt, &view.Frozen)
+			&checkpoints, &grants, &view.CreatedAt, &view.UpdatedAt, &view.Frozen, &view.FrozenAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PolicyDraftView{}, pgx.ErrNoRows
 	}

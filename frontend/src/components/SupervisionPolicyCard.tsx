@@ -40,8 +40,13 @@ export type PolicyDraftState =
   /** 403：既不是管理员、也不在这份草稿的授权名单里。草稿可能存在，只是读不到。 */
   | { kind: "forbidden"; detail: string }
   | { kind: "error"; message: string }
-  /** 已有真档案：草稿窗口已关（§3.4）。 */
-  | { kind: "sealed" }
+  /** 已有真档案：草稿窗口已关（§3.4）。
+   *
+   *  2026-09-21 补：这里带上 draft 本身。此前它是个空标记，而**渲染分支里根本没
+   *  有它** —— 于是任何把 sealed 传给这张卡片的地方（比如设置页）只会看到标题、
+   *  正文一片空白。类型里有、渲染里没有，是"看起来支持、实际什么都不显示"。
+   *  带上草稿就能把已冻结的那份策略原样读出来（含冻结时间），只读展示。 */
+  | { kind: "sealed"; draft: TopologyPolicyDraftView }
   /** 拓扑取数未落定或失败（含回放模式）：**不知道有没有档案**，不猜。 */
   | { kind: "unknown" };
 
@@ -192,6 +197,22 @@ export function SupervisionPolicyCard({
           )}
 
           {state.kind === "set" && <PolicyDigest draft={state.draft} />}
+
+          {/* 已冻结（首次物化盖的 frozen_at）：策略原样读出来，但**只读** ——
+              PUT 会 409、DELETE 同样被拒，所以这里不给按钮，只说明为什么。 */}
+          {state.kind === "sealed" && (
+            <>
+              <PolicyDigest draft={state.draft} />
+              <p className="mt-2 rounded-hard border border-line bg-well px-2.5 py-1.5 text-[11px] leading-[1.7] text-tx2">
+                这份策略已随首次物化<b className="text-tx">冻结</b>
+                {state.draft.frozen_at ? `（${state.draft.frozen_at}）` : ""}
+                ——改不动，也撤不掉。冻结的是「这个项目会停在哪几处、谁能批」：
+                同一批需求跑起来之后中途改强度，会让已经在旧强度下做的决策无从解释，
+                所以定死这件事由存储层持有，不是界面保守。要换强度请对**新的需求**
+                另设。
+              </p>
+            </>
+          )}
 
           {state.kind === "unauthenticated" && (
             <p className="text-[11.5px] leading-[1.7] text-tx2">

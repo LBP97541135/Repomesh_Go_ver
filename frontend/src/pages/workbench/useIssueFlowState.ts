@@ -230,7 +230,7 @@ export function useIssueFlowState(projectId: string, issueId: string, planId: st
    *  `sealed` / `unknown` 不是错误态，是「这个问题已经不归草稿管了」。 */
   const policyCard: PolicyDraftState =
     policyDraft.kind === "set" && policyDraft.draft.frozen
-      ? { kind: "sealed" }
+      ? { kind: "sealed", draft: policyDraft.draft }
       : policyDraft;
 
   return {

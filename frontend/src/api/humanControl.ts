@@ -319,6 +319,11 @@ export interface TopologyPolicyDraftView {
    *  物化过、有过团队，而**从来没有人被问过监管策略** —— 那正是这批迁移要修的洞。
    *  拿「有团队」当「已定死」，等于把这个洞原样保留。 */
   frozen: boolean;
+  /** 盖章那一刻（后端 `frozen_at`）。null = 还没冻结。
+   *
+   *  2026-09-21 补：设置页要写出「这份策略是什么时候被冻的」，此前读面只给布尔，
+   *  界面写不出时间。**只多给一个事实**：改不改得动仍然只看 `frozen`。 */
+  frozen_at: string | null;
 }
 
 /** 读一个需求的监管策略草稿。**`project_id` 就是 `issue_id`**（契约 §0）。
