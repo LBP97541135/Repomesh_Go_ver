@@ -7,8 +7,8 @@ import (
 	"repomesh.local/repomesh/internal/agentteams"
 )
 
-// 缺配置时一个远端请求都不该发出去。backfillRooms 在每次 EnsureForProject（含那条
-// 2 分钟收敛循环）里都会跑，所以"没配就打远端"会被放大成周期性噪声。
+// 缺配置时一个远端请求都不该发出去。BackfillRooms 由组合根的低频循环周期调用，
+// 所以"没配就打远端"会被放大成周期性噪声。
 func TestBackfillRoomsIsNoOpWithoutPoolOrClient(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -19,9 +19,9 @@ func TestBackfillRoomsIsNoOpWithoutPoolOrClient(t *testing.T) {
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			filled, err := testCase.service.backfillRooms(context.Background())
+			filled, err := testCase.service.BackfillRooms(context.Background())
 			if err != nil {
-				t.Fatalf("backfillRooms: %v", err)
+				t.Fatalf("BackfillRooms: %v", err)
 			}
 			if filled != 0 {
 				t.Fatalf("filled=%d; want 0", filled)

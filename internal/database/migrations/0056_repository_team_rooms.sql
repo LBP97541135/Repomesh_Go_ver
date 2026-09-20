@@ -1,4 +1,4 @@
--- 0053: 记住 AgentTeams 团队房。
+-- 0056: 记住 AgentTeams 团队房。
 --
 -- 到这一版为止 RepoMesh 把团队和 worker 都建出来了，却把上游回给它的房间号扔掉了
 -- （`agent_teams.room_id` 恒空，`repository_teams` 连列都没有），于是「进房间看对话」

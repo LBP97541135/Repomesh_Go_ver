@@ -559,7 +559,28 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		// load 冲到 100+、登录被拖死；而每个 worker 都是**真 runtime**，不是纸面记录。
 		//
 		// 这里**没有**后台扫掠：历史积压的仓库不会自动补队 —— 需要就逐仓确认一次。
+		//
+		// 房间号收敛是这里唯一的后台循环，与上面那条裁定不冲突：它只**读**
+		//（对还没有房间号的行各发一个 GET），不建任何团队、不起任何 runtime ——
+		// 不补的话房间号恒空，"进房间看对话"永远是一间进不去的房。
 		teamService := agentTeamsAPI.RepositoryTeams
+		go func() {
+			timer := time.NewTimer(20 * time.Second)
+			defer timer.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-timer.C:
+				}
+				if filled, err := teamService.BackfillRooms(ctx); err != nil {
+					slog.Warn("repository team room backfill deferred", "reason", err.Error())
+				} else if filled > 0 {
+					slog.Info("repository team rooms backfilled", "count", filled)
+				}
+				timer.Reset(5 * time.Minute)
+			}
+		}()
 		projectAPI.OnRepositoriesConfirmed = func(ctx context.Context, projectID string, added []string) {
 			if len(added) != 1 {
 				slog.Info("repository team skipped: not a single-repository confirmation",

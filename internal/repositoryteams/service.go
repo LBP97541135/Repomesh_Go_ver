@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"time"
 
@@ -328,20 +327,19 @@ func (s *Service) EnsureForProject(ctx context.Context, projectID string, worker
 		}
 		created = append(created, id)
 	}
-	// 补齐房间号：这一步不能省。房间由 AgentTeams 控制器**异步**建，建队那一刻
-	// 通常还没建好，于是下面的 Create 读到空、room_id 留 NULL；而本函数会跳过
-	// "已经有团队"的仓库，那个 NULL 就再也没人来填。没有这条兜底，房间号恒空，
-	// "进房间看对话"永远是间进不去的房。
-	//
-	// 只 GET、不写远端，幂等；失败不影响本函数的返回（建队本身已经成功了）。
-	if _, err := s.backfillRooms(ctx); err != nil {
-		slog.Warn("repository team room backfill deferred", "reason", err.Error())
-	}
 	return created, firstErr
 }
 
-// backfillRooms 给"已经有团队但还没记住房间号"的行补一次回读。返回补齐的条数。
-func (s *Service) backfillRooms(ctx context.Context) (int, error) {
+// BackfillRooms 给"已经有团队但还没记住房间号"的行补一次回读。返回补齐的条数。
+//
+// 为什么必须有这条：房间由 AgentTeams 控制器**异步**建，建队那一刻通常还没建好，
+// 于是 Create 里的 persistRooms 读到空、room_id 留 NULL；而建队路径会跳过"已经有
+// 团队"的仓库，那个 NULL 就再也没人来填。没有这条兜底，房间号恒空，"进房间看
+// 对话"永远是间进不去的房。
+//
+// 由组合根的独立低频循环调用（不走自动建队那道开关）：它只 GET、不写远端，
+// 不建任何东西，重演不了 2026-09-20 那场"灌爆 AgentTeams"的事故。
+func (s *Service) BackfillRooms(ctx context.Context) (int, error) {
 	if s.pool == nil || s.client == nil {
 		return 0, nil
 	}
