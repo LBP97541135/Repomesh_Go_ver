@@ -663,16 +663,17 @@ export function WorkbenchPage({
   };
 
   const [issueHitl, setIssueHitl] = useState<"ai" | "hitl">("hitl");
+  // 2026-09-20：模式改读**服务端事实**（issue 详情里的 hitlMode，0053 落列）。
+  //
+  // 此前它只活在浏览器 sessionStorage 里（`repomesh.hitl-mode.<issue>`），而协调器的
+  // 自动托管循环在 Go 侧看不到这个值 —— 于是"人工参与"模式下 ③ 分档审批与 ⑤ 物化确认
+  // 照样被自动代行，人审门形同不存在；换台机器/换个浏览器，模式还会凭空回到默认。
+  // 现在服务端是唯一权威：建项时写入，读面返回，协调器按它停门。
   const issueKey = detail?.issue_id ?? null;
   useEffect(() => {
     if (issueKey === null) return;
-    try {
-      const stored = window.sessionStorage.getItem(hitlKey(issueKey));
-      setIssueHitl(stored === "ai" ? "ai" : "hitl");
-    } catch {
-      setIssueHitl("hitl");
-    }
-  }, [issueKey]);
+    setIssueHitl(detail?.hitlMode === "ai" ? "ai" : "hitl");
+  }, [issueKey, detail?.hitlMode]);
 
   // 自动托管:处理员代行人审门(分档审批 → 物化确认),用与真人门同一套写回路;
   // 失败如实落进右栏 gateError,不静默重试。
@@ -859,8 +860,8 @@ export function WorkbenchPage({
 
   // ── 新会话:输入与附件(发送即 createIssue) ──
   /** HITL 模式(入口选择,2026-09-17):ai = 自动托管(处理员代行人审门),hitl = 门等真人。
-   *  随 issue 存 sessionStorage——这是这台浏览器这次战役的选择,不是平台数据。 */
-  const hitlKey = (id: string) => `repomesh.hitl-mode.${id}`;
+   *  2026-09-20 起这是**服务端事实**：随建项写进 issue（0053 的 hitl_mode 列），
+   *  读面返回、协调器按它停门 —— 不再只存在这台浏览器的 sessionStorage 里。 */
   const [hitlMode, setHitlMode] = useState<"ai" | "hitl">("ai");
   const [draft, setDraft] = useState("");
   const [attachment, setAttachment] = useState<{ filename: string; text: string } | null>(null);
@@ -893,14 +894,9 @@ export function WorkbenchPage({
     if (!typed && !attachment) return;
     const text = attachment ? composeRequirementText(typed, attachment.text) : typed;
     setCreating(true);
-    attempt.current ??= { key: crypto.randomUUID(), input: { projectId, requirementText: text, repositoryIds: [...selectedRepos].sort(), expectedCreationContextRevision: options.creationContextRevision } };
+    attempt.current ??= { key: crypto.randomUUID(), input: { projectId, requirementText: text, repositoryIds: [...selectedRepos].sort(), expectedCreationContextRevision: options.creationContextRevision, hitlMode } };
     onCreateIssue(attempt.current.input, attempt.current.key)
-      .then((created) => {
-        try {
-          window.sessionStorage.setItem(hitlKey(created.issue_id), hitlMode);
-        } catch {
-          /* 存不进就只在本次会话内生效 */
-        }
+      .then(() => {
         setDraft("");
         setAttachment(null);
         attempt.current = null;
@@ -1222,7 +1218,10 @@ export function WorkbenchPage({
             onAttach={() => fileInputRef.current?.click()}
             attachTitle="上传需求文档 · 支持 .txt / .md / .docx / .pdf / .odt / .rtf"
             attachDisabled={creating || parsingDocument || attempt.current !== null}
-            sendDisabled={parsingDocument || selectedRepos.length > 100 || !options?.canSubmit || selectedRepos.length === 0 || (draft.trim() === "" && attachment === null)}
+            // 2026-09-20（用户："需求不写仓库为什么就不行？"）：**不选仓库也能发**。
+            // 没点名仓库时，候选评分那一步会退到本项目全部仓库目录，由 Manager
+            // （总领导）自己发现该改哪些仓。
+            sendDisabled={parsingDocument || selectedRepos.length > 100 || !options?.canSubmit || (draft.trim() === "" && attachment === null)}
             attachment={
               attachment ? (
                 <div className="flex items-center gap-2 border-t border-line px-3 py-1.5">

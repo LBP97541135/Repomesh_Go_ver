@@ -145,6 +145,9 @@ export type GoIssueDetail = {
   description: string;
   repositoryIds: string[];
   source: { kind: string; conversationId: string };
+  /** 人审门模式（0053 落列的服务端事实）：ai = 自动托管，hitl = 门等真人。
+   *  缺省/老数据按 hitl 处理 —— 最保守，不替人做主。 */
+  hitlMode?: "ai" | "hitl";
 };
 
 /** Go `GET /api/projects/{id}/issues` 的响应（as-built；2026-09-19 方案 A 起含派生字段）。 */

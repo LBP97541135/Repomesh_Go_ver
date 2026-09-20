@@ -38,6 +38,10 @@ type discoveryProgress struct {
 	evidenceVersion    string
 	hasPlan            bool
 	hasMaterialization bool
+	// hitlMode 是这次 issue 的人审门模式（0053 迁移落列）：ai = 自动托管，
+	// hitl = 门等真人。**自动托管循环只处理 ai 的 issue** —— 此前它不看这个字段，
+	// 于是人工参与模式下 ③ 分档审批与 ⑤ 物化确认也被无条件代行，人审门形同不存在。
+	hitlMode string
 }
 
 // Several discovery columns (created_by_agent_id, decided_by_agent_id) are
@@ -141,10 +145,14 @@ func (a *discoveryAutomator) pendingIssues(ctx context.Context) ([]discoveryProg
 		       COALESCE(d.approval->>'state', '')                                          AS approval_state,
 		       COALESCE(d.classification_evidence_version, '')                             AS evidence_version,
 		       (d.plan IS NOT NULL AND d.plan <> 'null'::jsonb)                            AS has_plan,
-		       (d.materialization IS NOT NULL AND d.materialization <> 'null'::jsonb)      AS has_materialization
+		       (d.materialization IS NOT NULL AND d.materialization <> 'null'::jsonb)      AS has_materialization,
+		       COALESCE(i.hitl_mode, 'hitl')                                               AS hitl_mode
 		FROM repomesh_issues.issue_discoveries d
 		JOIN repomesh_issues.issues i ON i.id = d.issue_id
 		WHERE i.removed_at IS NULL
+		  -- 自动托管只处理 ai 模式的 issue：人工参与（hitl）的 issue 由人自己推门，
+		  -- 这里连一步都不代行（0053 之前它无条件代行 ③ 与 ⑤）。
+		  AND COALESCE(i.hitl_mode, 'hitl') = 'ai'
 		  AND NOT (d.analysis IS NOT NULL AND d.analysis <> 'null'::jsonb
 		  AND (COALESCE((d.analysis->>'sufficient')::bool, false) OR jsonb_typeof(d.analysis->'forced_continue') = 'object')
 		           AND d.candidates IS NOT NULL AND d.candidates <> 'null'::jsonb
@@ -163,7 +171,8 @@ func (a *discoveryAutomator) pendingIssues(ctx context.Context) ([]discoveryProg
 		var p discoveryProgress
 		if err := rows.Scan(
 			&p.issueID, &p.hasAnalysis, &p.sufficient, &p.forced, &p.hasCandidates,
-			&p.hasClassification, &p.approvalState, &p.evidenceVersion, &p.hasPlan, &p.hasMaterialization); err != nil {
+			&p.hasClassification, &p.approvalState, &p.evidenceVersion, &p.hasPlan, &p.hasMaterialization,
+			&p.hitlMode); err != nil {
 			return nil, err
 		}
 		pending = append(pending, p)

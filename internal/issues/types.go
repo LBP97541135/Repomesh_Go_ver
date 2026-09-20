@@ -36,6 +36,10 @@ type pageInput struct {
 	criteria        []string
 	conversation    conversationChoice
 	analysisID      *string
+	// hitlMode 是这次 issue 的人审门模式：ai = 自动托管（处理员代行 ③ 分档审批
+	// 与 ⑤ 物化确认），hitl = 门等真人。它是**服务端事实**（0053 迁移落列），
+	// 协调器按它停门 —— 此前它只活在浏览器 sessionStorage 里，Go 侧看不到。
+	hitlMode string
 }
 
 // PageCommand carries one authenticated page-create command from the web layer.

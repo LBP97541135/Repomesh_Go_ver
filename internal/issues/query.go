@@ -358,6 +358,10 @@ type IssueDetail struct {
 	MainChangeSetID    string      `json:"mainChangeSetId"`
 	Source             IssueSource `json:"source"`
 	CreatedAt          time.Time   `json:"createdAt"`
+	// HitlMode 是这次 issue 的人审门模式：ai = 自动托管（处理员代行 ③ 分档审批与
+	// ⑤ 物化确认），hitl = 门等真人。它是服务端事实（0053），工作台按它渲染徽标与
+	// 门的行为 —— 此前只活在浏览器 sessionStorage 里，刷新/换浏览器就丢。
+	HitlMode string `json:"hitlMode"`
 }
 
 // GetIssue returns the issue detail snapshot after re-checking read
@@ -377,9 +381,10 @@ func (s *Service) GetIssue(ctx context.Context, principal access.ProjectPrincipa
 	var detail IssueDetail
 	var criteria []byte
 	var conversationID string
-	err = tx.QueryRow(ctx, `SELECT id,number,revision,title,description,main_changeset_id,created_at,main_conversation_id,criteria
+	err = tx.QueryRow(ctx, `SELECT id,number,revision,title,description,main_changeset_id,created_at,main_conversation_id,criteria,
+		   COALESCE(hitl_mode,'hitl')
 		FROM repomesh_issues.issues WHERE project_id=$1 AND id=$2 AND removed_at IS NULL`,
-		projectID, issueID).Scan(&detail.ID, &detail.Number, &detail.Revision, &detail.Title, &detail.Description, &detail.MainChangeSetID, &detail.CreatedAt, &conversationID, &criteria)
+		projectID, issueID).Scan(&detail.ID, &detail.Number, &detail.Revision, &detail.Title, &detail.Description, &detail.MainChangeSetID, &detail.CreatedAt, &conversationID, &criteria, &detail.HitlMode)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return IssueDetail{}, failure(404, "RESOURCE_NOT_FOUND")

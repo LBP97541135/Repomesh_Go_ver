@@ -362,6 +362,19 @@ func (s *Service) observeAndCheck(ctx context.Context, principal access.ProjectP
 
 // readProjectRepositories resolves the selected repository IDs against the
 // project's joined repositories; a selection outside the project is 404.
+// hitlModeOrDefault 把这次建项的人审门模式收进一个合法值。
+//
+// 默认 hitl（门等真人）：最保守的缺省，不替任何人做主 —— 协调器的自动托管循环
+// 只在 ai 模式下才代行 ③ 分档审批与 ⑤ 物化确认。
+func hitlModeOrDefault(mode string) string {
+	switch mode {
+	case "ai", "hitl":
+		return mode
+	default:
+		return "hitl"
+	}
+}
+
 func readProjectRepositories(ctx context.Context, tx pgx.Tx, projectID string, selected []string) ([]access.RepositoryLocator, error) {
 	set := make(map[string]bool, len(selected))
 	for _, id := range selected {
@@ -655,10 +668,10 @@ func insertIssueAndMainChangeSet(ctx context.Context, tx pgx.Tx, identity operat
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO repomesh_issues.issues
 		(id, project_id, number, title, description, criteria, revision, main_conversation_id, main_changeset_id,
-		 initial_configuration_revision, creation_operation_id)
-		VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11)`,
+		 initial_configuration_revision, creation_operation_id, hitl_mode)
+		VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12)`,
 		issueID, identity.projectID, number, input.title, input.description, string(criteria), revision,
-		conversationID, changeSetID, configuration, operationRow); err != nil {
+		conversationID, changeSetID, configuration, operationRow, hitlModeOrDefault(input.hitlMode)); err != nil {
 		return committedCreation{}, unavailable()
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO repomesh_issues.changesets (id, project_id, issue_id, kind)

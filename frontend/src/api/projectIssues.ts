@@ -14,14 +14,17 @@ import { apiRequest } from "./http";
  *  expectedCreationContextRevision/title/description/repositoryIds 必填,
  *  acceptanceCriteria/repositoryAnalysisId/conversation 可选;未知字段 422。 */
 export interface IssueCreationInput {
-  expectedCreationContextRevision?: string;
-  title?: string;
-  description?: string;
-  repositoryIds?: string[];
-  acceptanceCriteria?: string[];
-  repositoryAnalysisId?: string;
-  conversation?: { mode: "new" } | { mode: "existing"; id: string };
-  [key: string]: unknown;
+	expectedCreationContextRevision?: string;
+	title?: string;
+	description?: string;
+	repositoryIds?: string[];
+	acceptanceCriteria?: string[];
+	repositoryAnalysisId?: string;
+	conversation?: { mode: "new" } | { mode: "existing"; id: string };
+	/** 人审门模式：ai = 自动托管（处理员代行 ③ 分档审批与 ⑤ 物化确认），
+	 *  hitl = 门等真人。服务端事实（0053 迁移落列），协调器按它停门。 */
+	hitlMode?: "ai" | "hitl";
+	[key: string]: unknown;
 }
 
 /** 创建响应（后端 writeIssueCreation 信封，as-built）。 */

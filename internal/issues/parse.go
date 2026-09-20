@@ -30,6 +30,7 @@ func parseNewInput(body []byte) (pageInput, error) {
 	known["acceptanceCriteria"] = true
 	known["conversation"] = true
 	known["repositoryAnalysisId"] = true
+	known["hitlMode"] = true
 	for key := range raw {
 		if !known[key] {
 			return pageInput{}, failure(422, "VALIDATION_FAILED")
@@ -55,9 +56,11 @@ func parseNewInput(body []byte) (pageInput, error) {
 	if err != nil {
 		return pageInput{}, err
 	}
-	if !present || len(repositories) == 0 {
-		return pageInput{}, fieldFailure("repositoryIds", "REQUIRED")
-	}
+	// 2026-09-20（用户："需求不写仓库为什么就不行？"）：仓库范围**不再必填**。
+	// 需求里没点名仓库时，候选评分那一步会退到本项目的全部仓库目录，由 Manager
+	// （总领导）自己去发现该改哪些仓（见 internal/discovery/recall.go 的 loadRepoPool）。
+	// 缺字段与空数组是同一个意思：这次没点名。
+	_ = present
 	input.repositories = repositories
 	criteria, _, err := listValue(raw, "acceptanceCriteria", 100, 2000, true, false)
 	if err != nil {
@@ -78,6 +81,23 @@ func parseNewInput(body []byte) (pageInput, error) {
 			return pageInput{}, fieldFailure("repositoryAnalysisId", "INVALID_ID")
 		}
 		input.analysisID = &analysisID
+	}
+	// 人工参与 / 自动托管：服务端事实，不再只活在浏览器 sessionStorage 里
+	// （协调器的自动托管循环此前无条件代行 ③ 审批与 ⑤ 物化，人工参与模式下也一样）。
+	mode, present, err := optionalString(raw, "hitlMode", 8)
+	if err != nil {
+		return pageInput{}, err
+	}
+	if present {
+		switch mode {
+		case "ai", "hitl":
+			input.hitlMode = mode
+		default:
+			return pageInput{}, fieldFailure("hitlMode", "INVALID_VALUE")
+		}
+	} else {
+		// 缺省最保守：门等真人，不替任何人做主。
+		input.hitlMode = "hitl"
 	}
 	return input, nil
 }
@@ -269,6 +289,9 @@ func canonicalize(input pageInput) []byte {
 	document["repositoryIds"] = repositories
 	document["acceptanceCriteria"] = criteria
 	document["conversation"] = conversation
+	// 人审门模式进指纹：同一个幂等键换模式重放是一次**不同的**建项请求，
+	// 不能拿旧回执当"已创建"糊过去。
+	document["hitlMode"] = input.hitlMode
 	if input.analysisID != nil {
 		document["repositoryAnalysisId"] = *input.analysisID
 	}

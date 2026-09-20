@@ -104,12 +104,17 @@ export interface CreateIssueRequest {
   requirementText: string;
   repositoryIds: string[];
   expectedCreationContextRevision: string;
+  /** 人审门模式：ai = 自动托管，hitl = 门等真人（缺省 hitl，最保守）。 */
+  hitlMode?: "ai" | "hitl";
 }
 
 /** All scope decisions belong to the caller; retries send this exact snapshot. */
 export async function createIssue(input: CreateIssueRequest, idempotencyKey: string): Promise<CreatedIssueRef> {
-  if (!input.projectId || !input.expectedCreationContextRevision || input.repositoryIds.length === 0) {
-    throw new Error("请先选择项目及本次 Issue 的仓库范围。");
+  // 2026-09-20（用户："需求不写仓库为什么就不行？"）：仓库范围**不再必填**。
+  // 需求里没点名仓库时，候选评分那一步会退到本项目的全部仓库目录，由 Manager
+  // （总领导）自己去发现该改哪些仓。仍然必须有项目与创建上下文版本。
+  if (!input.projectId || !input.expectedCreationContextRevision) {
+    throw new Error("请先选择项目。");
   }
   const receipt = await createIssueCreation(input.projectId, {
     expectedCreationContextRevision: input.expectedCreationContextRevision,
@@ -117,6 +122,7 @@ export async function createIssue(input: CreateIssueRequest, idempotencyKey: str
     repositoryIds: [...input.repositoryIds],
     title: firstLine(input.requirementText),
     description: input.requirementText,
+    hitlMode: input.hitlMode ?? "hitl",
   }, idempotencyKey);
   return { issue_id: receipt.issue.id };
 }
