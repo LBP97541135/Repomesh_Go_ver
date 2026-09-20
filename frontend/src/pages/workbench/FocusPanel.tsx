@@ -681,8 +681,8 @@ export interface FocusPanelProps {
   // Manager 房间的真实消息（AgentTeams）。null=还没有可进的房,回落到 messages。
   roomMessages: ConversationMessage[] | null;
   /** 人工门动作（页面持写回路） */
-  onGate: (action: "approveTiers" | "materialize") => void;
-  gateBusy: "approveTiers" | "materialize" | null;
+  onGate: (action: "approveTiers" | "plan" | "materialize") => void;
+  gateBusy: "approveTiers" | "plan" | "materialize" | null;
   gateError: string | null;
   /** 失败步重试 */
   onRetryStep: (step: 1 | 2 | 3 | 4) => void;
@@ -1089,8 +1089,8 @@ function StepStream({
 }: {
   discovery: DiscoveryView | null;
   stepStates: StepState[];
-  onGate: (action: "approveTiers" | "materialize") => void;
-  gateBusy: "approveTiers" | "materialize" | null;
+  onGate: (action: "approveTiers" | "plan" | "materialize") => void;
+  gateBusy: "approveTiers" | "plan" | "materialize" | null;
 }) {
   if (!discovery || stepStates[0] === "wait") return null;
   const msgRow = (node: ReactNode, key: string, who: "user" | "mgr" = "mgr") => (
@@ -1148,11 +1148,36 @@ function StepStream({
     </>), "s3"));
   }
   // ④ 生成计划
+  //
+  //  2026-09-20（用户反馈："生成计划……没有人工确认项，而且也不展示"）：人工参与
+  //  模式下 ④ 也是一道**门**，消息里要出现按钮；自动托管模式则由处理员代行，
+  //  这里如实写明"代行"，人照样看得见这一步发生过。
   const integration = discovery.integration;
   const planned = (discovery.plan ?? null) !== null || integration !== null;
-  if (planned || stepStates[3] === "run") {
+  const planGate = stepStates[3] === "gate";
+  if (planned || planGate || stepStates[3] === "run" || stepStates[3] === "failed") {
+    const counts = integration ? ` · ${integration.task_dag_count} 任务 ${integration.batch_count} 批` : "";
     flow.push(msgRow(card(<>
-      <span className="font-semibold">{integration ? `计划 v1 已生成 · ${integration.task_dag_count} 任务 ${integration.batch_count} 批` : "正在生成计划…"}</span>
+      <span className="font-semibold">
+        {planned
+          ? `计划已生成${counts}`
+          : stepStates[3] === "run"
+            ? "正在生成计划…"
+            : stepStates[3] === "failed"
+              ? "生成计划失败"
+              : "生成计划 · 待人审"}
+      </span>
+      {planGate && (
+        <p className="mt-0.5 text-[11px] leading-[1.6] text-[var(--tree-sub)]">
+          分档已批准。确认后由仓库 Leader 产出计划（任务 DAG 与批次划分），产出后回到这里确认物化。
+        </p>
+      )}
+      {planGate && (
+        <button type="button" disabled={gateBusy === "plan"} onClick={() => onGate("plan")}
+          className="mt-1.5 rounded-[7px] border border-amber/40 bg-amber-well px-3 py-1 text-[11.5px] font-semibold text-amber hover:bg-amber-well/80 disabled:opacity-50">
+          {gateBusy === "plan" ? "派发中…" : "生成计划"}
+        </button>
+      )}
     </>), "s4"));
   }
   // ⑤ 物化确认
@@ -1189,9 +1214,9 @@ function GateStack({
 }: {
   stepStates: StepState[];
   mergePending: boolean;
-  onGate: (action: "approveTiers" | "materialize") => void;
+  onGate: (action: "approveTiers" | "plan" | "materialize") => void;
   onViewTrain?: () => void;
-  gateBusy: "approveTiers" | "materialize" | null;
+  gateBusy: "approveTiers" | "plan" | "materialize" | null;
   gateError: string | null;
   discovery: DiscoveryView | null;
   onChooseManual?: () => void;
@@ -1228,6 +1253,17 @@ function GateStack({
       label: "批准分档",
       action: () => onGate("approveTiers"),
       busy: gateBusy === "approveTiers",
+    });
+  }
+  // ④ 生成计划（人工参与模式下的第三道门，2026-09-20 补）。
+  if (stepStates[3] === "gate") {
+    cards.push({
+      key: "plan",
+      title: "生成计划 · 待人审",
+      desc: "分档已批准,确认后派发规划;计划产出后回到这里确认物化",
+      label: "生成计划",
+      action: () => onGate("plan"),
+      busy: gateBusy === "plan",
     });
   }
   if (stepStates[4] === "gate") {
@@ -1596,8 +1632,8 @@ function StepDetail({
   step: 1 | 2 | 3 | 4 | 5;
   state: StepState;
   discovery: DiscoveryView | null;
-  onGate: (action: "approveTiers" | "materialize") => void;
-  gateBusy: "approveTiers" | "materialize" | null;
+  onGate: (action: "approveTiers" | "plan" | "materialize") => void;
+  gateBusy: "approveTiers" | "plan" | "materialize" | null;
   gateError: string | null;
   onRetryStep: (step: 1 | 2 | 3 | 4) => void;
   stepError: { step: number; message: string } | null;
@@ -1737,17 +1773,37 @@ function StepDetail({
   }
   if (step === 4) {
     const integration = discovery?.integration ?? null;
+    const planned = (discovery?.plan ?? null) !== null || integration !== null;
     return wrap(
-      <CardShell title={integration ? `计划 v1 · ${integration.task_dag_count} 任务 ${integration.batch_count} 批` : "生成计划"} tone={integration ? "done" : "plain"}>
+      <CardShell
+        title={planned ? `计划已生成${integration ? ` · ${integration.task_dag_count} 任务 ${integration.batch_count} 批` : ""}` : "生成计划"}
+        tone={planned ? "done" : state === "gate" ? "gate" : "plain"}
+      >
         <ProducerLine producer={integration?.producer} />
-        {integration ? (
+        {planned ? (
           <p className="text-[11px] leading-[1.7] text-[var(--tree-sub)]">
             批次明细的读面（计划纸面快照）在 Go 后端尚未迁移，批次划分以物化确认卡与任务树为准。
           </p>
         ) : state === "run" ? (
           <p className="text-[11px] text-[var(--tree-sub)]">正在生成计划…</p>
+        ) : state === "gate" ? (
+          <>
+            <p className="text-[11px] leading-[1.7] text-[var(--tree-sub)]">
+              分档已批准，等人确认后派发规划：仓库 Leader 产出任务 DAG 与批次划分，产物落库后回到这里确认物化。
+            </p>
+            <button
+              className="mt-2.5 rounded-[7px] border border-amber/40 bg-amber-well px-3.5 py-1.5 text-[12px] font-semibold text-amber hover:bg-amber-well disabled:opacity-50"
+              disabled={gateBusy === "plan"}
+              onClick={() => onGate("plan")}
+            >
+              {gateBusy === "plan" ? "派发中…" : "生成计划"}
+            </button>
+          </>
         ) : (
           <p className="text-[11px] text-[var(--tree-sub)]">等待分档审批通过后自动生成。</p>
+        )}
+        {gateError && state === "gate" && (
+          <p className="mt-2 rounded-[7px] border border-salmon/40 bg-salmon-well px-2.5 py-1.5 text-[11px] text-salmon">{gateError}</p>
         )}
       </CardShell>,
     );

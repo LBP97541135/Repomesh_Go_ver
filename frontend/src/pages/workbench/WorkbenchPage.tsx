@@ -278,6 +278,10 @@ export function WorkbenchPage({
     if (discovery.step === 4 && discovery.approval?.state !== "approved") return;
     // 人工参与：② 是「待人选择」的门，驱动器不越门（人选完自己会触发链路）
     if (discovery.step === 2 && issueHitl !== "ai") return;
+    // 人工参与：④ 生成计划也是门（2026-09-20）。此前这里不挡 —— 自动托管照旧
+    // 替人把计划生成了，"生成计划"这一步在人工参与模式下根本没有确认项。
+    // 现在等人点右栏/聊天里的「生成计划」按钮，与 ③⑤ 同一套写回路。
+    if (discovery.step === 4 && issueHitl !== "ai") return;
     // 空范围不开火：分档把必需+可能全排空时 Plan 端点必 409，白打一轮
     if (discovery.step === 4) {
       const picked =
@@ -551,8 +555,11 @@ export function WorkbenchPage({
     });
   };
 
-  // ── 人工门（分档审批 / 物化确认）──
-  const [gateBusy, setGateBusy] = useState<"approveTiers" | "materialize" | null>(null);
+  // ── 人工门（分档审批 / 生成计划 / 物化确认）──
+  //
+  //  2026-09-20：④ 生成计划也进这道门（用户反馈"生成计划没有人工确认项"）。
+  //  人工参与模式下分档批准后停在 ④，等人点「生成计划」才派发规划 run。
+  const [gateBusy, setGateBusy] = useState<"approveTiers" | "plan" | "materialize" | null>(null);
   const [gateError, setGateError] = useState<string | null>(null);
   // ── 候选分流（2026-09-18 用户裁定）：②在聊天室里选——人勾选（→③依赖图查漏）
   //    或 AI 推断（→③走既有分档审批门），人闸与模型闸各一道。
@@ -568,7 +575,7 @@ export function WorkbenchPage({
   const gateFailures = useRef(0);
   /** 监管策略弹窗（迁移 5-1b）：草稿卡片上的「配置 / 修改」。 */
   const [policyOpen, setPolicyOpen] = useState(false);
-  const handleGate = (action: "approveTiers" | "materialize") => {
+  const handleGate = (action: "approveTiers" | "plan" | "materialize") => {
     if (!detail || !discovery) return;
     if (resolveDataSourceMode() === "replay") {
       onToast("回放模式不写后端：人工门需要 ?source=live 才能真实执行。");
@@ -580,6 +587,26 @@ export function WorkbenchPage({
     }
     setGateBusy(action);
     setGateError(null);
+    if (action === "plan") {
+      // ④ 生成计划（人工参与模式的第三道门）：派发规划 run，产物由协调器收回来
+      // 落进发现链（与自动托管走的是同一个写端点，人闸只是决定"谁按下这一下"）。
+      triggerPlan(detail.issue_id, {
+        created_by_agent_id: principal.agentId,
+        idempotency_key: newIdempotencyKey("plan"),
+      })
+        .then(() => {
+          setGateBusy(null);
+          gateFailures.current = 0;
+          onToast("已派发计划生成：Leader 产出计划后回到这里确认物化");
+          setReload((n) => n + 1);
+        })
+        .catch((err: unknown) => {
+          setGateBusy(null);
+          gateFailures.current += 1;
+          setGateError(errText(err));
+        });
+      return;
+    }
     if (action === "approveTiers") {
       if (discovery.classification_evidence_version === null) {
         setGateBusy(null);
@@ -1410,6 +1437,7 @@ export function WorkbenchPage({
                 activeEntry={activeEntry}
                 onOpen={setActiveEntry}
                 testEvidence={testEvidence}
+                hitl={issueHitl === "hitl"}
               />
             </div>
             {/* PR 交付列车:交付环节到达时从左栏底部弹入,不占聊天房间 */}

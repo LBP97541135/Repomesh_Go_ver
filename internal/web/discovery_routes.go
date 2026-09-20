@@ -294,6 +294,16 @@ func registerDiscoveryRoutes(mux *http.ServeMux, auth Auth, discoveryAPI Discove
 			return
 		}
 		receipt, err := discoveryAPI.Service.Classification(r.Context(), r.PathValue("issueId"), body.CreatedByAgentID, body.IdempotencyKey)
+		if err == nil {
+			// 分档产物已落库 → 审核台挂一张「分档待审批」的登记单。
+			//
+			// 2026-09-20 修：`Discovery.raiseReview` 写在这里之前**从来没有被调用过**
+			// （全仓 grep 只有定义），于是审核台那一栏只能靠协调器的规划 run 顺带落单
+			// —— 候选/分档走非规划 run 的路径时（重放、人工补档），审核台就是空的。
+			// `humancontrol.Request` 对同一 (project, checkpoint, evidence_version) 幂等，
+			// 与协调器重复落单不会堆出一排待审。
+			discoveryAPI.raiseReview(r.Context(), r.PathValue("issueId"), "repository_scope", "分档待审批")
+		}
 		writeDiscoveryReceipt(w, receipt, err)
 	})
 	register("POST /api/issues/{issueId}/discovery/plan", func(w http.ResponseWriter, r *http.Request) {

@@ -96,22 +96,38 @@ export function deriveStepStates(d: DiscoveryView | null, hitl = false): StepSta
   // classification / approval / integration / materialization）。于是 `d.plan`
   // 恒为 undefined、`undefined !== null` 恒为 true → **planned 恒真 → ④ 永远
   // "已完成"、⑤ 永远"待人审"**，与真实进度无关。
-  // 改按后端自己的口径：`deriveStep` 只在 plan 或 materialization 在场时返回
-  // (4,"done")，所以「step===4 且 step_state==="done"」才是计划已生成。
-  const planned = d.step === 4 && d.step_state === "done";
+  // 2026-09-20 补：读面现在**真的**输出 `plan` 块了（`State.View()` 加了这一项），
+  // 所以「plan 在场」与「deriveStep 返回 (4,done)」两条都算数。
+  const planned = (d.plan ?? null) !== null || (d.step === 4 && d.step_state === "done");
+  // ④ 在**人工参与**模式下也是一道门（2026-09-20 用户反馈："生成计划……没有人工
+  // 确认项，而且也不展示"）。此前它只由前端驱动器自动开火，人既看不到"该我点了"
+  // 也点不了。现在：分档批准后停在「待人审」，等人点「生成计划」才派发；
+  // 派发出去（running_task_id 非空 / step_state=running）就如实显示进行中。
+  const planRunning = d.step === 4 && (d.step_state === "running" || d.running_task_id !== null);
   states[3] = planned
     ? "done"
     : states[2] === "done"
-      ? d.step === 4
-        ? running
-          ? "run"
-          : failed
-            ? "failed"
+      ? planRunning
+        ? "run"
+        : d.step === 4 && d.step_state === "failed"
+          ? "failed"
+          : hitl
+            ? "gate"
             : "wait"
-        : "wait"
       : "wait";
-  // ⑤ 物化确认（人工门）
+  // ⑤ 物化确认（人工门）。
+  //  2026-09-20 补：物化**失败**此前落进 else 分支显示"未开始"（planned 为假时），
+  //  人看不到"它失败了、可以重试"。收据在场就按收据的 status 如实说。
+  const matStatus = d.materialization?.status ?? null;
   states[4] =
-    d.materialization?.status === "materialized" ? "done" : planned ? "gate" : "wait";
+    matStatus === "materialized"
+      ? "done"
+      : matStatus === "failed"
+        ? "failed"
+        : matStatus !== null
+          ? "run"
+          : planned
+            ? "gate"
+            : "wait";
   return states;
 }
