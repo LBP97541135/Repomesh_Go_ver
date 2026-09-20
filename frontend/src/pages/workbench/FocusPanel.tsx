@@ -649,6 +649,10 @@ function StageHistory({
   /** 当前项目 id —— 「worker 工作内容」读面按 (projectId, taskId) 取，
    *  而那条读面在服务端按「项目 owner 或 admin」授权。 */
   projectId?: string | null;
+  /** 右栏宽度（px）。2026-09-20 用户要求："聊天框、信息框、测试框的大小和比例
+   *  都不能调整，需要有个动态调整的能力" —— 此前这里是写死的 `w-[400px]`。
+   *  宽度由承载方（WorkbenchPage 的分栏拖拽）决定并持久化，本组件只消费。 */
+  width?: number;
   /** 本项目已挂的仓库（追加的候选只从这里来） */
   repoOptions: Array<{ id: string; name: string }>;
   /** 人确认追加一个仓库 */
@@ -895,6 +899,7 @@ export function FocusPanel({
   planRevisions,
   deliveryManifest,
   onBuildManifest,
+  width = 400,
 }: FocusPanelProps) {
   const body = (() => {
     if (entry === null) {
@@ -1063,7 +1068,10 @@ export function FocusPanel({
   })();
 
   return (
-    <aside className="flex h-full w-[400px] flex-none flex-col border-l border-line bg-[var(--tree-card)]">
+    <aside
+      className="flex h-full flex-none flex-col border-l border-line bg-[var(--tree-card)]"
+      style={{ width }}
+    >
       {/* 门牌（房间样式提案 E，2026-09-18）：房檐条 = 房间图标 + 房间名 + mono 门牌号，
           右侧住户头像堆叠 + 在线点——房间有地址、有住户。 */}
       <div className="flex items-center gap-2.5 border-b border-[var(--tree-hairline)] bg-[var(--tree-zone)] px-4 py-2.5">

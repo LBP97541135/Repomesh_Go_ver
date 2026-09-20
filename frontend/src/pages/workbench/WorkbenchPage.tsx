@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { ChevronLeft, FileText, PanelLeftOpen, X } from "lucide-react";
 import { PrTrainCard, type TrainCarSpec } from "./PrTrainCard";
 import { DispatchTree } from "./DispatchTree";
@@ -110,6 +110,76 @@ function entryConvIdOf(
   return detail.source?.conversationId ?? null;
 }
 
+/** 分栏拖拽手柄：拖动改右栏宽度，双击复位。
+ *
+ *  2026-09-20 用户要求："聊天框、信息框、测试框的大小和比例都不能调整，需要有
+ *  个动态调整的能力"。此前右栏宽度写死在 FocusPanel 的根元素上（`w-[400px]`），
+ *  界面上没有任何调整入口。
+ *
+ *  两个实现取舍：
+ *   · 用 **pointer 事件**而不是 mouse 事件：pointer 天然覆盖鼠标/触控/笔，而且
+ *     `setPointerCapture` 之后即使指针移出手柄（快速拖动时必然发生）也能继续收到
+ *     事件 —— 只用 mousemove 会在移出元素那一刻丢事件，手感是"拖着拖着断了"。
+ *   · 拖动期间给 body 加 `col-resize` + `user-select: none`：否则一路拖过去会把
+ *     页面文字选中，光标也会在进入其它元素时变回箭头。
+ *  命中区 6px、视觉只有 1px 中线：不为了好看让人瞄不准。 */
+function PanelResizeHandle({
+  width,
+  setWidth,
+  min,
+  max,
+}: {
+  width: number;
+  setWidth: (next: number) => void;
+  min: number;
+  max: number;
+}) {
+  const dragging = useRef(false);
+  const startX = useRef(0);
+  const startWidth = useRef(0);
+  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    dragging.current = true;
+    startX.current = event.clientX;
+    startWidth.current = width;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!dragging.current) return;
+    // 右栏在右边：指针往左移 = 右栏变宽。
+    const next = startWidth.current - (event.clientX - startX.current);
+    setWidth(Math.min(max, Math.max(min, next)));
+  };
+  const finish = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      /* 指针已经释放过了，忽略 */
+    }
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+  };
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="拖动调整详情面板宽度"
+      title="拖动调整宽度（双击复位到 400px）"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={finish}
+      onPointerCancel={finish}
+      onDoubleClick={() => setWidth(400)}
+      className="group relative w-1.5 flex-none cursor-col-resize"
+    >
+      <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-line transition-colors group-hover:bg-[var(--tree-acc)]" />
+    </div>
+  );
+}
+
 export function WorkbenchPage({
   projectId,
   projectName,
@@ -139,6 +209,23 @@ export function WorkbenchPage({
   const [activeEntry, setActiveEntry] = useState<FocusEntry | null>(null);
   /** 右栏可折叠(2026-09-20 移植主线 0c7a54a1):收起后左树铺满,窄条上一个展开钮。 */
   const [focusOpen, setFocusOpen] = useState(true);
+  /** 右栏宽度（可拖拽分栏）。
+   *
+   *  2026-09-20 用户要求："聊天框、信息框、测试框的大小和比例都不能调整，需要有
+   *  个动态调整的能力"。此前右栏是写死的 `w-[400px] flex-none`（FocusPanel 根元素），
+   *  没有任何调整入口。
+   *  宽度存 localStorage：这是"我的界面偏好"，换 issue 不该重置、刷新也该留着。
+   *  取值时校验范围 —— 存进去过一个畸形值（比如手改 localStorage）时回落到缺省，
+   *  而不是把界面撑成一条缝。 */
+  const PANEL_MIN_WIDTH = 320;
+  const PANEL_MAX_WIDTH = 900;
+  const [panelWidth, setPanelWidth] = useState<number>(() => {
+    const saved = Number(window.localStorage.getItem("repomesh.panel-width"));
+    return Number.isFinite(saved) && saved >= 320 && saved <= 900 ? saved : 400;
+  });
+  useEffect(() => {
+    window.localStorage.setItem("repomesh.panel-width", String(panelWidth));
+  }, [panelWidth]);
   /** 静默轮询与首载的界线：换 issue 才整页 loading，轮询只换数据不闪屏
    *  （树与右栏每 5s 卸载重挂正是「一闪一闪」的根源，旧工作台同款保护）。 */
   const loadedIssueRef = useRef<string | null>(null);
@@ -1463,6 +1550,15 @@ export function WorkbenchPage({
             {train}
           </div>
           {focusOpen ? (
+            <>
+            {/* 可拖拽分栏：拖动改右栏宽度（2026-09-20 用户要求"大小和比例都不能
+                调整"）。手柄在左树与右栏之间，命中区 6px。 */}
+            <PanelResizeHandle
+              width={panelWidth}
+              setWidth={setPanelWidth}
+              min={PANEL_MIN_WIDTH}
+              max={PANEL_MAX_WIDTH}
+            />
             <FocusPanel
               entry={activeEntry}
               discovery={discovery}
@@ -1523,7 +1619,9 @@ export function WorkbenchPage({
                         }
                       : null
               }
+              width={panelWidth}
             />
+            </>
           ) : (
             /* 收起态：一条 36px 窄条，左树铺满；点展开钮复原右栏
                （2026-09-20 移植主线 0c7a54a1，贴合 LBP 的左树 + 右详情分栏）。 */
