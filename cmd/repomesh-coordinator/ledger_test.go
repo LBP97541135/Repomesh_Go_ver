@@ -25,6 +25,7 @@ func TestBuildAgentCommandKeepsScriptQuotableAndUsesWorktree(t *testing.T) {
 	for _, want := range []string{
 		"worktree add --detach --force \"$BASE/repo\" FETCH_HEAD",
 		"_bases/$SLUG",
+		"rm -rf \"$BASE/repo\"",
 		"git push origin HEAD:$B",
 	} {
 		if !strings.Contains(inner, want) {
