@@ -168,7 +168,13 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
                 }`}
                 onClick={() => setSelected(skill)}
               >
-                <span className="block truncate font-mono text-[12px] text-tx">{skill.name}</span>
+                <span className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-tx">{skill.name}</span>
+                  {/* 系统自带（`created_by=system-seed`，库里 organization_id 为空 = 全局
+                      种子技能）：必须标出来。2026-09-20 用户实测把它当成了"别人的技能"，
+                      根子就是界面上分不清"系统自带的"和"某人接入的"。 */}
+                  {skill.created_by === "system-seed" && <span className="pill pill-meta flex-none">内置</span>}
+                </span>
                 <span className="mt-[2px] block truncate text-[11px] text-tx2">
                   {skill.scenario} · {skill.target_agent_role}
                 </span>
@@ -188,7 +194,10 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
               <div className="mb-3 rounded-hard border border-line bg-panel px-4 py-3">
                 <div className="font-mono text-[13px] text-cream">{selected.name}</div>
                 <div className="mt-0.5 text-[11.5px] text-tx2">
-                  {selected.scenario} · 目标角色 {selected.target_agent_role} · 由 {selected.created_by} 建立
+                  {selected.scenario} · 目标角色 {selected.target_agent_role} ·{" "}
+                  {selected.created_by === "system-seed"
+                    ? "系统内置（对所有账号可见）"
+                    : `由 ${selected.created_by} 建立`}
                 </div>
                 <button
                   className="mt-2 rounded-hard border border-line-strong px-3 py-[4px] text-[11.5px] text-cream hover:bg-amber/10"
