@@ -163,6 +163,32 @@ type ProjectPage struct {
 	NextCursor *string           `json:"nextCursor"`
 }
 
+// ProjectArchiveReceipt 是归档/还原的回执。Archived=true 表示项目此刻在归档态
+// （removed_at 非空）；RemovedAt 是墓碑落下的时刻，还原后为 nil。
+//
+// 归档是**软删除**：一行不删、仓库/issue/决策链全部保留，读面本来就在过滤
+// removed_at IS NULL，所以归档后项目从所有页面消失，还原即回来。
+type ProjectArchiveReceipt struct {
+	ProjectID string     `json:"projectId"`
+	Name      string     `json:"name"`
+	Archived  bool       `json:"archived"`
+	RemovedAt *time.Time `json:"removedAt"`
+}
+
+// ArchivedProjectPage 是「已归档项目」列表。**没有分页**：归档量天然远小于在役量，
+// 一次给全（封顶 200）比为它拉一条 cursors 记录诚实 —— cursors.kind 有 CHECK 约束
+// 枚举，为这一页扩枚举/加列都得不偿失。
+type ArchivedProjectPage struct {
+	Items []ArchivedProjectItem `json:"items"`
+}
+
+type ArchivedProjectItem struct {
+	ID        string     `json:"id"`
+	Name      string     `json:"name"`
+	CreatedAt time.Time  `json:"createdAt"`
+	RemovedAt *time.Time `json:"removedAt"`
+}
+
 type ProjectRepositoryPage struct {
 	Items                     []access.RepositoryItem `json:"items"`
 	NextCursor                *string                 `json:"nextCursor"`

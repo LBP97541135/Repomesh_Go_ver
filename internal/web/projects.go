@@ -183,6 +183,38 @@ func registerProjects(mux *http.ServeMux, auth Auth, projectAPI Projects) {
 		}
 		return err
 	})
+	registerProjectRoute(mux, "POST /api/projects/{projectId}/archive", auth, func(w http.ResponseWriter, r *http.Request, principal access.ProjectPrincipal) error {
+		if projectAPI.Service == nil {
+			return &projects.Failure{Status: 503, Code: "RESULT_UNCONFIRMED", FieldErrors: []projects.FieldError{}}
+		}
+		result, err := projectAPI.Service.Archive(r.Context(), principal, r.PathValue("projectId"))
+		if err == nil {
+			writeJSON(w, http.StatusOK, result)
+		}
+		return err
+	})
+	registerProjectRoute(mux, "POST /api/projects/{projectId}/restore", auth, func(w http.ResponseWriter, r *http.Request, principal access.ProjectPrincipal) error {
+		if projectAPI.Service == nil {
+			return &projects.Failure{Status: 503, Code: "RESULT_UNCONFIRMED", FieldErrors: []projects.FieldError{}}
+		}
+		result, err := projectAPI.Service.Restore(r.Context(), principal, r.PathValue("projectId"))
+		if err == nil {
+			writeJSON(w, http.StatusOK, result)
+		}
+		return err
+	})
+	// 字面量段「archived」比 {projectId} 更具体，Go 的 ServeMux 会优先匹配它，
+	// 所以这条路不会被项目详情路由吃掉。
+	registerProjectRoute(mux, "GET /api/projects/archived", auth, func(w http.ResponseWriter, r *http.Request, principal access.ProjectPrincipal) error {
+		if projectAPI.Service == nil {
+			return &projects.Failure{Status: 503, Code: "RESULT_UNCONFIRMED", FieldErrors: []projects.FieldError{}}
+		}
+		result, err := projectAPI.Service.Archived(r.Context(), principal)
+		if err == nil {
+			writeJSON(w, http.StatusOK, result)
+		}
+		return err
+	})
 }
 
 func registerProjectRoute(mux *http.ServeMux, pattern string, auth Auth, handler projectHandler) {

@@ -148,6 +148,47 @@ export function createProject(
   return apiRequest<ProjectCreationReceipt>("POST", "/projects", input, KEY_HEADER(idempotencyKey));
 }
 
+/** 归档/还原回执（Go：ProjectArchiveReceipt）。Archived=true = 项目此刻在归档态。 */
+export interface ProjectArchiveReceipt {
+  projectId: string;
+  name: string;
+  archived: boolean;
+  removedAt: string | null;
+}
+
+/** POST /api/projects/{projectId}/archive — 归档（软删除：removed_at 墓碑，数据保留）。 */
+export function archiveProject(projectId: string): Promise<ProjectArchiveReceipt> {
+  return apiRequest<ProjectArchiveReceipt>(
+    "POST",
+    `/projects/${encodeURIComponent(projectId)}/archive`,
+  );
+}
+
+/** POST /api/projects/{projectId}/restore — 还原已归档项目（摘掉墓碑）。 */
+export function restoreProject(projectId: string): Promise<ProjectArchiveReceipt> {
+  return apiRequest<ProjectArchiveReceipt>(
+    "POST",
+    `/projects/${encodeURIComponent(projectId)}/restore`,
+  );
+}
+
+/** 已归档项目行（Go：ArchivedProjectItem）。 */
+export interface ArchivedProjectItem {
+  id: string;
+  name: string;
+  createdAt: string;
+  removedAt: string | null;
+}
+
+export interface ArchivedProjectPage {
+  items: ArchivedProjectItem[];
+}
+
+/** GET /api/projects/archived — 已归档项目列表（不分页，封顶 200，最近归档的排前）。 */
+export function listArchivedProjects(): Promise<ArchivedProjectPage> {
+  return apiRequest<ArchivedProjectPage>("GET", "/projects/archived");
+}
+
 /** GET /api/project-creations/{projectCreationId} — 建项回执查询。 */
 export function getProjectCreation(projectCreationId: string): Promise<ProjectCreationReceipt> {
   return apiRequest<ProjectCreationReceipt>(

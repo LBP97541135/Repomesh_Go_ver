@@ -293,6 +293,9 @@ data: {"aggregateType":"task","aggregateId":"6f1d4c0e-2b7a-4a7e-9c1e-1c2f3a4b5d6
 | `POST /api/projects` | 建项：`name`、`repositoryId` | 键（无落点） | 成员 |
 | `GET /api/projects/{projectId}` | 读取 | 天然 | 成员 |
 | `PATCH /api/projects/{projectId}` | 修改 `name`、`status` | 天然 | 项目管理员 |
+| `POST /api/projects/{projectId}/archive` | **归档（软删除，2026-09-20）**：落 `removed_at` 墓碑，一行数据不删；已归档再归档回 409 `PROJECT_ALREADY_ARCHIVED` | 天然 | 项目负责人 |
+| `POST /api/projects/{projectId}/restore` | 还原：摘掉墓碑，项目回到列表；未归档时回 409 `PROJECT_NOT_ARCHIVED` | 天然 | 项目负责人 |
+| `GET /api/projects/archived` | 已归档项目列表（无分页，封顶 200，最近归档排前）。字面量段优先于 `{projectId}` 匹配 | 天然 | 成员 |
 
 **字段**
 

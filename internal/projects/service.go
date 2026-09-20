@@ -621,8 +621,111 @@ func (s *Service) Get(ctx context.Context, principal access.ProjectPrincipal, pr
 	return view, nil
 }
 
-func (s *Service) List(ctx context.Context, principal access.ProjectPrincipal, query ListQuery) (ProjectPage, error) {
+// Archive 把项目软删除：只落 removed_at 墓碑，一行数据都不删。
+//
+// 为什么不做硬删：项目底下挂着 issue、决策链、编制（agents）、团队（repository_teams）
+// 与建项/更新操作的完整审计，物理删掉等于把这条链的证据一起抹了；而墓碑是可逆的，
+// Restore 随时能拉回来。读面（列表/详情/仓库页）本来就在过滤 removed_at IS NULL，
+// 所以归档后这个项目从所有页面消失，不需要每个读面单独加判断。
+//
+// 归属判据与 Get/List 一致（owner = 登录账号）。**不存在**与**不是你的**都回 404，
+// 不泄露「这个项目存在，只是不是你的」。
+//
+// 已归档再归档回 409（PROJECT_ALREADY_ARCHIVED）—— 幂等重放是读面的事，写面要如实报状态。
+func (s *Service) Archive(ctx context.Context, principal access.ProjectPrincipal, projectID string) (ProjectArchiveReceipt, error) {
+	return s.setProjectArchived(ctx, principal, projectID, true)
+}
+
+// Restore 撤掉归档墓碑，项目回到列表。projects 表没有 issue 那种
+// 「removed_at 一旦设置即终态」的触发器，所以墓碑可以摘。
+func (s *Service) Restore(ctx context.Context, principal access.ProjectPrincipal, projectID string) (ProjectArchiveReceipt, error) {
+	return s.setProjectArchived(ctx, principal, projectID, false)
+}
+
+func (s *Service) setProjectArchived(ctx context.Context, principal access.ProjectPrincipal, projectID string, archived bool) (ProjectArchiveReceipt, error) {
+	if !validResourceID(projectID) {
+		return ProjectArchiveReceipt{}, failure(404, "RESOURCE_NOT_FOUND")
+	}
 	tx, err := s.beginWrite(ctx)
+	if err != nil {
+		return ProjectArchiveReceipt{}, err
+	}
+	defer rollback(tx)
+	if err = s.access.LockProjectPrincipal(ctx, tx, principal); err != nil {
+		return ProjectArchiveReceipt{}, err
+	}
+	var name string
+	var removedAt *time.Time
+	err = tx.QueryRow(ctx, `SELECT name, removed_at FROM repomesh_projects.projects WHERE id=$1 AND owner=$2`,
+		projectID, principal.ActorID()).Scan(&name, &removedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ProjectArchiveReceipt{}, failure(404, "RESOURCE_NOT_FOUND")
+	}
+	if err != nil {
+		return ProjectArchiveReceipt{}, unavailable()
+	}
+
+	// RETURNING 拿数据库落下的那个 now()，别在 Go 侧另取时间（两台钟对不上）。
+	var receipt ProjectArchiveReceipt
+	switch {
+	case archived && removedAt != nil:
+		return ProjectArchiveReceipt{}, failure(409, "PROJECT_ALREADY_ARCHIVED")
+	case !archived && removedAt == nil:
+		return ProjectArchiveReceipt{}, failure(409, "PROJECT_NOT_ARCHIVED")
+	case archived:
+		err = tx.QueryRow(ctx, `UPDATE repomesh_projects.projects SET removed_at=now()
+			WHERE id=$1 AND owner=$2 AND removed_at IS NULL RETURNING removed_at`,
+			projectID, principal.ActorID()).Scan(&receipt.RemovedAt)
+	default:
+		err = tx.QueryRow(ctx, `UPDATE repomesh_projects.projects SET removed_at=NULL
+			WHERE id=$1 AND owner=$2 AND removed_at IS NOT NULL RETURNING removed_at`,
+			projectID, principal.ActorID()).Scan(&receipt.RemovedAt)
+	}
+	if err != nil {
+		return ProjectArchiveReceipt{}, unavailable()
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return ProjectArchiveReceipt{}, unavailable()
+	}
+	return ProjectArchiveReceipt{ProjectID: projectID, Name: name, Archived: archived, RemovedAt: receipt.RemovedAt}, nil
+}
+
+// Archived 列出**已归档**的项目，最近的排前。与 List 一样按 owner 过滤。
+func (s *Service) Archived(ctx context.Context, principal access.ProjectPrincipal) (ArchivedProjectPage, error) {
+	tx, err := s.beginWrite(ctx)
+	if err != nil {
+		return ArchivedProjectPage{}, err
+	}
+	defer rollback(tx)
+	if err = s.access.LockProjectPrincipal(ctx, tx, principal); err != nil {
+		return ArchivedProjectPage{}, err
+	}
+	rows, err := tx.Query(ctx, `SELECT id,name,created_at,removed_at FROM repomesh_projects.projects
+		WHERE owner=$1 AND removed_at IS NOT NULL ORDER BY removed_at DESC LIMIT 200`, principal.ActorID())
+	if err != nil {
+		return ArchivedProjectPage{}, unavailable()
+	}
+	result := ArchivedProjectPage{Items: []ArchivedProjectItem{}}
+	for rows.Next() {
+		var item ArchivedProjectItem
+		if rows.Scan(&item.ID, &item.Name, &item.CreatedAt, &item.RemovedAt) != nil {
+			rows.Close()
+			return ArchivedProjectPage{}, unavailable()
+		}
+		result.Items = append(result.Items, item)
+	}
+	if rows.Err() != nil {
+		rows.Close()
+		return ArchivedProjectPage{}, unavailable()
+	}
+	rows.Close()
+	if err = tx.Commit(ctx); err != nil {
+		return ArchivedProjectPage{}, unavailable()
+	}
+	return result, nil
+}
+
+func (s *Service) List(ctx context.Context, principal access.ProjectPrincipal, query ListQuery) (ProjectPage, error) {	tx, err := s.beginWrite(ctx)
 	if err != nil {
 		return ProjectPage{}, err
 	}
