@@ -100,11 +100,11 @@ func (f *fakeStore) UpsertEmbedding(ctx context.Context, nodeID, model string, v
 	return nil
 }
 
-func (f *fakeStore) SemanticCandidates(ctx context.Context, model string, query []float32, limit int) ([]ScoredNode, error) {
+func (f *fakeStore) SemanticCandidates(ctx context.Context, model string, query []float32, limit int, scope Scope) ([]ScoredNode, error) {
 	return f.semantic, nil
 }
 
-func (f *fakeStore) StructuralCandidates(ctx context.Context, names []string, limit int) ([]DecisionNode, error) {
+func (f *fakeStore) StructuralCandidates(ctx context.Context, names []string, limit int, scope Scope) ([]DecisionNode, error) {
 	return f.structural, nil
 }
 
