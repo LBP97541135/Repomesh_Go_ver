@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 
 	"repomesh.local/repomesh/internal/github"
 )
@@ -35,9 +36,17 @@ func (s *Service) ResolveRepositoryByName(ctx context.Context, principal Project
 				return RepositoryLocator{}, failure(503, "AUTHORIZATION_UNCONFIRMED")
 			}
 		}
+		// **这条路必须落日志**：它返回的是裸 503 RESULT_UNCONFIRMED，不含原因，
+		// 而调用方（含批量接入）只把错误码往界面上抛。
+		// 2026-09-20 线上查这个 503 花了好几轮：PostgreSQL 里一条错误都没有（失败
+		// 不在 SQL 层），GitHub 客户端自己也不打日志，于是"哪个仓、哪种 Kind"全靠猜
+		// —— 批次越大越猜不出来。这里把仓名和 Kind 记下来。
+		log.Printf("access: resolve repository failed owner=%s/%s kind=%s err=%v", owner, name, providerKind(err), err)
 		return RepositoryLocator{}, unavailable()
 	}
 	if repository.ID <= 0 || repository.Owner == "" || repository.Name == "" {
+		// 同上：payload 不可用也是一种"说不清"的失败，必须留下现场。
+		log.Printf("access: resolve repository returned unusable payload ask=%s/%s id=%d canonical=%q/%q", owner, name, repository.ID, repository.Owner, repository.Name)
 		return RepositoryLocator{}, unavailable()
 	}
 	return RepositoryLocator{
@@ -47,4 +56,15 @@ func (s *Service) ResolveRepositoryByName(ctx context.Context, principal Project
 		Owner:      repository.Owner,
 		Name:       repository.Name,
 	}, nil
+}
+
+// providerKind 取出 GitHub 客户端的错误分类，给日志用。
+// 没有分类（网络错误、超时、解码失败）就记 "none" —— 那本身也是重要信息：
+// 说明错在传输层而不是 GitHub 给的回答。
+func providerKind(err error) string {
+	var providerErr *github.Error
+	if errors.As(err, &providerErr) && providerErr.Kind != "" {
+		return providerErr.Kind
+	}
+	return "none"
 }

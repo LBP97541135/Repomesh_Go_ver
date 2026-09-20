@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log"
 	"reflect"
 	"strings"
 	"time"
@@ -17,6 +19,10 @@ import (
 func (s *Service) beginWrite(ctx context.Context) (pgx.Tx, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
+		// 开事务失败最常见的真身是"池里拿不到连接"或"ctx 已经过期"，两者都会
+		// 被兜成裸 503 RESULT_UNCONFIRMED。2026-09-20 排查线上 503 时 PostgreSQL
+		// 日志里一条错误都没有，就是因为失败发生在这里 —— 连事务都没开起来。
+		log.Printf("projects: begin write failed: %v", err)
 		return nil, unavailable()
 	}
 	if _, err := tx.Exec(ctx, `SET LOCAL lock_timeout='2s'`); err != nil {
@@ -222,7 +228,15 @@ func readRepositories(ctx context.Context, tx pgx.Tx, projectID string) ([]acces
 func persistRepository(ctx context.Context, tx pgx.Tx, repository access.RepositoryLocator) error {
 	result, err := tx.Exec(ctx, `INSERT INTO repomesh_projects.repositories(id,host,github_id,owner,name) VALUES($1,$2,$3,$4,$5)
 		ON CONFLICT(id) DO UPDATE SET owner=EXCLUDED.owner,name=EXCLUDED.name WHERE repomesh_projects.repositories.host=EXCLUDED.host AND repomesh_projects.repositories.github_id=EXCLUDED.github_id`, repository.ID, repository.Host, repository.ExternalID, repository.Owner, repository.Name)
-	if err != nil || result.RowsAffected() != 1 {
+	if err != nil {
+		log.Printf("projects: persist repository failed id=%s owner=%s/%s: %v", repository.ID, repository.Owner, repository.Name, err)
+		return unavailable()
+	}
+	// **这条分支不会在 PostgreSQL 日志里留痕**：SQL 成功了，只是 ON CONFLICT 的
+	// WHERE 不成立，于是影响 0 行。线上只看现象的话，它和"数据库挂了"长得一模一样
+	// （都是裸 503 RESULT_UNCONFIRMED）。所以必须由我们记一笔。
+	if result.RowsAffected() != 1 {
+		log.Printf("projects: persist repository affected %d rows id=%s host=%s github_id=%d owner=%s/%s", result.RowsAffected(), repository.ID, repository.Host, repository.ExternalID, repository.Owner, repository.Name)
 		return unavailable()
 	}
 	return nil
@@ -243,6 +257,7 @@ func (s *Service) persistRepositoryRow(ctx context.Context, repository access.Re
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
+		log.Printf("projects: persist repository row commit failed id=%s owner=%s/%s: %v", repository.ID, repository.Owner, repository.Name, err)
 		return unavailable()
 	}
 	return nil
@@ -267,6 +282,23 @@ func requireAllowed(observation access.ProjectObservation) error {
 		}
 	}
 	return nil
+}
+
+// notAllowed 把「没通过」的仓和它们的状态拼成一行，只给日志用。
+// 界面上这一档只留一个错误码（404 / 503），出问题时总得有个地方能看出
+// 是哪个仓、什么状态 —— 否则"接不进去"这件事只能靠猜。
+func notAllowed(observation access.ProjectObservation) string {
+	parts := make([]string, 0, len(observation.Repositories()))
+	for _, item := range observation.Repositories() {
+		if item.ParticipationStatus != "allowed" {
+			parts = append(parts, fmt.Sprintf("%s/%s=%s[%s]",
+				item.Locator.Owner, item.Locator.Name, item.ParticipationStatus, strings.Join(item.ParticipationReasons, "+")))
+		}
+	}
+	if len(parts) == 0 {
+		return "(none)"
+	}
+	return strings.Join(parts, " ")
 }
 
 func repositoryAdditions(existing []access.RepositoryLocator, requested []string) []string {

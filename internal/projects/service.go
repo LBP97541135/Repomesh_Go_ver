@@ -3,6 +3,7 @@ package projects
 import (
 	"context"
 	"errors"
+	"log"
 	"strings"
 	"time"
 
@@ -230,29 +231,39 @@ func (s *Service) prepareUpdate(ctx context.Context, principal access.ProjectPri
 	// 这里把它换成 id —— 按 owner/name 去 GitHub 取数字 id、登记进项目注册表，
 	// 再拼进**同一份** requested：后面的参与权观测、校验、上限、幂等台账全都不变。
 	if input.RepositoryURLsToAdd != nil {
+		// 2026-09-20：仓库页的「全部接入本项目」会把一整组仓的 URL 一次交上来
+		// （用户那次是 34 个）。这条循环里每个 URL 要打一次 GitHub，慢和错都发生
+		// 在这里，而它对上只留一个错误码 —— 所以把"第几个、哪个仓、花了多久"记下来。
+		started := time.Now()
 		for _, raw := range *input.RepositoryURLsToAdd {
 			host, owner, name, parseErr := ParseRepositoryURL(raw)
 			if parseErr != nil {
+				log.Printf("projects: repository url rejected at %d/%d raw=%q", len(urlLocators)+1, len(*input.RepositoryURLsToAdd), raw)
 				return updatePlan{}, validation("repositoryUrlsToAdd")
 			}
 			locator, resolveErr := s.access.ResolveRepositoryByName(ctx, principal, host, owner, name)
 			if resolveErr != nil {
+				log.Printf("projects: resolve repository url failed at %d/%d owner=%s/%s elapsed=%s err=%v",
+					len(urlLocators)+1, len(*input.RepositoryURLsToAdd), owner, name, time.Since(started).Round(time.Millisecond), resolveErr)
 				return updatePlan{}, resolveErr
 			}
 			// 登记用**单独一个短事务**，只登记、不接入：接入仍在下面那条路径上（受观测
 			// 与上限约束）。若后面失败，留下的只是一行"这个部署认识这个仓"的目录记录
 			// —— 扫描目录本来就是这个性质，无害。
 			if persistErr := s.persistRepositoryRow(ctx, locator); persistErr != nil {
+				log.Printf("projects: persist repository row failed at %d/%d owner=%s/%s elapsed=%s err=%v",
+					len(urlLocators)+1, len(*input.RepositoryURLsToAdd), owner, name, time.Since(started).Round(time.Millisecond), persistErr)
 				return updatePlan{}, persistErr
 			}
-			// **不塞进 requested**：那条路要走 ResolveSelectedRepositories，而它要求
-			// 这个仓在**当前 connection revision/epoch** 的发现记录里有一行。
-			// 用户重新登录会换 epoch，旧发现记录全部失效 —— 线上实测：这个仓有 22 条
-			// 发现记录、属于当前 epoch 的 0 条，于是按名字解析出 id 之后仍被 404 挡回。
-			// 我们刚刚已经**用发起人的令牌现验过**这个仓（比一条陈旧的发现缓存更硬），
-			// 所以它的定位直接并进 additions，不再被"缓存热不热"卡一道。
 			urlLocators = append(urlLocators, locator)
 		}
+		// **这些定位不塞进 requested**：那条路要走 ResolveSelectedRepositories，而它
+		// 要求这个仓在**当前 connection revision/epoch** 的发现记录里有一行。用户重新
+		// 登录会换 epoch，旧发现记录全部失效 —— 线上实测：某个仓有 22 条发现记录、
+		// 属于当前 epoch 的 0 条，于是按名字解析出 id 之后仍被 404 挡回。我们刚刚已经
+		// **用发起人的令牌现验过**每一个仓（比一条陈旧的发现缓存更硬），所以它们的定位
+		// 直接并进 additions，不再被"缓存热不热"卡一道。
+		log.Printf("projects: resolved %d repository url(s) in %s", len(urlLocators), time.Since(started).Round(time.Millisecond))
 	}
 	addIDs := repositoryAdditions(existing, requested)
 	if len(existing)+len(addIDs)+len(urlLocators) > 100 {
@@ -282,11 +293,16 @@ func (s *Service) prepareUpdate(ctx context.Context, principal access.ProjectPri
 	}
 	var observation access.ProjectObservation
 	if len(additions) > 0 {
+		observed := time.Now()
 		observation, err = s.access.ObserveProjectRepositoriesFresh(ctx, principal, additions)
 		if err != nil {
+			log.Printf("projects: observe %d repositor(y/ies) failed elapsed=%s err=%v", len(additions), time.Since(observed).Round(time.Millisecond), err)
 			return updatePlan{}, err
 		}
+		log.Printf("projects: observed %d repositor(y/ies) in %s", len(additions), time.Since(observed).Round(time.Millisecond))
 		if err = requireAllowed(observation); err != nil {
+			// 哪个仓没通过（denied / unknown）同样只说一个错误码出去，记下来。
+			log.Printf("projects: repository not allowed: %v", notAllowed(observation))
 			return updatePlan{}, err
 		}
 	}
