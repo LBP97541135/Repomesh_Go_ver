@@ -1445,12 +1445,12 @@ export function DecisionChainPage({
           <table className="mt-2 w-full text-[12px]">
             <thead>
               <tr className="text-left text-tx3">
-                <th className="px-2 py-1">决策单</th>
-                <th className="px-2 py-1">需求</th>
-                <th className="px-2.5 py-1">步骤</th>
-                <th className="px-2 py-1">版本</th>
-                <th className="px-3 py-1">状态</th>
-                <th className="px-2 py-1">仓库</th>
+                <th className="w-[72px] px-1.5 py-1">决策单</th>
+                <th className="w-[220px] px-1.5 py-1">需求</th>
+                <th className="w-[140px] px-4 py-1">步骤</th>
+                <th className="w-[48px] px-1.5 py-1">版本</th>
+                <th className="w-[110px] px-4 py-1">状态</th>
+                <th className="w-[180px] px-1.5 py-1">仓库</th>
                 <th className="px-2 py-1">时间</th>
               </tr>
             </thead>
@@ -1461,16 +1461,16 @@ export function DecisionChainPage({
                   className="cursor-pointer transition-colors hover:bg-amber/5"
                   onClick={() => void openNodeDetail(n.id)}
                 >
-                  <td className="px-2 py-1.5 font-mono text-[10.5px] text-amber">{n.id.slice(0, 8)}</td>
-                  <td className="px-2 py-1.5">
-                    <div className="max-w-[380px] truncate text-cream">{n.requirementText}</div>
+                  <td className="px-1.5 py-1.5 font-mono text-[10.5px] text-amber">{n.id.slice(0, 8)}</td>
+                  <td className="px-1.5 py-1.5">
+                    <div className="max-w-[200px] truncate text-cream">{n.requirementText}</div>
                   </td>
-                  <td className="px-2.5 py-1.5 text-cream">{decisionStepAction(n.step)}</td>
-                  <td className="px-2 py-1.5 font-mono text-[11px] text-tx2">v{n.version}</td>
-                  <td className="px-3 py-1.5">
+                  <td className="px-4 py-1.5 text-cream whitespace-nowrap">{decisionStepAction(n.step)}</td>
+                  <td className="px-1.5 py-1.5 font-mono text-[11px] text-tx2">v{n.version}</td>
+                  <td className="px-4 py-1.5 whitespace-nowrap">
                   <span className={nodeStatusChip(n.status)}>{decisionStatusLabel(n.status)}</span>
                   </td>
-                  <td className="px-2 py-1.5 text-[10.5px] text-tx2">{n.affectedRepositories.join("、") || "—"}</td>
+                  <td className="px-1.5 py-1.5 text-[10.5px] text-tx2"><div className="max-w-[160px] truncate">{n.affectedRepositories.join("、") || "—"}</div></td>
                   <td className="px-2 py-1.5 font-mono text-[10.5px] text-tx3">{nodeShortTime(n.createdAt)}</td>
                 </tr>
               ))}
