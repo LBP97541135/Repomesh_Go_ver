@@ -78,3 +78,15 @@
 ## 6. 明确不做
 
 - 不改上游 AgentTeams;不做跨项目候选池;不做 K8s 唤醒耗时适配(部署是 embedded/Docker,代码不写死后端类型即可);老 issue 不回填门。
+
+## 7. 实施期新增的硬约束(2026-09-20 晚,并行工作流移交)
+
+1. **空仓建项 vs 聚合触发器**:建项聚合触发器要求"已提交操作的 issue 至少一行
+   `issue_content_scope`"——空仓建项会在库层被拦。迁移 0059 放宽该触发器
+   (语义:范围由选仓门后置确认),先有失败测试复现再改。
+2. **确认端点线缆键名统一 camelCase**:`repositoryIds / decidedBy /
+   idempotencyKey / expectedCreationContextRevision`,以断言键名的契约测试锁死,
+   防前后端大小写错位。
+3. `creation_operations.entry` 有 `CHECK (entry='issue_page')` 限定,
+   `issue_content_scope.introduced_by_operation` 非空外键挂 issue 原建项操作——
+   批量确认端点写 content_scope 时沿用此口径。
