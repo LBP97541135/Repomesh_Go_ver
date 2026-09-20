@@ -23,9 +23,10 @@ import { ErrorPanel, LoadingLine } from "../components/StatusBlocks";
  *  目录并扫描,项目关联是 `project_repositories` 另一张表;而挂仓此前只有建项目
  *  那一刻会做(`createProject` 带 repositoryIds,而建项页传的是空数组),于是
  *  新建项目之后再无入口——后端 `repositoryIdsToAdd` 一直能加,前端只是没人调。
- *  现在两条路都补上:
+ *  现在三条路都补上:
  *   ① 卡片上给未接入的仓一个「接入本项目」动作(解已有仓的封);
- *   ② 添加/扫描完成后,把这次**新登记**的仓自动接入(用户要的"添加仓库就该挂上")。
+ *   ② 添加/扫描完成后,把这次**新登记**的仓自动接入(用户要的"添加仓库就该挂上");
+ *   ③ 组头上给一个「全部接入本项目 (N)」——一个组织几十个仓时,不该一个个点。
  *  接入只要求发起人的参与权(`CheckProjectObservation` 不看 App)——App 是
  *  建 issue 时"这个仓可不可选"那道闸,两件事分开。 */
 
@@ -44,6 +45,37 @@ function orgScanUrl(url: string, org: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** App 授权徽标：**三态不许合并**（2026-09-20）。
+ *
+ *  起因是用户实测：两个仓明明是被 App 覆盖的（`AppCapability` 现测为 `allowed`，
+ *  安装的覆盖清单里也有它们），卡片上却写着「App 工作授权不足」。
+ *
+ *  - `allowed` → 就绪；
+ *  - `denied`  → 真的没覆盖，要去安装设置里把它加进选中列表；
+ *  - 其它（`unknown` / 取不到 / 网络·限流失败）→ **未确认**，不是"不足"。
+ *
+ *  把第三种说成"不足"，等于把一次网络抖动说成授权问题——人会白跑一趟安装设置，
+ *  回来还是那样。宁可说"没取到"，也不要替 GitHub 下一个它没下过的结论。
+ *  状态**取不到时整枚不显示**（不摆一枚"未确认"给每个仓当噪声）。 */
+function AppStatusPill({ status }: { status?: string }) {
+  if (status === "allowed") return <span className="pill pill-done">App 授权就绪</span>;
+  if (status === "denied") {
+    return (
+      <span className="pill pill-fail" title="GitHub App 没有覆盖这个仓库——去安装设置里把它加进选中列表">
+        App 未覆盖此仓
+      </span>
+    );
+  }
+  if (!status || status === "unknown") {
+    return (
+      <span className="pill pill-meta" title="没能取到 GitHub App 的授权状态（网络或限流）——这不等于未授权，稍后刷新会自动重试">
+        App 授权未确认
+      </span>
+    );
+  }
+  return <span className="pill pill-meta">App {status}</span>;
 }
 
 function RepositoryCardView({
@@ -67,27 +99,23 @@ function RepositoryCardView({
   onManageTeam?: (repositoryId: string) => void;
 }) {
   return (
-    <div className="rounded-hard border border-line bg-panel px-4 py-3">
-      <div className="flex items-baseline gap-3">
+    <div className="rounded-hard border border-line bg-panel px-4 py-3 transition-colors hover:border-line-strong">
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
         <span className="font-mono text-[12.5px] text-tx">{repo.name}</span>
         {repo.languages.length > 0 && (
           <span className="text-[11px] text-tx2">{repo.languages.join(" / ")}</span>
         )}
-        {/* 接入状态是卡片上**最要紧**的一条：没接入的仓，建 issue 时一个都选不出来，
-            界面必须当场说清，而不是等人撞在 NO_AVAILABLE_REPOSITORIES 上再回来找。 */}
-        {inProject === true && <span className="text-[11px] text-olive">已接入本项目</span>}
-        {inProject === false && <span className="text-[11px] text-amber">未接入本项目</span>}
-        {appStatus && (
-          <span className={`text-[11px] ${appStatus === "allowed" ? "text-emerald-400" : "text-amber"}`}>
-            {appStatus === "allowed" ? "App 工作授权就绪" : "App 工作授权不足"}
-          </span>
-        )}
+        {/* 状态徽标统一走 `index.css` 的 .pill 族——高度/圆角/字号由它管，不在每张卡
+            上各写一套。次序按"用户该先做什么"排：先接入，再授权。 */}
+        <span className="flex flex-wrap items-center gap-1.5">
+          {/* 接入状态是卡片上**最要紧**的一条：没接入的仓，建 issue 时一个都选不出来，
+              界面必须当场说清，而不是等人撞在 NO_AVAILABLE_REPOSITORIES 上再回来找。 */}
+          {inProject === true && <span className="pill pill-done">已接入本项目</span>}
+          {inProject === false && <span className="pill pill-gate">未接入本项目</span>}
+          {appStatus !== undefined && <AppStatusPill status={appStatus} />}
+        </span>
         {repo.scanStatus && (
-          <span
-            className={`ml-auto text-[11px] ${
-              repo.scanStatus === "ok" ? "text-emerald-400" : "text-amber"
-            }`}
-          >
+          <span className={`ml-auto pill ${repo.scanStatus === "ok" ? "pill-meta" : "pill-fail"}`}>
             扫描{repo.scanStatus === "ok" ? "完成" : "失败"}
           </span>
         )}
@@ -192,6 +220,9 @@ export function RepositoriesPage({
   /** 手工接入的结果，就地显示在那张卡片上（不是只写页面顶部横幅）。 */
   const [attachResult, setAttachResult] = useState<{ name: string; ok: boolean; text: string } | null>(null);
   const [attachBusy, setAttachBusy] = useState<string | null>(null);
+  /** 组织组的批量接入：在途的组名 + 就地回执（结果写在这组头上，不写屏幕外的顶栏）。 */
+  const [orgBusy, setOrgBusy] = useState<string | null>(null);
+  const [orgResult, setOrgResult] = useState<{ org: string; ok: boolean; text: string } | null>(null);
   const [notice, setNotice] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   /** 建项目更新要的 `expectedProjectRevision`：与 attachedIds 同一次读面拿回。 */
   const projectRevisionRef = useRef<string | null>(null);
@@ -207,20 +238,38 @@ export function RepositoriesPage({
    *
    *  传的是 **URL 而不是 id**：接入接口要 `repo_<GitHub 数字 id>`，而目录页只有
    *  `owner/name` 与 URL。后端按 URL 取数字 id、登记进项目注册表再接入。
-   *  （此前传目录 id，线上实测必得 422 —— 那是两个 id 空间。） */
+   *  （此前传目录 id，线上实测必得 422 —— 那是两个 id 空间。）
+   *
+   *  `source` 决定回执写在哪：`manual` 写单卡、`org` 写组头、`scan` 写顶栏——
+   *  **写在离点击最近的地方**，写远了人看到的还是"点了没反应"。 */
   const attachRepos = useCallback(
-    async (targets: Array<{ url: string; name: string }>, source: "manual" | "scan") => {
+    async (
+      targets: Array<{ url: string; name: string }>,
+      source: "manual" | "scan" | "org",
+      org?: string,
+    ) => {
       const revision = projectRevisionRef.current;
       const fresh = targets.filter((t) => !attachedNamesRef.current.has(t.name) && !inFlightRef.current.has(t.name));
-      if (fresh.length === 0) return;
+      if (fresh.length === 0) {
+        // 目标全在接入中或已接入（状态回读有延迟）。**不能静默返回**——那就是"点了没反应"。
+        if (source === "org") setOrgResult({ org: org ?? "", ok: true, text: "这些仓库已经接入或正在接入本项目" });
+        return;
+      }
+      const report = (ok: boolean, text: string) => {
+        if (source === "org") setOrgResult({ org: org ?? "", ok, text });
+        else if (source === "manual") setAttachResult({ name: fresh[0].name, ok, text });
+        else setNotice({ kind: ok ? "ok" : "err", text });
+      };
       if (!revision) {
-        const text = "项目版本还没取到——等列表刷出来再试一次";
-        if (source === "manual") setAttachResult({ name: fresh[0].name, ok: false, text });
-        else setNotice({ kind: "err", text });
+        report(false, "项目版本还没取到——等列表刷出来再试一次");
         return;
       }
       fresh.forEach((t) => inFlightRef.current.add(t.name));
       if (source === "manual") setAttachBusy(fresh[0].name);
+      if (source === "org") {
+        setOrgBusy(org ?? "");
+        setOrgResult(null);
+      }
       setNotice(null);
       try {
         await updateProject(
@@ -228,19 +277,22 @@ export function RepositoriesPage({
           { expectedProjectRevision: revision, repositoryUrlsToAdd: fresh.map((t) => t.url) },
           crypto.randomUUID(),
         );
-        const text = source === "scan" ? `已自动接入本次新登记的 ${fresh.length} 个仓库` : "已接入本项目";
-        if (source === "manual") setAttachResult({ name: fresh[0].name, ok: true, text });
-        else setNotice({ kind: "ok", text });
+        report(
+          true,
+          source === "scan"
+            ? `已自动接入本次新登记的 ${fresh.length} 个仓库`
+            : source === "org"
+              ? `已接入 ${fresh.length} 个仓库`
+              : "已接入本项目",
+        );
         setReload((n) => n + 1);
       } catch (err) {
         // 失败就撤掉在途标记，好让人再点一次；已接入集合由列表刷新来纠正。
-        // **结果就地显示在那张卡上**——顶栏横幅在屏幕外，等于没反馈。
-        const text = `接入失败：${errText(err)}`;
-        if (source === "manual") setAttachResult({ name: fresh[0].name, ok: false, text });
-        else setNotice({ kind: "err", text });
+        report(false, `接入失败：${errText(err)}`);
       } finally {
         fresh.forEach((t) => inFlightRef.current.delete(t.name));
         if (source === "manual") setAttachBusy(null);
+        if (source === "org") setOrgBusy(null);
       }
     },
     [projectId],
@@ -374,7 +426,8 @@ export function RepositoriesPage({
       {/* 项目一个仓都没接入时把话说死：建 issue 会直接 0 个可选，别让人自己去猜 */}
       {attachedNames !== null && attachedNames.size === 0 && repos !== null && repos.length > 0 && (
         <p className="mt-2 rounded-hard border border-amber/40 bg-amber-well px-3 py-2 text-[11.5px] text-amber">
-          本项目还没有接入任何仓库——建 issue 时会一个都选不出来。在下面任意一张卡片上点「接入本项目」。
+          本项目还没有接入任何仓库——建 issue 时会一个都选不出来。在卡片上点「接入本项目」，
+          或点组织组头的「全部接入本项目」一次补齐。
         </p>
       )}
 
@@ -403,31 +456,64 @@ export function RepositoriesPage({
         <div className="mt-4 space-y-3">
           {groups.map(({ org, repos: rs, host, solo }) => {
             const isCollapsed = collapsed.has(org);
+            // 这一组里还没接入本项目的仓——批量接入就是一次性把它们全加上。
+            // `attachedNames === null`（项目读面还没回来）时留空：不知道就别摆按钮。
+            const pending = attachedNames === null ? [] : rs.filter((r) => !attachedNames.has(fullNameOf(r)));
+            const busy = orgBusy === org;
             return (
               <section key={org}>
-                <button
-                  className="flex w-full items-center gap-2 rounded-hard px-1 py-1.5 text-left hover:text-tx"
-                  onClick={() => toggle(org)}
-                >
-                  <span className="text-[10px] text-tx3">{isCollapsed ? "▶" : "▼"}</span>
-                  <span className="text-[13px] font-semibold text-cream">{org}</span>
-                  <span className="text-[11px] text-tx3">
-                    {rs.length} 个仓库
-                    {rs.some((r) => r.scanStatus === "failed") && " · 有失败"}
-                  </span>
-                  <span className="flex-1" />
+                {/* 组头原先整体是一个 button，动作只能塞成 span。现在拆开：折叠是 button，
+                    动作各自是真的 button（键盘可达），批量接入才放得进来。 */}
+                <div className="flex w-full flex-wrap items-center gap-2 rounded-hard px-1 py-1.5">
+                  <button
+                    type="button"
+                    className="flex flex-1 items-center gap-2 text-left hover:text-tx"
+                    onClick={() => toggle(org)}
+                    aria-expanded={!isCollapsed}
+                  >
+                    <span className="text-[10px] text-tx3">{isCollapsed ? "▶" : "▼"}</span>
+                    <span className="text-[13px] font-semibold text-cream">{org}</span>
+                    <span className="text-[11px] text-tx3">
+                      {rs.length} 个仓库
+                      {pending.length > 0 && ` · 未接入 ${pending.length}`}
+                      {rs.some((r) => r.scanStatus === "failed") && " · 有失败"}
+                    </span>
+                  </button>
+                  {pending.length > 0 && (
+                    <button
+                      type="button"
+                      className="flex flex-none items-center gap-1.5 rounded-hard border border-line px-2 py-[2px] text-[11px] text-tx2 hover:border-amber hover:text-amber-hi disabled:opacity-50"
+                      onClick={() =>
+                        void attachRepos(
+                          pending.map((r) => ({ url: r.url, name: fullNameOf(r) })),
+                          "org",
+                          org,
+                        )
+                      }
+                      disabled={busy}
+                      title={`把这一组里还没接入的 ${pending.length} 个仓库一次性接入本项目`}
+                    >
+                      {busy ? "接入中…" : `全部接入本项目 (${pending.length})`}
+                    </button>
+                  )}
                   {!solo && host && (
-                    <span
-                      className="text-[11px] text-tx3 underline-offset-2 hover:text-amber hover:underline"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        scanThisOrg(org, host);
-                      }}
+                    <button
+                      type="button"
+                      className="flex-none text-[11px] text-tx3 underline-offset-2 hover:text-amber hover:underline"
+                      onClick={() => scanThisOrg(org, host)}
                     >
                       扫描此组织
-                    </span>
+                    </button>
                   )}
-                </button>
+                </div>
+                {orgResult?.org === org && (
+                  <p
+                    role="status"
+                    className={`px-1 pb-0.5 text-[11px] ${orgResult.ok ? "text-olive" : "text-salmon"}`}
+                  >
+                    {orgResult.text}
+                  </p>
+                )}
                 {!isCollapsed && (
                   <div className="mt-1.5 grid gap-2 pl-4">
                     {rs.map((repo) => (
