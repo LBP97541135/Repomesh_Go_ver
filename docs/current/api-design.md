@@ -4,6 +4,20 @@
 
 2026-09-19 已实现范围修正：项目创建 `repositoryIds` 允许 `[]`，操作顺序改为先保存项目、再通过 PATCH 明确接入仓库、最后在项目内创建 Issue。账号仓库目录不是项目工作范围。发现、审批、计划、物化与重规划限定到 Issue 已确认的项目仓库；迁移 0042 增加计划 Issue 关联和任务仓库规范绑定，拒绝新越界写入并隔离未确认的历史任务。创建条件与分页按[Issue 创建契约](issue-page-create-api-contract.md)；数据库兼容和验证见[本轮记录](../development/2026-09-19-project-scope/README.md)。本文较早的目标表设计不替代这一已实施约束。
 
+## TypeSafe / Jev 增量接口（2026-09-20）
+
+本次新增项目范围的 TypeSafe 设置和辅助判断接口，唯一完整契约见 [Spec §4](typesafe-verification-spec.md#4-浏览器及工具契约)。源码为 `internal/web/typesafe.go` 与 `internal/typesafe`；数据位于新增的 `repomesh_typesafe` schema，Key 使用既有 `repomesh_secrets`。此增量不改写下文历史目标表映射。
+
+| 方法与路径 | 用途 | 权限与重放 |
+| --- | --- | --- |
+| `GET /api/projects/{projectId}/typesafe` | 脱敏配置、统一开关与 Skill 身份 | 登录的项目 owner |
+| `POST /api/projects/{projectId}/typesafe` | 保存/替换/清除 Key，控制测试与审查 | owner + Origin/CSRF + expectedRevision |
+| `POST /api/projects/{projectId}/typesafe/check` | 保存配置的合成推理检查 | owner + Origin/CSRF + expectedRevision；项目冷却 |
+| `GET /api/projects/{projectId}/typesafe/evaluations` | 按 issueId 读取最近最多 100 条辅助判断 | owner；Issue 必须属于当前项目 |
+| `POST /api/typesafe/evaluations` | 测试/审查运行的受限工具 | 短期 run Bearer；同 run/requestId 幂等，不接受浏览器会话代替 |
+
+辅助判断按 test/code_review 标记来源，不改写测试 passed、审批或合并许可。公开模型供应商接口仍采用自身的 Chat Completions 契约，不能用它替代 TypeSafe 协议。
+
 ## 1. 范围与阅读方式
 
 本文按方案的 7 个功能方向定义 RepoMesh Web 进程的浏览器 HTTP 接口，并维护 44 张表到资源的映射。每张表一个资源小节，顺序固定：一句话职责、端点表、字段表、状态机或关键规则、示例。示例只给 `tasks`、`task_assignments`、`change_sets`、`review_requests`、`messages`、`skill_approvals`、`events` 七个资源。

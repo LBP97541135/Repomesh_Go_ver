@@ -553,6 +553,8 @@ export default function ConsoleShell() {
         )}
         {route.nav === "settings" && (
           <SettingsPage
+            projectId={activeProjectId}
+            projectName={projects?.find(p => p.id === activeProjectId)?.name}
             key={route.settingsSection ?? "general"}
             account={account}
             onConfigure={() => setSetupRequested(true)}

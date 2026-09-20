@@ -1,0 +1,179 @@
+{
+  "browser": {
+    "checks": [
+      "saved-key-hidden",
+      "real-test-and-review-results",
+      "shared-toggle-off-on",
+      "replace-key",
+      "reload",
+      "clear-and-disable",
+      "cross-project-denied"
+    ],
+    "pageErrors": [],
+    "passed": true
+  },
+  "checkedAt": "2026-09-20T12:56:18Z",
+  "codexVersion": "codex-cli 0.153.4",
+  "connectionCheck": "ready",
+  "passed": true,
+  "review_agent": {
+    "evaluation": {
+      "purpose": "code_review",
+      "taskId": "fixture-task",
+      "id": "cf8b5c56-4b15-4c11-8ad0-ca6a7a42e709",
+      "projectId": "8f0bdab1-0d9d-4240-b151-df7c13057379",
+      "issueId": "typesafe-web-issue",
+      "runId": "live-review_agent",
+      "requestId": "codex-synthetic-v1",
+      "revision": 1,
+      "skillHash": "99423554e7b1e1469d159d7692339550cf53036b0c5b20136eca7dcbcd9c006c",
+      "templateVersion": "repomesh-evidence-v1",
+      "input": {
+        "requestId": "codex-synthetic-v1",
+        "claims": [
+          {
+            "id": "positive",
+            "text": "The synthetic test observed a result of 80 for price 100 and discount 20 percent."
+          },
+          {
+            "id": "negative",
+            "text": "The synthetic test observed a result of 90 for price 100 and discount 20 percent."
+          },
+          {
+            "id": "missing",
+            "text": "项目数据库已开启自动备份。"
+          }
+        ],
+        "evidence": "Synthetic test output: test_discount_20_percent PASS: input 100, discount 20, expected 80, observed 80. Process exit code: 0. No shipping, tax or concurrency tests were executed.\nSynthetic reviewed source (discount.py:1-2):\ndef discounted_price(price, percent):\n    return price * (1 - percent / 100)",
+        "commit": "c66d7b68e9ae8146c426f2906034be7681f7a0c4"
+      },
+      "inputHash": "23cfaad7db0a9069cca8d873c5f14a8d1c7dd571dd393dd6023f46a874d41191",
+      "status": "completed",
+      "errorCode": "",
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "missing": {
+            "type": "choice",
+            "choice": "insufficient",
+            "probabilities": {
+              "contradicted": 0,
+              "insufficient": 1,
+              "supported": 0
+            },
+            "confidence": 1
+          },
+          "negative": {
+            "type": "choice",
+            "choice": "contradicted",
+            "probabilities": {
+              "contradicted": 1,
+              "insufficient": 0,
+              "supported": 0
+            },
+            "confidence": 1
+          },
+          "positive": {
+            "type": "choice",
+            "choice": "supported",
+            "probabilities": {
+              "contradicted": 0,
+              "insufficient": 0,
+              "supported": 1
+            },
+            "confidence": 1
+          }
+        },
+        "usage": {
+          "input_tokens": 852,
+          "output_tokens": 132
+        }
+      },
+      "latencyMs": 311,
+      "createdAt": "2026-09-20T12:57:34.376874Z"
+    },
+    "helperCalled": true,
+    "skillRead": true
+  },
+  "skillHash": "99423554e7b1e1469d159d7692339550cf53036b0c5b20136eca7dcbcd9c006c",
+  "sourceCommit": "65a39f393687675ce170e6094757de20370365b9",
+  "test_agent": {
+    "evaluation": {
+      "purpose": "test",
+      "taskId": "fixture-task",
+      "id": "3371c3a4-fb4b-4cc0-9dec-063ebccfe7ef",
+      "projectId": "8f0bdab1-0d9d-4240-b151-df7c13057379",
+      "issueId": "typesafe-web-issue",
+      "runId": "live-test_agent",
+      "requestId": "codex-synthetic-v1",
+      "revision": 1,
+      "skillHash": "99423554e7b1e1469d159d7692339550cf53036b0c5b20136eca7dcbcd9c006c",
+      "templateVersion": "repomesh-evidence-v1",
+      "input": {
+        "requestId": "codex-synthetic-v1",
+        "claims": [
+          {
+            "id": "positive",
+            "text": "The synthetic test observed a result of 80 for price 100 and discount 20 percent."
+          },
+          {
+            "id": "negative",
+            "text": "The synthetic test observed a result of 90 for price 100 and discount 20 percent."
+          },
+          {
+            "id": "missing",
+            "text": "项目数据库已开启自动备份。"
+          }
+        ],
+        "evidence": "Synthetic test output: test_discount_20_percent PASS: input 100, discount 20, expected 80, observed 80. Process exit code: 0. No shipping, tax or concurrency tests were executed.\nSynthetic reviewed source (discount.py:1-2):\ndef discounted_price(price, percent):\n    return price * (1 - percent / 100)",
+        "commit": "de5effbede136a101a73fba6ad54a1c5cefd0d1e"
+      },
+      "inputHash": "e4da07b7fcf7c5bc872dac0041d7568875c5cd491dc0ce20b03fcc1575baded5",
+      "status": "completed",
+      "errorCode": "",
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "missing": {
+            "type": "choice",
+            "choice": "insufficient",
+            "probabilities": {
+              "contradicted": 0,
+              "insufficient": 1,
+              "supported": 0
+            },
+            "confidence": 1
+          },
+          "negative": {
+            "type": "choice",
+            "choice": "contradicted",
+            "probabilities": {
+              "contradicted": 1,
+              "insufficient": 0,
+              "supported": 0
+            },
+            "confidence": 1
+          },
+          "positive": {
+            "type": "choice",
+            "choice": "supported",
+            "probabilities": {
+              "contradicted": 0,
+              "insufficient": 0,
+              "supported": 1
+            },
+            "confidence": 1
+          }
+        },
+        "usage": {
+          "input_tokens": 852,
+          "output_tokens": 132
+        }
+      },
+      "latencyMs": 320,
+      "createdAt": "2026-09-20T12:56:54.937048Z"
+    },
+    "helperCalled": true,
+    "skillRead": true
+  }
+}

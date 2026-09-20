@@ -66,6 +66,16 @@ cd frontend && npm install && npm run dev     # 开发；生产用 npx vite buil
 `REPOMESH_DATABASE_URL`、`AGENTTEAMS_CONTROLLER_URL/_TOKEN`（智能体 runtime）、
 GitHub App 凭据（仓库读写）。
 
+## 可选：Jev 辅助测试与代码审查
+
+选择项目后，在「设置 → 模型与 API → 测试与代码审查 · TypeSafe / Jev」保存 Key，并打开统一开关「启用 Jev 辅助测试与代码审查」。Key 由 Web 的既有密钥库加密保存；需要已配置认证运行时和包装根。保存不会发出模型请求；「检查连接」会运行一次合成样本推理。
+
+部署本功能需配套更新三个二进制并应用迁移 `0058_typesafe_verification.sql`（`go run ./cmd/repomesh-web db migrate`）。在 host-executor 环境中设置 `REPOMESH_TYPESAFE_BROKER_URL` 为 Web 的 origin，例如 `https://repomesh.example`；同机开发可使用实际监听的 loopback HTTP 地址。该地址不含 `/api` 路径，HTTPS 证书须受执行器信任。不需要把 Jev Key 设置到执行器或 coding agent 环境。
+
+开启后，测试 run 获得证据核对工具；新派发任务另有一次仓库负责人的辅助代码审查，检查独立副本中的候选提交。关闭后停止新 Jev 调用，保留历史记录。工作台测试区、任务验收区及审核阶段分别展示辅助判断；Jev 不自动批准任务或合并。Skill 固定随产品发布；仓库内的 Codex 可直接使用 `.agents/skills/typesafe-ai`。
+
+行为与接口见 [Spec](docs/current/typesafe-verification-spec.md)，本地验证与真实 Codex/Jev 证据见[验证记录](docs/development/2026-09-20-typesafe-verification/README.md)。既有跨仓集成仍有未绑定候选提交组合的限制，辅助判断不表示整条交付链已验收。
+
 ## 五、目录导航
 
 | 路径 | 内容 |

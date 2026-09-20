@@ -1,5 +1,14 @@
 # RepoMesh 当前交接
 
+## 2026-09-20 TypeSafe / Jev 测试与代码审查
+
+本次独立 worktree 基于 `801f9ea` 实现 [TypeSafe Spec](typesafe-verification-spec.md)：设置中按项目一个开关同时启用测试团队和仓库负责人的辅助代码审查；Key 信封加密，执行器仅持短期 run 凭证，官方 Skill 固定随产品发布。新任务开启时追加独立 review_agent，不改写经理批准或合并许可。迁移为 `0058_typesafe_verification.sql`。
+
+本地 Go 构建、带隔离 PG 的全量测试、vet、相关包 race、web 类型/35 项测试/构建和 frontend 构建/lint 均通过。真实 Codex 0.153.4 读取官方 Skill，经产品 helper / Web broker 调用 jev-1.13.0，测试与审查两个用途均通过三类合成判断；浏览器验证统一开关、Key 操作、结果展示与跨项目拒绝通过。失败与复验记录、旧检查器的 52 项基线失败、截图及范围见[实施记录](../development/2026-09-20-typesafe-verification/README.md)。
+
+状态为 LOCAL_VERIFIED，尚未部署或迁移现有业务实例。部署需三个配套二进制、0058 迁移、已配置的 Web 密钥库及执行器 `REPOMESH_TYPESAFE_BROKER_URL`，再由用户在项目设置保存 Key。既有跨仓执行未绑定候选提交组合的限制保留；合成验证不替代真实 GitHub / AgentTeams 交付验收。
+
+
 ## 2026-09-19 与最新 main 集成
 
 本地观测及前端用途入口已与 `c0cd44a` 主线整合，保留 GitHub 重连、智能体／技能设置、仓库团队和健康监控更新。主线已使用 0043／0044，观测迁移调整为 **0045_observation_facts.sql**；此前报告中的 0043 指首轮隔离试验版本，不改写其证据或已应用历史。合并树的 Go 构建／vet、589 个测试（另 2 条件跳过）、相关包 race、两套前端及浏览器导航验证通过。整合范围与限制见[合并检查](../development/2026-09-19-local-observation-02/MAIN-INTEGRATION.md)。

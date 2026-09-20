@@ -49,6 +49,7 @@ import (
 	skills "repomesh.local/repomesh/internal/skills"
 	"repomesh.local/repomesh/internal/spec"
 	"repomesh.local/repomesh/internal/tasks"
+	"repomesh.local/repomesh/internal/typesafe"
 	"repomesh.local/repomesh/internal/web"
 )
 
@@ -215,7 +216,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		applyService := models.NewApplicationService(runtime.Pool(), runtime.Service, projectService, runtime.SecretStore())
 		runtime.Service.SetModelTestDestinationResolver(testService.ResolveDestination)
 		runtime.Service.SetModelApplyDestinationResolver(applyService.ResolveDestination)
-		modelAPI = web.Models{Service: modelService, Tests: testService, Applications: applyService}
+		modelAPI = web.Models{Service: modelService, Tests: testService, Applications: applyService, TypeSafe: typesafe.New(runtime.Pool(), runtime.SecretStore())}
 		// B06: atomic issue creation shares the pool, authorization surface and
 		// budget store; its destination resolver maps an issue_create operation
 		// destination back to the browser creation page.

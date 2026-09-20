@@ -116,6 +116,7 @@ func handlerConfigured(assets fs.FS, auth Auth, projectAPI Projects, modelAPI Mo
 	registerDispatchGate(mux, auth, agentTeams) // Phase 2 派发闸(2026-09-18)
 	registerAgentTeams(mux, auth, agentTeams)
 	registerModels(mux, auth, modelAPI)
+	registerTypeSafe(mux, auth, modelAPI.TypeSafe)
 	registerScanRoutes(mux, scan)
 	registerDecisionRoutes(mux, decision)
 	registerSkillRoutes(mux, skills)

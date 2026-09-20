@@ -13,6 +13,7 @@ import { LocalAccountsPanel } from "../components/LocalAccountsPanel";
 import { AppInstallGuide } from "../components/AppInstallGuide";
 import { reconnectGithubConnection } from "../api/auth";
 import { LocalCliPage } from "./LocalCliPage";
+import { TypeSafeSettings } from "../components/TypeSafeSettings";
 import { ModelUsageSettings } from "../components/ModelUsageSettings";
 import { ModelProvidersPage } from "./ModelProvidersPage";
 import { AgentsPage } from "./AgentsPage";
@@ -384,6 +385,8 @@ function AboutCategory({ account, base }: { account: Account; base: string }) {
 
 export function SettingsPage({
   account,
+  projectId = null,
+  projectName,
   onConfigure,
   initialCategory = "general",
   onToast = () => undefined,
@@ -391,6 +394,8 @@ export function SettingsPage({
 }: {
   account: Account;
   onConfigure: () => void;
+  projectId?: string | null;
+  projectName?: string;
   /** 深链（#/settings/<section>）落到对应分类；仅挂载时生效 */
   initialCategory?: CategoryKey;
   /** 收编进来的智能体/技能子页要用的两个回调（由外壳注入） */
@@ -491,6 +496,7 @@ export function SettingsPage({
         {category === "models" && (
           <>
             <ModelUsageSettings />
+            <TypeSafeSettings key={`${account.id}:${projectId}`} projectId={projectId} projectName={projectName} />
             {/* 供应商目录（模型来源 / Key / 连通性测试）从侧栏顶级入口收编到这里：
                 侧栏不再单列「模型」，模型配置面收在设置里（2026-09-20 用户裁定）。 */}
             <div id="model-providers" className="mt-6 border-t border-line pt-4">

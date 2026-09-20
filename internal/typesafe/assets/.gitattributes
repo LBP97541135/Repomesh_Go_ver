@@ -1,0 +1,2 @@
+# Preserve the exact bytes of the pinned upstream skill on every checkout.
+typesafe-ai/** -text

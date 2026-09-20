@@ -1,3 +1,4 @@
+import { TypeSafeEvaluations } from "../../components/TypeSafeEvaluations";
 /** 右栏·焦点详情（方案 A）：点哪显示哪。
  *
  *  - 规划步骤：详情卡（关键词/候选/三档/批次）+ 人工门按钮（批准分档、确认物化）
@@ -632,12 +633,11 @@ function StageHistory({
 
   if (stage === 2) {
     const decided = (tasks ?? []).filter((t) => t.resultSummary);
-    if (decided.length === 0) {
-      return empty("审核");
-    }
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-4 py-3">
         <p className="text-[12px] font-medium text-[var(--tree-ink)]">审核 · 经理门决策</p>
+        <TypeSafeEvaluations projectId={projectId} issueId={testEvidence?.issue_id} purpose="code_review" />
+        {decided.length === 0 && <p className="text-[11px] text-[var(--tree-faint)]">尚无经理门决策。</p>}
         {decided.map((t) => (
           <div key={t.id} className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2 transition-colors hover:bg-[var(--tree-zone)]">
             <p className="text-[11.5px] text-[var(--tree-ink)]">{t.title}</p>
@@ -673,6 +673,7 @@ function StageHistory({
 }
 
 export interface FocusPanelProps {
+  projectId?: string | null;
   entry: FocusEntry | null;
   discovery: DiscoveryView | null;
   /** 需求正文（issue 的 description，缺失时回退发现链的 requirement_text）。
@@ -744,6 +745,7 @@ export interface FocusPanelProps {
 }
 
 export function FocusPanel({
+  projectId = null,
   entry,
   discovery,
   requirementText,
@@ -801,6 +803,7 @@ export function FocusPanel({
           ) : (
             <TestStream view={testEvidence} />
           )}
+          <TypeSafeEvaluations projectId={projectId} issueId={testEvidence?.issue_id} purpose="test" />
           <TestEvidenceDetail view={testEvidence} />
         </div>
       );
@@ -809,6 +812,7 @@ export function FocusPanel({
     if (entry.kind === "stage") {
       return (
         <StageHistory
+          projectId={projectId}
           stage={entry.stage}
           discovery={discovery}
           stepStates={stepStates}
@@ -841,6 +845,7 @@ export function FocusPanel({
           {/* 经理门（审核段）：agent 跑完把任务置 blocked 等经理批 —— 此前后端有
               approve/reject 端点、前端也有调用封装，但**界面上没有任何入口**，
               于是任务永远停在 blocked，整条链看起来"卡住"。 */}
+          <TypeSafeEvaluations projectId={projectId} issueId={testEvidence?.issue_id} purpose="code_review" taskId={task?.id} />
           {task !== null && task.status === "blocked" && (
             <TaskGate task={task} onDecide={onDecideTask} />
           )}
@@ -872,6 +877,7 @@ export function FocusPanel({
         {/* 测试组的产出也进房间流（2026-09-20）：此前它只在自己的条目里有记录，
             Manager 主房间里看不到"验收过了没有"，得自己切过去翻。 */}
         <TestStream view={testEvidence} />
+        <TypeSafeEvaluations projectId={projectId} issueId={testEvidence?.issue_id} />
         <PlanHistory discovery={discovery} />
         <GateStack
           stepStates={stepStates}

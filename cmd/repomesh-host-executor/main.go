@@ -18,6 +18,9 @@ func main() {
 }
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	if len(args) > 0 && args[0] == "typesafe" {
+		return runTypeSafeHelper(ctx, args[1:], stdout, stderr)
+	}
 	flags := flag.NewFlagSet("repomesh-host-executor", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	version := flags.Bool("version", false, "print release version and exit")

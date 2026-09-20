@@ -1,0 +1,48 @@
+ok  	repomesh.local/repomesh/cmd/repomesh-coordinator	(cached)
+?   	repomesh.local/repomesh/cmd/repomesh-gh-token	[no test files]
+ok  	repomesh.local/repomesh/cmd/repomesh-host-executor	1.079s
+ok  	repomesh.local/repomesh/cmd/repomesh-observe	(cached)
+ok  	repomesh.local/repomesh/cmd/repomesh-web	(cached)
+ok  	repomesh.local/repomesh/internal/access	(cached)
+ok  	repomesh.local/repomesh/internal/agentteams	(cached)
+ok  	repomesh.local/repomesh/internal/assembly	(cached)
+ok  	repomesh.local/repomesh/internal/branchvalidation	(cached)
+?   	repomesh.local/repomesh/internal/buildinfo	[no test files]
+ok  	repomesh.local/repomesh/internal/console	(cached)
+ok  	repomesh.local/repomesh/internal/database	(cached)
+ok  	repomesh.local/repomesh/internal/decisionchain	(cached)
+?   	repomesh.local/repomesh/internal/delivery	[no test files]
+ok  	repomesh.local/repomesh/internal/deliverymanifest	(cached)
+ok  	repomesh.local/repomesh/internal/discovery	(cached)
+ok  	repomesh.local/repomesh/internal/docparse	(cached)
+?   	repomesh.local/repomesh/internal/execution	[no test files]
+?   	repomesh.local/repomesh/internal/gates	[no test files]
+ok  	repomesh.local/repomesh/internal/github	(cached)
+?   	repomesh.local/repomesh/internal/handoff	[no test files]
+ok  	repomesh.local/repomesh/internal/humancontrol	(cached)
+?   	repomesh.local/repomesh/internal/interfacedoc	[no test files]
+?   	repomesh.local/repomesh/internal/issues	[no test files]
+?   	repomesh.local/repomesh/internal/jointvalidation	[no test files]
+ok  	repomesh.local/repomesh/internal/jsoninput	(cached)
+?   	repomesh.local/repomesh/internal/manager	[no test files]
+?   	repomesh.local/repomesh/internal/messages	[no test files]
+?   	repomesh.local/repomesh/internal/modelbudget	[no test files]
+ok  	repomesh.local/repomesh/internal/models	(cached)
+ok  	repomesh.local/repomesh/internal/observability	(cached)
+ok  	repomesh.local/repomesh/internal/observepipe	(cached)
+ok  	repomesh.local/repomesh/internal/observeui	(cached)
+ok  	repomesh.local/repomesh/internal/projects	(cached)
+ok  	repomesh.local/repomesh/internal/reposcan	(cached)
+ok  	repomesh.local/repomesh/internal/repositoryteams	(cached)
+?   	repomesh.local/repomesh/internal/responsibility	[no test files]
+ok  	repomesh.local/repomesh/internal/roomnotice	(cached)
+ok  	repomesh.local/repomesh/internal/scan	(cached)
+?   	repomesh.local/repomesh/internal/scm	[no test files]
+ok  	repomesh.local/repomesh/internal/secrets	(cached)
+ok  	repomesh.local/repomesh/internal/skills	(cached)
+ok  	repomesh.local/repomesh/internal/sources	(cached)
+ok  	repomesh.local/repomesh/internal/spec	(cached)
+ok  	repomesh.local/repomesh/internal/tasks	(cached)
+?   	repomesh.local/repomesh/internal/testdb	[no test files]
+ok  	repomesh.local/repomesh/internal/typesafe	(cached)
+ok  	repomesh.local/repomesh/internal/web	7.068s

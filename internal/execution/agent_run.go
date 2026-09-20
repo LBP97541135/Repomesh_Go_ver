@@ -140,7 +140,7 @@ func (s *Service) MarkAgentExited(ctx context.Context, runID string, exitCode in
 		FROM repomesh_execution.agent_runs WHERE id=$1`, runID).Scan(&agentKind, &taskRef); err != nil {
 		return unavailable()
 	}
-	if taskRef != "" && agentKind != "test_agent" {
+	if taskRef != "" && agentKind != "test_agent" && agentKind != "review_agent" {
 		if exitCode == 0 && !killed {
 			if _, err := s.pool.Exec(ctx, `UPDATE public.tasks SET status='blocked'
 				WHERE id::text=$1 AND status='running'`, taskRef); err != nil {
@@ -149,7 +149,7 @@ func (s *Service) MarkAgentExited(ctx context.Context, runID string, exitCode in
 		} else {
 			var prior int
 			if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM repomesh_execution.agent_runs
-				WHERE task_package_ref=$1 AND agent_kind <> 'test_agent'`, taskRef).Scan(&prior); err != nil {
+				WHERE task_package_ref=$1 AND agent_kind NOT IN ('test_agent','review_agent')`, taskRef).Scan(&prior); err != nil {
 				return unavailable()
 			}
 			next := "failed"
@@ -231,7 +231,7 @@ func (s *Service) ClaimAgentLaunch(ctx context.Context, workerID string) (AgentR
 		FROM repomesh_execution.agent_runs r
 		JOIN repomesh_execution.attempts a ON a.id = r.attempt_id
 		WHERE a.worker_id=$1 AND r.state='pending' AND a.state IN ('launch_verified','running')
-		ORDER BY r.created_at, (r.agent_kind = 'test_agent') LIMIT 1 FOR UPDATE OF r`, workerID).
+		ORDER BY r.created_at, CASE r.agent_kind WHEN 'test_agent' THEN 1 WHEN 'review_agent' THEN 2 ELSE 0 END LIMIT 1 FOR UPDATE OF r`, workerID).
 		Scan(&runID, &attemptID, &kind, &command, &workspace, &packageRef, &repoFullName)
 	if err != nil {
 		if err.Error() == "no rows in result set" {

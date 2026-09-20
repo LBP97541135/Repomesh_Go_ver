@@ -19,7 +19,7 @@ function RunCard({ run }: { run: TaskRunOutputView }) {
   return (
     <div className="rounded-[9px] border border-[var(--tree-hairline)] bg-[var(--tree-card)]">
       <div className="flex flex-wrap items-center gap-1.5 border-b border-[var(--tree-hairline)] px-2.5 py-1.5">
-        <span className="text-[11.5px] font-medium text-[var(--tree-ink)]">{run.agentKind || "agent"}</span>
+        <span className="text-[11.5px] font-medium text-[var(--tree-ink)]">{run.agentKind === "review_agent" ? "仓库负责人 · 辅助审查" : run.agentKind || "agent"}</span>
         <span className={`rounded-[5px] px-1.5 py-px text-[10px] ${failed ? "bg-salmon-well text-salmon" : "bg-[var(--tree-zone)] text-[var(--tree-sub)]"}`}>
           {run.state}
           {run.exitCode !== null ? ` · exit ${run.exitCode}` : ""}

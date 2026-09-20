@@ -22,6 +22,13 @@ func (e *executor) launchAgentRun(ctx context.Context, command []string, workspa
 	cmd.Dir = workspace
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Env = sanitizedEnv(ghToken)
+	toolEnv, finishTypeSafe, err := e.typeSafeEnvironment(ctx, runID, workspace)
+	if err != nil {
+		_ = e.execution.MarkAgentLaunchFailed(ctx, runID)
+		return errors.New("typesafe execution configuration unavailable")
+	}
+	defer finishTypeSafe()
+	cmd.Env = append(cmd.Env, toolEnv...)
 	// C6 fix: capture agent output next to the run instead of /dev/null.
 	if stdout, err := os.OpenFile(filepath.Join(workspace, "agent-stdout.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
 		defer stdout.Close()
