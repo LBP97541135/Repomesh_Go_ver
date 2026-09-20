@@ -505,15 +505,26 @@ func (s *Service) Creation(ctx context.Context, principal access.ProjectPrincipa
 		return CreationReceipt{}, err
 	}
 	defer rollback(tx)
+	// 先锁会话行、再读操作行 —— 顺序不能反。
+	//
+	// 契约（internal/web/project_browser_test.go 的 commit 屏障用例钉住的）：同一个
+	// 人**正在**用这个 Idempotency-Key 创建、事务还没提交时，按同一个 key 去读它必须
+	// **等**这次创建落地，然后回 200；绝不能先回一个 404 PROJECT_CREATION_NOT_FOUND
+	// —— 客户端会因为这句 404 以为自己刚发的创建丢了，而它其实正在提交中。
+	//
+	// 等待由会话行锁提供：创建路径（Create 的提交事务）一开始就 LockProjectPrincipal，
+	// 把 bindings/sessions/accounts 三行锁到提交；这里同样先取这三行，于是同一个会话的
+	// 读会排在它自己的写后面。此前这条等待是"读路径也写 last_active_at"这个副作用顺带
+	// 给的，那个副作用已在 2026-09-20 去掉（它才是 503 的放大器），所以这里把它显式化。
+	if err = s.access.LockProjectPrincipal(ctx, tx, principal); err != nil {
+		return CreationReceipt{}, err
+	}
 	operation, found, err := readOperation(ctx, tx, operationScope{actor: principal.ActorID(), kind: "project_create", key: creationID})
 	if err != nil {
 		return CreationReceipt{}, err
 	}
 	if !found {
 		return CreationReceipt{}, failure(404, "PROJECT_CREATION_NOT_FOUND")
-	}
-	if err = s.access.LockProjectPrincipal(ctx, tx, principal); err != nil {
-		return CreationReceipt{}, err
 	}
 	if err = requireOperationAccess(ctx, tx, principal.ActorID(), operation); err != nil {
 		return CreationReceipt{}, err
@@ -534,15 +545,17 @@ func (s *Service) UpdateResult(ctx context.Context, principal access.ProjectPrin
 		return UpdateReceipt{}, err
 	}
 	defer rollback(tx)
+	// 同 Creation：先锁会话行、再读操作行。正在提交中的那次更新必须被等到，
+	// 不能回一个 404 PROJECT_UPDATE_NOT_FOUND 让客户端以为自己的更新丢了。
+	if err = s.access.LockProjectPrincipal(ctx, tx, principal); err != nil {
+		return UpdateReceipt{}, err
+	}
 	operation, found, err := readOperation(ctx, tx, operationScope{actor: principal.ActorID(), kind: "project_update", projectID: projectID, key: updateID})
 	if err != nil {
 		return UpdateReceipt{}, err
 	}
 	if !found {
 		return UpdateReceipt{}, failure(404, "PROJECT_UPDATE_NOT_FOUND")
-	}
-	if err = s.access.LockProjectPrincipal(ctx, tx, principal); err != nil {
-		return UpdateReceipt{}, err
 	}
 	if err = requireOperationAccess(ctx, tx, principal.ActorID(), operation); err != nil {
 		return UpdateReceipt{}, err
