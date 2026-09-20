@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -537,12 +538,55 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	agentTeamsAPI := web.AgentTeams{Client: atClient}
 	if pipelinePool != nil {
 		agentTeamsAPI.RepositoryTeams = repositoryteams.New(pipelinePool, atClient)
+		// 仓库接入即建队（2026-09-20 用户裁定）：项目新建/更新成功之后，异步给这个
+		// 项目里**还没有团队**的仓库各建一支（幂等，已建过的跳过）。失败不回滚项目
+		// ——建队是后续动作，不是项目写入的一部分；失败原因如实进日志，不吞。
+		teamService := agentTeamsAPI.RepositoryTeams
+		projectAPI.OnRepositoriesAttached = func(ctx context.Context, projectID string) {
+			created, err := teamService.EnsureForProject(ctx, projectID, repositoryTeamWorkerCount())
+			if err != nil {
+				slog.Warn("repository team ensure deferred", "project", projectID, "reason", err.Error())
+			}
+			if len(created) > 0 {
+				slog.Info("repository teams created", "project", projectID, "count", len(created))
+			}
+		}
+		// 兜底收敛：本次改动之前接入的仓库、以及上一轮因 AT 控制面不可用而没建成的
+		// 仓库，靠这条低频循环补上。服务重启后它同样会跑（幂等）。
+		go func() {
+			for {
+				time.Sleep(2 * time.Minute)
+				if ctx.Err() != nil {
+					return
+				}
+				created, err := teamService.EnsureAll(ctx, repositoryTeamWorkerCount())
+				if err != nil {
+					slog.Warn("repository team sweep deferred", "reason", err.Error())
+				} else if len(created) > 0 {
+					slog.Info("repository teams created by sweep", "count", len(created))
+				}
+			}
+		}()
 	}
 	if err := web.RunConfigured(ctx, *addr, *assets, auth, projectAPI, modelAPI, scanAPI, decisionAPI, skillsAPI, issuesAPI, messagesAPI, agentTeamsAPI, pipelineAPI, humanControlAPI, observeV1, discoveryAPI, consoleAPI, certFile, keyFile); err != nil {
 		fmt.Fprintln(stderr, "web stopped:", err)
 		return 1
 	}
 	return 0
+}
+
+// repositoryTeamWorkerCount 是"仓库接入时自动建队"给每支队伍配几名执行者。
+//
+// 默认 2：一个仓库的串行交付用不满更多，而 AgentTeams 的 worker 是稀缺资源（控制面
+// 里每个 worker 都是一个真实 runtime）。可用 REPOMESH_REPOSITORY_TEAM_WORKERS 覆盖；
+// 越界或非数字一律退回默认，不拿一个坏值去建队。
+func repositoryTeamWorkerCount() int {
+	if raw := strings.TrimSpace(os.Getenv("REPOMESH_REPOSITORY_TEAM_WORKERS")); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n >= 1 && n <= 20 {
+			return n
+		}
+	}
+	return 2
 }
 
 // branchProvider 选数据库分支验证的 provider（评委①）：

@@ -34,10 +34,33 @@ type repoCard struct {
 	InProject bool `json:"in_project"`
 }
 
-// loadRepoPool only reads repositories explicitly selected for this issue.
+// loadRepoPool 读这次候选评分能看到的仓库池。
+//
+// 2026-09-20（用户："需求不写仓库为什么就不行？"）：池子原先**只取本 issue 已确认的
+// 仓库范围**。需求里没点名仓库时范围是空的 → 池子空 → 候选空 → 分档全排除 →
+// ③ 审批以 ErrNoRepositories 卡死，发现链永远走不到计划，界面上就是"什么都不动"。
+//
+// 现在按两级取：
+//  1. 有范围就用范围 —— 人已经表过态，尊重它；
+//  2. 没有范围就退到**本项目的全部仓库目录** —— 让 Manager（总领导）在候选评分
+//     这一步真的去"发现"该改哪些仓，而不是因为没人告诉它而卡住。
+//
 // Scan metadata must match the exact repository URL and the owner's space.
 func (s *Service) loadRepoPool(ctx context.Context, tx pgx.Tx, projectID, issueID string) ([]repoCard, error) {
-	const query = `
+	scoped, err := s.repoPoolQuery(ctx, tx, projectID, issueID, true)
+	if err != nil {
+		return nil, err
+	}
+	if len(scoped) > 0 {
+		return scoped, nil
+	}
+	return s.repoPoolQuery(ctx, tx, projectID, issueID, false)
+}
+
+// repoPoolQuery 取仓库池；scoped=true 时只取本 issue 的已确认范围，false 时取整个
+// 项目目录。两条路径的列与扫描元数据匹配规则完全一致（只是范围不同）。
+func (s *Service) repoPoolQuery(ctx context.Context, tx pgx.Tx, projectID, issueID string, scoped bool) ([]repoCard, error) {
+	query := `
 		SELECT r.id,
 		       r.owner || '/' || r.name,
 		       COALESCE(s.description, ''),
@@ -46,9 +69,7 @@ func (s *Service) loadRepoPool(ctx context.Context, tx pgx.Tx, projectID, issueI
 		       COALESCE(s.metadata::text, '{}'),
 		       s.id, s.fingerprint, s.profiled_at,
 		       true AS in_project
-		FROM repomesh_issues.issue_repository_scope scope
-		JOIN repomesh_projects.project_repositories pr
-		  ON pr.project_id=scope.project_id AND pr.repository_id=scope.repository_id
+		FROM repomesh_projects.project_repositories pr
 		JOIN repomesh_projects.repositories r ON r.id=pr.repository_id
 		JOIN repomesh_projects.projects p ON p.id=pr.project_id
 		JOIN repomesh_access.accounts a ON a.id=p.owner
@@ -61,9 +82,18 @@ func (s *Service) loadRepoPool(ctx context.Context, tx pgx.Tx, projectID, issueI
 		       lower('git@' || r.host || ':' || r.owner || '/' || r.name))
 		  ORDER BY scan.profiled_at DESC, scan.id LIMIT 1
 		) s ON true
-		WHERE scope.project_id=$1 AND scope.issue_id=$2
+		WHERE pr.project_id=$1`
+	args := []any{projectID}
+	if scoped {
+		query += `
+		  AND EXISTS (SELECT 1 FROM repomesh_issues.issue_repository_scope scope
+		              WHERE scope.project_id=$1 AND scope.issue_id=$2
+		                AND scope.repository_id=pr.repository_id)`
+		args = append(args, issueID)
+	}
+	query += `
 		ORDER BY r.id`
-	rows, err := tx.Query(ctx, query, projectID, issueID)
+	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

@@ -176,6 +176,96 @@ func (s *Service) Create(ctx context.Context, repositoryID string, workerCount i
 	return snapshot, nil
 }
 
+// EnsureForProject 保证"本项目里每个已接入的仓库都有一支自己的团队"。
+//
+// 2026-09-20（用户）：仓库**接入的时候**就该自动建队，不该让人再去仓库页点一次。
+// 幂等：已经有团队的仓库直接跳过；Create 自己会撞 ErrConflict，所以并发/重试也安全。
+//
+// 返回真正新建了团队的仓库 id 列表。单个仓库建失败不吞掉原因 —— 记在返回的错误里，
+// 但**不阻断其它仓库**（一个仓的 AT 配额问题不该让整批接入失败）。
+func (s *Service) EnsureForProject(ctx context.Context, projectID string, workerCount int) ([]string, error) {
+	if s.pool == nil {
+		return nil, fmt.Errorf("%w: database pool is nil", ErrControllerUnavailable)
+	}
+	if !validWorkerCount(workerCount) {
+		workerCount = minWorkers
+	}
+	rows, err := s.pool.Query(ctx, `SELECT pr.repository_id
+		FROM repomesh_projects.project_repositories pr
+		WHERE pr.project_id=$1
+		  AND NOT EXISTS (SELECT 1 FROM public.repository_teams t WHERE t.repository_id=pr.repository_id)
+		ORDER BY pr.repository_id`, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("list repositories without team: %w", err)
+	}
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("scan repository id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	created := []string{}
+	var firstErr error
+	for _, id := range ids {
+		if _, err := s.Create(ctx, id, workerCount); err != nil {
+			if errors.Is(err, ErrConflict) || errors.Is(err, ErrNotFound) {
+				// 并发下别人先建好了 / 仓库行已不在：都不是错误。
+				continue
+			}
+			if firstErr == nil {
+				firstErr = fmt.Errorf("repository %s: %w", id, err)
+			}
+			continue
+		}
+		created = append(created, id)
+	}
+	return created, firstErr
+}
+
+// EnsureAll 扫**所有**项目，把还没建队的仓库补上。服务重启后、或本次改动之前接入的
+// 仓库，都靠它收敛（幂等，重复跑没有副作用）。
+func (s *Service) EnsureAll(ctx context.Context, workerCount int) ([]string, error) {
+	if s.pool == nil {
+		return nil, fmt.Errorf("%w: database pool is nil", ErrControllerUnavailable)
+	}
+	rows, err := s.pool.Query(ctx, `SELECT DISTINCT pr.project_id
+		FROM repomesh_projects.project_repositories pr
+		WHERE NOT EXISTS (SELECT 1 FROM public.repository_teams t WHERE t.repository_id=pr.repository_id)`)
+	if err != nil {
+		return nil, fmt.Errorf("list projects with teamless repositories: %w", err)
+	}
+	projects := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		projects = append(projects, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	created := []string{}
+	var firstErr error
+	for _, projectID := range projects {
+		ids, err := s.EnsureForProject(ctx, projectID, workerCount)
+		created = append(created, ids...)
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return created, firstErr
+}
+
 // Change applies one explicitly versioned capacity change. It never retries a
 // stale request: the caller receives the current roster and decides whether to
 // submit another change.
