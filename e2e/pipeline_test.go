@@ -52,11 +52,13 @@ func TestFullPipeline(t *testing.T) {
 	t.Logf("seeded project=%s issue=%s", projectID[:12], issueID[:12])
 	store := tasks.NewPostgresStore(f.pool)
 
-	// 1. org assembly: leader + manager + workers per repository (M4)
+	// 1. project assembly: leader + manager + workers per repository (M4)
+	//    2026-09-20（迁移 0053）：作用域从组织改成项目，总领导名字由项目派生。
 	assemblyService := assembly.New(f.pool, nil, nil)
 	assembled, err := assemblyService.Assemble(f.ctx, assembly.AssemblyCommand{
-		OrganizationID: f.orgUUID, Repositories: []string{"e2e/repo-a", "e2e/repo-b"},
-		WorkersPerRepo: 2, LeaderName: "e2e-leader",
+		ProjectID:      projectID,
+		Repositories:   []string{"e2e/repo-a", "e2e/repo-b"},
+		WorkersPerRepo: 2,
 	})
 	if err != nil {
 		t.Fatalf("assembly: %v", err)
@@ -68,8 +70,9 @@ func TestFullPipeline(t *testing.T) {
 
 	// idempotent re-run: same singletons
 	again, err := assemblyService.Assemble(f.ctx, assembly.AssemblyCommand{
-		OrganizationID: f.orgUUID, Repositories: []string{"e2e/repo-a", "e2e/repo-b"},
-		WorkersPerRepo: 2, LeaderName: "e2e-leader",
+		ProjectID:      projectID,
+		Repositories:   []string{"e2e/repo-a", "e2e/repo-b"},
+		WorkersPerRepo: 2,
 	})
 	if err != nil || again.LeaderAgentID != assembled.LeaderAgentID {
 		t.Fatalf("assembly not idempotent: %v %+v", err, again)

@@ -217,8 +217,8 @@ data: {"aggregateType":"task","aggregateId":"6f1d4c0e-2b7a-4a7e-9c1e-1c2f3a4b5d6
 
 | 方法与路径 | 用途 | 幂等 | 权限 |
 | --- | --- | --- | --- |
-| `GET /api/agents` | 列表；过滤 `role`、`repositoryId`、`status` | 天然 | 成员 |
-| `POST /api/agents` | 注册：`role`、`parentAgentId`、`repositoryId`、`responsibilityPaths`、`resourceRef`、`singletonKey`、`status`；幂等键写 `idempotency_key` | 键 | 组织管理员 |
+| `GET /api/agents` | 列表；过滤 `role`、`repositoryId`、`status`。每行携带 `projectId`（迁移 0053 新增：为空 = 组织级角色，如治理 leader） | 天然 | 成员 |
+| `POST /api/agents` | 注册：`projectId`、`role`、`repositoryId`、`name`；`organization_id` **不由调用方传**，由项目反查（冗余租户戳）。幂等键是 `(project_id, singleton_key)`，`singleton_key` = `role:repository:name`（迁移 0053：此前是 `组织:角色:仓库:名字`，组织与账号 1:1，那道墙挡不住同一账号下的第二个项目） | 键 | 组织管理员 |
 | `GET /api/agents/{agentId}` | 读取 | 天然 | 成员 |
 | `PATCH /api/agents/{agentId}` | 修改 `status`、`responsibilityPaths`、`resourceRef`、`parentAgentId` | 天然 | 组织管理员 |
 
@@ -2049,7 +2049,7 @@ data: {"aggregateType":"task","aggregateId":"6f1d4c0e-2b7a-4a7e-9c1e-1c2f3a4b5d6
 | `POST /api/projects/{param}/specs/{param}/approve` | 已实现(2026-09-17 登记) | 已实现;字段细节以 internal 实现为准,按板块回填本册。 |
 | `POST /api/projects/{param}/tasks/{param}/approve` | 已实现(2026-09-17 登记) | 审批通过任务步{summary}。 |
 | `POST /api/projects/{param}/tasks/{param}/reject` | 已实现(2026-09-17 登记) | 驳回任务步{reason}。 |
-| `POST /api/projects/{param}/topologies` | 已实现(2026-09-17 登记) | 创建项目拓扑(编制落地:org+仓库→M/L/W 层级)。 |
+| `POST /api/projects/{param}/topologies` | 已实现(2026-09-17 登记) | 创建项目拓扑(编制落地:项目+仓库→Manager/Leader/Workers 层级)。**2026-09-20(迁移 0053)**:作用域由组织改为项目——业务链是 账号→项目→issue→仓库,组织只回答「这是哪个账号的数据」;原 `POST /api/organizations/{orgId}/assembly` 同步移除。请求体只留 `repositories` 与 `workersPerRepo`:`organizationId` 不再由调用方给(由项目反查),`leaderName` 也去掉——总领导名字由项目派生,一个项目只能有一个(ADR-0001 D02)。 |
 | `POST /api/v1/projects/{param}/checkpoint-decisions` | 已实现(2026-09-17 登记) | 已实现;字段细节以 internal 实现为准,按板块回填本册。 |
 | `POST /api/v1/projects/{param}/control` | 已实现(2026-09-17 登记) | 已实现;字段细节以 internal 实现为准,按板块回填本册。 |
 | `PUT /api/observe/alert-rules/{param}` | 已实现(2026-09-17 登记) | 更新告警规则。 |

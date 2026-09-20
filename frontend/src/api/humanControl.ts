@@ -46,7 +46,6 @@ export interface RepositoryTeamOnboardResult {
 }
 
 export interface RepositoryTeamOnboardRequest {
-  organization_id: string;
   /** 后端 ge=1 le=20；默认 1 */
   worker_count?: number;
   /** 省略则用服务端 `settings.deepseek_model`——前端不镜像那个默认值 */
@@ -76,47 +75,26 @@ export async function onboardRepositoryTeam(
   //
   // 真正建团的后端是 M4 assembly：
   //   POST /api/projects/{projectId}/topologies   （internal/web/topology_routes.go:16
-  //   → assemblySvc.Assemble，按 organization + 仓库列表生成 Manager→Leader→Workers 层级）
+  //   → assemblySvc.Assemble，按项目 + 仓库列表生成 Leader/Manager→Workers 层级）
   // 这里把仓库页的"给某个仓库建团"翻译成一次单仓库的 topology 装配。
-  // 幂等仍由后端保证（assembly 按 organization/repository 落 singleton_key）。
+  // 幂等仍由后端保证（assembly 按 project/repository 落 singleton_key）。
+  //
+  // 2026-09-20（迁移 0053）：**不再需要组织**。此前要先向 `/console/organizations`
+  // 探一个组织 id 再传 `organizationId` + `leaderName`——那是"组织是编制作用域"的
+  // 遗留：探到的组织只是列表里的第一个，与用户正在看的项目毫无关系，而 leaderName
+  // 由客户端决定意味着同一个项目可以被建出第二个总领导。现在作用域就是项目
+  // （`resolveProjectId()` 读的是壳层**当前选定**的项目），总领导名字由项目派生。
   const { resolveProjectId } = await import("./issues");
   const projectId = await resolveProjectId();
   if (!projectId) {
     throw new Error("没有可用的项目——请先在「项目」页建立或选择项目，再给仓库建团。");
   }
-  // assembly 的三个必填项（后端 503: "organization, repositories and leader name are
-  // required"）——organization 不能留空：留空时后端会拿 **projectId** 当组织
-  // （topology_routes.go:26 的兜底），而 projectId 不是组织 id，装配必然失败。
-  // 组织从花名册面取（assembly 要求该组织恰好一个活跃 Org Leader）；
-  // leader 名按仓库派生，保证同仓库重放同名、不因重试换人。
-  let organizationId = (payload.organization_id ?? "").trim();
-  if (organizationId === "") {
-    // as-built 形状：{"organizations":[{"organization_id":…,"name":…}]}
-    // （internal/console/service.go 的 OrganizationsResponse）。本仓库同时存在
-    // 裸数组与 {items:[…]} 两种先例，故三种都收；字段名 id / organization_id /
-    // organizationId 也都收。收不到才如实报错，绝不编一个组织出来。
-    const raw = await apiRequest<unknown>("GET", "/console/organizations");
-    const wrapper = raw as {
-      items?: Array<Record<string, unknown>>;
-      organizations?: Array<Record<string, unknown>>;
-    };
-    const list: Array<Record<string, unknown>> = Array.isArray(raw)
-      ? (raw as Array<Record<string, unknown>>)
-      : (wrapper?.organizations ?? wrapper?.items ?? []);
-    const first = list[0];
-    organizationId = String(first?.id ?? first?.organization_id ?? first?.organizationId ?? "");
-  }
-  if (organizationId === "") {
-    throw new Error("没有可用的组织——建团需要一个含活跃 Org Leader 的组织。");
-  }
   const result = await apiRequest<Record<string, unknown>>(
     "POST",
     `/projects/${encodeURIComponent(projectId)}/topologies`,
     {
-      organizationId,
       repositories: [repositoryId],
       workersPerRepo: payload.worker_count,
-      leaderName: `leader-${repositoryId.slice(0, 12)}`,
     },
   );
   // assembly 的真实返回（internal/assembly/assemble.go）：
@@ -207,7 +185,10 @@ export interface ProjectAgentTopologyView {
   id: string;
   organization_id: string;
   project_id: string;
-  organization_leader_id: string;
+  /** 项目的总领导。2026-09-20（迁移 0053）由 `organization_leader_id` 改名：
+   *  编制按**项目**为键，组织不再参与业务分组，所以后端改按项目查。
+   *  此前按组织查 —— 同一账号下的第二个项目会读到别的项目的领导。 */
+  project_leader_id: string;
   repository_teams: ProjectRepositoryTeamView[];
   execution_mode: ProjectExecutionMode;
   /** ⚠ 后端是 `frozenset[ProjectCheckpoint]`，序列化成数组**顺序不确定**——
@@ -246,11 +227,15 @@ export function fetchProjectTopology(projectId: string): Promise<ProjectAgentTop
   );
 }
 
-/** POST /api/projects/{projectId}/topologies — 创建项目拓扑(编制落地:
- *  按 organization + 仓库列表生成 Manager→Leader→Workers 的层级)。 */
+/** POST /api/projects/{projectId}/topologies — 创建项目拓扑（编制落地：按**项目**
+ *  的仓库列表生成 Manager→Leader→Workers 的层级）。
+ *
+ *  **作用域是项目**（迁移 0053）：请求体只有仓库列表与每仓工人数。组织与总领导
+ *  名字都不再由调用方传——组织由项目反查（冗余租户戳），总领导名字由项目派生
+ *  （一个项目只能有一个总领导，ADR-0001 D02）。 */
 export function createTopology(
   projectId: string,
-  input: { organizationId: string; repositories: string[]; workersPerRepo: number; leaderName: string },
+  input: { repositories: string[]; workersPerRepo: number },
 ): Promise<Record<string, unknown>> {
   return apiRequest<Record<string, unknown>>(
     "POST",

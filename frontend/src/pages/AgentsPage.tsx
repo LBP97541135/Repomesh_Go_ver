@@ -11,6 +11,7 @@ import {
   type SkillVersion,
 } from "../api/skills";
 import { fetchConsoleAgents } from "../api/grid";
+import { resolveProjectId } from "../api/issues";
 import { runtimeDisplay, shortId, type RuntimePhase } from "../display";
 import { ErrorPanel, LoadingLine } from "../components/StatusBlocks";
 import { useRuntimeRows } from "./useRuntimeRows";
@@ -230,23 +231,25 @@ export function AgentsPage({
     }
   };
 
-  /** 新建：组织 id 从名册现有行取（后端 CreateAgent 需要 org 作用域；
-   *  名册为空时取不到，如实报错而不是编一个）。 */
+  /** 新建：**项目作用域**（迁移 0053）。此前从名册第一行取 organizationId——
+   *  那是"组织是编制作用域"的遗留，取到的是列表里任意一个人所属的账号空间，
+   *  与用户正在看的项目无关，甚至可能不是他自己选的那个项目。现在取壳层
+   *  **当前选定**的项目（`resolveProjectId()`）；没选就没有作用域，如实报错。 */
   const submitAgent = async () => {
     setWriteError(null);
-    const organizationId = roster?.[0]?.organizationId ?? "";
-    if (organizationId === "") {
-      setWriteError("取不到组织 id——名册为空时无法新建。先「仓库页 → 建团」，或等名册加载完。");
-      return;
-    }
     if (form.name.trim() === "") {
       setWriteError("请填写智能体名称。");
+      return;
+    }
+    const projectId = await resolveProjectId();
+    if (!projectId) {
+      setWriteError("没有选定的项目——请先在「项目」页建立或选择项目，再新建智能体。");
       return;
     }
     setBusyWrite(true);
     try {
       await createAgent({
-        organizationId,
+        projectId,
         role: form.role as "leader" | "manager" | "worker",
         repositoryId: form.repositoryId.trim(),
         name: form.name.trim(),
@@ -336,7 +339,7 @@ export function AgentsPage({
       {managing !== null && (() => {
         const agent = (roster ?? []).find((row) => row.id === managing);
         if (!agent) return null;
-        // 友好名：singletonKey 是 org:role:repo:name，取最后一段当名字。
+        // 友好名：singletonKey 是 role:repo:name（迁移 0053 去掉了组织前缀），取最后一段当名字。
         const displayName = (agent.singletonKey ?? agent.id).split(":").pop() ?? agent.id;
         const draft = drafts[agent.id] ?? { prompt: agent.prompt ?? "", cliKind: agent.cliKind ?? "" };
         return (

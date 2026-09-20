@@ -3,22 +3,27 @@ package assembly
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// AssemblyCommand requests the topology for one organization.
+// AssemblyCommand requests the topology for one project.
+//
+// 2026-09-20（迁移 0053）：编制的作用域是**项目**，不是组织。组织只回答
+// 「这是哪个账号的数据」（账号隔离，0037），不参与业务怎么分组；而组织与账号
+// 当前 1:1，编制建在组织上会让同一账号下的两个项目挂同一个仓库时撞成同一个人（串）。
+// 组织仍写进 agents.organization_id，但由项目反查得到，是**冗余租户戳**。
 type AssemblyCommand struct {
-	OrganizationID string
-	// ProjectID：团队行（public.agent_teams.project_id NOT NULL）需要的项目作用域。
+	// ProjectID：编制的业务作用域（必填）。团队行（public.agent_teams.project_id
+	// NOT NULL）与编制成员（public.agents.project_id）都以它为准。
 	// 2026-09-19 补：此前 assembly 只建人（public.agents）不组队——整个 Go 后端
 	// 对 agent_teams 只有读、没有写，所以团队页恒为 0、任务没有队伍可指派。
 	ProjectID      string
 	Repositories   []string // repository ids from the scan
 	WorkersPerRepo int
-	LeaderName     string
 }
 
 // AssemblyResult reports the created role identities.
@@ -29,12 +34,16 @@ type AssemblyResult struct {
 	TeamRooms     []string `json:"teamRooms"`
 }
 
-// Assemble provisions the leader (org singleton), then one manager + N
-// workers per repository. The leader-never-a-worker invariant is enforced by
-// construction: leader identity is created once and never listed as worker.
+// Assemble provisions the project leader, then one manager + N workers per
+// repository. The leader-never-a-worker invariant is enforced by construction:
+// leader identity is created once and never listed as worker.
+//
+// 总领导的名字由**项目**派生（leader-<项目 id 后 12 位>），不再由调用方传：
+// 一个项目只能有一个总领导（ADR-0001 D02），让客户端决定名字就等于允许它
+// 把同一个项目建出第二个总领导来。
 func (s *Service) Assemble(ctx context.Context, command AssemblyCommand) (AssemblyResult, error) {
-	if command.OrganizationID == "" || len(command.Repositories) == 0 || command.LeaderName == "" {
-		return AssemblyResult{}, fmt.Errorf("assembly: organization, repositories and leader name are required")
+	if command.ProjectID == "" || len(command.Repositories) == 0 {
+		return AssemblyResult{}, fmt.Errorf("assembly: project and repositories are required")
 	}
 	if command.WorkersPerRepo < 1 {
 		command.WorkersPerRepo = 1
@@ -47,14 +56,20 @@ func (s *Service) Assemble(ctx context.Context, command AssemblyCommand) (Assemb
 		return AssemblyResult{}, fmt.Errorf("assembly: database unavailable: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	leaderID, err := s.ensureAgent(ctx, tx, command.OrganizationID, "leader", "", command.LeaderName)
+	// 组织只是冗余租户戳：由项目反查得到，不由调用方提供（0053）。
+	organizationID, err := resolveOrganization(ctx, tx, command.ProjectID)
+	if err != nil {
+		return AssemblyResult{}, err
+	}
+	leaderID, err := s.ensureAgent(ctx, tx, command.ProjectID, organizationID, "leader", "",
+		"leader-"+shortName(command.ProjectID))
 	if err != nil {
 		return AssemblyResult{}, err
 	}
 	result := AssemblyResult{LeaderAgentID: leaderID}
 	for _, repositoryID := range command.Repositories {
 		managerName := "mgr-" + shortName(repositoryID)
-		managerID, err := s.ensureAgent(ctx, tx, command.OrganizationID, "manager", repositoryID, managerName)
+		managerID, err := s.ensureAgent(ctx, tx, command.ProjectID, organizationID, "manager", repositoryID, managerName)
 		if err != nil {
 			return AssemblyResult{}, err
 		}
@@ -65,12 +80,16 @@ func (s *Service) Assemble(ctx context.Context, command AssemblyCommand) (Assemb
 			workerName := fmt.Sprintf("wrk-%s-%d", shortName(repositoryID), workerIndex)
 			// 旧代码把返回的 agent id 丢掉了，只留名字；而团队行要的是 **id 列表**，
 			// 所以这里必须收住 id，否则组队只能填名字（类型也不对）。
-			workerID, err := s.ensureAgent(ctx, tx, command.OrganizationID, "worker", repositoryID, workerName)
+			workerID, err := s.ensureAgent(ctx, tx, command.ProjectID, organizationID, "worker", repositoryID, workerName)
 			if err != nil {
 				return AssemblyResult{}, err
 			}
 			workerIDs = append(workerIDs, workerID)
 			workerNames = append(workerNames, workerName)
+			// 2026-09-20（回归测试抓到的旧漏）：此前只收进局部 workerIDs，**没有**写回
+			// result.Workers —— 后端建了人，回执里却恒为空数组，前端建团弹窗因此
+			// 永远显示「0 worker」。团队行要 id 列表，回执同样要。
+			result.Workers = append(result.Workers, workerID)
 		}
 		roomID := ""
 		if s.provisioner != nil {
@@ -84,10 +103,8 @@ func (s *Service) Assemble(ctx context.Context, command AssemblyCommand) (Assemb
 			}
 		}
 		// 组队：把这次建出的人登记成一支团队（一仓一队），按 project×repository 幂等。
-		if command.ProjectID != "" {
-			if err := s.ensureTeam(ctx, tx, command.ProjectID, repositoryID, leaderID, managerID, workerIDs, roomID); err != nil {
-				return AssemblyResult{}, err
-			}
+		if err := s.ensureTeam(ctx, tx, command.ProjectID, repositoryID, leaderID, managerID, workerIDs, roomID); err != nil {
+			return AssemblyResult{}, err
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -127,25 +144,50 @@ func (s *Service) ensureTeam(ctx context.Context, tx pgxTx, projectID, repositor
 	return nil
 }
 
-// ensureAgent inserts one agent identity keyed by its org+role+repository
-// singleton; re-running the assembly is idempotent (singleton_key unique).
-func (s *Service) ensureAgent(ctx context.Context, tx pgxTx, organizationID, role, repositoryID, name string) (string, error) {
-	singleton := organizationID + ":" + role + ":" + repositoryID + ":" + name
+// resolveOrganization 从项目反查它所属的账号空间。
+//
+// 组织不再由调用方提供（0053）：它只是冗余租户戳，业务侧一律以项目为准。
+// 项目不存在时返回错误——宁可失败，也不拿调用方给的组织 id 去建人。
+func resolveOrganization(ctx context.Context, tx pgxTx, projectID string) (string, error) {
+	var organizationID string
+	err := tx.QueryRow(ctx,
+		`SELECT organization_id::text FROM repomesh_projects.projects WHERE id::text=$1`,
+		projectID).Scan(&organizationID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("assembly: project %q not found", projectID)
+	}
+	if err != nil {
+		return "", fmt.Errorf("assembly: resolve project organization: %w", err)
+	}
+	return organizationID, nil
+}
+
+// ensureAgent 插入/复用一个编制成员。幂等键是 **(project_id, singleton_key)**，
+// singleton_key = 角色:仓库:名字 —— **组织不出现在键里**（0053）。
+//
+// 2026-09-19 时这里按 (organization_id, singleton_key) 幂等，防的是"跨租户串人"；
+// 但组织与账号 1:1，那道墙挡得住别的账号、挡不住同一账号下的第二个项目。
+// 现在项目进键，同一仓库挂到两个项目上会各得一套人。
+// organization_id 仍然写入，但只是租户戳。
+func (s *Service) ensureAgent(ctx context.Context, tx pgxTx, projectID, organizationID, role, repositoryID, name string) (string, error) {
+	singleton := role + ":" + repositoryID + ":" + name
 	var id string
-	// 2026-09-19 账号隔离（迁移 0037）：singleton_key 的唯一性已从"全局"改成
-	// "按组织"（organization_id, singleton_key），查找也必须按组织裁剪——
-	// 否则 A 组织的编制会被 B 组织复用（跨租户串人）。
-	err := tx.QueryRow(ctx, `SELECT id FROM public.agents WHERE organization_id=$2::uuid AND singleton_key=$1`, singleton, organizationID).Scan(&id)
+	err := tx.QueryRow(ctx,
+		`SELECT id FROM public.agents WHERE project_id=$2::text AND singleton_key=$1`,
+		singleton, projectID).Scan(&id)
 	if err == nil {
 		return id, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("assembly: agent lookup failed: %w", err)
 	}
 	agentID, err := newAgentUUID()
 	if err != nil {
 		return "", err
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO public.agents (id, organization_id, role, repository_id, singleton_key, resource_ref)
-		VALUES ($1,$2,$3,NULLIF($4,''),$5,'{}'::jsonb)`,
-		agentID, organizationID, role, repositoryID, singleton); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO public.agents (id, organization_id, project_id, role, repository_id, singleton_key, resource_ref)
+		VALUES ($1,$2::uuid,$3::text,$4,NULLIF($5,''),$6,'{}'::jsonb)`,
+		agentID, organizationID, projectID, role, repositoryID, singleton); err != nil {
 		return "", fmt.Errorf("assembly: agent insert failed: %w", err)
 	}
 	return agentID, nil
@@ -154,11 +196,11 @@ func (s *Service) ensureAgent(ctx context.Context, tx pgxTx, organizationID, rol
 // CreateAgent 手动新建一个智能体（控制台智能体页的人工入口，2026-09-19 补）。
 //
 // 与 Assemble 的区别：Assemble 是"按仓库自动编制一队人"；这里是人**显式指名**
-// 的一个成员，不参与自动编制，但仍写 singleton_key（org:role:repo:name）——
-// 同名重放不建第二个人，与自动编制共用同一套幂等。
-func (s *Service) CreateAgent(ctx context.Context, organizationID, role, repositoryID, name string) (string, error) {
-	if organizationID == "" || name == "" {
-		return "", fmt.Errorf("assembly: organization and name are required")
+// 的一个成员，不参与自动编制，但仍写 singleton_key（角色:仓库:名字）并按
+// **项目**幂等（0053）——同名重放不建第二个人，与自动编制共用同一套幂等。
+func (s *Service) CreateAgent(ctx context.Context, projectID, role, repositoryID, name string) (string, error) {
+	if projectID == "" || name == "" {
+		return "", fmt.Errorf("assembly: project and name are required")
 	}
 	switch role {
 	case "leader", "manager", "worker":
@@ -170,7 +212,11 @@ func (s *Service) CreateAgent(ctx context.Context, organizationID, role, reposit
 		return "", fmt.Errorf("assembly: database unavailable: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	agentID, err := s.ensureAgent(ctx, tx, organizationID, role, repositoryID, name)
+	organizationID, err := resolveOrganization(ctx, tx, projectID)
+	if err != nil {
+		return "", err
+	}
+	agentID, err := s.ensureAgent(ctx, tx, projectID, organizationID, role, repositoryID, name)
 	if err != nil {
 		return "", err
 	}
@@ -237,9 +283,12 @@ type TopologyRow struct {
 }
 
 // ListTopology returns the agent identities recorded for one project scope.
+//
+// 2026-09-20（0053）：改按 project_id 取。此前用 `singleton_key LIKE '%:<id>:%'`
+// 猜组织前缀，那是因为项目不在键里；现在项目是真实列，直接判等。
 func (s *Service) ListTopology(ctx context.Context, projectID string) ([]TopologyRow, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id::text, role, COALESCE(repository_id,''), singleton_key
-		FROM public.agents WHERE singleton_key LIKE '%:' || $1 || ':%' OR repository_id=$1
+	rows, err := s.pool.Query(ctx, `SELECT id::text, role, COALESCE(repository_id,''), COALESCE(singleton_key,'')
+		FROM public.agents WHERE project_id=$1::text
 		ORDER BY role, singleton_key`, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("assembly: topology query failed: %w", err)

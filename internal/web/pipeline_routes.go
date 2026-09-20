@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"repomesh.local/repomesh/internal/access"
-	"repomesh.local/repomesh/internal/assembly"
 	"repomesh.local/repomesh/internal/tasks"
 )
 
@@ -19,36 +18,13 @@ func registerPipelineRoutes(mux *http.ServeMux, auth Auth, pipeline Pipeline) {
 	// 跨仓交付的一致版本清单（评委建议②）：读最近一份 / 建一份快照。
 	registerDeliveryManifestRoutes(mux, auth, pipeline)
 
-	// ---- M4: organization assembly ----
-	mux.HandleFunc("POST /api/organizations/{orgId}/assembly", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-store")
-		if pipeline.Assembly == nil {
-			writePipelineError(w, 503, "SERVICE_NOT_CONFIGURED")
-			return
-		}
-		if !authorizePipeline(w, r, auth) {
-			return
-		}
-		var command struct {
-			Repositories   []string `json:"repositories"`
-			WorkersPerRepo int      `json:"workersPerRepo"`
-			LeaderName     string   `json:"leaderName"`
-		}
-		if err := decodeBody(w, r, &command); err != nil {
-			return
-		}
-		result, err := pipeline.Assembly.Assemble(r.Context(), assembly.AssemblyCommand{
-			OrganizationID: r.PathValue("orgId"),
-			Repositories:   command.Repositories,
-			WorkersPerRepo: command.WorkersPerRepo,
-			LeaderName:     command.LeaderName,
-		})
-		if err != nil {
-			writePipelineError(w, 500, "ASSEMBLY_FAILED")
-			return
-		}
-		writeJSON(w, http.StatusCreated, result)
-	})
+	// ---- M4: 编制组装 ----
+	//
+	// 2026-09-20（迁移 0053）：原 `POST /api/organizations/{orgId}/assembly` **已删除**。
+	// 它是**组织根**的路由：编制的作用域已经改成项目（组织只回答"这是哪个账号的数据"），
+	// 组织不再参与业务分组。真身在 `POST /api/projects/{projectId}/topologies`
+	// （topology_routes.go）——它有归属校验，而且总领导名字由项目派生。
+	// 前端 `api/plans.ts` 的同名封装 assembleOrganization 没有任何调用方，一并删除。
 
 	// ---- M1: DAG plan control ----
 	registerProjectRoute(mux, "POST /api/projects/{projectId}/plans", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {

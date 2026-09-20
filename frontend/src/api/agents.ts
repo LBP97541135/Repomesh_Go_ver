@@ -7,6 +7,9 @@ import { apiRequest } from "./http";
 export interface AgentRosterRow {
   id: string;
   organizationId: string;
+  /** 编制的业务归属（迁移 0053）。为 null = 组织级角色（治理 leader、规划 agent），
+   *  它们不参与自动编制。**新建智能体要用它**——组织不再决定人建在哪里。 */
+  projectId: string | null;
   role: string;
   parentAgentId: string | null;
   repositoryId: string | null;
@@ -35,12 +38,16 @@ export function listAgents(filter?: {
  *
  *  与「仓库页建团」的区别：建团是按仓库自动编制一队人（1 leader + 1 manager + N worker）；
  *  这里是**显式指名**的一个成员，不参与自动编制。后端仍写 singleton_key
- *  （org:role:repo:name），同名重放不会建出第二个人。
+ *  （role:repo:name），同名重放不会建出第二个人。
+ *
+ *  **作用域是项目，不是组织**（迁移 0053）：service 用 projectId 反查组织戳写进
+ *  organization_id，所以这里不再传 organizationId。传一个调用方自己猜的组织 id
+ *  已被后端移除——业务链是 账号 → 项目 → issue → 仓库，组织只回答「这是哪个账号的数据」。
  *
  *  写路由要求：会话 + CSRF（apiRequest 会带 X-CSRF-Token）+ Origin 严格相等
  *  （浏览器对同源 POST 会自动带 Origin）。 */
 export function createAgent(input: {
-  organizationId: string;
+  projectId: string;
   role: "leader" | "manager" | "worker";
   repositoryId: string;
   name: string;
