@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RepoMesh · DAG 计划执行进度(原型)</title>
+<style>
+  /* 白底极简:灰阶为主,仅保留 2 个色相 —— 完成绿、进行中琥珀 */
+  :root{
+    --bg:#ffffff; --card:#ffffff; --line:#e5e7eb; --line-strong:#d1d5db;
+    --ink:#1f2937; --tx2:#6b7280; --tx3:#9ca3af;
+    --green:#16a34a; --amber:#d97706;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font:14px/1.65 "Segoe UI","Microsoft YaHei",sans-serif;padding:28px 32px}
+  .top{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+  h1{font-size:19px;font-weight:700}
+  .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;background:var(--amber);color:#fff;font-weight:600}
+  .meta{font-size:12.5px;color:var(--tx3);margin-top:2px}
+  .stats{display:flex;gap:10px;flex-wrap:wrap;margin-left:auto}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 16px;min-width:88px;text-align:center}
+  .stat b{display:block;font-size:20px;line-height:1.25}
+  .stat span{font-size:11px;color:var(--tx3)}
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px}
+  .progress{flex:1;min-width:240px;height:8px;background:#eef0f3;border-radius:5px;overflow:hidden}
+  .progress>i{display:block;height:100%;border-radius:5px;background:var(--ink);transition:width .5s}
+  .pct{font-size:13px;font-weight:700}
+  button{background:var(--card);border:1px solid var(--line-strong);color:var(--ink);border-radius:8px;padding:6px 14px;font-size:12.5px;cursor:pointer}
+  button:hover{background:#f6f7f9}
+  button.primary{background:var(--ink);border-color:var(--ink);color:#fff}
+  button.primary:hover{background:#374151}
+  .wrap{display:flex;gap:18px;align-items:flex-start}
+  .graph-card{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;position:relative}
+  svg{display:block;width:100%;height:auto}
+  .side{width:290px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;position:absolute;top:18px;right:18px;box-shadow:0 10px 28px rgba(15,23,42,.12);display:none}
+  .side h3{font-size:14.5px;margin:6px 0 12px;line-height:1.5}
+  .kv{display:flex;gap:8px;font-size:12.5px;color:var(--tx2);padding:5px 0;border-bottom:1px dashed #eef0f3;align-items:baseline}
+  .kv em{font-style:normal;flex-shrink:0;width:60px;color:var(--tx3)}
+  .kv b{color:var(--ink);font-weight:600}
+  .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:10.5px;font-weight:600;border:1px solid}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px dashed #eef0f3;font-size:11.5px;color:var(--tx2)}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  .hint{font-size:11.5px;color:var(--tx3);margin-top:12px;line-height:1.6}
+  .microlabel{font-size:10.5px;color:var(--tx3);letter-spacing:.05em}
+  .callout{margin-top:12px;border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.6;background:#f6f7f9;border:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div>
+    <h1>为价格服务补充折扣计算
+      <span class="badge" style="margin-left:8px">DAG 计划执行进度 · 原型</span>
+    </h1>
+    <div class="meta">team: train-ticket-pricing &nbsp;·&nbsp; project: pricing-discount-20260916 &nbsp;·&nbsp; 圈定仓库 4 个 · 计划任务 10 个 · 依赖分层自动布局</div>
+  </div>
+  <div class="stats" id="stats"></div>
+</div>
+
+<div class="toolbar">
+  <div class="progress"><i id="bar"></i></div>
+  <span class="pct" id="pct"></span>
+  <button class="primary" onclick="simulate()">▶ 模拟推进</button>
+  <button onclick="location.reload()">重置</button>
+</div>
+
+<div class="wrap">
+  <div class="graph-card">
+    <div id="graph"></div>
+    <div class="side" id="detail"></div>
+    <div class="legend">
+      <span><i class="dot" style="background:#16a34a"></i>已完成 completed</span>
+      <span><i class="dot" style="background:#d97706"></i>进行中 in-progress / 待验收 submitted</span>
+      <span><i class="dot" style="background:#9ca3af"></i>已派工 assigned / 待安排 planned</span>
+      <span><i class="dot" style="background:#fff;border:1.5px dashed #d97706"></i>ready_nodes 可开工</span>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 数据形状对齐 AgentTeams GET /api/v1/projects/{id}/workflow?includeTasks=true(简化)
+   配色极简:完成=绿,进行中/待验收=琥珀,其余=灰阶;取消 = 灰 + 删除线,不再单用红色 */
+const PROJECT = { id:"pricing-discount-20260916", title:"为价格服务补充折扣计算", team:"train-ticket-pricing" };
+const TASKS = [
+  { id:"T1", title:"价格领域模型与折扣点位梳理", repo:"ts-consign-price-service", deps:[], status:"completed",
+    assignee:"hermes-worker-01", artifact:"docs/discount-survey.md", at:"09-16 09:12" },
+  { id:"T2", title:"订单侧价格计算链路调查",     repo:"ts-order-service",          deps:[], status:"completed",
+    assignee:"hermes-worker-02", artifact:"docs/order-price-flow.md", at:"09-16 09:40" },
+  { id:"T3", title:"安全校验与折扣叠加约束确认", repo:"ts-security-service",       deps:[], status:"completed",
+    assignee:"hermes-worker-03", artifact:"docs/auth-constraints.md", at:"09-16 10:02" },
+  { id:"T4", title:"折扣规则引擎设计与实现",     repo:"ts-consign-price-service",  deps:["T1","T3"], status:"in-progress",
+    assignee:"hermes-worker-01", at:"09-16 11:20" },
+  { id:"T5", title:"站点信息接口适配",           repo:"ts-station-service",        deps:["T1"], status:"assigned",
+    assignee:"hermes-worker-02", at:"09-16 11:35" },
+  { id:"T6", title:"历史折扣数据迁移脚本",       repo:"ts-consign-price-service",  deps:["T1"], status:"cancelled",
+    assignee:"hermes-worker-03", at:"09-16 11:50" },
+  { id:"T7", title:"订单价格链路接入折扣",       repo:"ts-order-service",          deps:["T2","T4"], status:"planned" },
+  { id:"T8", title:"管理端折扣配置接口",         repo:"ts-admin-basic-info-service", deps:["T4"], status:"planned" },
+  { id:"T9", title:"跨服务联调与回归",           repo:"ts-consign-price-service",  deps:["T4","T5","T7","T8"], status:"planned" },
+  { id:"T10",title:"发布门禁与验证快照",         repo:"ts-consign-price-service",  deps:["T9"], status:"planned" },
+];
+
+/* 视觉映射:completed=绿,in-progress/submitted=琥珀,assigned/planned=灰,cancelled=灰删除线 */
+const STATUS = {
+  "completed":   { label:"已完成", color:"#16a34a", bg:"#e9f5ee" },
+  "in-progress": { label:"执行中", color:"#d97706", bg:"#fdf3e3" },
+  "submitted":   { label:"待验收", color:"#d97706", bg:"#fdf3e3" },
+  "assigned":    { label:"已派工", color:"#6b7280", bg:"#f3f4f6" },
+  "planned":     { label:"待安排", color:"#9ca3af", bg:"#f6f7f9" },
+  "cancelled":   { label:"已取消", color:"#9ca3af", bg:"#f3f4f6" },
+};
+const ICON_CHECK = '<svg width="7" height="7" viewBox="0 0 16 16" fill="none"><path d="M3 8.5 6.5 12 13 4.5" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ICON_RUN   = '<svg width="7" height="7" viewBox="0 0 16 16" fill="#d97706"><circle cx="8" cy="8" r="3.2"/></svg>';
+const ICON_DIM   = '<svg width="7" height="7" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.2" stroke="#9ca3af" stroke-width="2"/></svg>';
+const ICON_BY_STATUS = {
+  "completed": ICON_CHECK, "in-progress": ICON_RUN, "submitted": ICON_RUN,
+  "assigned": ICON_DIM, "planned": ICON_DIM, "cancelled": ICON_DIM,
+};
+
+const byId = id => TASKS.find(t => t.id === id);
+const isDone = t => t.status === "completed";
+const isReady = t => t.status === "planned" && t.deps.every(d => isDone(byId(d)));
+const isBlocked = t => !isDone(t) && t.status !== "cancelled" && t.deps.some(d => byId(d).status === "cancelled");
+
+/* 布局:最长路径分层 + 重心排序消交叉 */
+const layerCache = {};
+const layerOf = t => layerCache[t.id] ??= (t.deps.length ? Math.max(...t.deps.map(d => layerOf(byId(d)) + 1)) : 0);
+TASKS.forEach(layerOf);
+let layers = [];
+TASKS.forEach(t => (layers[layerOf(t)] ??= []).push(t));
+const idx = {};
+layers.forEach((col, i) => col.forEach(t => idx[t.id] = { layer:i, row: col.indexOf(t) }));
+const bary = (t, adj) => {
+  const rows = t.deps.concat(TASKS.filter(x => x.deps.includes(t.id)).map(x => x.id))
+    .filter(id => idx[id] && idx[id].layer === adj)
+    .map(id => idx[id].row);
+  return rows.length ? rows.reduce((a,b)=>a+b,0) / rows.length : idx[t.id].row;
+};
+for (let pass = 0; pass < 4; pass++){
+  for (let i = 1; i < layers.length; i++){
+    layers[i].forEach(t => idx[t.id].row = layers[i].indexOf(t));
+    layers[i].sort((a,b) => bary(a, i-1) - bary(b, i-1));
+  }
+  for (let i = layers.length - 2; i >= 0; i--){
+    layers[i].forEach(t => idx[t.id].row = layers[i].indexOf(t));
+    layers[i].sort((a,b) => bary(a, i+1) - bary(b, i+1));
+  }
+}
+
+const NW = 232, NH = 48, GX = 76, GY = 18, PAD = 28;
+const W = PAD*2 + layers.length * (NW + GX) - GX;
+const H = PAD*2 + Math.max(...layers.map(l => l.length)) * (NH + GY) - GY;
+const pos = {};
+layers.forEach((col, i) => col.forEach((t, j) => { pos[t.id] = { x: PAD + i*(NW+GX), y: PAD + j*(NH+GY) }; }));
+
+const svgNS = "http://www.w3.org/2000/svg";
+function el(tag, attrs){ const n = document.createElementNS(svgNS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); return n; }
+let selectedId = null;
+
+function render(){
+  const root = document.getElementById("graph");
+  root.innerHTML = "";
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, style:"width:100%;height:auto" });
+  const defs = el("defs", {});
+  const arrow = el("marker", { id:"arrow", viewBox:"0 0 10 10", refX:"8", refY:"5", markerWidth:"7", markerHeight:"7", orient:"auto-start-reverse" });
+  arrow.appendChild(el("path", { d:"M0,0 L10,5 L0,10 z", fill:"#c3c9d4" }));
+  const arrowHot = el("marker", { id:"arrow-hot", viewBox:"0 0 10 10", refX:"8", refY:"5", markerWidth:"7", markerHeight:"7", orient:"auto-start-reverse" });
+  arrowHot.appendChild(el("path", { d:"M0,0 L10,5 L0,10 z", fill:"#d97706" }));
+  defs.appendChild(arrow); defs.appendChild(arrowHot);
+  svg.appendChild(defs);
+
+  layers.forEach((_, i) => {
+    if (i === 0) return;
+    svg.appendChild(el("line", { x1: PAD + i*(NW+GX) - GX/2 - 10, y1: 14, x2: PAD + i*(NW+GX) - GX/2 - 10, y2: H - 14,
+      stroke:"#eef0f3", "stroke-width": 1, "stroke-dasharray":"4 6" }));
+  });
+
+  TASKS.forEach(t => t.deps.forEach(dep => {
+    const a = pos[dep], b = pos[t.id];
+    const x1 = a.x + NW, y1 = a.y + NH/2, x2 = b.x, y2 = b.y + NH/2;
+    const mx = x1 + Math.abs(x2 - x1) * 0.55;
+    const hot = selectedId === t.id;
+    const dim = selectedId && !hot && selectedId !== dep;
+    svg.appendChild(el("path", {
+      d: `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`,
+      fill:"none",
+      stroke: hot ? "#d97706" : isDone(byId(dep)) ? "#d4d9e0" : "#e2e5ea",
+      "stroke-width": hot ? 2 : 1.5,
+      opacity: dim ? 0.25 : 1,
+      "marker-end": hot ? "url(#arrow-hot)" : "url(#arrow)",
+    }));
+  }));
+
+  TASKS.forEach(t => {
+    const p = pos[t.id], s = STATUS[t.status];
+    const ready = isReady(t), blocked = isBlocked(t);
+    const cancelled = t.status === "cancelled";
+    const g = el("g", { "data-id": t.id, style:"cursor:pointer" });
+
+    if (ready) g.appendChild(el("rect", { x:p.x-4, y:p.y-4, width:NW+8, height:NH+8, rx:11, fill:"#fffdf8",
+      stroke:"#d97706", "stroke-width":1.1, "stroke-dasharray":"5 4" }));
+
+    g.appendChild(el("rect", { x:p.x, y:p.y, width:NW, height:NH, rx:9, fill:"#fff",
+      stroke: selectedId === t.id ? "#d97706" : cancelled ? "#e5e7eb" : "var(--line)",
+      "stroke-width": selectedId === t.id ? 1.5 : 1 }));
+    g.appendChild(el("rect", { x:p.x, y:p.y+6, width:3, height:NH-12, rx:1.5, fill: cancelled ? "#d1d5db" : s.color }));
+
+    const icon = el("g", { transform:`translate(${p.x+11},${p.y+13})` });
+    icon.innerHTML = ICON_BY_STATUS[t.status];
+    g.appendChild(icon);
+
+    const title = el("text", { x:p.x+24, y:p.y+19, fill: cancelled ? "var(--tx3)" : "var(--ink)",
+      "font-size":"12.5", "font-weight":"650",
+      "text-decoration": cancelled ? "line-through" : "none" });
+    title.textContent = t.title.length > 15 ? t.title.slice(0, 14) + "…" : t.title;
+    g.appendChild(title);
+    const repo = el("text", { x:p.x+24, y:p.y+37, fill:"var(--tx3)", "font-size":"10.5" });
+    repo.textContent = t.repo.replace(/^ts-/, "");
+    g.appendChild(repo);
+
+    g.addEventListener("click", () => { selectedId = selectedId === t.id ? null : t.id; render(); });
+    g.addEventListener("mouseenter", () => document.querySelectorAll("g[data-id]").forEach(n => { if (n.dataset.id !== t.id) n.style.opacity = 0.45; }));
+    g.addEventListener("mouseleave", () => document.querySelectorAll("g[data-id]").forEach(n => n.style.opacity = ""));
+    svg.appendChild(g);
+  });
+  root.appendChild(svg);
+  renderStats();
+  renderDetail();
+}
+
+function renderStats(){
+  const active = TASKS.filter(t => t.status !== "cancelled");
+  const done = active.filter(isDone).length;
+  const doing = active.filter(t => t.status === "in-progress" || t.status === "submitted").length;
+  const assigned = active.filter(t => t.status === "assigned").length;
+  const planned = active.filter(t => t.status === "planned").length;
+  const pct = Math.round(done / active.length * 100);
+  document.getElementById("stats").innerHTML = `
+    <div class="stat"><b>${done}</b><span>已完成</span></div>
+    <div class="stat"><b style="color:var(--amber)">${doing}</b><span>进行中</span></div>
+    <div class="stat"><b>${assigned}</b><span>已派工</span></div>
+    <div class="stat"><b>${planned}</b><span>待安排</span></div>`;
+  document.getElementById("bar").style.width = pct + "%";
+  document.getElementById("pct").textContent = "整任务进度 " + pct + "%";
+}
+
+function renderDetail(){
+  const t = selectedId ? byId(selectedId) : null;
+  const box = document.getElementById("detail");
+  if (!t){
+    box.style.display = "none";
+    return;
+  }
+  box.style.display = "block";
+  const s = STATUS[t.status];
+  const deps = t.deps.map(d => byId(d).title).join("、") || "无(入口任务)";
+  const dependents = TASKS.filter(x => x.deps.includes(t.id)).map(x => x.title).join("、") || "无";
+  box.innerHTML = `
+    <span class="microlabel">任务详情 · ${t.id}</span>
+    <h3>${t.title}</h3>
+    <div style="margin-bottom:10px"><span class="pill" style="color:${s.color};border-color:${s.color}">${s.label}</span>
+      ${isReady(t) ? '<span class="pill" style="color:#d97706;border-color:#d97706;margin-left:6px">可开工</span>' : ""}
+      ${isBlocked(t) ? '<span class="pill" style="color:var(--tx3);border-color:var(--tx3);margin-left:6px">受阻</span>' : ""}</div>
+    <div class="kv"><em>仓库</em><b>${t.repo}</b></div>
+    <div class="kv"><em>负责人</em><b>${t.assignee ?? "未派工"}</b></div>
+    ${t.artifact ? `<div class="kv"><em>产物</em><b>${t.artifact}</b></div>` : ""}
+    <div class="kv"><em>最近动作</em><b>${t.at ?? "—"}</b></div>
+    <div class="kv"><em>上游依赖</em><b>${deps}</b></div>
+    <div class="kv"><em>下游受益</em><b>${dependents}</b></div>
+    <div class="callout">对应上游 API:<b>GET /api/v1/projects/{id}/workflow?includeTasks=true</b>;
+      状态推进由 accept_task_result / replan 驱动,本页只读渲染。</div>`;
+}
+
+/* 模拟一次状态流转 */
+function simulate(){
+  const next = [
+    TASKS.find(t => t.status === "in-progress"),
+    TASKS.find(t => t.status === "submitted"),
+    TASKS.find(isReady),
+  ].find(Boolean);
+  if (!next) return;
+  next.status = next.status === "in-progress" ? "submitted" : next.status === "submitted" ? "completed" : "in-progress";
+  next.at = "刚刚";
+  if (!next.assignee) next.assignee = "hermes-worker-01";
+  render();
+}
+
+render();
+</script>
+</body>
+</html>

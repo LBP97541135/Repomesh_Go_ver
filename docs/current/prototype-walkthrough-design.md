@@ -1,6 +1,6 @@
 # 原型整体串联 · 待评审 r1
 
-2026-09-12归档补充：当前保留11份原稿，4份明确被替代稿移至[历史归档](../archive/2026-09-12-development-preparation/README.md)；“全貌与原稿”仍列全部15份来源。下文历史检查中的15份计数保留当时含义，当前生成清单只覆盖本目录11份原稿。
+2026-09-12归档补充：当前保留11份原稿，4份明确被替代稿移至[历史归档](../archive/2026-09-12-development-preparation/README.md)；“全貌与原稿”仍列全部15份来源。下文历史检查中的15份计数保留当时含义，当前生成清单只覆盖本目录11份原稿。2026-09-20补充：新增独立单页[计划执行进度板](../prototypes/dag-plan-progress.html)（DAG 计划执行进度，2026-09-16 稿），不进串联预览也不进生成清单，本目录原稿共12份、生成清单仍为11份。
 
 用户本轮要求：“你阅读并先把D:\Project4work\Repomesh\_Go\_ver\docs\prototypes整个串联起来，再来讨论。”目录实际路径沿当前工作区 `D:\Project4work\Repomesh_Go_ver\docs\prototypes`。本稿和原型只准备可讨论的整体，不表示用户已经采用新的导航或跨页行为。逐项用户同意及最多三轮规则继续有效。
 
@@ -45,7 +45,7 @@
 
 ## 原型文件与运行边界
 
-- 页面独占：本稿、`docs/prototypes/index.html`、`assemble-prototypes.py`和`joined-preview-shell.html.template`。本目录保留11份原始HTML，另4份历史稿已归档；生成入口保存当前11份原稿SHA-256，历史原始字节与映射见归档清单。
+- 页面独占：本稿、`docs/prototypes/index.html`、`assemble-prototypes.py`和`joined-preview-shell.html.template`。本目录保留12份原始HTML（其中[计划执行进度板](../prototypes/dag-plan-progress.html)为独立单页、不进串联），另4份历史稿已归档；生成入口保存当前11份串联原稿SHA-256，历史原始字节与映射见归档清单。
 - 生成：仓库根目录运行 `python docs/prototypes/assemble-prototypes.py`。四组当前页面嵌入一个HTML，额外适配仅用于原型导航和内存样例衔接。
 - 预览：沿用本地只读静态服务 `http://127.0.0.1:8769/index.html`。不运行产品或真实外部服务。
 - 页面草稿和原型未知状态留在内存页面实例中；F02按项目分开保留。浏览器刷新重置全部样例，URL不是业务恢复契约；原稿新标签也不共享本次内存。
