@@ -19,41 +19,40 @@ func TestRoomMessagesKeepsOnlyMessagesOldestFirst(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath, gotQuery, gotAuth = r.URL.Path, r.URL.RawQuery, r.Header.Get("Authorization")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"chunk":[
-			{"type":"m.room.message","event_id":"$new","sender":"@mgr:hs","origin_server_ts":2000,"content":{"body":"第二条"}},
-			{"type":"m.room.create","event_id":"$create","sender":"@admin:hs","origin_server_ts":1000,"content":{}},
-			{"type":"m.room.message","event_id":"$old","sender":"@me:hs","origin_server_ts":1500,"content":{"body":"第一条"}}
-		]}`))
+		_, _ = w.Write([]byte(`{"rooms":{"join":{"!room:hs":{"timeline":{"events":[{"type":"m.room.message","event_id":"$old","sender":"@me:hs","origin_server_ts":1500,"content":{"body":"第一条"}},{"type":"m.room.create","event_id":"$c","sender":"@admin:hs","content":{}},{"type":"m.room.message","event_id":"$new","sender":"@mgr:hs","origin_server_ts":2000,"content":{"body":"第二条"}}]}}}}}`))
 	}))
 	defer upstream.Close()
 
-	client := &MatrixClient{BaseURL: upstream.URL, Token: "mx-token"}
+	client := &MatrixClient{BaseURL: upstream.URL, Token: "mx-token", MasqueradeAs: "@admin:hs"}
 	messages, err := client.RoomMessages(context.Background(), "!room:hs", 50)
 	if err != nil {
 		t.Fatalf("RoomMessages: %v", err)
 	}
 	if len(messages) != 2 {
-		t.Fatalf("got %d messages; want 2 (m.room.create must be dropped)", len(messages))
+		t.Fatalf("got %d messages; want 2 (state events must be dropped)", len(messages))
 	}
 	if messages[0].Body != "第一条" || messages[1].Body != "第二条" {
-		t.Fatalf("order=%q,%q; want oldest first", messages[0].Body, messages[1].Body)
+		t.Fatalf("order=%q,%q; want sync order (oldest first)", messages[0].Body, messages[1].Body)
 	}
-	if gotPath != "/_matrix/client/v3/rooms/!room:hs/messages" {
-		t.Fatalf("path=%q", gotPath)
+	if gotPath != "/_matrix/client/v3/sync" {
+		t.Fatalf("path=%q; want /sync (Tuwunel 的 /messages 在这些房间只回一条,不可信)", gotPath)
 	}
-	if !strings.Contains(gotQuery, "dir=b") || !strings.Contains(gotQuery, "limit=50") {
-		t.Fatalf("query=%q", gotQuery)
+	if !strings.Contains(gotQuery, "timeout=0") || !strings.Contains(gotQuery, "rooms") {
+		t.Fatalf("query=%q; want timeout+room filter", gotQuery)
+	}
+	if !strings.Contains(gotQuery, "user_id=@admin") && !strings.Contains(gotQuery, "user_id=%40admin") {
+		t.Fatalf("query=%q; want masquerade user_id (appservice 裸身份不在房里)", gotQuery)
 	}
 	if gotAuth != "Bearer mx-token" {
 		t.Fatalf("auth=%q", gotAuth)
 	}
 }
 
-// 空房间不是错误：新建的团队房本来就只有一条 m.room.create。
+// 空房间不是错误：sync 里没有这间房（或 timeline 里没有消息）就返回空切片。
 func TestRoomMessagesEmptyRoomIsNotAnError(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"chunk":[{"type":"m.room.create","event_id":"$c","sender":"@admin:hs","content":{}}]}`))
+		_, _ = w.Write([]byte(`{"rooms":{"join":{"!room:hs":{"timeline":{"events":[{"type":"m.room.create","event_id":"$c","sender":"@a:hs","content":{}}]}}}}}`))
 	}))
 	defer upstream.Close()
 
@@ -191,7 +190,7 @@ func (f *sessionFixture) servers(t *testing.T) (*Client, string) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"chunk":[{"type":"m.room.message","event_id":"$m","sender":"@a:hs","origin_server_ts":1,"content":{"body":"ok"}}]}`))
+		_, _ = w.Write([]byte(`{"rooms":{"join":{"!room:hs":{"timeline":{"events":[{"type":"m.room.message","event_id":"$m","sender":"@a:hs","origin_server_ts":1,"content":{"body":"ok"}}]}}}}}`))
 	}))
 	t.Cleanup(homeserver.Close)
 	return &Client{BaseURL: controller.URL, Token: "sa"}, homeserver.URL

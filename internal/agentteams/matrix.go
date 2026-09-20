@@ -20,8 +20,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -113,13 +111,16 @@ func (c *MatrixClient) do(ctx context.Context, method, path string, payload any,
 	return resp.StatusCode, nil
 }
 
-// RoomMessages 读一个房间的时间线（GET /_matrix/client/v3/rooms/{roomId}/messages）。
+// RoomMessages 读一个房间的近期对话（GET /sync 带 room filter）。
 //
-// Matrix 的 `dir=b` 从新往旧回，这里翻成**从旧到新**再返回——时间线是按聊天读的，
-// 调用方不该自己记得倒一遍。`limit` <= 0 时取 100（上游上限）。
+// 为什么不走 /rooms/{roomId}/messages：这台 embedded homeserver（Tuwunel）的
+// /messages 对这些房间只回 m.room.create 一条 —— 实测发送成功、/sync 能看到
+// 消息，/messages 仍只回一条，机制没深究，结论是它在这不可信。/sync 带
+// {"room":{"rooms":[id]}} 过滤一次只拿这间房的 timeline，对本场景（看当前
+// 对话）足够；它只给最近一个窗口，不是全量历史 —— 需要全量时再换路。
 //
-// 只保留 `m.room.message`：房间创建、成员变更那些状态事件不是"对话"，
-// 混进来会让空房间看起来像有人在说话。
+// 只保留 `m.room.message`：状态事件不是"对话"，混进来会让空房间看起来像有人
+// 在说话。sync 的 timeline 本就从旧到新，不必倒序。
 func (c *MatrixClient) RoomMessages(ctx context.Context, roomID string, limit int) ([]MatrixMessage, error) {
 	if strings.TrimSpace(roomID) == "" {
 		return nil, fmt.Errorf("matrix room id is empty")
@@ -127,27 +128,41 @@ func (c *MatrixClient) RoomMessages(ctx context.Context, roomID string, limit in
 	if limit <= 0 {
 		limit = 100
 	}
-	query := url.Values{}
-	query.Set("dir", "b")
-	query.Set("limit", strconv.Itoa(limit))
-
-	var page struct {
-		Chunk []struct {
-			Type    string `json:"type"`
-			EventID string `json:"event_id"`
-			Sender  string `json:"sender"`
-			TS      int64  `json:"origin_server_ts"`
-			Content struct {
-				Body string `json:"body"`
-			} `json:"content"`
-		} `json:"chunk"`
-	}
-	if _, err := c.do(ctx, http.MethodGet,
-		"/_matrix/client/v3/rooms/"+url.PathEscape(roomID)+"/messages?"+query.Encode(), nil, &page); err != nil {
+	roomFilter, err := json.Marshal(map[string]any{"room": map[string]any{"rooms": []string{roomID}}})
+	if err != nil {
 		return nil, err
 	}
-	messages := make([]MatrixMessage, 0, len(page.Chunk))
-	for _, event := range page.Chunk {
+	query := url.Values{}
+	query.Set("timeout", "0")
+	query.Set("filter", string(roomFilter))
+	// 代发身份必须带：appservice 自己的身份不在房里，不带 user_id 的 sync 拿不到房。
+	if c.MasqueradeAs != "" {
+		query.Set("user_id", c.MasqueradeAs)
+	}
+
+	var page struct {
+		Rooms struct {
+			Join map[string]struct {
+				Timeline struct {
+					Events []struct {
+						Type    string `json:"type"`
+						EventID string `json:"event_id"`
+						Sender  string `json:"sender"`
+						TS      int64  `json:"origin_server_ts"`
+						Content struct {
+							Body string `json:"body"`
+						} `json:"content"`
+					} `json:"events"`
+				} `json:"timeline"`
+			} `json:"join"`
+		} `json:"rooms"`
+	}
+	if _, err := c.do(ctx, http.MethodGet, "/_matrix/client/v3/sync?"+query.Encode(), nil, &page); err != nil {
+		return nil, err
+	}
+	events := page.Rooms.Join[roomID].Timeline.Events
+	messages := make([]MatrixMessage, 0, len(events))
+	for _, event := range events {
 		if event.Type != "m.room.message" {
 			continue
 		}
@@ -158,9 +173,10 @@ func (c *MatrixClient) RoomMessages(ctx context.Context, roomID string, limit in
 			Timestamp: time.UnixMilli(event.TS).UTC(),
 		})
 	}
-	sort.SliceStable(messages, func(i, j int) bool {
-		return messages[i].Timestamp.Before(messages[j].Timestamp)
-	})
+	// sync 窗口可能超过要的条数，只留最新的 limit 条。
+	if len(messages) > limit {
+		messages = messages[len(messages)-limit:]
+	}
 	return messages, nil
 }
 
