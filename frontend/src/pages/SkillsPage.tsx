@@ -38,7 +38,28 @@ const STATUS_LABEL: Record<SkillStatus, string> = {
  *  分组与文案是**前端展示层**的静态映射：数据源（internal/skills/presets.go 的
  *  15 个种子）没有"板块"这个字段，按交付流程归四类；未命中映射的（用户自己接入
  *  的技能）落「其它」，介绍退回 scenario。名字对不上时也只是少个分组，不会丢条目。 */
-const SKILL_GROUPS: Array<{ heading: string; skills: string[] }> = [
+type SkillGroup = { heading: string; skills: string[] };
+
+/** 用户可改的分组：默认 = 上面的功能板块；改过就存本机（localStorage）。
+ *  ponytail: 只存本机、不跨账号共享；要共享/进库时把这份数据挪到后端一张表即可。 */
+const GROUPS_KEY = "repomesh.skillGroups.v1";
+const UNGROUPED = "未分组";
+
+function loadGroups(): SkillGroup[] {
+  try {
+    const raw = window.localStorage.getItem(GROUPS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as SkillGroup[]) : null;
+    if (Array.isArray(parsed) && parsed.every((g) => g && typeof g.heading === "string" && Array.isArray(g.skills))) {
+      return parsed;
+    }
+  } catch {
+    /* 坏数据当没存过 */
+  }
+  return SKILL_GROUPS;
+}
+
+/** 默认分组：按交付流程归四类（数据源没有"板块"字段，见上方说明）。 */
+const SKILL_GROUPS: SkillGroup[] = [
   {
     heading: "立项与规划 · Leader",
     skills: ["project-intake", "cross-repo-planning", "delivery-governance"],
@@ -190,13 +211,33 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
   };
 
   // 左列分组：种子按功能板块，其余（自己接入的）落「其它」。
-  const knownNames = new Set(SKILL_GROUPS.flatMap((g) => g.skills));
-  const groupedSkills = SKILL_GROUPS.map((g) => ({
+  // 分组可增删改（2026-09-20）：默认=功能板块，改过存本机。
+  const [groups, setGroups] = useState<SkillGroup[]>(loadGroups);
+  const [editing, setEditing] = useState(false);
+  const [newHeading, setNewHeading] = useState("");
+  const persist = (next: SkillGroup[]) => {
+    setGroups(next);
+    try {
+      window.localStorage.setItem(GROUPS_KEY, JSON.stringify(next));
+    } catch {
+      /* 存不上就只影响本页本次 */
+    }
+  };
+  const moveTo = (name: string, heading: string) =>
+    persist(
+      groups.map((g) => ({
+        heading: g.heading,
+        skills: heading === g.heading ? [...g.skills.filter((n) => n !== name), name] : g.skills.filter((n) => n !== name),
+      })),
+    );
+
+  // 左列分组：按用户分组渲染，没分进去的落「未分组」，谁都不会丢。
+  const groupedSkills = groups.map((g) => ({
     heading: g.heading,
     items: (skills ?? []).filter((s) => g.skills.includes(s.name)),
-  })).filter((g) => g.items.length > 0);
-  const otherSkills = (skills ?? []).filter((s) => !knownNames.has(s.name));
-  if (otherSkills.length > 0) groupedSkills.push({ heading: "其它 · 自己接入", items: otherSkills });
+  }));
+  const otherSkills = (skills ?? []).filter((s) => !groups.some((g) => g.skills.includes(s.name)));
+  if (otherSkills.length > 0 || editing) groupedSkills.push({ heading: UNGROUPED, items: otherSkills });
 
   return (
     <div className={embedded ? "" : "max-w-[860px]"}>
@@ -220,9 +261,65 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
           {skills !== null && skills.length === 0 && (
             <p className="px-3 py-3 text-[12px] text-tx3">还没有技能。</p>
           )}
-          {groupedSkills.map((group) => (
-            <div key={group.heading}>
-              <div className="microlabel border-b border-line bg-well px-3 py-1.5">{group.heading}</div>
+          {/* 分组管理：查（默认视图）/ 增删改（管理态），改完即存本机。 */}
+          <div className="flex items-center gap-1.5 border-b border-line px-3 py-2">
+            <button className={chip} onClick={() => setEditing((v) => !v)}>
+              {editing ? "完成" : "管理分组"}
+            </button>
+            {editing && (
+              <>
+                <button
+                  className={chip}
+                  onClick={() => {
+                    persist(SKILL_GROUPS);
+                    setNewHeading("");
+                  }}
+                >
+                  恢复默认
+                </button>
+                <input
+                  className="min-w-0 flex-1 rounded-hard border border-line bg-ink px-2 py-[3px] text-[11.5px] text-tx placeholder:text-tx3 focus:border-amber focus:outline-none"
+                  placeholder="新分组名"
+                  value={newHeading}
+                  onChange={(e) => setNewHeading(e.target.value)}
+                />
+                <button
+                  className={chip}
+                  disabled={!newHeading.trim()}
+                  onClick={() => {
+                    persist([...groups, { heading: newHeading.trim(), skills: [] }]);
+                    setNewHeading("");
+                  }}
+                >
+                  + 建组
+                </button>
+              </>
+            )}
+          </div>
+          {groupedSkills.map((group, index) => (
+            <div key={`${group.heading}-${index}`}>
+              <div className="microlabel flex items-center gap-2 border-b border-line bg-well px-3 py-1.5">
+                {editing && group.heading !== UNGROUPED ? (
+                  <>
+                    <input
+                      className="min-w-0 flex-1 rounded-hard border border-line bg-ink px-1.5 py-[2px] text-[11px] text-tx focus:border-amber focus:outline-none"
+                      value={group.heading}
+                      onChange={(e) =>
+                        persist(groups.map((g) => (g.heading === group.heading ? { ...g, heading: e.target.value } : g)))
+                      }
+                    />
+                    <button
+                      className="text-[11px] text-salmon hover:text-salmon-hi"
+                      title="删掉这个分组（里面的技能会回到「未分组」，不会被删）"
+                      onClick={() => persist(groups.filter((g) => g.heading !== group.heading))}
+                    >
+                      删组
+                    </button>
+                  </>
+                ) : (
+                  group.heading
+                )}
+              </div>
               {group.items.map((skill) => {
                 const active = selected?.id === skill.id;
                 return (
@@ -244,6 +341,18 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
                     <span className="mt-[2px] block truncate text-[11px] text-tx2">
                       {SKILL_INTRO[skill.name] ?? `${skill.scenario} · ${skill.target_agent_role}`}
                     </span>
+                    {editing && (
+                      <select
+                        className="mt-1 rounded-hard border border-line bg-ink px-1.5 py-[2px] text-[11px] text-tx2 focus:border-amber focus:outline-none"
+                        value={group.heading}
+                        onChange={(e) => moveTo(skill.name, e.target.value === UNGROUPED ? "" : e.target.value)}
+                      >
+                        {group.heading === UNGROUPED && <option>{UNGROUPED}</option>}
+                        {groups.map((g) => (
+                          <option key={g.heading}>{g.heading}</option>
+                        ))}
+                      </select>
+                    )}
                   </button>
                 );
               })}
