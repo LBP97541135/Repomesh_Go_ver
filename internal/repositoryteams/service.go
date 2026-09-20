@@ -183,6 +183,28 @@ func (s *Service) Create(ctx context.Context, repositoryID string, workerCount i
 	return snapshot, nil
 }
 
+// repoTeamResolutionQuery 把**项目侧**仓库解析成**扫描侧**仓库（按 URL 对齐）。
+//
+// 两个 id 空间不同（项目侧 "repo_0000…"、扫描侧 32 位十六进制），而建队只认扫描侧
+// id（Create 用它查仓库名、repository_teams.repository_id 存的也是它）。规则与
+// internal/discovery/recall.go 的 loadRepoPool 完全一致：同一组织下，把扫描 URL 去掉
+// 结尾斜杠与 .git 后，与 https/http/ssh 三种写法之一相等。
+const repoTeamResolutionQuery = `
+	SELECT pr.project_id AS project_id, pr.repository_id AS project_side, COALESCE(s.id, '') AS scan_side
+	FROM repomesh_projects.project_repositories pr
+	JOIN repomesh_projects.repositories r ON r.id = pr.repository_id
+	JOIN repomesh_projects.projects p ON p.id = pr.project_id
+	JOIN repomesh_access.accounts a ON a.id = p.owner
+	LEFT JOIN LATERAL (
+	  SELECT scan.id FROM repomesh_scan.repositories scan
+	  WHERE scan.organization_id = a.organization_id
+	    AND lower(regexp_replace(rtrim(scan.url, '/'), '\.git$', '')) IN
+	      (lower('https://' || r.host || '/' || r.owner || '/' || r.name),
+	       lower('http://' || r.host || '/' || r.owner || '/' || r.name),
+	       lower('git@' || r.host || ':' || r.owner || '/' || r.name))
+	  ORDER BY scan.profiled_at DESC, scan.id LIMIT 1
+	) s ON true`
+
 // EnsureForProject 保证"本项目里每个已接入的仓库都有一支自己的团队"。
 //
 // 2026-09-20（用户）：仓库**接入的时候**就该自动建队，不该让人再去仓库页点一次。
@@ -197,22 +219,33 @@ func (s *Service) EnsureForProject(ctx context.Context, projectID string, worker
 	if !validWorkerCount(workerCount) {
 		workerCount = minWorkers
 	}
-	rows, err := s.pool.Query(ctx, `SELECT pr.repository_id
-		FROM repomesh_projects.project_repositories pr
+	// 注意两个 id 空间（2026-09-20 线上实测，第一次接错就是死在这里）：
+	//   · 项目侧：repomesh_projects.project_repositories.repository_id = "repo_00000000001329478693"
+	//   · 扫描侧：repomesh_scan.repositories.id                    = "38d0b82ca1d61fdc04d83cef1d2245a7"
+	// 而 repository_teams.repository_id 用的是**扫描侧** id（Create 也按它查仓库名）。
+	// 所以这里必须先把项目侧仓库解析成扫描侧仓库（按 URL 对齐，与 discovery 的
+	// loadRepoPool 同一条规则），不能拿 "repo_..." 直接去建队 —— 那样 Create 只会
+	// 回 ErrNotFound，团队一支也建不出来。
+	rows, err := s.pool.Query(ctx, repoTeamResolutionQuery+`
 		WHERE pr.project_id=$1
-		  AND NOT EXISTS (SELECT 1 FROM public.repository_teams t WHERE t.repository_id=pr.repository_id)
-		ORDER BY pr.repository_id`, projectID)
+		  AND s.id IS NOT NULL
+		  AND NOT EXISTS (SELECT 1 FROM public.repository_teams t WHERE t.repository_id=s.id)
+		ORDER BY s.id`, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("list repositories without team: %w", err)
 	}
 	ids := []string{}
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var projectIDOut, projectSide, scanSide string
+		if err := rows.Scan(&projectIDOut, &projectSide, &scanSide); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("scan repository id: %w", err)
 		}
-		ids = append(ids, id)
+		_ = projectSide
+		if scanSide == "" {
+			continue
+		}
+		ids = append(ids, scanSide)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
@@ -245,9 +278,12 @@ func (s *Service) EnsureAll(ctx context.Context, workerCount int) ([]string, err
 	if s.pool == nil {
 		return nil, fmt.Errorf("%w: database pool is nil", ErrControllerUnavailable)
 	}
-	rows, err := s.pool.Query(ctx, `SELECT DISTINCT pr.project_id
-		FROM repomesh_projects.project_repositories pr
-		WHERE NOT EXISTS (SELECT 1 FROM public.repository_teams t WHERE t.repository_id=pr.repository_id)`)
+	// 与 EnsureForProject 同一条解析规则：只挑"真的还有可建队的仓库"的项目，
+	// 否则每轮都会把没有扫描记录的仓库再算一遍（永远建不出来，纯空转）。
+	rows, err := s.pool.Query(ctx, `SELECT DISTINCT resolved.project_id
+		FROM (`+repoTeamResolutionQuery+`) resolved
+		WHERE resolved.scan_side <> ''
+		  AND NOT EXISTS (SELECT 1 FROM public.repository_teams t WHERE t.repository_id=resolved.scan_side)`)
 	if err != nil {
 		return nil, fmt.Errorf("list projects with teamless repositories: %w", err)
 	}
