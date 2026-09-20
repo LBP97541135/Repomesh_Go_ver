@@ -68,6 +68,11 @@ func registerConsoleRoutes(mux *http.ServeMux, auth Auth, consoleAPI Console) {
 		writeJSON(w, http.StatusOK, view)
 	})
 
+	// GET /api/setup/coding-agents —— Coding Agent 探测（迁移 3 的漏项）。
+	// 前端一直在打这条，Go 从未实现 → 404 → 设置页「Coding Agent 适配器」永远空着，
+	// 还挂一句"该功能在当前服务端版本尚未就绪"。
+	registerCodingAgentProbe(register)
+
 	register("GET /api/console/agents", func(w http.ResponseWriter, r *http.Request, actor string) {
 		result, err := consoleAPI.Service.Agents(r.Context(), actor, withRuntime(r))
 		if err != nil {

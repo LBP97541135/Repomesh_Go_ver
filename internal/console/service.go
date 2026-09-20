@@ -19,7 +19,7 @@ type Service struct {
 	// nil = 未接线：checks["agentteams"] 如实为 false 并写明"未接线"，
 	// 而不是把"本部署明明跑着 Controller"写成 false（那才是编）。
 	agentteams AgentTeamsProbe
-	pool *pgxpool.Pool
+	pool       *pgxpool.Pool
 }
 
 func New(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
