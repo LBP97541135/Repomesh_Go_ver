@@ -26,8 +26,13 @@ func (s *Service) Start(ctx context.Context, command StartCommand) (RunView, err
 	// —— 表里因此一行都落不下来。这不是"没人用"，是**这条路根本走不通**。
 	// 项目自己带着组织，服务端能查，就不该把这件事推给调用方。
 	if command.OrganizationID == "" {
+		// ⚠️ 不要写 `$1::uuid`：`repomesh_projects.projects.id` 是 **text**
+		// （这个库的项目标识有两套口径：public.projects.id 是 uuid、
+		//  repomesh_projects.projects.id 是 text，而 branchvalidation 用的是后者）。
+		// 加了转换就是 `operator does not exist: text = uuid`（42883）——
+		// 同一个坑今天已经踩到第三次（0057 迁移、agent-output 读面、这里）。
 		if err := s.pool.QueryRow(ctx,
-			`SELECT COALESCE(organization_id::text,'') FROM repomesh_projects.projects WHERE id=$1::uuid`,
+			`SELECT COALESCE(organization_id::text,'') FROM repomesh_projects.projects WHERE id=$1`,
 			command.ProjectID).Scan(&command.OrganizationID); err != nil {
 			return RunView{}, fmt.Errorf("branchvalidation: 项目组织反查失败：%w", err)
 		}
