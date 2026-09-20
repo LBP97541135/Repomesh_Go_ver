@@ -194,22 +194,21 @@ export async function fetchRepositoryPlan(issueId: string, repositoryId: string)
 
 /** 迁移 4：取该 issue 某版计划快照的边语义（使用物化收据给出的 plan_id）。
  *
- *  **取不到一律当没有，不当错误**：这一层是给既有连线**加注**的，DAG 面本身
- *  只靠 §5.4 就能画完整。老快照的 `graph_edges` 可能为空（单图方案之前落的行），
- *  端点也可能 404（版本越界）——两种情况面板都照画，只是没有契约语义可标。
+ *  **2026-09-20：这条读面在 Go 后端不存在，所以不再发这个请求。**
  *
- *  回放模式没有这份夹具：返回 null，面板按「无语义」渲染。 */
+ *  它打的是 `GET /api/plans/{planId}/versions/{n}` —— Python 时代的接口，Go 侧
+ *  从来没注册过（`/api/plans/...` 在 internal/web 里零命中）。于是工作台每 2.5 秒
+ *  发一次、每次收一个 404：nginx 实测 90 秒 49 条，把真故障淹掉。
+ *
+ *  边语义（interface / agreement 注脚）本来就是**可选加注**：DAG 面靠 §5.4 就能
+ *  画完整，拿不到就按"无语义"渲染（与 404 时的行为完全一致，界面没有任何变化）。
+ *  等 Go 侧真的把计划快照读面做出来（数据在 public.plans.task_dag->'dag' 里，
+ *  nodes/edges 都有），再把这条请求接回去。在那之前，不发一个注定 404 的请求。 */
 export async function fetchPlanGraphEdges(
-  planId: string,
-  planVersion: number,
+  _planId: string,
+  _planVersion: number,
 ): Promise<PlanGraphEdgeView[] | null> {
-  if (resolveDataSourceMode() === "replay") return null;
-  try {
-    const snapshot = await defaultClient().getPlanSnapshot(planId, planVersion);
-    return snapshot.graph_edges;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 /** 该 issue 的当前轮次。环境窗与事件时间线都是**轮次粒度**的消费面，先解析一次
