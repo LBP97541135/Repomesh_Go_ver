@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -51,11 +52,48 @@ func signalShutdown() {
 // 假设是错的。要有数字才能继续查。
 var activeRequests int64
 
+// inFlightPaths 记在途请求的**路径计数**，供关停超时时点名。
+//
+// 2026-09-20：光有"active_requests=1"还不够 —— 知道有 1 个卡着，但不知道是哪个。
+// nginx 只在请求**结束**时才写 access log，所以在途的长连接在那边根本看不见
+// （我先前据此判断"没有 SSE"，是错的）。这里自己记。
+var (
+	inFlightMu    sync.Mutex
+	inFlightPaths = map[string]int{}
+)
+
+func noteInFlight(path string, delta int) {
+	inFlightMu.Lock()
+	defer inFlightMu.Unlock()
+	inFlightPaths[path] += delta
+	if inFlightPaths[path] <= 0 {
+		delete(inFlightPaths, path)
+	}
+}
+
+func snapshotInFlight() string {
+	inFlightMu.Lock()
+	defer inFlightMu.Unlock()
+	if len(inFlightPaths) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(inFlightPaths))
+	for path, count := range inFlightPaths {
+		parts = append(parts, fmt.Sprintf("%s×%d", path, count))
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, ", ")
+}
+
 // countingRequests 把每个请求计进 activeRequests（只计数，不改行为）。
 func countingRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt64(&activeRequests, 1)
-		defer atomic.AddInt64(&activeRequests, -1)
+		noteInFlight(r.URL.Path, 1)
+		defer func() {
+			atomic.AddInt64(&activeRequests, -1)
+			noteInFlight(r.URL.Path, -1)
+		}()
 		next.ServeHTTP(w, r)
 	})
 }
@@ -129,7 +167,8 @@ func serve(ctx context.Context, server *http.Server, listener net.Listener) erro
 		if shutdownErr := server.Shutdown(shutdownCtx); shutdownErr != nil {
 			slog.Warn("graceful shutdown timed out",
 				"after", time.Since(shutdownStart).String(),
-				"active_requests", atomic.LoadInt64(&activeRequests))
+				"active_requests", atomic.LoadInt64(&activeRequests),
+				"in_flight", snapshotInFlight())
 			_ = server.Close()
 			<-result
 			return fmt.Errorf("graceful shutdown: %w", shutdownErr)
