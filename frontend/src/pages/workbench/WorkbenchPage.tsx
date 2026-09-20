@@ -158,6 +158,9 @@ export function WorkbenchPage({
       loadedIssueRef.current = issueId;
       setLoading(true);
       setError(null);
+      // 首次进入 issue：右栏自动跳 Manager 主房间对话（2026-09-18 用户裁决；
+      // 2026-09-20 LBP 线搬运时漏掉，右栏只剩「点击左侧步骤 / 任务行」空态）。
+      setActiveEntry({ kind: "mgr" });
     }
     fetchIssueDetail(issueId, projectId)
       .then((d) => {
@@ -698,6 +701,18 @@ export function WorkbenchPage({
   useEffect(() => {
     if (issueKey === null) return;
     setIssueHitl(detail?.hitlMode === "ai" ? "ai" : "hitl");
+    // 观测告警「去处理」的手递手：ObserveAlerts 写 pending-entry=mgr，
+    // 从这里读走并清掉，直接打开 Manager 房间。搬运时只留了写的半边，
+    // 读的这半边丢了——告警点了没反应。
+    try {
+      const pending = window.sessionStorage.getItem(`repomesh.pending-entry.${issueKey}`);
+      if (pending === "mgr") {
+        setActiveEntry({ kind: "mgr" });
+        window.sessionStorage.removeItem(`repomesh.pending-entry.${issueKey}`);
+      }
+    } catch {
+      /* 存不进就只在这台浏览器本次会话里失效 */
+    }
   }, [issueKey, detail?.hitlMode]);
 
   // 自动托管:处理员代行人审门(分档审批 → 物化确认),用与真人门同一套写回路;
