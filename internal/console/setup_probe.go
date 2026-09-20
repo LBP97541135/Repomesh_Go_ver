@@ -66,24 +66,73 @@ func summarizeHealth(body []byte) string {
 	return text
 }
 
-// matrixConfigured 如实回答"本部署有没有配 Matrix 消息面"。
+// matrixConfigured 如实回答"本部署的 Matrix 消息面到底通不通"。
 //
-// 没有配置入口就是 false，并写明是"未配置"而不是"探测失败" —— 两者对使用者的
-// 含义完全不同（一个是"要配"，一个是"配了但连不上"）。
-func matrixConfigured(view *SetupStatusView) bool {
-	for _, key := range []string{"MATRIX_HOMESERVER_URL", "MATRIX_ACCESS_TOKEN", "REPOMESH_MATRIX_URL"} {
-		if strings.TrimSpace(os.Getenv(key)) != "" {
+// 2026-09-20 线上实测：此前只看有没有 MATRIX_* 环境变量 —— 那只能证明"配过"，
+// 证明不了"通"：变量写着地址、进程却停了的时候，它照样报"已配置"。本机上
+// AgentTeams 自带的 homeserver 就挂在 127.0.0.1:18080（实测
+// /_matrix/client/versions 返回 200），所以这里改成**真探**，三种状态分开写：
+//
+//	没给地址        → unconfigured（要配）
+//	给了地址且 200  → configured（真通）
+//	给了地址但连不上 → unreachable（配了但不通，带原因）
+//
+// 三种状态对使用者的含义完全不同，不能合并。
+func matrixConfigured(ctx context.Context, view *SetupStatusView) bool {
+	base := ""
+	configuredBy := ""
+	for _, key := range []string{"MATRIX_HOMESERVER_URL", "REPOMESH_MATRIX_URL"} {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			base, configuredBy = strings.TrimRight(value, "/"), key
+			break
+		}
+	}
+	if base == "" {
+		if strings.TrimSpace(os.Getenv("MATRIX_ACCESS_TOKEN")) != "" {
+			// 只给 token 的部署：算配过，但没有地址就没法真探 —— 如实说明，
+			// 不假装探过。
 			view.Dependencies = append(view.Dependencies, map[string]any{
-				"name": "matrix", "state": "configured", "detail": "由 " + key + " 配置",
+				"name": "matrix", "state": "configured",
+				"detail": "由 MATRIX_ACCESS_TOKEN 配置（未给 homeserver 地址，无法真探）",
 			})
 			return true
 		}
+		view.Dependencies = append(view.Dependencies, map[string]any{
+			"name": "matrix", "state": "unconfigured",
+			"detail": "本部署未配置 Matrix 消息面（没有 MATRIX_HOMESERVER_URL / REPOMESH_MATRIX_URL / MATRIX_ACCESS_TOKEN）",
+		})
+		return false
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(probeCtx, http.MethodGet, base+"/_matrix/client/versions", nil)
+	if err != nil {
+		view.Dependencies = append(view.Dependencies, map[string]any{
+			"name": "matrix", "state": "unreachable", "detail": "地址不合法：" + err.Error(),
+		})
+		return false
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		view.Dependencies = append(view.Dependencies, map[string]any{
+			"name": "matrix", "state": "unreachable",
+			"detail": "由 " + configuredBy + " 配置为 " + base + "，但探不通：" + err.Error(),
+		})
+		return false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		view.Dependencies = append(view.Dependencies, map[string]any{
+			"name": "matrix", "state": "unreachable",
+			"detail": fmt.Sprintf("由 %s 配置为 %s，/_matrix/client/versions 返回 HTTP %d", configuredBy, base, resp.StatusCode),
+		})
+		return false
 	}
 	view.Dependencies = append(view.Dependencies, map[string]any{
-		"name": "matrix", "state": "unconfigured",
-		"detail": "本部署未配置 Matrix 消息面（没有 MATRIX_* 环境变量）",
+		"name": "matrix", "state": "configured",
+		"detail": "homeserver " + base + "（来自 " + configuredBy + "）响应 200",
 	})
-	return false
+	return true
 }
 
 // runtimeFor 探一个 agent 的**运行时**（AgentTeams Controller 的 worker status）。
@@ -107,6 +156,17 @@ func (s *Service) runtimeFor(ctx context.Context, name string) *map[string]any {
 	switch {
 	case err != nil:
 		block := map[string]any{"reachable": false, "phase": nil, "detail": err.Error()}
+		return &block
+	case status == http.StatusNotFound:
+		// 404 是 Controller **答了话**、只是它名下没有这个资源 —— 与"连不上"
+		// 是两件完全不同的事。2026-09-20 线上实测：仓库里有个 agent 叫
+		// governance-leader，Controller 的 worker 列表里没有它（只有
+		// rm-accept-* / repomesh-r-*），于是界面把"查无此物"报成"不可达 1"，
+		// 让人以为是 Controller 挂了。
+		block := map[string]any{
+			"reachable": true, "source": "agentteams-controller", "phase": nil,
+			"detail": "Controller 可达，但它名下没有名为 " + name + " 的资源（HTTP 404）",
+		}
 		return &block
 	case status != http.StatusOK:
 		block := map[string]any{"reachable": false, "phase": nil, "detail": fmt.Sprintf("HTTP %d", status)}

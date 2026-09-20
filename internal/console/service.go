@@ -148,7 +148,12 @@ func (s *Service) SetupStatus(ctx context.Context) (SetupStatusView, error) {
 	// 这两项此前**写死成 false**（注释说"当前部署未接"）—— 而 AgentTeams Controller
 	// 现在就跑在这台机器上、宿主机实测可达（HTTP 200）。所以改成**真探**：
 	// 探针结果落 checks，探测过程与上游摘要落 dependencies（界面能看到为什么）。
-	view.Checks["matrix"] = matrixConfigured(&view)
+	//
+	// 2026-09-20 线上实测：probeAgentTeams 写好了却**没有任何调用方** —— 于是
+	// checks 里根本没有 "agentteams" 这个键，界面按缺席判成"选检未过"，而
+	// Controller 明明是 200。这一行就是把它接上。
+	view.Checks["agentteams"] = s.probeAgentTeams(ctx, &view)
+	view.Checks["matrix"] = matrixConfigured(ctx, &view)
 	view.Checks["internal_auth"] = appCreds > 0
 	view.ReadyForProjectCreation = view.Checks["database"] && view.Checks["github_app"] &&
 		view.Checks["administrator"] && view.Checks["repositories"]
