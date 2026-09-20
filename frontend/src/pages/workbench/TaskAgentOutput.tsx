@@ -16,6 +16,12 @@ import { fetchTaskAgentOutput, type TaskAgentOutputView, type TaskRunOutputView 
 function RunCard({ run }: { run: TaskRunOutputView }) {
   const [showStderr, setShowStderr] = useState(false);
   const failed = run.exitCode !== null && run.exitCode !== 0;
+  // 防御性默认值：读面字段名一旦与前端接口错配（本次就踩过 —— Go 用 snake_case
+  // tag、TS 写 camelCase，`logsMissing` 拿到 undefined，`.length` 直接把整页搞崩），
+  // 这里退化成"没有记录"而不是白屏。**不许**因为一个可选字段缺失就卸载整棵树。
+  const missing = run.logsMissing ?? [];
+  const stdout = run.stdoutTail ?? "";
+  const stderr = run.stderrTail ?? "";
   return (
     <div className="rounded-[9px] border border-[var(--tree-hairline)] bg-[var(--tree-card)]">
       <div className="flex flex-wrap items-center gap-1.5 border-b border-[var(--tree-hairline)] px-2.5 py-1.5">
@@ -32,25 +38,25 @@ function RunCard({ run }: { run: TaskRunOutputView }) {
         </span>
       </div>
 
-      {run.logsMissing.length > 0 && (
+      {missing.length > 0 && (
         <p className="px-2.5 pt-1.5 text-[10.5px] text-amber">
-          没有这份记录：{run.logsMissing.join("、")}（工作区可能已被清理，或日志还没落盘）——不是"它什么都没干"。
+          没有这份记录：{missing.join("、")}（工作区可能已被清理，或日志还没落盘）——不是"它什么都没干"。
         </p>
       )}
 
-      {run.stdoutTail !== "" && (
+      {stdout !== "" && (
         <div className="px-2.5 pt-1.5">
           <div className="flex items-center gap-1.5">
             <span className="microlabel">agent 输出</span>
             {run.stdoutTruncated && <span className="text-[10px] text-[var(--tree-faint)]">（只看尾部）</span>}
           </div>
           <pre className="mt-1 max-h-[360px] overflow-auto whitespace-pre-wrap break-words rounded-[7px] bg-[var(--tree-zone)] px-2 py-1.5 font-mono text-[10.5px] leading-[1.65] text-[var(--tree-ink)]">
-            {run.stdoutTail}
+            {stdout}
           </pre>
         </div>
       )}
 
-      {run.stderrTail !== "" && (
+      {stderr !== "" && (
         <div className="px-2.5 py-1.5">
           <button
             type="button"
@@ -61,13 +67,13 @@ function RunCard({ run }: { run: TaskRunOutputView }) {
           </button>
           {showStderr && (
             <pre className="mt-1 max-h-[240px] overflow-auto whitespace-pre-wrap break-words rounded-[7px] bg-[var(--tree-zone)] px-2 py-1.5 font-mono text-[10.5px] leading-[1.65] text-[var(--tree-sub)]">
-              {run.stderrTail}
+              {stderr}
             </pre>
           )}
         </div>
       )}
 
-      {run.stdoutTail === "" && run.stderrTail === "" && run.logsMissing.length === 0 && (
+      {stdout === "" && stderr === "" && missing.length === 0 && (
         <p className="px-2.5 py-1.5 text-[10.5px] text-[var(--tree-faint)]">
           这次 run 的日志是**空的**（进程起来了但没写任何输出）。
         </p>
@@ -100,6 +106,7 @@ export function TaskAgentOutput({ projectId, taskId }: { projectId: string | nul
   }, [projectId, taskId, reload]);
 
   if (!projectId) return null;
+  const runs = view?.runs ?? [];
   return (
     <div className="border-t border-dashed border-[var(--tree-hairline)] px-4 py-3">
       <div className="flex items-center gap-2">
@@ -118,13 +125,13 @@ export function TaskAgentOutput({ projectId, taskId }: { projectId: string | nul
         </p>
       ) : view === null ? (
         <p className="mt-1.5 text-[11px] text-[var(--tree-faint)]">读取中…</p>
-      ) : view.runs.length === 0 ? (
+      ) : runs.length === 0 ? (
         <p className="mt-1.5 text-[11px] text-[var(--tree-faint)]">
           这条任务还没有 agent run（还没派发，或者派发台账里没有它的记录）。
         </p>
       ) : (
         <div className="mt-1.5 flex flex-col gap-2">
-          {view.runs.map((run) => (
+          {runs.map((run) => (
             <RunCard key={run.runId} run={run} />
           ))}
         </div>
