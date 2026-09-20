@@ -82,6 +82,7 @@ function RepositoryCardView({
   repo,
   appStatus,
   inProject,
+  attachReadFailed,
   attachBusy,
   attachResult,
   onAttach,
@@ -91,6 +92,8 @@ function RepositoryCardView({
   appStatus?: string;
   /** 这个仓在不在**当前项目**里（`project_repositories`）。undefined = 读面还没到。 */
   inProject?: boolean;
+  /** 读面失败了（区别于"还没回来"）。两者都不该被读成"没接入"，但话要分开说。 */
+  attachReadFailed?: boolean;
   attachBusy?: boolean;
   /** 这一次接入的结果，**就地**显示在这张卡上（成功/失败都显示）。
    *  此前只写页面顶部的横幅——人在下面卡片点、横幅在屏幕外，看到的就是"根本没反应"。 */
@@ -109,7 +112,22 @@ function RepositoryCardView({
             上各写一套。次序按"用户该先做什么"排：先接入，再授权。 */}
         <span className="flex flex-wrap items-center gap-1.5">
           {/* 接入状态是卡片上**最要紧**的一条：没接入的仓，建 issue 时一个都选不出来，
-              界面必须当场说清，而不是等人撞在 NO_AVAILABLE_REPOSITORIES 上再回来找。 */}
+              界面必须当场说清，而不是等人撞在 NO_AVAILABLE_REPOSITORIES 上再回来找。
+              **未知时要显式说"读取中"**：这个事实来自第二个读面（要对每个仓现探
+              GitHub，48 个仓要 4~5 秒），而它在组件挂载之后才发起；此前这一档什么都
+              不画，空白看起来就像"标签没了、接入丢了"（2026-09-20 用户实测）。 */}
+          {inProject === undefined && !attachReadFailed && (
+            <span className="pill pill-meta" title="正在读取本项目已接入的仓库清单">
+              接入状态读取中…
+            </span>
+          )}
+          {/* 读失败要说"没取到"，不能说成"没接入"，也不能一直挂着"读取中"当幌子：
+              它只是没读到，刷新会重试。 */}
+          {inProject === undefined && attachReadFailed && (
+            <span className="pill pill-meta" title="没能读到本项目的仓库清单（服务端或网络问题）——这不等于没接入，刷新页面会重试">
+              接入状态未取到
+            </span>
+          )}
           {inProject === true && <span className="pill pill-done">已接入本项目</span>}
           {inProject === false && <span className="pill pill-gate">未接入本项目</span>}
           {appStatus !== undefined && <AppStatusPill status={appStatus} />}
@@ -188,6 +206,23 @@ function readCollapsed(): string[] {
   }
 }
 
+/** 上一次读到的「本项目已接入哪些仓」快照，按项目驻留内存。
+ *
+ *  这个事实来自第二个读面（`/projects/{id}/repositories`），它要对**每个仓现探
+ *  GitHub** 才能确认参与权与 App 覆盖——48 个仓实测 4~5 秒。而它是在组件挂载之后
+ *  才发起的：卡片先画出来、标签 4 秒后才到。每次进仓库页都从零等一次，观感就是
+ *  "绿色标签不见了，过一会又冒出来"（2026-09-20 用户实测；服务端日志里同样能看到
+ *  目录先回、项目读面 4 秒后才回，中间还夹着一次 499——人等不及切走了）。
+ *
+ *  所以把上一次的结果留着，进页面**先按上次的样子画**，后台再刷新，差异才看得出来。
+ *  **只驻内存、不落盘**：刷新浏览器就重来一次，不会让人看到上一个会话的陈旧事实。
+ *  （拿它做接入判断的 `attachedNamesRef` 也一起种进去，否则批量接入会把已接入的仓
+ *  当成待接入再发一遍。） */
+const attachedSnapshot = new Map<
+  string,
+  { names: Set<string>; appStatus: Record<string, string> }
+>();
+
 export function RepositoriesPage({
   projectId,
   projectName,
@@ -214,9 +249,16 @@ export function RepositoriesPage({
    *  **按名字对齐，不按 id**：目录的 id 是 32 位随机 hex、项目的 id 是
    *  `repo_<GitHub 数字 id>`，两个 id 空间，直接比永远不相等（此前就是这么错的，
    *  于是「已接入」与「App 状态」两个徽标从来没显示过）。 */
-  const [appStatusByName, setAppStatusByName] = useState<Record<string, string>>({});
-  /** 本项目已接入的仓库 `owner/name`。null = 还没读到——不显示接入状态、也不拿它判断。 */
-  const [attachedNames, setAttachedNames] = useState<Set<string> | null>(null);
+  const [appStatusByName, setAppStatusByName] = useState<Record<string, string>>(
+    () => attachedSnapshot.get(projectId)?.appStatus ?? {},
+  );
+  /** 本项目已接入的仓库 `owner/name`。null = 还没读到——不显示接入状态、也不拿它判断。
+   *  初值取上一次的快照：进页面先按上次的样子画，后台再刷新（见 attachedSnapshot）。 */
+  const [attachedNames, setAttachedNames] = useState<Set<string> | null>(
+    () => attachedSnapshot.get(projectId)?.names ?? null,
+  );
+  /** 上面这个读面失败了没有。失败时卡片说"未取到"而不是一直挂"读取中"。 */
+  const [attachReadFailed, setAttachReadFailed] = useState(false);
   /** 手工接入的结果，就地显示在那张卡片上（不是只写页面顶部横幅）。 */
   const [attachResult, setAttachResult] = useState<{ name: string; ok: boolean; text: string } | null>(null);
   const [attachBusy, setAttachBusy] = useState<string | null>(null);
@@ -229,7 +271,7 @@ export function RepositoriesPage({
   /** 上一次看到的目录 id 集合——用来认出「这次扫描新登记了哪些仓」。 */
   const knownIdsRef = useRef<Set<string> | null>(null);
   /** 已接入 / 正在接入的 id（ref，因为下面的自动接入跑在回调里，拿不到最新 state）。 */
-  const attachedNamesRef = useRef<Set<string>>(new Set());
+  const attachedNamesRef = useRef<Set<string>>(attachedSnapshot.get(projectId)?.names ?? new Set<string>());
   const inFlightRef = useRef<Set<string>>(new Set());
 
   const refresh = useCallback(() => setReload((n) => n + 1), []);
@@ -342,9 +384,15 @@ export function RepositoriesPage({
         setAttachedNames(attached);
         attachedNamesRef.current = attached;
         projectRevisionRef.current = page.projectRevision;
+        // 留一份给下次进页面用（见 attachedSnapshot）。**只在下一次真的读到时写**：
+        // 失败不覆盖旧快照，免得一次网络抖动把已知事实抹成未知。
+        attachedSnapshot.set(projectId, { names: attached, appStatus: map });
+        setAttachReadFailed(false);
       })
       .catch(() => {
-        /* 授权状态取不到就不显示这一项——不拿失败当「不足」 */
+        /* 取不到就不显示接入状态——不拿失败当「不足」。已经种下上一次快照的，
+           继续按上次的样子显示；从没读到过的，由卡片说"未取到"。 */
+        if (!cancelled) setAttachReadFailed(true);
       });
     return () => {
       cancelled = true;
@@ -522,6 +570,7 @@ export function RepositoriesPage({
                         repo={repo}
                         appStatus={appStatusByName[fullNameOf(repo)]}
                         inProject={attachedNames === null ? undefined : attachedNames.has(fullNameOf(repo))}
+                        attachReadFailed={attachReadFailed}
                         attachBusy={attachBusy === fullNameOf(repo)}
                         attachResult={attachResult?.name === fullNameOf(repo) ? attachResult : null}
                         onAttach={() => void attachRepos([{ url: repo.url, name: fullNameOf(repo) }], "manual")}
