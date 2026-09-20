@@ -464,12 +464,22 @@ export function SettingsPage({
   const absent = rows?.filter((a) => a.runtime === null).length ?? 0;
   // 三态各自的**是谁** —— 只给计数等于让人拿着"不可达 1"去花名册里猜。
   // 用户原话："这个信息有什么用" —— 有用之处就在于能立刻指出是哪个成员、哪种态。
+  //
+  // ⚠️ 标识不能只取 `agentteams_resource_name`：线上实测「无事实」那 5 行的
+  // **资源名就是空字符串**（后端拿空名去探上游，自然无事实 —— 它们是本地花名册里
+  // 有、上游从未建过资源的行）。只取它的话会渲染成「无事实：、、、、」。
+  // 回退顺序：资源名 → 仓库名 → 角色 → agent_id，总能指出"是哪一个"。
+  const labelOf = (a: ConsoleAgentView) =>
+    a.agentteams_resource_name ||
+    a.repository_name ||
+    a.role ||
+    a.agent_id;
   const unreachableNames = (rows ?? [])
     .filter((a) => a.runtime !== null && !a.runtime.reachable)
-    .map((a) => a.agentteams_resource_name);
+    .map(labelOf);
   const absentNames = (rows ?? [])
     .filter((a) => a.runtime === null)
-    .map((a) => a.agentteams_resource_name);
+    .map(labelOf);
 
   const kinds = [
     ...new Set(
