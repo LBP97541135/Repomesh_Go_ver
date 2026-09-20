@@ -100,27 +100,46 @@ type MergeGate struct {
 	CIPassed    bool   `json:"ciPassed"`
 	Reviewed    bool   `json:"reviewed"`
 	Open        bool   `json:"open"`
+	// CIState = **最后一次** ci 事件的状态原文（""=从未有过 ci 事件）。
+	//
+	// 2026-09-21 补：此前只有 `ciPassed` 一个布尔，界面因此只能说"CI 没过"，
+	// 说不出"是没过、还是压根没跑过、还是跑失败了"——而这三件事要人做的事完全不同。
+	// 只多给一个事实，判定不变。
+	CIState string `json:"ciState"`
 }
 
 // Gate evaluates the merge-gate for one change-set.
+//
+// 2026-09-21 修一个**fail-open 漏洞**：此前这条查询写死 `AND status='recorded'`，
+// 循环里却判 `strings.Contains(status, "fail")` —— status 恒为 "recorded"，
+// 那个 `ciFailed` 是**死代码**，一次都不可能成立。后果：一个变更集只要有过任意
+// 一条 recorded 的 ci 事件，**之后 CI 失败也撤不掉这一门**，闸门继续显示"CI 通过"。
+// 线上实测已被现实触发：2 个变更集同时有 recorded 与 failed 的 ci 事件。
+//
+// 现在按**时间序**取全部事件，CI 以**最后一次**为准（任何非通过状态一律不过）。
+// push / PR / review 仍是"有 recorded 就算数"——它们是发生过就不再撤销的事实，
+// 与 CI 这种"会被后续结果推翻"的判定不同类。
 func (s *Service) Gate(ctx context.Context, changeSetID string) (MergeGate, error) {
 	gate := MergeGate{ChangeSetID: changeSetID, Open: true}
 	rows, err := s.pool.Query(ctx, `SELECT command_type, status FROM public.scm_commands
-		WHERE change_set_id=$1::uuid AND status='recorded'`, changeSetID)
+		WHERE change_set_id=$1::uuid
+		ORDER BY created_at ASC, id ASC`, changeSetID)
 	if err != nil {
 		return gate, fmt.Errorf("scm: gate query failed: %w", err)
 	}
 	defer rows.Close()
 	seen := map[string]bool{}
-	ciFailed := false
 	for rows.Next() {
 		var kind, status string
 		if rows.Scan(&kind, &status) != nil {
 			return gate, fmt.Errorf("scm: gate scan failed")
 		}
-		seen[kind] = true
-		if kind == "ci" && strings.Contains(strings.ToLower(status), "fail") {
-			ciFailed = true
+		if status == "recorded" {
+			seen[kind] = true
+		}
+		// 升序遍历：最后一次赋值就是最新那条 ci 事件的状态。
+		if kind == "ci" {
+			gate.CIState = status
 		}
 	}
 	if rows.Err() != nil {
@@ -128,10 +147,22 @@ func (s *Service) Gate(ctx context.Context, changeSetID string) (MergeGate, erro
 	}
 	gate.Pushed = seen["push"]
 	gate.PR = seen["pull_request"]
-	gate.CIPassed = seen["ci"] && !ciFailed
+	gate.CIPassed = ciPassed(gate.CIState)
 	gate.Reviewed = seen["review"]
 	gate.Open = gate.Pushed && gate.PR && gate.CIPassed && gate.Reviewed
 	return gate, nil
+}
+
+// ciPassed 只认**通过**那几种状态；其余（含 failed、含空=从未跑过）一律不过。
+//
+// fail-closed：判定不认识的状态时答案是"不过"——闸门的默认必须是关着。
+func ciPassed(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "recorded", "passed", "success", "succeeded", "ok":
+		return true
+	default:
+		return false
+	}
 }
 
 var _ = json.Marshal
