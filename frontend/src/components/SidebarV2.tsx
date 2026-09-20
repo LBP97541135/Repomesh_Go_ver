@@ -195,6 +195,9 @@ export function SidebarV2({
           }`}
           onClick={(e) => {
             e.stopPropagation();
+            // 收起态下这条菜单需要整条侧栏的宽度才放得下，先展开再开——
+            // 否则它以一个 236px 的宽度飘在 64px 的轨道里，会被裁掉一半。
+            if (collapsed) setCollapsed(false);
             setDropOpen((v) => !v);
           }}
         >
@@ -218,7 +221,11 @@ export function SidebarV2({
         </button>
 
         {dropOpen && (
-          <div className="absolute top-[52px] left-0 z-20 w-[236px] rounded-[8px] border border-line bg-side-panel py-1 shadow-float">
+          /* 宽度用 w-full（= 侧栏内容区宽度）：此前写死 `w-[236px]`，而侧栏是
+             `w-[236px] px-3`，内容区只有 212px —— 弹窗右边多出 24px 的偏移，
+             一半在轨道外，还被 side-rail 的 overflow 裁掉（2026-09-20 实测）。
+             侧栏宽度以后要变，这个数字也不该再抄一遍。 */
+          <div className="absolute top-[52px] left-0 z-20 w-full rounded-[8px] border border-line bg-side-panel py-1 shadow-float">
             <div className="px-2.5 pt-1 pb-1.5 text-[10.5px] tracking-[0.1em] text-tx3">切换项目</div>
             <div className="max-h-[240px] overflow-y-auto">
               {projects === null && <div className="px-2.5 py-2 text-[12px] text-tx3">正在读取项目…</div>}
@@ -309,6 +316,8 @@ export function SidebarV2({
             }`}
             onClick={(e) => {
               e.stopPropagation();
+              // 与左上角项目菜单同理：收起态先展开，别让菜单飘在轨道外面被裁。
+              if (collapsed) setCollapsed(false);
               setAccountOpen((v) => !v);
             }}
           >
@@ -326,7 +335,9 @@ export function SidebarV2({
           </button>
 
           {accountOpen && (
-            <div className="absolute bottom-[46px] left-0 z-20 w-[218px] rounded-[8px] border border-line bg-side-panel py-1 shadow-float">
+            /* 宽度同 w-full（= 侧栏内容区）：此前写死 `w-[218px]`，比内容区 212px
+               还宽 6px，同样会溢出到轨道外被裁。 */
+            <div className="absolute bottom-[46px] left-0 z-20 w-full rounded-[8px] border border-line bg-side-panel py-1 shadow-float">
               <div className="flex items-center gap-2.5 px-2.5 pt-1 pb-2.5">
                 <span className="grid size-[30px] flex-none place-items-center rounded-full bg-chip text-[12px] font-extrabold text-cream">
                   {initial}
