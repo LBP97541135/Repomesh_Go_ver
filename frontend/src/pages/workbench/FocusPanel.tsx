@@ -26,6 +26,7 @@ import { documentTitleOf, splitRequirement } from "../../api/issues";
 import { SupervisionPolicyCard, type PolicyDraftState } from "../../components/SupervisionPolicyCard";
 import { TaskAgentOutput } from "./TaskAgentOutput";
 import { ResponsibilityCaseCard } from "../../components/ResponsibilityCaseCard";
+import { BranchValidationCard } from "../../components/BranchValidationCard";
 
 /** 消息作者 → 角色显示。先看 authorKind（user 是人），服务侧 agent 再按
  *  roster 命名约定（agent_<role>[_<name>]）推导；都推不出按系统条目样式。 */
@@ -1004,6 +1005,10 @@ export function FocusPanel({
           actorId={actorId}
           repoOptions={repoOptions}
         />
+        {/* 评委建议①：数据库分支验证的可演示入口。后端早已完整、路由也挂了，
+            但此前**没有任何界面能触发它** —— 线上 database_branch_validations
+            至今 0 行。 */}
+        <BranchValidationCard projectId={projectId} repoOptions={repoOptions} />
         <GateStack
           stepStates={stepStates}
           mergePending={mergePending}
