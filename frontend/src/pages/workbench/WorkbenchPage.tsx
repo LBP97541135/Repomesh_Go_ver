@@ -1626,6 +1626,7 @@ export function WorkbenchPage({
               // 「确认合并」才是真入口（那里看得见每节车厢的门禁与顺序）。
               onViewTrain={handleViewTrain}
               onCollapse={() => setFocusOpen(false)}
+              onBackToManager={() => setActiveEntry({ kind: "mgr" })}
               onChooseManual={handleChooseManual}
               onChooseAI={handleChooseAI}
               onConfirmSupplements={handleConfirmSupplements}

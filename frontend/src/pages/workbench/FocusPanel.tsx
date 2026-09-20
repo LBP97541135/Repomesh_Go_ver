@@ -11,6 +11,7 @@ import { TypeSafeEvaluations } from "../../components/TypeSafeEvaluations";
  *  actor_id 前缀推导（agent_<role>[_<name>]），推导不出按系统条目样式。 */
 
 import { X as IconX } from "lucide-react";
+import { ArrowLeft as IconBack } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { IconCheck, IconClock, IconHouse, IconRun, IconSend } from "./treeIcons";
 import { WorkerHealthGate } from "./WorkerHealthGate";
@@ -812,6 +813,12 @@ export interface FocusPanelProps {
   onViewTrain?: () => void;
   /** 收起右栏(2026-09-20 移植主线 0c7a54a1):收起后左栏铺满,窄条上一个展开按钮 */
   onCollapse?: () => void;
+  /** 回到 Manager 主会话（2026-09-21 用户问「点开需求分析后怎么返回主房间」）。
+   *
+   *  此前**唯一的回路**是回左树点「Manager · 主脑」那一行 —— 没有任何提示，用户
+   *  点进步骤房间后只能自己猜。门牌条上加一枚显式返回箭头：只要当前房间不是主会话
+   *  就出现，点它回主会话时间线。 */
+  onBackToManager?: () => void;
   /** 候选分流(2026-09-18 用户裁定):第 2 步聊天室里选——人勾选 / AI 推断 */
   onChooseManual?: () => void;
   onChooseAI?: () => void;
@@ -876,6 +883,7 @@ export function FocusPanel({
   mergePending = false,
   onViewTrain,
   onCollapse,
+  onBackToManager,
   testEvidence,
   tasks,
   trainCars,
@@ -1083,6 +1091,19 @@ export function FocusPanel({
       {/* 门牌（房间样式提案 E，2026-09-18）：房檐条 = 房间图标 + 房间名 + mono 门牌号，
           右侧住户头像堆叠 + 在线点——房间有地址、有住户。 */}
       <div className="flex items-center gap-2.5 border-b border-[var(--tree-hairline)] bg-[var(--tree-zone)] px-4 py-2.5">
+        {/* 显式回路：不在主会话房间时，门牌条最左边给一枚返回箭头。
+            此前只有"回左树点 Manager · 主脑"这一条路，没有提示。 */}
+        {onBackToManager && entry !== null && entry.kind !== "mgr" && (
+          <button
+            type="button"
+            className="grid size-6 flex-none place-items-center rounded-hard text-[var(--tree-faint)] transition-colors hover:bg-[var(--tree-card)] hover:text-[var(--tree-ink)]"
+            title="返回主会话（Manager · 主脑）"
+            aria-label="返回主会话"
+            onClick={() => onBackToManager()}
+          >
+            <IconBack size={13} strokeWidth={1.75} />
+          </button>
+        )}
         <IconHouse size={15} className="flex-none text-[var(--tree-acc)]" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[12.5px] font-medium leading-[1.4] text-[var(--tree-ink)]">{header.title}</p>
