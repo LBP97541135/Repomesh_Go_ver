@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -161,6 +162,22 @@ func roleLabel(role string) string {
 //
 // 校验是**结构性的**（这一步该有什么字段），不是内容性的 —— 内容对不对由人工门
 // （③ 分档审批 / ⑤ 物化确认）与复核角色判，后端不替 agent 做业务判断。
+// ErrAgentReportedFailure 标记"agent 在产物里**明确报告**它做不到"（产物里有 error 字段）。
+//
+// 与"产物读不出来"是两回事，界面上的说法也必须不同：前者是 Leader 的**结论**
+// （人应当看到理由与下一步），后者才是"产物不合格"（系统侧的问题）。
+// 2026-09-20 线上实测：两者此前被同一句"产物不合格"盖住，读起来像系统故障。
+var ErrAgentReportedFailure = errors.New("agent 在产物里报告了失败")
+
+// AgentReportedFailure 取出 agent 自述的失败原因（不是这类失败就返回 false）。
+func AgentReportedFailure(err error) (string, bool) {
+	if !errors.Is(err, ErrAgentReportedFailure) {
+		return "", false
+	}
+	message := strings.TrimSpace(strings.TrimPrefix(err.Error(), ErrAgentReportedFailure.Error()+"："))
+	return message, true
+}
+
 func ParsePlanningArtifact(step int, raw []byte) (map[string]any, error) {
 	trimmed := strings.TrimSpace(string(raw))
 	if trimmed == "" {
@@ -180,10 +197,11 @@ func ParsePlanningArtifact(step int, raw []byte) (map[string]any, error) {
 	}
 	var artifact map[string]any
 	if err := json.Unmarshal([]byte(strings.TrimSpace(trimmed)), &artifact); err != nil {
+
 		return nil, fmt.Errorf("产物不是合法 JSON：%w", err)
 	}
 	if msg, _ := artifact["error"].(string); strings.TrimSpace(msg) != "" {
-		return nil, fmt.Errorf("agent 报告失败：%s", strings.TrimSpace(msg))
+		return nil, fmt.Errorf("%w：%s", ErrAgentReportedFailure, strings.TrimSpace(msg))
 	}
 	switch step {
 	case PlanningAnalysis:

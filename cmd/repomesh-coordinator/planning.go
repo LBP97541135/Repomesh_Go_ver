@@ -310,7 +310,13 @@ func (d *planningDispatcher) collectFinished(ctx context.Context) (bool, error) 
 		} else {
 			artifact, parseErr := discovery.ParsePlanningArtifact(one.step, raw)
 			if parseErr != nil {
-				reason = fmt.Sprintf("产物不合格：%v；原始产物：%s", parseErr, tailText(string(raw), 600))
+				// 两种失败分开说：agent **明确报告**它做不到（产物里有 error 字段）是 Leader 的
+				// 结论，人该看到理由与下一步；"产物读不出来"才是系统侧的不合格。
+				if message, ok := discovery.AgentReportedFailure(parseErr); ok {
+					reason = fmt.Sprintf("Leader 判定这一步做不了：%s"+"（认可这个判断就补充相应仓库后重跑；"+"不认可就点重试，让它带着现有仓库重新判一次）", message)
+				} else {
+					reason = fmt.Sprintf("产物不合格：%v；原始产物：%s", parseErr, tailText(string(raw), 600))
+				}
 			} else {
 				runID := ""
 				if one.runID != nil {
