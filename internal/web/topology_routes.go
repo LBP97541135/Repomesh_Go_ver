@@ -84,6 +84,7 @@ func registerTopologyRoutes(mux *http.ServeMux, auth Auth, assemblySvc *assembly
 			return
 		}
 		var body struct {
+			ProjectID    string `json:"projectId"`
 			Role         string `json:"role"`
 			RepositoryID string `json:"repositoryId"`
 			Name         string `json:"name"`
@@ -91,14 +92,24 @@ func registerTopologyRoutes(mux *http.ServeMux, auth Auth, assemblySvc *assembly
 		if err := decodeBody(w, r, &body); err != nil {
 			return
 		}
-		// 2026-09-19 账号隔离：空间**只认调用者自己的** —— 此前 organizationId 直接
-		// 取自请求体，想往哪个空间塞就往哪个空间塞。（前端仍可能传，这里忽略。）
-		organization, err := auth.Service.OrganizationOf(r.Context(), actor)
-		if err != nil || organization == "" {
-			writeHumanControlError(w, &accessFailure{status: 422, code: "VALIDATION_FAILED"})
+		// 2026-09-20（迁移 0053）：编制的归属是**项目**，不是组织。
+		// 2026-09-19 那次改的是「空间只认调用者自己的」（此前 organizationId 直接取自
+		// 请求体）；但组织与账号 1:1，按组织建人会让同一账号下的多个项目共用编制。
+		// 现在项目必须显式给出、且必须是调用者自己的——**不给兜底**：兜底正是脏数据的来源。
+		if humanControlSvc == nil {
+			writeHumanControlError(w, &accessFailure{status: 503, code: "HUMANCONTROL_NOT_CONFIGURED"})
 			return
 		}
-		agentID, err := assemblySvc.CreateAgent(r.Context(), organization, body.Role, body.RepositoryID, body.Name)
+		projectID, err := humanControlSvc.ResolveProjectScope(r.Context(), actor, body.ProjectID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeHumanControlError(w, &accessFailure{status: 404, code: "NOT_FOUND"})
+			return
+		}
+		if err != nil {
+			writeHumanControlError(w, err)
+			return
+		}
+		agentID, err := assemblySvc.CreateAgent(r.Context(), projectID, body.Role, body.RepositoryID, body.Name)
 		if err != nil {
 			writeHumanControlError(w, &accessFailure{status: 422, code: "VALIDATION_FAILED"})
 			return
@@ -153,27 +164,36 @@ func registerTopologyRoutes(mux *http.ServeMux, auth Auth, assemblySvc *assembly
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
+	// POST /api/projects/{projectId}/topologies —— 建团（编制落地）。
+	//
+	// 2026-09-20（迁移 0053）：**组织退出业务**。此前这里吃请求体的 organizationId，
+	// 留空时还兜底成 projectId（而 projectId 不是组织 id，装配必然失败）——隔壁的
+	// /api/agents 早已改成"只认调用者自己的空间"，这里却仍信客户端。
+	// 现在作用域一律取路径里的 projectId：组织由服务端从项目反查（assembly.resolveOrganization），
+	// 总领导名字也由项目派生，客户端给不了第二个总领导。
+	// 归属校验补上：写操作必须核实项目属于调用者（与 GET topology 同一把尺子）。
 	registerProjectRoute(mux, "POST /api/projects/{projectId}/topologies", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {
+		if humanControlSvc == nil {
+			return &access.Failure{Status: 503, Code: "HUMANCONTROL_NOT_CONFIGURED"}
+		}
 		var command struct {
-			OrganizationID string   `json:"organizationId"`
 			Repositories   []string `json:"repositories"`
 			WorkersPerRepo int      `json:"workersPerRepo"`
-			LeaderName     string   `json:"leaderName"`
 		}
 		if err := decodeBody(w, r, &command); err != nil {
 			return err
 		}
-		if command.OrganizationID == "" {
-			command.OrganizationID = r.PathValue("projectId")
+		projectID, err := humanControlSvc.ResolveProjectScope(r.Context(), claims.ActorID(), r.PathValue("projectId"))
+		if errors.Is(err, pgx.ErrNoRows) {
+			return &access.Failure{Status: 404, Code: "NOT_FOUND"}
+		}
+		if err != nil {
+			return err
 		}
 		result, err := assemblySvc.Assemble(r.Context(), assembly.AssemblyCommand{
-			OrganizationID: command.OrganizationID,
-			// 团队行需要项目作用域；路由本身就是 /api/projects/{projectId}/topologies，
-			// 项目 id 直接取路径值——不必让前端再传一遍（前端传了也不用）。
-			ProjectID:      r.PathValue("projectId"),
+			ProjectID:      projectID,
 			Repositories:   command.Repositories,
 			WorkersPerRepo: command.WorkersPerRepo,
-			LeaderName:     command.LeaderName,
 		})
 		if err != nil {
 			return err

@@ -9,8 +9,11 @@ import (
 // AgentRosterRow is one agents-table entry projected for the roster
 // endpoint (doc §3.3 field names, as-built column set of 0009).
 type AgentRosterRow struct {
-	ID                  string         `json:"id"`
-	OrganizationID      string         `json:"organizationId"`
+	ID             string `json:"id"`
+	OrganizationID string `json:"organizationId"`
+	// ProjectID：编制的业务归属（迁移 0053）。为空 = 组织级角色（治理 leader、
+	// 规划 agent），它们不参与自动编制。
+	ProjectID           *string        `json:"projectId"`
 	Role                string         `json:"role"`
 	ParentAgentID       *string        `json:"parentAgentId"`
 	RepositoryID        *string        `json:"repositoryId"`
@@ -56,7 +59,7 @@ func (s *Service) Roster(ctx context.Context, actor, role, repositoryID, status 
 		args = append(args, status)
 		where = append(where, "a.status=$"+strconv.Itoa(len(args)))
 	}
-	rows, err := s.pool.Query(ctx, `SELECT a.id::text, a.organization_id::text, a.role,
+	rows, err := s.pool.Query(ctx, `SELECT a.id::text, a.organization_id::text, a.project_id, a.role,
 		a.parent_agent_id::text, a.repository_id, a.responsibility_paths, a.resource_ref,
 		a.singleton_key, a.status, a.prompt, a.cli_kind
 		FROM public.agents a WHERE `+strings.Join(where, " AND ")+`
@@ -69,7 +72,7 @@ func (s *Service) Roster(ctx context.Context, actor, role, repositoryID, status 
 	out := []AgentRosterRow{}
 	for rows.Next() {
 		var row AgentRosterRow
-		if err := rows.Scan(&row.ID, &row.OrganizationID, &row.Role, &row.ParentAgentID,
+		if err := rows.Scan(&row.ID, &row.OrganizationID, &row.ProjectID, &row.Role, &row.ParentAgentID,
 			&row.RepositoryID, &row.ResponsibilityPaths, &row.ResourceRef,
 			&row.SingletonKey, &row.Status, &row.Prompt, &row.CLIKind); err != nil {
 			return nil, err

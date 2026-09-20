@@ -19,15 +19,19 @@ import (
 //
 // 404 的语义（契约明文）：该需求还没有拓扑 = 监管策略尚未设定，不是错误。
 type ProjectTopologyView struct {
-	ID                   string             `json:"id"`
-	OrganizationID       string             `json:"organization_id"`
-	ProjectID            string             `json:"project_id"`
-	OrganizationLeaderID string             `json:"organization_leader_id"`
-	RepositoryTeams      []TopologyTeamView `json:"repository_teams"`
-	ExecutionMode        string             `json:"execution_mode"`
-	RequiredCheckpoints  []string           `json:"required_checkpoints"`
-	HumanGrants          []json.RawMessage  `json:"human_grants"`
-	OperationalStatus    string             `json:"operational_status"`
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	ProjectID      string `json:"project_id"`
+	// ProjectLeaderID：项目的总领导（口径：ADR-0001 D02 一个项目一个）。
+	// 2026-09-20（迁移 0053）：此前叫 organization_leader_id 且按**组织**查——
+	// 编制已经按项目为键，组织不再参与业务分组，所以按**项目**查并改名。
+	// 没有就如实留空。
+	ProjectLeaderID     string             `json:"project_leader_id"`
+	RepositoryTeams     []TopologyTeamView `json:"repository_teams"`
+	ExecutionMode       string             `json:"execution_mode"`
+	RequiredCheckpoints []string           `json:"required_checkpoints"`
+	HumanGrants         []json.RawMessage  `json:"human_grants"`
+	OperationalStatus   string             `json:"operational_status"`
 	// PolicyFrozen：监管策略是否已随首次物化定死（草稿的 frozen_at）。
 	// 界面据此把「修改」换成只读——定死与否是存储层的事实，不是界面的判断。
 	PolicyFrozen bool `json:"policy_frozen"`
@@ -73,11 +77,12 @@ func (s *Service) ProjectTopology(ctx context.Context, projectID string) (Projec
 	}
 	if organizationID != nil {
 		view.OrganizationID = *organizationID
-		// 组织 leader：契约里的 organization_leader_id。没有就如实留空。
-		_ = s.pool.QueryRow(ctx, `SELECT id::text FROM public.agents
-			 WHERE organization_id=$1::uuid AND role='leader' ORDER BY id LIMIT 1`, *organizationID).
-			Scan(&view.OrganizationLeaderID)
 	}
+	// 项目总领导：按**项目**查（0053）。编制的作用域是项目，不是组织；
+	// 组织那一列只是租户戳，拿它查会跨项目串人。没有就如实留空。
+	_ = s.pool.QueryRow(ctx, `SELECT id::text FROM public.agents
+		 WHERE project_id=$1::text AND role='leader' ORDER BY id LIMIT 1`, projectID).
+		Scan(&view.ProjectLeaderID)
 
 	rows, err := s.pool.Query(ctx, `SELECT id::text, project_id::text, COALESCE(repository_id,''),
 		 leader_agent_id::text, COALESCE(worker_agent_ids,'[]'::jsonb),

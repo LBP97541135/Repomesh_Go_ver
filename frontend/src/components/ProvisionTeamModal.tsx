@@ -21,7 +21,6 @@ export function ProvisionTeamModal({
   open,
   repositoryId,
   repositoryName,
-  organizationId,
   onClose,
   onProvisioned,
   onToast,
@@ -29,8 +28,6 @@ export function ProvisionTeamModal({
   open: boolean;
   repositoryId: string;
   repositoryName: string;
-  /** 当前选定工作区。未选定时上游不给入口（见 RepositoriesPage）。 */
-  organizationId: string;
   onClose: () => void;
   onProvisioned: () => void;
   onToast: (text: string) => void;
@@ -45,8 +42,9 @@ export function ProvisionTeamModal({
     try {
       // 幂等键按仓库定，与 main 装机向导同一把（`repository-onboarding:{id}`）：
       // 两个入口互为重放而不是各建一套。
+      // 2026-09-20（迁移 0053）：不再传 organization_id——建团的作用域是**项目**，
+      // 由 onboardRepositoryTeam 内部从壳层选定的项目解析。
       const result = await onboardRepositoryTeam(repositoryId, {
-        organization_id: organizationId,
         worker_count: workerCount,
         idempotency_key: `repository-onboarding:${repositoryId}`,
       });

@@ -135,15 +135,10 @@ export function listHandoffs(
   );
 }
 
-/** 编制组装(POST /api/organizations/{orgId}/assembly):按仓库列表生成
- *  Manager→Leader→Workers 的编制,下发链的组织来源。 */
-export function assembleOrganization(
-  orgId: string,
-  input: { repositories: string[]; workersPerRepo: number; leaderName: string },
-): Promise<Record<string, unknown>> {
-  return apiRequest<Record<string, unknown>>(
-    "POST",
-    `/organizations/${encodeURIComponent(orgId)}/assembly`,
-    input,
-  );
-}
+// 2026-09-20（迁移 0053）删掉了这里的 `assembleOrganization(orgId, …)`：它打的是
+// `POST /api/organizations/{orgId}/assembly`，而**那条后端路由已经不存在**
+// ——组织退出主业务，编制的作用域是项目（`internal/web/pipeline_routes.go` 里那条
+// 注册被整条移除，`internal/web/topology_routes.go` 的
+// `POST /api/projects/{projectId}/topologies` 是唯一入口）。
+// 保留一个指向已删路由的客户端函数，正是当年「仓库页建团」静默打不通的那种漂移；
+// 项目级客户端留在 `api/humanControl.ts` 的 `createTopology`，此处不再另立一份。
