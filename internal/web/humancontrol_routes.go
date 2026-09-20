@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,12 +13,23 @@ import (
 	"github.com/jackc/pgx/v5"
 	"repomesh.local/repomesh/internal/access"
 	"repomesh.local/repomesh/internal/humancontrol"
+	"repomesh.local/repomesh/internal/spec"
 )
 
 // HumanControl carries the ReviewDesk service; the zero value skips every
 // route so unconfigured modes keep working.
 type HumanControl struct {
-	Service *humancontrol.Service
+	// SpecChanges 是 A2 的落点：审核台上批准一条 checkpoint=spec-change 的待审单
+	// 之后，规格升版并触发重规划。Nil = 未接线 —— 那时批准会**如实回 501**，
+	// 而不是"批了却什么都没发生"（这正是要避免的那种假成功）。
+	SpecChanges SpecChangeApplier
+	Service     *humancontrol.Service
+}
+
+// SpecChangeApplier 把"人批准了规格变更"落成两件真事：规格升版 + 登记重排。
+// 组合根实现它（internal/spec + internal/discovery）。
+type SpecChangeApplier interface {
+	ApplyApprovedChange(ctx context.Context, projectID, actor, reviewID, evidenceVersion string) (string, error)
 }
 
 const sseInterval = 2 * time.Second
@@ -119,6 +131,19 @@ func registerHumanControl(mux *http.ServeMux, auth Auth, control HumanControl) {
 		if err != nil {
 			writeHumanControlError(w, err)
 			return
+		}
+		// A2：规格变更请求的**批准**是唯一能改 spec 生效的动作（agent 只能提）。
+		// 批准之后：规格升版 + 登记重排 v2（由组合根的适配器做）。未接线时如实回 501，
+		// 绝不返回 201 让人以为已经生效。
+		if view.Checkpoint == spec.ChangeCheckpoint && body.Decision == "approved" {
+			if control.SpecChanges == nil {
+				writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "SPEC_CHANGE_NOT_WIRED"})
+				return
+			}
+			if _, err := control.SpecChanges.ApplyApprovedChange(r.Context(), r.PathValue("projectId"), actor, view.ReviewRequestID, view.EvidenceVersion); err != nil {
+				writeHumanControlError(w, err)
+				return
+			}
 		}
 		writeJSON(w, http.StatusCreated, view)
 	})

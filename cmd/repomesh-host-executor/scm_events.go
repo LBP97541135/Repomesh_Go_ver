@@ -173,6 +173,12 @@ func (e *executor) recordDeliveryFacts(ctx context.Context, runID, workspace str
 		e.recordIntegrationEvidence(ctx, runID, taskRef, workspace, exitCode)
 		return
 	}
+	// A2：执行中的 agent 只能"提"规格变更请求 —— 产物在这里被**收走**（落库 +
+	// 落审核台），**不应用**。人批之后才升版并触发重规划（web 侧的审核台）。
+	// 只对开发 run 收（测试 run 不产规格变更；集成 run 走上面那条 plan: 分支）。
+	if agentKind != "test_agent" {
+		e.recordSpecChangeRequest(ctx, runID, taskRef, workspace)
+	}
 	changeSetID := e.ensureChangeSet(ctx, taskRef)
 	if changeSetID == "" {
 		return

@@ -37,8 +37,8 @@ import (
 	"repomesh.local/repomesh/internal/models"
 	"repomesh.local/repomesh/internal/observability"
 	"repomesh.local/repomesh/internal/projects"
-	"repomesh.local/repomesh/internal/repositoryteams"
 	"repomesh.local/repomesh/internal/reposcan"
+	"repomesh.local/repomesh/internal/repositoryteams"
 	"repomesh.local/repomesh/internal/scan"
 	"repomesh.local/repomesh/internal/scm"
 	"repomesh.local/repomesh/internal/secrets"
@@ -463,7 +463,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 						fmt.Fprintf(stderr, "escalation: onboarding 触发扫描失败 repo=%s: %v\n", repository, err)
 					}
 				},
-				Window:  30 * time.Second,
+				Window: 30 * time.Second,
 				// 人工打断要等 X 就绪（未扫描则先 onboarding，见 §3 触发特例）。
 				// 等太久会把 HTTP 请求拖死，所以给 60s：超时按 ready=false 如实返回
 				// （决策单已落，用户可在就绪后再次打断判定），不假装成功。
@@ -509,6 +509,13 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		// Reviews：发现链的人工步骤（③ 分档审批 / ⑤ 物化确认）镜像成审核台的待审项，
 		// 否则审核台读的 review_requests 恒空（它此前全仓没有生产者）。
 		discoveryAPI = web.Discovery{Service: discoveryService, Maintenance: discovery.NewMaintenance(pipelinePool), Reviews: humanControlAPI.Service}
+		// A2：审核台上批准一条规格变更请求（checkpoint=spec-change）之后，规格升版
+		// 并登记重排 v2。这是**唯一**能改 spec 生效的动作 —— agent 只能"提"。
+		humanControlAPI.SpecChanges = specChangeApplier{
+			specs:     spec.New(pipelinePool),
+			discovery: discoveryService,
+			pool:      pipelinePool,
+		}
 		// 重排 v2 的**派发意图**入口：人工打断判定"影响当前计划"之后，web 只登记
 		// 意图（发现链第 6 步），派发与收产物由 coordinator 负责（同前五步的形状）。
 		pipelineAPI.ReplanHook = func(ctx context.Context, planID, upstreamNodeID string, affected []string) error {
