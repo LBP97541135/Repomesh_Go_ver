@@ -45,6 +45,18 @@ type SkillGroup = { heading: string; skills: string[] };
 const GROUPS_KEY = "repomesh.skillGroups.v1";
 const UNGROUPED = "未分组";
 
+/** 分组可折叠（与仓库页同款交互）：记住收起状态，只记本机。 */
+const COLLAPSED_KEY = "repomesh.skillGroups.collapsed.v1";
+
+function readCollapsed(): string[] {
+  try {
+    const raw = window.localStorage.getItem(COLLAPSED_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 function loadGroups(): SkillGroup[] {
   try {
     const raw = window.localStorage.getItem(GROUPS_KEY);
@@ -215,6 +227,19 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
   const [groups, setGroups] = useState<SkillGroup[]>(loadGroups);
   const [editing, setEditing] = useState(false);
   const [newHeading, setNewHeading] = useState("");
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(readCollapsed()));
+  const toggle = (heading: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(heading)) next.delete(heading);
+      else next.add(heading);
+      try {
+        window.localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+      } catch {
+        /* 隐私模式等存不上：只丢记忆，不影响本次 */
+      }
+      return next;
+    });
   const persist = (next: SkillGroup[]) => {
     setGroups(next);
     try {
@@ -298,29 +323,35 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
           </div>
           {groupedSkills.map((group, index) => (
             <div key={`${group.heading}-${index}`}>
-              <div className="microlabel flex items-center gap-2 border-b border-line bg-well px-3 py-1.5">
-                {editing && group.heading !== UNGROUPED ? (
-                  <>
-                    <input
-                      className="min-w-0 flex-1 rounded-hard border border-line bg-ink px-1.5 py-[2px] text-[11px] text-tx focus:border-amber focus:outline-none"
-                      value={group.heading}
-                      onChange={(e) =>
-                        persist(groups.map((g) => (g.heading === group.heading ? { ...g, heading: e.target.value } : g)))
-                      }
-                    />
-                    <button
-                      className="text-[11px] text-salmon hover:text-salmon-hi"
-                      title="删掉这个分组（里面的技能会回到「未分组」，不会被删）"
-                      onClick={() => persist(groups.filter((g) => g.heading !== group.heading))}
-                    >
-                      删组
-                    </button>
-                  </>
-                ) : (
-                  group.heading
-                )}
-              </div>
-              {group.items.map((skill) => {
+              {editing && group.heading !== UNGROUPED ? (
+                <div className="microlabel flex w-full items-center gap-2">
+                  <input
+                    className="min-w-0 flex-1 rounded-hard border border-line bg-ink px-1.5 py-[2px] text-[11px] text-tx focus:border-amber focus:outline-none"
+                    value={group.heading}
+                    onChange={(e) =>
+                      persist(groups.map((g) => (g.heading === group.heading ? { ...g, heading: e.target.value } : g)))
+                    }
+                  />
+                  <button
+                    className="text-[11px] text-salmon hover:text-salmon-hi"
+                    title="删掉这个分组（里面的技能会回到「未分组」，不会被删）"
+                    onClick={() => persist(groups.filter((g) => g.heading !== group.heading))}
+                  >
+                    删组
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="microlabel flex w-full items-center gap-2 text-left"
+                  onClick={() => toggle(group.heading)}
+                  aria-expanded={!collapsed.has(group.heading)}
+                >
+                  <span className="text-[10px] text-tx3">{collapsed.has(group.heading) ? "▶" : "▼"}</span>
+                  <span className="flex-1">{group.heading}</span>
+                  <span className="font-mono text-[10px] text-tx3">{group.items.length}</span>
+                </button>
+              )}
+              {(!collapsed.has(group.heading) || editing) && group.items.map((skill) => {
                 const active = selected?.id === skill.id;
                 return (
                   <button
