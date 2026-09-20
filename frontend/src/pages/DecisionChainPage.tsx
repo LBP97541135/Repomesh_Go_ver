@@ -899,6 +899,30 @@ function nodeStatusChip(status: string): string {
   return `${chipCls} ${decisionStatusSkin(status)}`;
 }
 
+/** 目录行：同一条 issue（同 requirement_key）的多条决策合并成一行，
+ *  取版本最新的一条为代表，mergedCount 记下该 issue 共落了几条决策。 */
+interface MergedNodeRow extends GoDecisionNode {
+  mergedCount: number;
+}
+
+function mergeNodesByRequirement(nodes: GoDecisionNode[]): MergedNodeRow[] {
+  const byKey = new Map<string, GoDecisionNode[]>();
+  for (const n of nodes) {
+    const k = n.requirementKey || n.id;
+    const list = byKey.get(k);
+    if (list) list.push(n);
+    else byKey.set(k, [n]);
+  }
+  const rows: MergedNodeRow[] = [];
+  for (const list of byKey.values()) {
+    list.sort((a, b) => b.version - a.version);
+    rows.push({ ...list[0], mergedCount: list.length });
+  }
+  // 目录按时间倒序，与后端返回顺序保持一致（稳定分组后再排）。
+  rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return rows;
+}
+
 export function DecisionChainPage({
   organizationId,
   projectId,
@@ -933,7 +957,7 @@ export function DecisionChainPage({
 
   // 决策单目录（Go I 板块 as-built）：列表 + 过滤 + 行内详情展开。
   const [chainEnabled, setChainEnabled] = useState<boolean | null>(null);
-  const [nodes, setNodes] = useState<GoDecisionNode[] | null>(null);
+  const [nodes, setNodes] = useState<MergedNodeRow[] | null>(null);
   const [nodeListBusy, setNodeListBusy] = useState(false);
   const [nodeListError, setNodeListError] = useState<string | null>(null);
   const [nodeFilters, setNodeFilters] = useState({ keyword: "", step: "", repository: "" });
@@ -951,7 +975,7 @@ export function DecisionChainPage({
         projectId: projectId ?? undefined,
         limit: 100,
       });
-      setNodes(view.nodes);
+      setNodes(mergeNodesByRequirement(view.nodes));
     } catch (err) {
       setNodeListError(errText(err));
     } finally {
@@ -1470,7 +1494,12 @@ export function DecisionChainPage({
                     <div className="max-w-[200px] truncate text-cream">{n.requirementText}</div>
                   </td>
                   <td className="px-4 py-1.5 text-cream whitespace-nowrap">{decisionStepAction(n.step)}</td>
-                  <td className="px-1.5 py-1.5 font-mono text-[11px] text-tx2">v{n.version}</td>
+                  <td className="px-1.5 py-1.5 font-mono text-[11px] text-tx2">
+                    v{n.version}
+                    {n.mergedCount > 1 && (
+                      <span className="ml-1 text-[10px] text-tx3">· {n.mergedCount}条</span>
+                    )}
+                  </td>
                   <td className="px-4 py-1.5 whitespace-nowrap">
                   <span className={nodeStatusChip(n.status)}>{decisionStatusLabel(n.status)}</span>
                   </td>
