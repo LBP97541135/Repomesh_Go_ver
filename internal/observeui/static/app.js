@@ -1,14 +1,15 @@
-import {setupExtended,refreshExtended,renderExtended,integrationForm,gradeTable,sampleButton,traceButtons,regradeButton} from "./extended.js";
+import {setupExtended,refreshExtended,renderExtended,integrationForm,gradeTable,sampleButton,traceButtons,regradeButton,extendedSnapshot} from "./extended.js";
+import {renderTaskMap,setupTaskMap} from "./task-map.js";
 const $ = (q) => document.querySelector(q);
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const json = (v) => `<pre>${esc(JSON.stringify(v,null,2))}</pre>`;
 const short = (v) => esc(String(v ?? '').slice(0,12));
 const labels = {pass:'通过',fail:'失败',unknown:'未知',not_evaluated:'未评估',partial:'部分证据',complete:'完整',error:'错误',baseline:'错误基线',candidate:'修正候选','assembly-mismatch':'装配不匹配'};
-const badge = (v) => `<span class="badge ${['pass','fail','unknown','complete','partial','error'].includes(v)?v:'neutral'}">${esc(labels[v]||v)}</span>`;
+const badge = (v,tone=v) => `<span class="badge ${['pass','fail','unknown','complete','partial','error'].includes(tone)?tone:'neutral'}">${esc(labels[v]||v)}</span>`;
 const date = v => v ? esc(new Date(v).toLocaleString('zh-CN',{hour12:false})) : '—';
 const btn = (action, id='', archive='', text='查看', cls='link') => `<button class="${cls}" data-action="${action}" data-id="${esc(id)}" data-archive="${esc(archive)}">${text}</button>`;
-let catalog = {archives:[]}, settings = {}, view = location.pathname==='/settings' && !location.hash?'settings':location.hash.slice(1)||'overview', busy=false, filter='', traceKind='events', detailToken=0;
-const names = {overview:'概览',traces:'Trace 与事件',trials:'评测与验收',datasets:'数据集',settings:'设置',metrics:'指标与计量',platform:'本地聚类与归因',evaluations:'Rubric 评分',samples:'样本与复核'};
+let catalog = {archives:[]}, settings = {}, view = location.pathname==='/settings' && !location.hash?'settings':location.hash.slice(1)||'map', busy=false, filter='', traceKind='events', detailToken=0;
+const names = {map:'任务地图',overview:'数据概览',traces:'Trace 与事件',trials:'评测与验收',datasets:'数据集',settings:'设置',metrics:'指标与计量',platform:'本地聚类与归因',evaluations:'Rubric 评分',samples:'样本与复核'};
 function all(kind) {return catalog.archives.flatMap(a => (a[kind]||[]).map(x=>({...x,archive:a.id,archive_name:a.name})));}
 function notice(message,error=false) {$('#notice').innerHTML=message?`<div class="notice ${error?'error':''}">${esc(message)}</div>`:'';}
 async function api(path,body,method='POST') {
@@ -37,7 +38,9 @@ function render() {
   const counts={pass:0,fail:0,unknown:0};rows.forEach(r=>counts[r.verdict]++);
   const faults=catalog.archives.filter(a=>a.error).map(a=>`<div class="notice error">${esc(a.name)}：${esc(a.error)}。此来源未计入结果。</div>`).join('');
   let html='';
-  if(view==='overview') {
+  if(view==='map') {
+    html=renderTaskMap(catalog,extendedSnapshot(),{esc,date,badge,empty,json});
+  } else if(view==='overview') {
     html=`<section class="hero"><div><h2>观测、证据和验收，都在本机</h2><p>从检查结果追溯到实际请求、固定版本与输入证据。Jev Rubric 评分单独记录，业务验收保留原始结论。</p></div>${btn('run','suite','','运行本地验收','primary')}</section>
     <div class="cards"><div class="card"><label>本地事件</label><strong>${events.length}</strong><small>有来源的业务与验收事实</small></div><div class="card"><label>接收的 Span</label><strong>${spans.length}</strong><small>OTLP 落盘记录</small></div><div class="card"><label>验收运行</label><strong>${rows.length}</strong><small>${counts.pass} 通过 · ${counts.fail} 失败 · ${counts.unknown} 未知</small></div><div class="card"><label>AI 评审</label><strong>${grades.length}</strong><small>${settings.model_configured?esc(settings.model):'尚未配置模型'}</small></div></div>
     <div class="columns"><section class="panel"><h2>验收分布</h2>${['pass','fail','unknown'].map((k,i)=>`<div class="stats-row"><span>${badge(k)}</span><progress class="${['','failure','uncertain'][i]}" max="${Math.max(rows.length,1)}" value="${counts[k]}"></progress><strong>${counts[k]}</strong></div>`).join('')}<p class="help">统计单位为独立 Trial。固定产物结果不代表 Agent 的交付成功率。</p></section><section class="panel"><h2>采集状态</h2><div class="source"><span>本地证据与规则验收</span><span class="badge pass">已启用</span></div><div class="source"><span>OTLP HTTP 接收</span><span class="badge pass">已启用</span></div><div class="source"><span>Rubric 评分</span><span class="badge ${settings.model_configured?'pass':'neutral'}">${settings.model_configured?'已配置':'未配置'}</span></div><div class="source"><span>DSH 模型 / 工具运行链路</span><span class="badge unknown">未接入</span></div></section></div>
@@ -121,6 +124,7 @@ document.addEventListener('submit',async e=>{
 $('#close-detail').onclick=()=>{detailToken++;$('#detail').close();};
 $('#detail').addEventListener('cancel',()=>detailToken++);
 $('#refresh').onclick=()=>void refresh();
-window.addEventListener('hashchange',()=>{view=location.hash.slice(1)||'overview';filter='';render();});
+window.addEventListener('hashchange',()=>{view=location.hash.slice(1)||'map';filter='';render();});
 setupExtended({api,show,notice,refresh,esc,json});
+setupTaskMap({render,show,notice,refresh,esc,date,badge,empty,json});
 void refresh();

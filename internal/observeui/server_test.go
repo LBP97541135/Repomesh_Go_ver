@@ -199,6 +199,10 @@ func TestLoopbackAndBrowserBoundaries(t *testing.T) {
 	if status != 200 || !bytes.Contains(b, []byte("/app.js")) {
 		t.Fatal("old settings route unavailable")
 	}
+	status, b = request(t, h, "GET", "/task-map.js", nil)
+	if status != 200 || !bytes.Contains(b, []byte("renderTaskMap")) {
+		t.Fatal("task map application unavailable")
+	}
 	for _, path := range []string{"/", "/settings", "/api/catalog"} {
 		r, _ := http.NewRequest("GET", h.URL+path, nil)
 		r.Header.Set("Sec-Fetch-Site", "cross-site")

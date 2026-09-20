@@ -88,6 +88,8 @@ GitHub App 凭据（仓库读写）。
 go run ./cmd/repomesh-observe serve --archive /absolute/private/observation/archive --addr 127.0.0.1:19091
 ```
 
+工作台默认进入「任务地图」：选择一次 Trial 或 OTLP Trace 后，先看任务故事线、真实性能和证据链，再逐层打开完整 Span、事件、Links、验收检查、模型评分与原始 JSON。原有九个完整数据页仍保留在左侧导航。
+
 在主控制台「设置 → 模型与 API」直接输入 Jev／DeepSeek 的模型与 API Key，保存后可测试连接、读取可用模型；也可使用独立工作台的设置页。凭据写入工作台实际使用的私有配置，页面不回读明文。
 Web 默认连接 `http://127.0.0.1:18090`；若工作台按上例运行在 19091，在启动 Web 前设置 `REPOMESH_OBSERVE_WORKBENCH_URL=http://127.0.0.1:19091`。维护本机共享观测配置需要管理员会话，平台其他依赖未就绪时模型设置仍可访问。
 观测、评估调度和数据集留在本机，无需云空间。

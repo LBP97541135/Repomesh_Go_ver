@@ -1,5 +1,6 @@
 let ui;
 let data={status:{config:{mode:'local',links:{}}},metrics:{groups:{}},calls:{calls:[]},evaluations:{judgments:[],platform_results:[]},samples:{samples:[],annotations:[]},assistant:{},analyses:{analyses:[]},online:{policy:{}},faults:[]};
+export function extendedSnapshot(){return data;}
 export async function refreshExtended(api){
   const endpoints={status:'/api/status',metrics:'/api/metrics',calls:'/api/calls',evaluations:'/api/evaluations',samples:'/api/samples',assistant:'/api/assistant',analyses:'/api/analyses',online:'/api/evaluation-policy'};
   data.faults=[];

@@ -219,7 +219,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.testModel(w, r)
 	case r.Method == "POST" && r.URL.Path == "/api/judge":
 		s.judge(w, r)
-	case (r.Method == "GET" || r.Method == "HEAD") && (r.URL.Path == "/" || r.URL.Path == "/settings" || r.URL.Path == "/app.js" || r.URL.Path == "/extended.js" || r.URL.Path == "/style.css"):
+	case (r.Method == "GET" || r.Method == "HEAD") && (r.URL.Path == "/" || r.URL.Path == "/settings" || r.URL.Path == "/app.js" || r.URL.Path == "/extended.js" || r.URL.Path == "/task-map.js" || r.URL.Path == "/style.css"):
 		name := r.URL.Path
 		if name == "/" || name == "/settings" {
 			name = "/index.html"
