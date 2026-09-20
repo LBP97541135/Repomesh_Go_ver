@@ -15,10 +15,25 @@ import (
 
 // Service reads the console directory.
 type Service struct {
+	// agentteams 是 AgentTeams Controller 的**只读健康探针**（组合根注入）。
+	// nil = 未接线：checks["agentteams"] 如实为 false 并写明"未接线"，
+	// 而不是把"本部署明明跑着 Controller"写成 false（那才是编）。
+	agentteams AgentTeamsProbe
 	pool *pgxpool.Pool
 }
 
 func New(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
+
+// AgentTeamsProbe 是 Controller 健康探针（组合根接 agentteams.Client）。
+type AgentTeamsProbe interface {
+	ControllerHealth(ctx context.Context) ([]byte, int, error)
+}
+
+// WithAgentTeams 注入 Controller 探针（组合根）。
+func (s *Service) WithAgentTeams(probe AgentTeamsProbe) *Service {
+	s.agentteams = probe
+	return s
+}
 
 // ---- organizations ----
 
@@ -127,10 +142,10 @@ func (s *Service) SetupStatus(ctx context.Context) (SetupStatusView, error) {
 	view.Checks["administrator"] = admins > 0
 	view.Checks["repositories"] = repos > 0
 	view.Checks["agent_directory"] = agents > 0
-	// 这两项依赖外部控制面（AgentTeams Controller / Matrix 消息面），当前部署未接，
-	// 如实为 false；它们不参与 ready 判定。
-	view.Checks["agentteams"] = false
-	view.Checks["matrix"] = false
+	// 这两项此前**写死成 false**（注释说"当前部署未接"）—— 而 AgentTeams Controller
+	// 现在就跑在这台机器上、宿主机实测可达（HTTP 200）。所以改成**真探**：
+	// 探针结果落 checks，探测过程与上游摘要落 dependencies（界面能看到为什么）。
+	view.Checks["matrix"] = matrixConfigured(&view)
 	view.Checks["internal_auth"] = appCreds > 0
 	view.ReadyForProjectCreation = view.Checks["database"] && view.Checks["github_app"] &&
 		view.Checks["administrator"] && view.Checks["repositories"]

@@ -529,7 +529,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		pipelineAPI.ReplanHook = func(ctx context.Context, planID, upstreamNodeID string, affected []string) error {
 			return discoveryService.EnqueueReplan(ctx, planID, upstreamNodeID, affected)
 		}
-		consoleAPI = web.Console{Service: console.New(pipelinePool)}
+		// WithAgentTeams：设置页的"AgentTeams 选检"改为**真探** Controller（此前写死 false）。
+		consoleAPI = web.Console{Service: console.New(pipelinePool).WithAgentTeams(atClient)}
 	}
 	// 仓库作用域的团队管理（2026-09-20 并入）：只有拿到库池才建服务；
 	// 服务缺席时路由如实回 503 service_not_configured，不假装能用。
