@@ -17,7 +17,14 @@ export function previewModelTest(snapshot: ModelSnapshot): Promise<unknown> {
 
 /** POST /api/model-tests — 提交测试（202 + 测试对象，用 id 轮询）。 */
 export function submitModelTest(snapshot: ModelSnapshot, idempotencyKey: string): Promise<unknown> {
-  return apiRequest<unknown>("POST", "/model-tests", snapshot, KEY_HEADER(idempotencyKey));
+  // 服务端把 `confirmPotentialCharge` 当必填（缺了 422）；用户点"测试"就是确认，
+  // 这里统一补上，避免**每个中转站都 422**（2026-09-20 线上实测）。
+  return apiRequest<unknown>(
+    "POST",
+    "/model-tests",
+    { ...snapshot, confirmPotentialCharge: true },
+    KEY_HEADER(idempotencyKey),
+  );
 }
 
 /** GET /api/model-tests/{testId} — 测试结果/状态。 */
