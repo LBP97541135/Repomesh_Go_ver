@@ -635,7 +635,10 @@ export function WorkbenchPage({
   // null = 该 issue 还没有可进的房：回落到上面的会话时间线，不显示成"房间空"。
   const [roomMessages, setRoomMessages] = useState<ConversationMessage[] | null>(null);
   useEffect(() => {
-    if (resolveDataSourceMode() === "replay" || !issueId) {
+    // foreignIssue：这个 issue 属于别的项目（详情已 404），房间轮询**必须一起停** ——
+    // 2026-09-21 线上实测：只停了主轮询时，这条每 5 秒还在打
+    // `issues: RESOURCE_NOT_FOUND`，日志里依旧一条一条往下刷。
+    if (resolveDataSourceMode() === "replay" || !issueId || foreignIssue) {
       setRoomMessages(null);
       return;
     }
@@ -654,7 +657,7 @@ export function WorkbenchPage({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [projectId, issueId, reload]);
+  }, [projectId, issueId, reload, foreignIssue]);
 
 
   const clarifyPending =
