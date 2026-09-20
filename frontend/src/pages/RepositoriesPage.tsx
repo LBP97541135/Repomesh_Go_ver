@@ -9,26 +9,40 @@ import { AppInstallGuide } from "../components/AppInstallGuide";
 
 import { ErrorPanel, LoadingLine } from "../components/StatusBlocks";
 
-/** 仓库网格页(按仓库组织分组,2026-09-17 用户裁定;2026-09-20 从主线并入)。
+/** 项目仓库页 —— **本项目**的仓库（2026-09-20 改版）。
  *
- *  分组键 = 仓库 URL 的 owner 段(github.com/{org}/{repo});解析不出的
- *  (单仓直连等)归「独立仓库」组置底。纯展示层分组,后端零改动。
- *  默认全部展开;用户收起的组记 localStorage。
+ *  改版前这一页的身份是「账号仓库目录」：主列表打 `GET /api/scan/repositories`，
+ *  后端按调用者的**组织**裁剪（`internal/scan/http.go` catalogForRequest），而组织
+ *  与账号 1:1（迁移 0037）—— 于是它列出的是**这个账号下所有项目**扫到的全部仓库。
+ *  用户实测：新建项目、一个仓都还没扫，进这一页却看到了**上一个项目**的仓库，
+ *  以为数据串了。其实那些仓并没有接入新项目，但它们**长得就像本项目的仓**：大标题
+ *  写「仓库」、旁边的计数是目录总数。这是页面定位错了，不是隔离漏了。
  *
- *  本线保留项:**App 工作授权状态**(「就绪 / 不足」)——项目成员读面
- *  (`allProjectRepositories`) 按仓库 id 并入卡片;目录读面不返回它。
+ *  现在两段分明：
+ *    ① **本项目已接入的仓库** —— 主体。以项目读面
+ *       `GET /api/projects/{id}/repositories`（`WHERE pr.project_id=$1`，隔离正确）
+ *       为准；卡片详情（语言 / 画像 / 扫描状态）用账号目录的同名行补全。目录里
+ *       查不到那一行时**退化显示而不是隐藏** —— 那是两个读面，一个缺行不该让另一个
+ *       的事实凭空消失。
+ *    ② **账号目录里还能接入的仓库** —— 次级，默认折叠。承载原有的「接入本项目」
+ *       「全部接入本项目」「扫描此组织」入口。这一段必须留着：把已扫过的仓接进
+ *       本项目是**另一件事**（`project_repositories` 是另一张表），去掉它就再也没有
+ *       入口把别的项目扫过的仓接进来了。
  *
- *  2026-09-20 补上「接入本项目」(用户实测:新建项目后建 issue 报
- *  NO_AVAILABLE_REPOSITORIES)。**目录 ≠ 项目**:「+ 添加仓库」只把仓登记进组织
- *  目录并扫描,项目关联是 `project_repositories` 另一张表;而挂仓此前只有建项目
- *  那一刻会做(`createProject` 带 repositoryIds,而建项页传的是空数组),于是
- *  新建项目之后再无入口——后端 `repositoryIdsToAdd` 一直能加,前端只是没人调。
- *  现在三条路都补上:
- *   ① 卡片上给未接入的仓一个「接入本项目」动作(解已有仓的封);
- *   ② 添加/扫描完成后,把这次**新登记**的仓自动接入(用户要的"添加仓库就该挂上");
- *   ③ 组头上给一个「全部接入本项目 (N)」——一个组织几十个仓时,不该一个个点。
- *  接入只要求发起人的参与权(`CheckProjectObservation` 不看 App)——App 是
- *  建 issue 时"这个仓可不可选"那道闸,两件事分开。 */
+ *  两个 id 空间仍按**全名**（`owner/name`）对齐：目录 id 是 32 位随机 hex、
+ *  项目 id 是 `repo_<GitHub 数字 id>`，比 id 永远不相等。
+ *
+ *  分组键 = 仓库 URL 的 owner 段；解析不出的归「独立仓库」组置底。纯展示层分组。
+ *  默认全部展开；用户收起的组记 localStorage。
+ *
+ *  本线保留项：**App 工作授权状态**（「就绪 / 不足」）——项目成员读面
+ *  (`allProjectRepositories`) 按仓库全名并入卡片；目录读面不返回它。 */
+
+/** 卡片行：账号目录的卡片，外加"目录里没有这一行"的退化标记（见 fallbackCard）。 */
+type RepoRow = RepositoryCard & {
+  /** 项目读面有、账号目录里没有这一行（拿不到语言/画像/扫描状态）。 */
+  unscanned?: boolean;
+};
 
 /** 组织 owner 段:https(s)://host/{org}/{repo} 或 git@host:{org}/{repo}。 */
 function orgOf(url: string): string | null {
@@ -88,7 +102,7 @@ function RepositoryCardView({
   onAttach,
   onManageTeam,
 }: {
-  repo: RepositoryCard;
+  repo: RepoRow;
   appStatus?: string;
   /** 这个仓在不在**当前项目**里（`project_repositories`）。undefined = 读面还没到。 */
   inProject?: boolean;
@@ -138,20 +152,30 @@ function RepositoryCardView({
           </span>
         )}
       </div>
-      <a
-        className="mt-0.5 block font-mono text-[10.5px] text-tx3 hover:text-tx2"
-        href={repo.url}
-        target="_blank"
-        rel="noreferrer"
-      >
-        {repo.url}
-      </a>
+      {repo.url && (
+        <a
+          className="mt-0.5 block font-mono text-[10.5px] text-tx3 hover:text-tx2"
+          href={repo.url}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {repo.url}
+        </a>
+      )}
       {repo.description && <p className="mt-1 text-[11.5px] text-tx2">{repo.description}</p>}
+      {/* 退化卡片（见 fallbackCard）：如实说明详情为什么是空的，不装作没这回事 */}
+      {repo.unscanned && (
+        <p className="mt-1 text-[11.5px] text-tx3">
+          账号目录里没有这个仓库的扫描记录，语言 / 画像等信息暂时取不到。
+        </p>
+      )}
       <div className="mt-1 flex items-center gap-3 text-[11px] text-tx3">
-        <span>
-          {repo.profiledAt ? `画像 ${dayLabel(repo.profiledAt)}` : "尚未画像"}
-          {repo.fingerprint ? ` · 指纹 ${repo.fingerprint.slice(0, 8)}` : ""}
-        </span>
+        {!repo.unscanned && (
+          <span>
+            {repo.profiledAt ? `画像 ${dayLabel(repo.profiledAt)}` : "尚未画像"}
+            {repo.fingerprint ? ` · 指纹 ${repo.fingerprint.slice(0, 8)}` : ""}
+          </span>
+        )}
         {inProject === false && onAttach && (
           <button
             type="button"
@@ -163,8 +187,9 @@ function RepositoryCardView({
             {attachBusy ? "接入中…" : "接入本项目"}
           </button>
         )}
-        {/* 团队管理入口（管理员可见）：仓库作用域的长生命周期编制，不在全局入口 */}
-        {onManageTeam && (
+        {/* 团队管理入口（管理员可见）：仓库作用域的长生命周期编制，不在全局入口。
+            退化卡片没有目录 id，团队读面认的是扫描侧 id，所以这里不摆这一枚。 */}
+        {onManageTeam && repo.id !== "" && (
           <button
             type="button"
             className={`${inProject === false && onAttach ? "" : "ml-auto"} flex flex-none items-center gap-1.5 rounded-hard border border-line px-2 py-[2px] text-[11px] text-tx2 hover:border-amber hover:text-amber-hi`}
@@ -186,6 +211,9 @@ function RepositoryCardView({
 }
 
 const COLLAPSED_KEY = "repomesh.repos.collapsedOrgs";
+/** 「账号目录里可接入的仓库」那一段的展开状态：**用户显式开合过才记**，
+ *  没记过时按数据决定（本项目一个仓都没有 → 默认展开，因为那时这一段就是出路）。 */
+const CATALOG_OPEN_KEY = "repomesh.repos.catalogOpen";
 
 /** 目录卡片的**全名**（`owner/name`）。
  *
@@ -197,6 +225,26 @@ function fullNameOf(repo: { name: string; url: string }): string {
   return org ? `${org}/${repo.name}` : repo.name;
 }
 
+/** 项目读面有、账号目录里没有这一行时的兜底卡片。
+ *
+ *  两个读面各自成立：目录缺一行，不该让**本项目的仓**从列表里消失（那才是真的
+ *  "数据丢了"）。地址按 GitHub 规范拼 —— 后端 `ResolveSelectedRepositories` 同样把
+ *  host 固定为 github.com，两者同源。详情类字段留空并标记 `unscanned`，卡片如实说明。 */
+function fallbackCard(fullName: string): RepoRow {
+  const slash = fullName.indexOf("/");
+  const owner = slash > 0 ? fullName.slice(0, slash) : "";
+  const name = slash > 0 ? fullName.slice(slash + 1) : fullName;
+  return {
+    id: "",
+    name: name || fullName,
+    url: owner && name ? `https://github.com/${owner}/${name}` : "",
+    description: "",
+    topics: [],
+    languages: [],
+    unscanned: true,
+  };
+}
+
 function readCollapsed(): string[] {
   try {
     const raw = window.localStorage.getItem(COLLAPSED_KEY);
@@ -204,6 +252,43 @@ function readCollapsed(): string[] {
   } catch {
     return [];
   }
+}
+
+function readCatalogOpen(): boolean | null {
+  try {
+    const raw = window.localStorage.getItem(CATALOG_OPEN_KEY);
+    return raw === null ? null : raw === "1";
+  } catch {
+    return null;
+  }
+}
+
+/** 分组:按 URL owner 段;解析不出归「独立仓库」置底。组内按名称排序。 */
+function groupByOrg(cards: RepoRow[]) {
+  const map = new Map<string, RepoRow[]>();
+  const solo: RepoRow[] = [];
+  cards.forEach((r) => {
+    const org = r.url ? orgOf(r.url) : null;
+    if (org) map.set(org, [...(map.get(org) ?? []), r]);
+    else solo.push(r);
+  });
+  const list = [...map.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([org, rs]) => ({
+      org,
+      repos: [...rs].sort((a, b) => a.name.localeCompare(b.name)),
+      host: orgScanUrl(rs[0]?.url ?? "", org),
+      solo: false,
+    }));
+  if (solo.length) {
+    list.push({
+      org: "独立仓库",
+      repos: [...solo].sort((a, b) => a.name.localeCompare(b.name)),
+      host: null,
+      solo: true,
+    });
+  }
+  return list;
 }
 
 /** 上一次读到的「本项目已接入哪些仓」快照，按项目驻留内存。
@@ -217,7 +302,10 @@ function readCollapsed(): string[] {
  *  所以把上一次的结果留着，进页面**先按上次的样子画**，后台再刷新，差异才看得出来。
  *  **只驻内存、不落盘**：刷新浏览器就重来一次，不会让人看到上一个会话的陈旧事实。
  *  （拿它做接入判断的 `attachedNamesRef` 也一起种进去，否则批量接入会把已接入的仓
- *  当成待接入再发一遍。） */
+ *  当成待接入再发一遍。）
+ *
+ *  改版后这份快照还多担一层：主体列表本来就是"本项目有哪些仓"，所以它一就位，
+ *  页面画的就是项目级事实（此前它只用来打徽标，列表仍是账号目录）。 */
 const attachedSnapshot = new Map<
   string,
   { names: Set<string>; appStatus: Record<string, string> }
@@ -239,12 +327,14 @@ export function RepositoriesPage({
 }) {
   void projectName;
   void onNewIssue;
+  /** 账号目录（**不是**本项目列表，只用来补全卡片详情与提供"可接入"候选）。 */
   const [repos, setRepos] = useState<RepositoryCard[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
   const [presetOrgUrl, setPresetOrgUrl] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(readCollapsed()));
+  const [catalogOpen, setCatalogOpen] = useState<boolean | null>(readCatalogOpen);
   /** 仓库 `owner/name` → App 工作授权状态（项目成员读面；目录读面不返回它）。
    *  **按名字对齐，不按 id**：目录的 id 是 32 位随机 hex、项目的 id 是
    *  `repo_<GitHub 数字 id>`，两个 id 空间，直接比永远不相等（此前就是这么错的，
@@ -252,12 +342,13 @@ export function RepositoriesPage({
   const [appStatusByName, setAppStatusByName] = useState<Record<string, string>>(
     () => attachedSnapshot.get(projectId)?.appStatus ?? {},
   );
-  /** 本项目已接入的仓库 `owner/name`。null = 还没读到——不显示接入状态、也不拿它判断。
+  /** 本项目已接入的仓库 `owner/name`。null = 还没读到——那时**主体列表不出结论**
+   *  （不显示成"本项目没有仓库"，那是把"没读到"冒充成一个确定的事实）。
    *  初值取上一次的快照：进页面先按上次的样子画，后台再刷新（见 attachedSnapshot）。 */
   const [attachedNames, setAttachedNames] = useState<Set<string> | null>(
     () => attachedSnapshot.get(projectId)?.names ?? null,
   );
-  /** 上面这个读面失败了没有。失败时卡片说"未取到"而不是一直挂"读取中"。 */
+  /** 上面这个读面失败了没有。失败时页面说"没取到"而不是一直挂"读取中"。 */
   const [attachReadFailed, setAttachReadFailed] = useState(false);
   /** 手工接入的结果，就地显示在那张卡片上（不是只写页面顶部横幅）。 */
   const [attachResult, setAttachResult] = useState<{ name: string; ok: boolean; text: string } | null>(null);
@@ -391,7 +482,7 @@ export function RepositoriesPage({
       })
       .catch(() => {
         /* 取不到就不显示接入状态——不拿失败当「不足」。已经种下上一次快照的，
-           继续按上次的样子显示；从没读到过的，由卡片说"未取到"。 */
+           继续按上次的样子显示；从没读到过的，由页面说"没取到"。 */
         if (!cancelled) setAttachReadFailed(true);
       });
     return () => {
@@ -399,29 +490,43 @@ export function RepositoriesPage({
     };
   }, [projectId, reload]);
 
-  /** 分组:按 URL owner 段;解析不出归「独立仓库」置底。组内按名称排序。 */
-  const groups = useMemo(() => {
-    if (!repos) return [];
-    const map = new Map<string, RepositoryCard[]>();
-    const solo: RepositoryCard[] = [];
-    repos.forEach((r) => {
-      const org = orgOf(r.url);
-      if (org) map.set(org, [...(map.get(org) ?? []), r]);
-      else solo.push(r);
-    });
-    const list = [...map.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([org, rs]) => ({
-        org,
-        repos: [...rs].sort((a, b) => a.name.localeCompare(b.name)),
-        host: orgScanUrl(rs[0]?.url ?? "", org),
-        solo: false,
-      }));
-    if (solo.length) {
-      list.push({ org: "独立仓库", repos: solo, host: null, solo: true });
-    }
-    return list;
+  /** 目录卡片按全名索引 —— 用来给项目读面的行补上详情。 */
+  const catalogByName = useMemo(() => {
+    const map = new Map<string, RepositoryCard>();
+    (repos ?? []).forEach((card) => map.set(fullNameOf(card), card));
+    return map;
   }, [repos]);
+
+  /** ① 主体：**本项目的仓库**。以项目读面为准；目录有同名行就用它的详情，没有就退化。 */
+  const projectRows = useMemo<RepoRow[] | null>(() => {
+    if (attachedNames === null) return null;
+    return [...attachedNames]
+      .sort((a, b) => a.localeCompare(b))
+      .map((name) => catalogByName.get(name) ?? fallbackCard(name));
+  }, [attachedNames, catalogByName]);
+
+  /** ② 次级：账号目录里**还没接入本项目**的仓 —— 只剩它们才是"可接入候选"。 */
+  const attachableCards = useMemo<RepoRow[] | null>(() => {
+    if (repos === null || attachedNames === null) return null;
+    return repos.filter((card) => !attachedNames.has(fullNameOf(card)));
+  }, [repos, attachedNames]);
+
+  const projectGroups = useMemo(() => groupByOrg(projectRows ?? []), [projectRows]);
+  const catalogGroups = useMemo(() => groupByOrg(attachableCards ?? []), [attachableCards]);
+
+  /** 没记过开合状态时：本项目一个仓都没有 → 展开（那时这一段就是唯一出路）。 */
+  const catalogOpenEffective =
+    catalogOpen ?? (attachedNames !== null && attachedNames.size === 0);
+
+  const toggleCatalog = () => {
+    const next = !catalogOpenEffective;
+    setCatalogOpen(next);
+    try {
+      window.localStorage.setItem(CATALOG_OPEN_KEY, next ? "1" : "0");
+    } catch {
+      /* 隐私模式等存储不可用:只丢记忆,不影响本次展开 */
+    }
+  };
 
   const toggle = (org: string) => {
     setCollapsed((prev) => {
@@ -447,7 +552,11 @@ export function RepositoriesPage({
     <div className="max-w-[860px]">
       <div className="flex items-baseline gap-3 border-b border-line pb-3">
         <h1 className="text-[16px] font-semibold text-cream">仓库</h1>
-        {repos && <span className="text-[11.5px] text-tx2">{repos.length} 个</span>}
+        {/* 计数口径 = **本项目已接入的仓**。改版前这里是账号目录总数，正是"看起来像
+            本项目的列表"的根源；口径写在标签里，读的人不必去猜。 */}
+        {attachedNames && (
+          <span className="text-[11.5px] text-tx2">本项目 {attachedNames.size} 个</span>
+        )}
         <button
           className="ml-auto rounded-hard border border-line px-2.5 py-[3px] text-[11.5px] text-tx2 hover:border-amber hover:text-amber-hi"
           onClick={() => setAddOpen((v) => !v)}
@@ -471,13 +580,6 @@ export function RepositoriesPage({
           的结论，人看到它还得自己去找怎么补——这里给出账号级的原因和直链（安装页/安装
           设置页由后端算好），点一下就能补上。没有缺口时组件自己返回 null。 */}
       <AppInstallGuide variant="inline" />
-      {/* 项目一个仓都没接入时把话说死：建 issue 会直接 0 个可选，别让人自己去猜 */}
-      {attachedNames !== null && attachedNames.size === 0 && repos !== null && repos.length > 0 && (
-        <p className="mt-2 rounded-hard border border-amber/40 bg-amber-well px-3 py-2 text-[11.5px] text-amber">
-          本项目还没有接入任何仓库——建 issue 时会一个都选不出来。在卡片上点「接入本项目」，
-          或点组织组头的「全部接入本项目」一次补齐。
-        </p>
-      )}
 
       {/* 卡片在收起时也保持挂载:轮询活在它内部,收起卡片不该中断一次在跑的扫描 */}
       <AddRepositoryCard
@@ -492,26 +594,34 @@ export function RepositoriesPage({
         onScanSettled={refresh}
       />
 
+      {/* ───────────────── ① 本项目的仓库（主体） ───────────────── */}
       {error ? (
-        <ErrorPanel title="仓库目录加载失败" message={error} onRetry={() => setReload((n) => n + 1)} />
-      ) : repos === null ? (
-        <LoadingLine />
-      ) : repos.length === 0 ? (
-        <div className="py-8 text-center text-[12.5px] text-tx3">
-          目录里还没有仓库——先添加并完成扫描
-        </div>
+        <ErrorPanel title="仓库列表加载失败" message={error} onRetry={refresh} />
+      ) : attachedNames === null ? (
+        /* 项目读面还没回来 / 失败。**这里绝不能说"本项目没有仓库"** —— 那是把
+           "还没读到"冒充成一个确定的否定结论（App 状态徽标那一条同样立过这个规矩）。 */
+        attachReadFailed ? (
+          <ErrorPanel
+            title="没能读到本项目的仓库清单"
+            message="这不等于本项目没有仓库——服务端或网络问题，重试即可。"
+            onRetry={refresh}
+          />
+        ) : (
+          <LoadingLine />
+        )
+      ) : projectRows === null || projectRows.length === 0 ? (
+        <p className="mt-2 rounded-hard border border-amber/40 bg-amber-well px-3 py-2 text-[11.5px] text-amber">
+          本项目还没有接入任何仓库——建 issue 时会一个都选不出来。
+          {attachableCards !== null && attachableCards.length > 0
+            ? "在下面「账号目录里可接入的仓库」里点「接入本项目」，或点组织组头的「全部接入本项目」一次补齐。"
+            : "先点「+ 添加仓库」扫一个组织或仓库，扫到的仓会自动接入本项目。"}
+        </p>
       ) : (
         <div className="mt-4 space-y-3">
-          {groups.map(({ org, repos: rs, host, solo }) => {
+          {projectGroups.map(({ org, repos: rs }) => {
             const isCollapsed = collapsed.has(org);
-            // 这一组里还没接入本项目的仓——批量接入就是一次性把它们全加上。
-            // `attachedNames === null`（项目读面还没回来）时留空：不知道就别摆按钮。
-            const pending = attachedNames === null ? [] : rs.filter((r) => !attachedNames.has(fullNameOf(r)));
-            const busy = orgBusy === org;
             return (
               <section key={org}>
-                {/* 组头原先整体是一个 button，动作只能塞成 span。现在拆开：折叠是 button，
-                    动作各自是真的 button（键盘可达），批量接入才放得进来。 */}
                 <div className="flex w-full flex-wrap items-center gap-2 rounded-hard px-1 py-1.5">
                   <button
                     type="button"
@@ -523,57 +633,20 @@ export function RepositoriesPage({
                     <span className="text-[13px] font-semibold text-cream">{org}</span>
                     <span className="text-[11px] text-tx3">
                       {rs.length} 个仓库
-                      {pending.length > 0 && ` · 未接入 ${pending.length}`}
                       {rs.some((r) => r.scanStatus === "failed") && " · 有失败"}
                     </span>
                   </button>
-                  {pending.length > 0 && (
-                    <button
-                      type="button"
-                      className="flex flex-none items-center gap-1.5 rounded-hard border border-line px-2 py-[2px] text-[11px] text-tx2 hover:border-amber hover:text-amber-hi disabled:opacity-50"
-                      onClick={() =>
-                        void attachRepos(
-                          pending.map((r) => ({ url: r.url, name: fullNameOf(r) })),
-                          "org",
-                          org,
-                        )
-                      }
-                      disabled={busy}
-                      title={`把这一组里还没接入的 ${pending.length} 个仓库一次性接入本项目`}
-                    >
-                      {busy ? "接入中…" : `全部接入本项目 (${pending.length})`}
-                    </button>
-                  )}
-                  {!solo && host && (
-                    <button
-                      type="button"
-                      className="flex-none text-[11px] text-tx3 underline-offset-2 hover:text-amber hover:underline"
-                      onClick={() => scanThisOrg(org, host)}
-                    >
-                      扫描此组织
-                    </button>
-                  )}
                 </div>
-                {orgResult?.org === org && (
-                  <p
-                    role="status"
-                    className={`px-1 pb-0.5 text-[11px] ${orgResult.ok ? "text-olive" : "text-salmon"}`}
-                  >
-                    {orgResult.text}
-                  </p>
-                )}
                 {!isCollapsed && (
                   <div className="mt-1.5 grid gap-2 pl-4">
                     {rs.map((repo) => (
                       <RepositoryCardView
-                        key={repo.id}
+                        key={fullNameOf(repo)}
                         repo={repo}
                         appStatus={appStatusByName[fullNameOf(repo)]}
-                        inProject={attachedNames === null ? undefined : attachedNames.has(fullNameOf(repo))}
+                        inProject={true}
                         attachReadFailed={attachReadFailed}
-                        attachBusy={attachBusy === fullNameOf(repo)}
                         attachResult={attachResult?.name === fullNameOf(repo) ? attachResult : null}
-                        onAttach={() => void attachRepos([{ url: repo.url, name: fullNameOf(repo) }], "manual")}
                         onManageTeam={isAdmin ? onManageTeam : undefined}
                       />
                     ))}
@@ -583,6 +656,120 @@ export function RepositoriesPage({
             );
           })}
         </div>
+      )}
+
+      {/* ───────────────── ② 账号目录里可接入的仓库（次级，默认折叠） ───────────────── */}
+      {attachedNames !== null && (
+        <section className="mt-8 border-t border-line pt-3">
+          <button
+            type="button"
+            className="flex w-full flex-wrap items-center gap-2 rounded-hard px-1 py-1.5 text-left hover:text-tx"
+            onClick={toggleCatalog}
+            aria-expanded={catalogOpenEffective}
+          >
+            <span className="text-[10px] text-tx3">{catalogOpenEffective ? "▼" : "▶"}</span>
+            <span className="text-[13px] font-semibold text-cream">账号目录里可接入的仓库</span>
+            <span className="text-[11px] text-tx3">
+              {attachableCards === null ? "读取中…" : `${attachableCards.length} 个未接入`}
+            </span>
+            <span className="ml-auto text-[11px] text-tx3">
+              {catalogOpenEffective ? "收起" : "展开"}
+            </span>
+          </button>
+          {/* 这一段为什么在：账号目录是**整个账号**扫过的仓（横跨你所有项目），
+              把仓接进本项目是另一张表另一件事。所以它不是"本项目的仓库"，
+              但它是唯一的接入入口 —— 收起来，别和主体混在一起看。 */}
+          {catalogOpenEffective && (
+            <>
+              {attachableCards === null ? (
+                <div className="mt-2 pl-4">
+                  <LoadingLine />
+                </div>
+              ) : catalogGroups.length === 0 ? (
+                <div className="py-4 pl-4 text-[12px] text-tx3">
+                  账号目录里的仓库都已接入本项目。
+                </div>
+              ) : (
+                <div className="mt-2 space-y-3">
+                  {catalogGroups.map(({ org, repos: rs, host, solo }) => {
+                    const isCollapsed = collapsed.has(org);
+                    const busy = orgBusy === org;
+                    return (
+                      <section key={org}>
+                        {/* 组头原先整体是一个 button，动作只能塞成 span。现在拆开：折叠是 button，
+                            动作各自是真的 button（键盘可达），批量接入才放得进来。 */}
+                        <div className="flex w-full flex-wrap items-center gap-2 rounded-hard px-1 py-1.5">
+                          <button
+                            type="button"
+                            className="flex flex-1 items-center gap-2 text-left hover:text-tx"
+                            onClick={() => toggle(org)}
+                            aria-expanded={!isCollapsed}
+                          >
+                            <span className="text-[10px] text-tx3">{isCollapsed ? "▶" : "▼"}</span>
+                            <span className="text-[13px] font-semibold text-cream">{org}</span>
+                            <span className="text-[11px] text-tx3">
+                              {rs.length} 个仓库
+                              {rs.some((r) => r.scanStatus === "failed") && " · 有失败"}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            className="flex flex-none items-center gap-1.5 rounded-hard border border-line px-2 py-[2px] text-[11px] text-tx2 hover:border-amber hover:text-amber-hi disabled:opacity-50"
+                            onClick={() =>
+                              void attachRepos(
+                                rs.map((r) => ({ url: r.url, name: fullNameOf(r) })),
+                                "org",
+                                org,
+                              )
+                            }
+                            disabled={busy}
+                            title={`把这一组里还没接入的 ${rs.length} 个仓库一次性接入本项目`}
+                          >
+                            {busy ? "接入中…" : `全部接入本项目 (${rs.length})`}
+                          </button>
+                          {!solo && host && (
+                            <button
+                              type="button"
+                              className="flex-none text-[11px] text-tx3 underline-offset-2 hover:text-amber hover:underline"
+                              onClick={() => scanThisOrg(org, host)}
+                            >
+                              扫描此组织
+                            </button>
+                          )}
+                        </div>
+                        {orgResult?.org === org && (
+                          <p
+                            role="status"
+                            className={`px-1 pb-0.5 text-[11px] ${orgResult.ok ? "text-olive" : "text-salmon"}`}
+                          >
+                            {orgResult.text}
+                          </p>
+                        )}
+                        {!isCollapsed && (
+                          <div className="mt-1.5 grid gap-2 pl-4">
+                            {rs.map((repo) => (
+                              <RepositoryCardView
+                                key={fullNameOf(repo)}
+                                repo={repo}
+                                appStatus={appStatusByName[fullNameOf(repo)]}
+                                inProject={false}
+                                attachReadFailed={attachReadFailed}
+                                attachBusy={attachBusy === fullNameOf(repo)}
+                                attachResult={attachResult?.name === fullNameOf(repo) ? attachResult : null}
+                                onAttach={() => void attachRepos([{ url: repo.url, name: fullNameOf(repo) }], "manual")}
+                                onManageTeam={isAdmin ? onManageTeam : undefined}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </section>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </section>
       )}
     </div>
   );
