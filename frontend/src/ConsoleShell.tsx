@@ -245,7 +245,20 @@ export default function ConsoleShell() {
     setRoute({ nav, issueId: null, roomId: null, observeSection: null, settingsSection: null });
   };
 
-  const openIssue = (issueId: string) => {
+  /** 跳到某个 issue。**能带上它所属项目就要带上** —— 人工审核台是跨项目的待办队列，
+   *  而工作台取详情走的是 `GET /issues/{id}?projectId=<当前项目>`：项目不对就是 404。
+   *  2026-09-20 线上实测：在审核台点「去 issue 处理」跳过去只有 404，就是因为这里
+   *  只改路由、不切项目。 */
+  const openIssue = (issueId: string, projectId?: string) => {
+    if (projectId && projectId !== activeProjectId) {
+      // 换项目的状态更新与 handleSelectProject 同一套（epoch 让在途的旧请求作废），
+      // 只是不导航到列表 —— 路由由下面两句直接设成这个 issue。
+      issuesEpoch.current += 1;
+      setIssues(null);
+      selectionRef.current = projectId;
+      setActiveProject(projectId);
+      setActiveProjectId(projectId);
+    }
     window.location.hash = `#/issues/${issueId}`;
     setRoute({ nav: "issues", issueId, roomId: null, observeSection: null, settingsSection: null });
   };

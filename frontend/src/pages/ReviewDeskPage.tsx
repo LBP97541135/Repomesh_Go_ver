@@ -67,7 +67,7 @@ function CheckpointRow({
   review: HumanReviewRequestView;
   onDecide: (review: HumanReviewRequestView, decision: CheckpointDecisionKind, reason: string) => Promise<void>;
   /** 跳到出处 issue（origin=discovery 的条目用）。 */
-  onOpenIssue?: (issueId: string) => void;
+  onOpenIssue?: (issueId: string, projectId: string) => void;
 }) {
   const [reason, setReason] = useState("");
   const [asking, setAsking] = useState<CheckpointDecisionKind | null>(null);
@@ -129,11 +129,11 @@ function CheckpointRow({
           </span>
         )}
         <span className="flex items-center justify-end gap-1.5">
-          {fromDiscovery && onOpenIssue && review.issue_id !== "" && (
-            <button className={chip} onClick={() => onOpenIssue(review.issue_id)}>
-              {pending ? "去 issue 处理" : "查看 issue"}
-            </button>
-          )}
+        {fromDiscovery && onOpenIssue && review.issue_id !== "" && (
+          <button className={chip} onClick={() => onOpenIssue(review.issue_id, review.project_id)}>
+            {pending ? "去 issue 处理" : "查看 issue"}
+          </button>
+        )}
           {decidable && (
             <>
               <button className={chip} disabled={busy !== null} onClick={() => void decide("approved", "")}>
@@ -220,7 +220,7 @@ function GroupCard({
   group: Group;
   badge: string;
   onDecide: (review: HumanReviewRequestView, decision: CheckpointDecisionKind, reason: string) => Promise<void>;
-  onOpenIssue?: (issueId: string) => void;
+  onOpenIssue?: (issueId: string, projectId: string) => void;
 }) {
   return (
     <section className="rounded-hard border border-line bg-panel">
@@ -260,7 +260,7 @@ export function ReviewDeskPage({
   onRefresh: () => void;
   onToast: (text: string) => void;
   /** 跳到出处 issue：discovery 来源的待审项只在那边能推进（见 CheckpointRow 注释）。 */
-  onOpenIssue?: (issueId: string) => void;
+  onOpenIssue?: (issueId: string, projectId: string) => void;
 }) {
   const [showResolved, setShowResolved] = useState(false);
   const [resolved, setResolved] = useState<HumanReviewRequestView[] | null>(null);
@@ -332,11 +332,10 @@ export function ReviewDeskPage({
         <LoadingLine />
       ) : (
         <>
-          {groups.length === 0 ? (
-            <p className="mt-3 rounded-hard border border-line bg-panel px-3 py-2 text-[11.5px] text-tx3">
-              没有需要你拍板的事。检查点由项目拓扑的 required_checkpoints 定义，没有受控项目时这里长期为空是正常的。
-            </p>
-          ) : (
+          {/* 0 条待审时**什么都不写**：标题行已经写着「0 项待审」，再补一句"检查点由
+              项目拓扑的 required_checkpoints 定义…"只是解释，不是用户在问的事
+              （2026-09-20 用户裁定：这行字去掉）。 */}
+          {groups.length > 0 && (
             <div className="mt-3 grid gap-2">
               {groups.map((group) => (
                 <GroupCard
