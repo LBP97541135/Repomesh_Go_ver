@@ -3,6 +3,8 @@ package web
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"repomesh.local/repomesh/internal/agentteams"
 	"repomesh.local/repomesh/internal/assembly"
 	"repomesh.local/repomesh/internal/branchvalidation"
@@ -39,4 +41,8 @@ type Pipeline struct {
 	// DeliveryManifests 是跨仓交付的**一致版本清单**（评委建议②）。
 	// nil = 未接线：那条路由如实回 503，不假装有清单。
 	DeliveryManifests *deliverymanifest.Service
+	// Pool 是只读用的库池：给"计划快照"这类**薄读面**用（它们只是把
+	// public.plans 里的 jsonb 读出来投影一下，不值得为此再造一个 service）。
+	// nil = 未接线：那条路由不注册（前端拿不到边语义，DAG 照画，只是没有注脚）。
+	Pool *pgxpool.Pool
 }

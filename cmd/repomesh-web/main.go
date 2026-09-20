@@ -447,6 +447,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			BranchValid:       branchvalidation.New(pipelinePool, branchProvider()),
 			Observation:       observability.New(pipelinePool),
 			DeliveryManifests: deliverymanifest.New(pipelinePool),
+			// Pool 给"计划快照"这类薄读面用（只读 public.plans 的 jsonb，不值得为它再造 service）。
+			Pool: pipelinePool,
 			Extensions: web.PipelineExtensions{
 				Spec:  spec.New(pipelinePool),
 				Gates: gates.New(pipelinePool),
