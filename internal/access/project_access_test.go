@@ -31,7 +31,7 @@ func TestPostgresProjectObservationMustRemainFreshUnderLock(t *testing.T) {
 		if lockErr := service.LockProjectPrincipal(ctx, tx, principal); lockErr != nil {
 			t.Fatal(lockErr)
 		}
-		return service.CheckProjectObservation(ctx, tx, principal, observation)
+		return service.CheckProjectObservationFresh(ctx, tx, principal, observation)
 	}
 	now := time.Now().UTC()
 	fresh := ProjectObservation{actor: principal.ActorID(), connectionRevision: revision, accessEpoch: epoch, requiresConnection: true,

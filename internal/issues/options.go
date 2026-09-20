@@ -165,7 +165,7 @@ func (s *Service) Options(ctx context.Context, principal access.ProjectPrincipal
 	if current.CreationContextRevision() != options.CreationContextRevision {
 		return CreationOptions{}, failure(409, "CREATION_CONTEXT_CHANGED")
 	}
-	if err = s.authorization.CheckProjectObservation(ctx, tx, principal, observation); err != nil {
+	if err = s.authorization.CheckProjectObservationCached(ctx, tx, principal, observation); err != nil {
 		return CreationOptions{}, err
 	}
 	appReady, err := s.authorization.IssueAppCredentialReady(ctx, tx)

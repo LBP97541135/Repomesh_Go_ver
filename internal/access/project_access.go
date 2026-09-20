@@ -18,8 +18,17 @@ import (
 const (
 	// participationCacheTTL 是参与权探测结果的复用窗口。5 分钟足够覆盖
 	// "打开表单 → 选仓 → 提交"的交互,又不会让权限变更长时间读不到;
-	// 提交路径不依赖它(CheckProjectObservation 仍要求 60s 内的现验)。
+	// 提交路径不依赖它（提交路径有自己的一份 60 秒现验，见 CheckIssueObservationTime）。
 	participationCacheTTL = 5 * time.Minute
+	// participationFreshness 是**现探**出来的观测还能用多久 —— 写路径
+	// （创建/更新/项目仓库读）与提交路径的窗口。
+	//
+	// 两个窗口必须各校各的：**拿 60 秒去校 5 分钟的缓存，那个窗口里的观测必然全灭。**
+	// 2026-09-20 线上实测就是这个错配 —— `issue-creation-options` 整份 503
+	// AUTHORIZATION_UNCONFIRMED，重试也不管用（还在缓存窗口里），过几分钟又自己好了。
+	// 现在由 CheckProjectObservationFresh / CheckProjectObservationCached 两个入口
+	// 把窗口写死，调用方按观测的来源选入口即可，不会再各写一个秒数。
+	participationFreshness = 60 * time.Second
 	// participationProbeConcurrency 是单次全量探测的最大并发。
 	// 8 路够把 49 仓从十几秒压到约 2s,又不至于把 GitHub 打限流。
 	participationProbeConcurrency = 8
@@ -196,9 +205,10 @@ func (s *Service) ObserveProjectRepositories(ctx context.Context, principal Proj
 }
 
 // ObserveProjectRepositoriesFresh 对每个仓都现探 GitHub，不读缓存。
-// CheckProjectObservation 仍要求观测落在 60 秒窗口内：命中一条 5 分钟的旧
-// 缓存会跳过现探，既会让注入 repositoryOverride 的测试挂住，也可能放进一条
+// **写路径必须走它**：CheckProjectObservationFresh 要求观测落在 60 秒窗口内，命中一条
+// 5 分钟的旧缓存会跳过现探，既会让注入 repositoryOverride 的测试挂住，也可能放进一条
 // 已经过期的 allowed 记录。
+// （读路径走上面的缓存版，配的是 CheckProjectObservationCached —— 窗口与缓存一致。）
 func (s *Service) ObserveProjectRepositoriesFresh(ctx context.Context, principal ProjectPrincipal, repositories []RepositoryLocator) (ProjectObservation, error) {
 	return s.observeProjectRepositories(ctx, principal, repositories, false)
 }
@@ -342,11 +352,33 @@ func (s *Service) probeRepository(ctx context.Context, principal ProjectPrincipa
 	return observation
 }
 
-func (s *Service) CheckProjectObservation(ctx context.Context, tx pgx.Tx, principal ProjectPrincipal, observation ProjectObservation) error {
+// CheckProjectObservationFresh 校验一份**现探**出来的观测：窗口是 participationFreshness
+// （60 秒）。创建/更新/项目仓库读这些要落 60 秒提交窗口的路径走它。
+func (s *Service) CheckProjectObservationFresh(ctx context.Context, tx pgx.Tx, principal ProjectPrincipal, observation ProjectObservation) error {
+	return s.checkProjectObservation(ctx, tx, principal, observation, participationFreshness)
+}
+
+// CheckProjectObservationCached 校验一份**从缓存复用**出来的观测：窗口是
+// participationCacheTTL —— 也就是缓存自己承诺的复用窗口。
+//
+// 只有「issue 创建条件列表」这一条读路径走它（见 ObserveProjectRepositories 的注释）。
+// **不能拿更严的窗口去校缓存**：缓存允许"5 分钟内观测过"的仓直接复用，用 60 秒去校，
+// 落在 1~5 分钟那段里的每一个仓都会把整份列表判死 —— 2026-09-20 线上实测的
+// issue-creation-options 503 就是这个。提交路径另有一份自己的 60 秒现验
+// （CheckIssueObservationTime），不依赖这里。
+func (s *Service) CheckProjectObservationCached(ctx context.Context, tx pgx.Tx, principal ProjectPrincipal, observation ProjectObservation) error {
+	return s.checkProjectObservation(ctx, tx, principal, observation, participationCacheTTL)
+}
+
+func (s *Service) checkProjectObservation(ctx context.Context, tx pgx.Tx, principal ProjectPrincipal, observation ProjectObservation, maxAge time.Duration) error {
+	// 这一档返回的全是裸 503，界面上看不出任何差别，所以每条拒绝都留一行日志。
+	// 2026-09-20 查一个同款 503 花了好几轮，就是因为这里一声不响。
 	if observation.actor != principal.actor {
+		log.Printf("access: observation actor mismatch observation=%s principal=%s", observation.actor, principal.actor)
 		return failure(503, "AUTHORIZATION_UNCONFIRMED")
 	}
 	if observation.authorizationFailed {
+		log.Printf("access: observation authorization failed actor=%s", principal.actor)
 		return failure(503, "AUTHORIZATION_UNCONFIRMED")
 	}
 	if !observation.requiresConnection {
@@ -356,14 +388,25 @@ func (s *Service) CheckProjectObservation(ctx context.Context, tx pgx.Tx, princi
 	var transactionNow time.Time
 	if err := tx.QueryRow(ctx, `SELECT revision=$2 AND access_epoch=$3 AND status='connected' AND refresh_state='idle', transaction_timestamp()
 		FROM repomesh_access.connections WHERE actor=$1 FOR UPDATE`, principal.actor, observation.connectionRevision, observation.accessEpoch).Scan(&current, &transactionNow); err != nil {
+		log.Printf("access: observation connection check failed actor=%s: %v", principal.actor, err)
 		return failure(503, "AUTHORIZATION_UNCONFIRMED")
 	}
 	if !current {
+		log.Printf("access: observation credential moved on actor=%s revision=%s epoch=%d", principal.actor, observation.connectionRevision, observation.accessEpoch)
 		return failure(503, "AUTHORIZATION_UNCONFIRMED")
 	}
-	oldestAllowed := transactionNow.Add(-60 * time.Second)
+	oldestAllowed := transactionNow.Add(-maxAge)
 	for _, repository := range observation.repositories {
-		if repository.ParticipationStatus == "allowed" && (repository.ObservedAt == nil || repository.ObservedAt.Before(oldestAllowed) || repository.ObservedAt.After(transactionNow)) {
+		if repository.ParticipationStatus != "allowed" {
+			continue
+		}
+		observed := "nil"
+		if repository.ObservedAt != nil {
+			observed = repository.ObservedAt.Format(time.RFC3339)
+		}
+		if repository.ObservedAt == nil || repository.ObservedAt.Before(oldestAllowed) || repository.ObservedAt.After(transactionNow) {
+			log.Printf("access: observation out of window actor=%s repo=%s/%s observed=%s window=%s now=%s",
+				principal.actor, repository.Locator.Owner, repository.Locator.Name, observed, maxAge, transactionNow.Format(time.RFC3339))
 			return failure(503, "AUTHORIZATION_UNCONFIRMED")
 		}
 	}

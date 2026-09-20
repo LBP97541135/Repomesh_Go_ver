@@ -61,7 +61,7 @@ func (s *Service) Create(ctx context.Context, principal access.ProjectPrincipal,
 		}
 		return CreateResult{}, err
 	}
-	// 提交路径必须现探：CheckProjectObservation 要求观测落在 60 秒窗口内，
+	// 提交路径必须现探：CheckProjectObservationFresh 要求观测落在 60 秒窗口内，
 	// 命中一条 5 分钟的旧缓存会放行已经变化的参与权（2026-09-18 主线修正）。
 	observation, err := s.access.ObserveProjectRepositoriesFresh(ctx, principal, locators)
 	if err != nil {
@@ -120,7 +120,7 @@ func (s *Service) Create(ctx context.Context, principal access.ProjectPrincipal,
 		receipt, replayErr := replayCreate(operation, command.input)
 		return CreateResult{Receipt: receipt}, replayErr
 	}
-	if err = s.access.CheckProjectObservation(ctx, tx, principal, observation); err != nil {
+	if err = s.access.CheckProjectObservationFresh(ctx, tx, principal, observation); err != nil {
 		return CreateResult{}, err
 	}
 	if err = requireAllowed(observation); err != nil {
@@ -392,7 +392,7 @@ func (s *Service) Update(ctx context.Context, principal access.ProjectPrincipal,
 		return UpdateReceipt{}, failure(409, "PROJECT_REVISION_CONFLICT")
 	}
 	if len(plan.additions) > 0 {
-		if err = s.access.CheckProjectObservation(ctx, tx, principal, plan.observation); err != nil {
+		if err = s.access.CheckProjectObservationFresh(ctx, tx, principal, plan.observation); err != nil {
 			return UpdateReceipt{}, err
 		}
 		if err = requireAllowed(plan.observation); err != nil {
@@ -727,7 +727,7 @@ func (s *Service) Repositories(ctx context.Context, principal access.ProjectPrin
 		return ProjectRepositoryPage{}, failure(409, "PROJECT_CONTEXT_CHANGED")
 	}
 	if observation.Repositories() != nil {
-		if err = s.access.CheckProjectObservation(ctx, tx, principal, observation); err != nil {
+		if err = s.access.CheckProjectObservationFresh(ctx, tx, principal, observation); err != nil {
 			return ProjectRepositoryPage{}, err
 		}
 	}
