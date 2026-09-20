@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -275,6 +276,123 @@ const RepoTeamResolutionQuery = `
 	       lower('git@' || r.host || ':' || r.owner || '/' || r.name))
 	  ORDER BY scan.profiled_at DESC, scan.id LIMIT 1
 	) s ON true`
+
+// ensureInterval 是接入建队的**逐仓间隔**(选仓门 §3.3:串行 + 每仓间隔 2s)。
+//
+// 2026-09-20 事故教训仍然有效:一次接入几十个仓会把 embedded AgentTeams 灌爆
+// (42 队 / 124 worker、load 100+)。选仓门把建队时机改回"接入即建(单仓/批量
+// 都建)",但靠两件事不再重演:worker 一律 **Sleeping**(不起真 runtime) +
+// 这里逐仓串行限速。包级变量是为了测试能调小 —— 2s 是给线上控制面的喘息,
+// 不是语义本身。
+var ensureInterval = 2 * time.Second
+
+// EnsureOutcome 是接入钩子里**单个仓库**的建队结果。
+//
+// 错误放在结果里而不是打断整批:调用方(接入钩子)按它逐仓记 WARN ——
+// 一个仓的 AgentTeams 配额/过载问题不该让整批接入失败。
+type EnsureOutcome struct {
+	// RepositoryID 是调用方传入的**项目侧**仓库 id(原样带回,便于对日志)。
+	RepositoryID string
+	// Created 表示这次真的建出了一支队(已有队/没扫描到 = false 且无错)。
+	Created bool
+	// Err 是这个仓建队失败的如实原因(没有队可建不算失败)。
+	Err error
+}
+
+// EnsureForRepositories 是接入钩子的批量入口(选仓门 C2):对 added 的每个仓库
+// 逐仓建队,单仓与批量接入共用这一条路。
+//
+// 语义:
+//   - 解析沿用 RepoTeamResolutionQuery(0057 的 (project_id, 扫描侧 id) 口径),
+//     不自己另写一份;
+//   - 逐仓**串行**,每仓之间隔 ensureInterval(默认 2s),不给控制面制造尖峰;
+//   - 单仓失败记在该仓的 Outcome.Err 里,**不阻断其余仓库**;
+//   - 建出的 worker 一律 Sleeping(createRemoteWorker),选进 issue 范围时再唤醒。
+//
+// context 被取消时,未处理的仓库也各带一条 Err 返回(交给收敛兜底),不装作建过。
+func (s *Service) EnsureForRepositories(ctx context.Context, projectID string, projectRepositoryIDs []string, workerCount int) []EnsureOutcome {
+	outcomes := make([]EnsureOutcome, 0, len(projectRepositoryIDs))
+	for index, repositoryID := range projectRepositoryIDs {
+		if index > 0 {
+			select {
+			case <-ctx.Done():
+				for _, remaining := range projectRepositoryIDs[index:] {
+					outcomes = append(outcomes, EnsureOutcome{RepositoryID: remaining, Err: ctx.Err()})
+				}
+				return outcomes
+			case <-time.After(ensureInterval):
+			}
+		}
+		created, err := s.EnsureForRepository(ctx, projectID, repositoryID, workerCount)
+		outcomes = append(outcomes, EnsureOutcome{RepositoryID: repositoryID, Created: created, Err: err})
+	}
+	return outcomes
+}
+
+// WakeTeamsForRepositories 唤醒一组仓库的整支队(选仓门的"选用时唤醒")。
+//
+// fire-and-forget:内部起 goroutine,**绝不占调用方时间**(确认端点 200 不能
+// 被唤醒拖住);失败只 slog.WARN,不向调用方报错 —— 唤醒是后续动作,不是
+// 范围确认的一部分,失败靠 coordinator 派活前的双保险兜住(spec §3.3)。
+func (s *Service) WakeTeamsForRepositories(ctx context.Context, projectID string, projectRepositoryIDs ...string) {
+	if s.pool == nil || s.client == nil || len(projectRepositoryIDs) == 0 {
+		return
+	}
+	wakeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 60*time.Second)
+	go func() {
+		defer cancel()
+		for _, repositoryID := range projectRepositoryIDs {
+			if err := s.wakeTeam(wakeCtx, projectID, repositoryID); err != nil {
+				slog.Warn("repository team wake deferred",
+					"project", projectID, "repository", repositoryID, "reason", err.Error())
+			}
+		}
+	}()
+}
+
+// wakeTeam 唤醒一个仓库的队(同步实现,便于确定性测试):项目侧 id 解析成
+// 扫描侧(RepoTeamResolutionQuery),再对 leader 与全部在编 worker 逐个
+// EnsureReadyOrWake —— 先 ensure-ready,没生效回退 wake(上游语义)。
+//
+// 没扫描到、没建过队都不是错误(没有可唤醒的东西);一个成员唤醒失败不挡
+// 其余成员,错误聚合返回。
+func (s *Service) wakeTeam(ctx context.Context, projectID, projectRepositoryID string) error {
+	if s.pool == nil || s.client == nil {
+		return fmt.Errorf("%w: database pool or controller client is nil", ErrControllerUnavailable)
+	}
+	var scanID string
+	if err := s.pool.QueryRow(ctx, RepoTeamResolutionQuery+`
+		WHERE pr.project_id=$1 AND pr.repository_id=$2
+		LIMIT 1`, projectID, projectRepositoryID).Scan(new(string), new(string), &scanID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("resolve repository %s: %w", projectRepositoryID, err)
+	}
+	if scanID == "" {
+		return nil
+	}
+	snapshot, err := s.loadSnapshot(ctx, s.pool, projectID, scanID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil
+		}
+		return err
+	}
+	members := make([]string, 0, 1+len(snapshot.Workers))
+	members = append(members, snapshot.Leader.ResourceName)
+	for _, worker := range snapshot.Workers {
+		members = append(members, worker.ResourceName)
+	}
+	var failures []error
+	for _, member := range members {
+		if _, err := s.client.EnsureReadyOrWake(ctx, member); err != nil {
+			failures = append(failures, fmt.Errorf("worker %s: %w", member, err))
+		}
+	}
+	return errors.Join(failures...)
+}
+
 
 // EnsureForProject 保证"本项目里每个已接入的仓库都有一支自己的团队"。
 //
@@ -837,11 +955,14 @@ func teamMembers(leaderName string, existing []Member, added []workerRecord) []a
 	return members
 }
 
+// createRemoteWorker 建一个远端 worker,**一律建为休眠**(选仓门 §3.3):
+// 上游建 worker 的请求原生带 state 字段,一步建出 Sleeping,不起真 runtime;
+// 选进 issue 范围 / 派活前再唤醒(WakeTeamsForRepositories / PreDispatchCheck)。
 func (s *Service) createRemoteWorker(ctx context.Context, name string) error {
 	if s.client == nil {
 		return fmt.Errorf("%w: controller client is nil", ErrControllerUnavailable)
 	}
-	_, status, err := s.client.CreateWorker(ctx, agentteams.WorkerSpec{Name: name})
+	_, status, err := s.client.CreateWorkerSleeping(ctx, name)
 	return workerWriteResultError("create Worker", status, err)
 }
 
