@@ -76,7 +76,19 @@ func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, i
 		"T=${REPOMESH_GH_TOKEN:?missing installation token}\n" +
 		"R=" + repoFullName + "\n" +
 		"B=repomesh/auto-" + attemptID + "\n" +
-		"git clone --depth 5 https://x-access-token:$T@github.com/$R.git repo\n" +
+		// 每个 task 一个**新的 git worktree**（2026-09-20 用户裁定）：每个仓库在
+		// workspace 根下共享一份**浅基础克隆**，每个 attempt 只 worktree add 一棵新树 ——
+		// 隔离性与"每次整仓 clone"一样（各自的 HEAD 与工作区互不影响），但省掉每次的
+		// 整仓下载。基础克隆里的 origin 每轮重设（installation token 会轮转）。
+		// 注意：整段脚本被 bash -c '...' 包着，脚本内不能出现单引号。
+		"SLUG=$(printf %s \"$R\" | tr / _)\n" +
+		"BASE=$(dirname \"$PWD\")/_bases/$SLUG\n" +
+		"mkdir -p \"$(dirname \"$BASE\")\"\n" +
+		"if [ ! -d \"$BASE/.git\" ]; then git clone --depth 5 \"https://x-access-token:$T@github.com/$R.git\" \"$BASE\"; fi\n" +
+		"git -C \"$BASE\" remote set-url origin \"https://x-access-token:$T@github.com/$R.git\"\n" +
+		"git -C \"$BASE\" fetch --depth 5 origin main\n" +
+		"git -C \"$BASE\" worktree prune\n" +
+		"git -C \"$BASE\" worktree add --detach --force repo FETCH_HEAD\n" +
 		"cd repo\n" +
 		"git config user.name \"repomesh-bot[bot]\"\n" +
 		"git config user.email \"repomesh-bot@users.noreply.github.com\"\n" +

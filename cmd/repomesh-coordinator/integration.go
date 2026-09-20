@@ -266,7 +266,17 @@ func buildIntegrationCommand(agentKind, model, repository string) string {
 	}
 	script := "set -e\n" +
 		"T=${REPOMESH_GH_TOKEN:?missing installation token}\n" +
-		"git clone --depth 5 https://x-access-token:$T@github.com/" + repository + ".git repo\n" +
+		// 与交付 run 同一条约定（2026-09-20 用户裁定：每个 task 一棵新 worktree）：
+		// 共享每仓库一份浅基础克隆，本次只 worktree add 一棵新树。
+		"R=" + repository + "\n" +
+		"SLUG=$(printf %s \"$R\" | tr / _)\n" +
+		"BASE=$(dirname \"$PWD\")/_bases/$SLUG\n" +
+		"mkdir -p \"$(dirname \"$BASE\")\"\n" +
+		"if [ ! -d \"$BASE/.git\" ]; then git clone --depth 5 \"https://x-access-token:$T@github.com/$R.git\" \"$BASE\"; fi\n" +
+		"git -C \"$BASE\" remote set-url origin \"https://x-access-token:$T@github.com/$R.git\"\n" +
+		"git -C \"$BASE\" fetch --depth 5 origin main\n" +
+		"git -C \"$BASE\" worktree prune\n" +
+		"git -C \"$BASE\" worktree add --detach --force repo FETCH_HEAD\n" +
 		"cd repo\n" +
 		agent + "\n" +
 		"cp " + execution.TestEvidenceFile + " ../" + execution.TestEvidenceFile + " 2>/dev/null || true"

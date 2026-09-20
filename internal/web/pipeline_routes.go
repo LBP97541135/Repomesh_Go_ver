@@ -96,6 +96,24 @@ func registerPipelineRoutes(mux *http.ServeMux, auth Auth, pipeline Pipeline) {
 		writeJSON(w, http.StatusOK, map[string]any{"items": items})
 		return nil
 	})
+	// 计划换代历史（A3）：每一次全量快照替换都留在 public.plans.revisions 里
+	// （含触发它的那一跳 UpstreamRef、增删的仓库、创建/取代的任务数）。
+	// 此前这条历史**只有落库没有读面** —— 计划换过几版、每版为什么换，界面上看不到。
+	registerProjectRoute(mux, "GET /api/projects/{projectId}/plans/{planId}/revisions", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {
+		plan, err := pipeline.Tasks.GetPlan(r.Context(), r.PathValue("planId"))
+		if err != nil {
+			return err
+		}
+		if plan == nil || plan.ProjectID != r.PathValue("projectId") {
+			return &access.Failure{Status: 404, Code: "RESOURCE_NOT_FOUND"}
+		}
+		items, err := pipeline.Tasks.PlanRevisions(r.Context(), r.PathValue("planId"))
+		if err != nil {
+			return err
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": items})
+		return nil
+	})
 	registerProjectRoute(mux, "POST /api/projects/{projectId}/tasks/{taskId}/approve", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {
 		var body struct {
 			Summary string `json:"summary"`
