@@ -79,8 +79,8 @@ function IssueRow({
       </button>
 
       {/* v0.5：墓碑行只显示徽标不再提供归档入口；归档不改写 state/phase。
-          2026-09-08：已归档行追加「彻底清除」入口（归档之外的第二个不可逆动作，
-          走独立确认弹窗）——live 模式才出现。 */}
+          已归档行追加「删除」入口（2026-09-20 起为软删除：打 removed_at 墓碑，
+          数据保留、各读面不再显示；此前的硬删除 12 张表已退役）——live 模式才出现。 */}
       {item.archived ? (
         <>
           <span
@@ -92,10 +92,10 @@ function IssueRow({
           {canArchive && (
             <button
               className="mt-3 mr-1.5 flex-none rounded-hard border border-transparent px-2 py-px text-[11px] text-tx3 hover:border-salmon hover:text-salmon"
-              title="硬删除快照、决策链与审计记录（不可逆，仅保留一条清除审计）"
+              title="软删除：数据保留，列表/创建条件/消费面不再显示此 issue（removed_at 墓碑）"
               onClick={() => onPurge(item)}
             >
-              彻底清除
+              删除
             </button>
           )}
         </>
@@ -272,8 +272,8 @@ export function IssueListPage({
         )}
       </Modal>
 
-      {/* 彻底清除确认（2026-09-08 用户裁决）：与归档分开的第二动作——不可逆，
-          弹窗必须把「删什么、留什么、不可恢复」三件事说全才配让人按下去 */}
+      {/* 删除确认（2026-09-20 用户裁定：只问一句"是否确认删除"）——现在是软删除，
+          详细语义在按钮 title 与 API 注释里，弹窗不再复述。 */}
       <Modal
         open={pendingPurge !== null}
         onClose={() => setPendingPurge(null)}
@@ -281,16 +281,9 @@ export function IssueListPage({
       >
         {pendingPurge && (
           <div className="p-5">
-            <div className="eyebrow mb-1 text-salmon">彻底清除 issue</div>
+            <div className="eyebrow mb-1 text-salmon">删除 issue</div>
             <p className="text-[14px] font-semibold">{pendingPurge.title}</p>
-            <p className="mt-2 text-[12px] leading-relaxed text-tx2">
-              将<b className="text-salmon">硬删除</b>计划快照、决策链、checkpoint
-              决策与审计记录——<b className="text-salmon">不可恢复</b>。仅保留一条
-              「已清除」审计（谁、何时），删除动作本身可追溯。
-            </p>
-            <p className="mt-1.5 text-[11.5px] text-tx3">
-              只对已归档的 issue 开放；若它尚未归档，后端会拒绝并说明原因。
-            </p>
+            <p className="mt-2 text-[12px] leading-relaxed text-tx2">是否确认删除？</p>
             <div className="mt-4 flex justify-end gap-2">
               <button
                 className="rounded-hard border border-line px-3 py-1.5 text-[12px] text-tx2 hover:border-tx2 hover:text-tx"
@@ -305,7 +298,7 @@ export function IssueListPage({
                   setPendingPurge(null);
                 }}
               >
-                确认彻底清除
+                确认删除
               </button>
             </div>
           </div>

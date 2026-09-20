@@ -72,6 +72,7 @@ export function DispatchTree({
   activeEntry,
   onOpen,
   testEvidence,
+  hitl = false,
 }: {
   title: string;
   discovery: DiscoveryView | null;
@@ -82,9 +83,15 @@ export function DispatchTree({
   onOpen: (entry: FocusEntry) => void;
   /** 测试团队的真实记录；null = 还没取到 */
   testEvidence: TestEvidenceView | null;
+  /** 人工参与模式（issue 的 hitl_mode=hitl，服务端事实）。
+   *
+   *  2026-09-20 修：这里此前**恒定不传**，于是左栏树的 ②③④⑤ 一律按"自动托管"
+   *  推导 —— 人工参与模式下右栏明明写着「待人审」，左栏却显示"未开始"，两边
+   *  对不上。模式是服务端事实，两边必须同源。 */
+  hitl?: boolean;
 }) {
   const [openLeader, setOpenLeader] = useState<string | null>(null);
-  const stepStates = deriveStepStates(discovery);
+  const stepStates = deriveStepStates(discovery, hitl);
   const doneSteps = stepStates.filter((s) => s === "done").length;
 
   /** Leader 分组（物化后）：有 leaderLabel 的进组，没有的（待下发）直挂 Manager。 */

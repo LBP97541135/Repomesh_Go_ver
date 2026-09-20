@@ -42,6 +42,7 @@ import (
 	"repomesh.local/repomesh/internal/reposcan"
 	"repomesh.local/repomesh/internal/repositoryteams"
 	"repomesh.local/repomesh/internal/responsibility"
+	"repomesh.local/repomesh/internal/roomnotice"
 	"repomesh.local/repomesh/internal/scan"
 	"repomesh.local/repomesh/internal/scm"
 	"repomesh.local/repomesh/internal/secrets"
@@ -247,6 +248,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		if atClient != nil {
 			if homeserver := strings.TrimRight(os.Getenv("MATRIX_HOMESERVER_URL"), "/"); homeserver != "" {
 				issuesAPI.Matrix = &agentteams.MatrixSession{Controller: atClient, Homeserver: homeserver}
+				// 建项成功 → 把"收到新需求"投进团队房。与上面同一套环境变量，
+				// 缺了就是 nil，Notify 静默空操作。
+				issuesAPI.Rooms = roomnotice.NewFromEnv(runtime.Pool())
 			}
 		}
 		pipelineAPI.HandoffDocs = web.HandoffDocs{Service: handoff.New(runtime.Pool())}
@@ -607,7 +611,6 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 }
 
 // repositoryTeamWorkerCount 是"仓库接入时自动建队"给每支队伍配几名执行者。
-//
 //
 // 默认 **1**（2026-09-20 线上实测后从 2 降下来）：AgentTeams 的每个 worker 都是一个
 // 真实 runtime（embedded kube 里的一个 pod），而"接入即建队"面对的是几十个仓库 ——

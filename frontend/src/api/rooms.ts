@@ -17,6 +17,7 @@ import { resolveDataSourceMode } from "./source";
 import { resolveProjectId } from "./issues";
 import { shortId } from "../display";
 import { repositoryEnvFromAggregate } from "../viewmodel";
+import type { ConversationMessage } from "./conversations";
 import {
   ISSUE_DETAIL_FIXTURE_DEFAULT,
   deliveryAggregateFixture,
@@ -219,6 +220,34 @@ export async function fetchRoomStream(
     next_cursor: null,
     items: page.messages.map((m) => matrixMessageToStreamItem(m, roomId)),
   };
+}
+
+/** 该 issue 主房间（第一间真有房的仓库团队房）的消息，映射成会话消息形状 ——
+ *  工作台右栏的 Manager 房间直接用它渲染，和原有时间线同一个组件。
+ *
+ *  返回 null = 还没有可进的房（仓库没建队 / 房间号没回读到）。这**不是**"房间空"，
+ *  调用方据此回落到原时间线，不能显示成"还没有消息"。
+ *  actorId 取 Matrix 用户名的本地段（@admin:server → admin）：域后缀对界面没信息量。 */
+export async function fetchMainRoomConversation(
+  issueId: string,
+  projectId?: string,
+): Promise<ConversationMessage[] | null> {
+  const rooms = await fetchRooms(issueId, projectId);
+  const main = rooms[0];
+  if (!main) return null;
+  const pid = projectId ?? (await resolveProjectId());
+  if (!pid) return null;
+  const page = await defaultClient().getIssueRoomMessages(issueId, main.room_id, pid, {
+    limit: ROOM_STREAM_LIMIT,
+  });
+  return page.messages.map((m, index) => ({
+    id: m.eventId,
+    sequence: index + 1,
+    authorKind: "",
+    actorId: m.sender.split(":")[0].replace(/^@/, "") || "repomesh",
+    body: m.body,
+    createdAt: m.at,
+  }));
 }
 
 /** Matrix 房间消息 → 房间流条目(契约 §5.2 形状)。

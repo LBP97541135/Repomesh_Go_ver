@@ -15,6 +15,7 @@ import (
 
 	"repomesh.local/repomesh/internal/discovery"
 	"repomesh.local/repomesh/internal/humancontrol"
+	"repomesh.local/repomesh/internal/roomnotice"
 	"repomesh.local/repomesh/internal/skills"
 )
 
@@ -36,10 +37,10 @@ type planningDispatcher struct {
 	workspaceRoot string
 	// rooms 把"派下去 / 成了 / 没成"如实投进该 issue 的仓库团队房。
 	// 为 nil 时整条链路行为不变 —— 房间是观察面，缺它不该改变规划行为。
-	rooms *roomNotifier
+	rooms *roomnotice.Notifier
 }
 
-func newPlanningDispatcher(pool *pgxpool.Pool, service *discovery.Service, reviews *humancontrol.Service, rooms *roomNotifier) *planningDispatcher {
+func newPlanningDispatcher(pool *pgxpool.Pool, service *discovery.Service, reviews *humancontrol.Service, rooms *roomnotice.Notifier) *planningDispatcher {
 	return &planningDispatcher{pool: pool, service: service, reviews: reviews, workspaceRoot: "/opt/repomesh/workspaces", rooms: rooms}
 }
 
