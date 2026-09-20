@@ -1470,7 +1470,6 @@ export function WorkbenchPage({
             <PlanDagCapsule
               state={flow.planState}
               execution={dagExecution}
-              onRetry={flow.reloadPlan}
               resetKey={issueId ?? "new"}
               stageLabel={stageLabel}
               onOpenStage={() => setActiveEntry({ kind: "stage", stage: stageIdx as 0 | 1 | 2 | 3 })}

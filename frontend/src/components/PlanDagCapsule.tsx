@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { DagExecutionView } from "../types";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { PlanDagPanel, type PlanDagState } from "./PlanDagPanel";
+import { StepChain, type PlanDagState } from "./PlanDagPanel";
+import { AgentTeamsDagPanel } from "./AgentTeamsDagPanel";
 
 /** 物化后的胶囊进度读数：N/M 仓已交付。数的是**仓**（byRepository 的归拢结论），
  *  不是任务——任务数在面板头部有，胶囊只给一眼可读的进度。态不一致（null）的仓
@@ -28,7 +29,6 @@ function capsuleProgress(execution: DagExecutionView | null): string | null {
 export function PlanDagCapsule({
   state,
   execution,
-  onRetry,
   resetKey,
   stageLabel,
   onOpenStage,
@@ -37,7 +37,6 @@ export function PlanDagCapsule({
   state: PlanDagState;
   /** C-4 执行态着色与胶囊进度读数的输入；null = 尚未物化。 */
   execution: DagExecutionView | null;
-  onRetry: () => void;
   /** 换 issue 即复位（收起 + 错误边界复位），不把上一单的错误挂到这一单头上。 */
   resetKey: string;
   /** 当前链路节点（规划/执行/审核/交付）。
@@ -131,7 +130,11 @@ export function PlanDagCapsule({
         <div className="fixed left-1/2 top-1/2 z-30 w-[min(880px,78vw)] -translate-x-1/2 -translate-y-1/2 rounded-hard border border-line bg-panel text-tx shadow-float">
           <div className="max-h-[min(68vh,560px)] overflow-y-auto p-2">
             <ErrorBoundary block="计划 DAG" resetKey={resetKey}>
-              <PlanDagPanel state={state} execution={execution} onRetry={onRetry} steps={steps} />
+              {/* 2026-09-20 用户裁定：胶囊里放 9.16 原型（dag-plan-progress.html）的任务级
+                  DAG——AgentTeamsDagPanel 就是照原型写的（分层布局/白卡左色条/ready
+                  虚线框/点击详情），此前被回退后一直没人引用。五步链条留在板头。 */}
+              {steps && steps.length > 0 && <StepChain steps={steps} />}
+              <AgentTeamsDagPanel embedded issueId={resetKey} />
             </ErrorBoundary>
           </div>
         </div>

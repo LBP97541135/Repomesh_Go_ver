@@ -478,7 +478,7 @@ function stepSkin(state: string): { bar: string; text: string; label: string } {
   return { bar: "bg-tx3", text: "text-tx3", label: "未开始" };
 }
 
-function StepChain({ steps }: { steps: Array<{ label: string; state: string }> }) {
+export function StepChain({ steps }: { steps: Array<{ label: string; state: string }> }) {
   return (
     <div className="mb-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 border-b border-dashed border-line pb-2">
       <span className="mr-1 font-mono text-[10px] tracking-[0.1em] text-tx3 uppercase">规划</span>
