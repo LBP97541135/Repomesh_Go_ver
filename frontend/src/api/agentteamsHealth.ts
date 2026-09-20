@@ -91,8 +91,41 @@ export interface HealthGateResult {
   error?: string;
 }
 
+/** 把任意错误响应体读成**一句话**。
+ *
+ *  2026-09-21 线上实测的 bug 就在这里：`dispatchGate` 此前不看状态码，直接把响应体
+ *  `as HealthGateResult` 强转。而 401/503 时后端写的是**接入层错误信封**
+ *  `{"error":{"code":"RESULT_UNCONFIRMED","message":"…"}}` —— 于是卡片上的
+ *  `result.error` 是个**对象**，渲染出来就是「当前状态 未知 — [object Object]」：
+ *  真正的原因（会话过期 / 服务端暂时不可用）被一个 toString 吃掉了。
+ *
+ *  认三种形状：信封（`error` 是对象或字符串）、`detail`（AgentTeams 未配置那条
+ *  路由用的）、`message`。都不认就返回 null，由调用方回落到状态码 —— 不猜。 */
+function readErrorText(body: unknown): string | null {
+  if (typeof body === "string" && body.trim() !== "") return body.trim();
+  if (body === null || typeof body !== "object") return null;
+  const record = body as Record<string, unknown>;
+  const inner = record.error;
+  if (typeof inner === "string" && inner.trim() !== "") return inner.trim();
+  if (inner !== null && typeof inner === "object") {
+    const envelope = inner as Record<string, unknown>;
+    const code = typeof envelope.code === "string" ? envelope.code : "";
+    const message = typeof envelope.message === "string" ? envelope.message : "";
+    const joined = [code, message].filter((part) => part !== "").join(" · ");
+    if (joined !== "") return joined;
+  }
+  for (const key of ["detail", "message"] as const) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim() !== "") return value.trim();
+  }
+  return null;
+}
+
 /** POST /api/agentteams/dispatch-gate — 派单前检查 Worker 是否可接。
- *  200 = 可派；409 = blocked（需展示恢复卡）；503 = AgentTeams 未配置。 */
+ *  200 = 可派；409 = blocked（**带完整结果**，后端 writeJSON(409, result)）；503 = 未配置。
+ *
+ *  非 2xx 一律翻译成一条 `blocked` 结果，而不是把信封原样透给界面：这张卡是给
+ *  人看的，人需要知道「为什么不可用」，不是需要看到一个对象的 toString。 */
 export async function dispatchGate(workerName: string): Promise<HealthGateResult> {
   const res = await fetch("/api/agentteams/dispatch-gate", {
     method: "POST",
@@ -100,5 +133,20 @@ export async function dispatchGate(workerName: string): Promise<HealthGateResult
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ worker: workerName }),
   });
-  return res.json() as Promise<HealthGateResult>;
+  const body: unknown = await res.json().catch(() => null);
+  // 409 是「可派发但需要先处理」，后端给的是**完整结果**，直接用它（含真实 phase）。
+  if (res.status === 409 && body !== null && typeof body === "object" && "action" in (body as object)) {
+    return body as HealthGateResult;
+  }
+  if (res.ok) {
+    return body as HealthGateResult;
+  }
+  return {
+    worker: workerName,
+    phase: "",
+    action: "blocked",
+    recovered: false,
+    durationMs: 0,
+    error: readErrorText(body) ?? `${res.status} ${res.statusText || "请求失败"}`,
+  };
 }

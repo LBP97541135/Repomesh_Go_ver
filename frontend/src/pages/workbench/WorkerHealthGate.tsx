@@ -10,6 +10,17 @@ import { useCallback, useEffect, useState } from "react";
 import { dispatchGate, phaseLabel, type HealthGateResult } from "../../api/agentteamsHealth";
 import { IconCheck, IconClock, IconUser } from "./treeIcons";
 
+/** 只接受字符串的错误文案。
+ *
+ *  类型上 `HealthGateResult.error` 是 `string | undefined`，但**运行时不是**：
+ *  后端在 401/503 时写的是接入层错误信封（`{"error":{"code","message"}}`），
+ *  取数侧曾经把它原样透上来（见 api/agentteamsHealth.ts 里那段注释）。
+ *  取数侧已经改成翻译成人话；这里是渲染层的最后一道防线 —— 非字符串一律当
+ *  「没有文案」，宁可少一句话，也不吐一个 `[object Object]` 给人看。 */
+function errorText(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
 export function WorkerHealthGate({ workerName }: { workerName: string | null }) {
   const [result, setResult] = useState<HealthGateResult | null>(null);
   const [checking, setChecking] = useState(false);
@@ -73,8 +84,13 @@ export function WorkerHealthGate({ workerName }: { workerName: string | null }) 
         <span className="text-[12px] font-semibold text-salmon">Worker 不可用</span>
       </div>
       <p className="mt-1 text-[11px] leading-[1.6] text-[var(--tree-sub)]">
-        {workerName} 当前状态 <b>{phaseLabel(result.phase) || "未知"}</b>
-        {result.error ? ` — ${result.error}` : ""}
+        {/* 2026-09-21：这里此前直接把 result.error 插进文案，而接入层错误信封
+            （{"error":{"code","message"}}）会让它变成对象 → 页面显示 [object Object]，
+            真正的原因被吃掉。取数侧已改成翻译成人话，这里再加一道：**只渲染字符串**，
+            非字符串一律不渲染（宁可少一句话，也不吐一个 toString）。 */}
+        {workerName} 当前状态{" "}
+        <b>{phaseLabel(result.phase) || (errorText(result.error) ? "读不到" : "未知")}</b>
+        {errorText(result.error) ? ` — ${errorText(result.error)}` : ""}
       </p>
       <button
         type="button"
