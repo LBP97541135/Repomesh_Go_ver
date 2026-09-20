@@ -10,6 +10,8 @@ import {
   listSkills,
   listEvalRuns,
   registerSkillVersion,
+  runABEvaluation,
+  type ABEvaluationSummary,
   type EvalRun,
   seedBindingsByRole,
   type SkillAction,
@@ -146,6 +148,8 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
   const [showContent, setShowContent] = useState(false);
   const [snapshots, setSnapshots] = useState<Array<Record<string, unknown>>>([]);
   const [evalRuns, setEvalRuns] = useState<EvalRun[] | null>(null);
+  /** 刚跑完的 A/B 结论（点了「跑 A/B 对比」之后展示）。 */
+  const [abSummary, setAbSummary] = useState<ABEvaluationSummary | null>(null);
   /** 「登记新版本」表单（2026-09-20 补）。
    *
    *  为什么需要它：技能的生命周期是 draft → evaluating → canary → promoted，
@@ -192,6 +196,30 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
       setEvalRuns(await listEvalRuns(versionId));
     } catch {
       setEvalRuns([]);
+    }
+  };
+
+  /** 跑一轮 A/B 评估（本仓自带的执行器），跑完顺带刷新该版本的评估历史。
+   *
+   *  为什么要这个按钮：`/evaluate` 只把状态从 draft 改成 evaluating，
+   *  此前**没有任何东西去产生评估结果** —— 线上 skill_evaluation_runs 0 行，
+   *  版本进了"评估中"就永远停在那儿。 */
+  const runAB = async (versionId: string) => {
+    setBusy(true);
+    setAbSummary(null);
+    try {
+      const summary = await runABEvaluation(versionId);
+      setAbSummary(summary);
+      onToast(
+        summary.verdict === "win"
+          ? `A/B 结论：带技能全过（${summary.with_pass}/${summary.questions.length}）`
+          : `A/B 结论：${summary.verdict}（带技能 ${summary.with_pass}/${summary.questions.length}）`,
+      );
+      await loadEvalRuns(versionId);
+    } catch (err) {
+      onToast(`跑 A/B 失败：${errText(err)}`);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -528,6 +556,12 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
                     <button className={chip} onClick={() => void loadEvalRuns(version.id)}>
                       评估历史
                     </button>
+                    {/* 跑 A/B 对比：只有 evaluating / canary 接受记录（后端同样卡这个门）。 */}
+                    {(version.status === "evaluating" || version.status === "canary") && (
+                      <button className={chip} disabled={busy} onClick={() => void runAB(version.id)}>
+                        {busy ? "跑中…" : "跑 A/B 对比"}
+                      </button>
+                    )}
                     <div className="flex flex-none gap-2">
                       {(NEXT_ACTIONS[version.status] ?? []).map((item) => (
                         <button
@@ -546,6 +580,38 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
                   </div>
                 ))}
               </div>
+
+              {/* 刚跑完的 A/B 结论。**判定方式写在脸上**：本地覆盖度检查，
+                  不是 LLM 质量评判 —— 别让人把这一屏读成"技能质量已达标"。 */}
+              {abSummary && (
+                <div className="mt-3 rounded-hard border border-line bg-panel px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-medium text-cream">A/B 结论</span>
+                    <span className={abSummary.verdict === "win" ? "pill pill-done" : abSummary.verdict === "lose" ? "pill pill-fail" : "pill pill-gate"}>
+                      {abSummary.verdict}
+                    </span>
+                    <span className="ml-auto font-mono text-[10.5px] text-tx3">{abSummary.judge}</span>
+                  </div>
+                  <p className="mt-1 text-[10.5px] leading-[1.7] text-tx3">
+                    带技能 {abSummary.with_pass}/{abSummary.questions.length} 通过 · 不带技能 {abSummary.without_pass}/{abSummary.questions.length}。
+                    判定方式是**本地覆盖度检查**（技能正文是否覆盖了测试题要求的要点），
+                    不是 LLM 质量评判 —— 它能挡住"内容空洞却想过审"，挡不住"写得对但写得差"。
+                  </p>
+                  <div className="mt-1.5 flex flex-col gap-0.5">
+                    {abSummary.questions.map((q) => (
+                      <div key={q.question_id} className="text-[10.5px] leading-[1.7]">
+                        <span className={q.with_result === "pass" ? "text-olive" : "text-salmon"}>
+                          {q.with_result === "pass" ? "✓" : "✗"}
+                        </span>{" "}
+                        <span className="text-[var(--tree-sub)]">{q.question}</span>
+                        <span className="ml-1 font-mono text-[10px] text-tx3">
+                          覆盖 {q.with_score.toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* A/B 评估历史（点了"评估历史"按钮后展示） */}
               {evalRuns !== null && (

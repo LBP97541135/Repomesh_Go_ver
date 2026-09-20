@@ -143,6 +143,42 @@ export interface EvalRun {
   run_at: string;
 }
 
+/** POST /api/skills/versions/{id}/ab-evaluation —— **跑一轮完整的 A/B 评估**。
+ *
+ *  与相邻两条的分工：`/evaluate` 只做状态迁移（draft→evaluating，即"送评估"）；
+ *  `/evaluations` 记录**单条**结果（给外部评判方用）。此前只有这两条，
+ *  于是"送评估"之后版本永远停在 evaluating —— 线上 `skill_evaluation_runs` 0 行。
+ *  这条是**本仓自带的执行器**：把该技能全部测试题跑完、两臂都记上并返回结论。 */
+export interface ABQuestionResult {
+  question_id: string;
+  question: string;
+  with_label: string;
+  without_label: string;
+  with_score: number;
+  without_score: number;
+  with_result: string;
+  without_result: string;
+}
+
+export interface ABEvaluationSummary {
+  version_id: string;
+  skill_id: string;
+  /** 判定方式。当前是 `local_coverage_check` —— **本地覆盖度检查，不是 LLM 质量评判**。 */
+  judge: string;
+  questions: ABQuestionResult[];
+  with_pass: number;
+  without_pass: number;
+  /** win / lose / inconclusive —— 按事实给，不硬凑"通过"。 */
+  verdict: string;
+}
+
+export function runABEvaluation(versionId: string): Promise<ABEvaluationSummary> {
+  return apiRequest<ABEvaluationSummary>(
+    "POST",
+    `/skills/versions/${encodeURIComponent(versionId)}/ab-evaluation`,
+  );
+}
+
 export async function listEvalRuns(versionId: string): Promise<EvalRun[]> {
   return unwrap<EvalRun>(
     await apiRequest<unknown>("GET", `/skills/versions/${encodeURIComponent(versionId)}/evaluations`),

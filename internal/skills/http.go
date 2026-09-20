@@ -23,6 +23,10 @@ func (s *Service) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/skills", s.guarded(s.handleRegisterSkill))
 	mux.HandleFunc("POST /api/skills/versions", s.guarded(s.handleRegisterVersion))
 	mux.HandleFunc("POST /api/skills/versions/{id}/evaluate", s.guarded(s.handleEvaluate))
+	// A/B 评估执行器（2026-09-20）：此前只有"送评估"（draft→evaluating）与
+	// "记录单条结果"（evaluations），**没有任何东西去产生那些结果** ——
+	// 线上 skill_evaluation_runs 至今 0 行。这条路由跑完整的一轮并落库。
+	mux.HandleFunc("POST /api/skills/versions/{id}/ab-evaluation", s.guarded(s.handleRunABEvaluation))
 	mux.HandleFunc("POST /api/skills/versions/{id}/evaluations", s.guarded(s.handleRecordRun))
 	mux.HandleFunc("GET /api/skills/versions/{id}/evaluations", s.guarded(s.handleListEvalRuns))
 	mux.HandleFunc("POST /api/skills/versions/{id}/canary", s.guarded(s.handleCanary))
@@ -278,6 +282,29 @@ func (s *Service) handleRecordRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, run)
+}
+
+// handleRunABEvaluation 跑一轮完整的 A/B 评估并落库（2026-09-20 补）。
+//
+// 与相邻两条的分工：
+//   · `/evaluate`      —— 状态迁移：draft → evaluating（"送评估"）；
+//   · `/evaluations`   —— 记录**单条**结果（给外部评判方用）；
+//   · `/ab-evaluation` —— **本仓自带的执行器**：把该技能的全部测试题跑完、
+//     两臂都记上，返回结论。没有它，"送评估"之后永远停在 evaluating。
+func (s *Service) handleRunABEvaluation(w http.ResponseWriter, r *http.Request) {
+	if !s.requireEnabled(w, r) {
+		return
+	}
+	versionID := r.PathValue("id")
+	if !s.requireVersionInSpace(w, r, versionID) {
+		return
+	}
+	summary, err := s.RunABEvaluation(r.Context(), versionID, s.actor(r))
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, summary)
 }
 
 func (s *Service) handleCanary(w http.ResponseWriter, r *http.Request) {
