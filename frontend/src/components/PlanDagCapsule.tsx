@@ -53,44 +53,15 @@ export function PlanDagCapsule({
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  /** 这个 issue 上"自动摊开过一次" / "人自己收起过"。两者都按 resetKey 记。 */
-  const autoOpenedFor = useRef<string | null>(null);
-  const dismissedFor = useRef<string | null>(null);
 
   // 换 issue 即收起：A 单展开着切到 B 单，悬着的面板内容已换血，收起最诚实
   useEffect(() => setOpen(false), [resetKey]);
-
-  /** 收起并把"人自己收的"记下来 —— 之后不再替他自动打开。 */
-  const closeByHuman = () => {
-    dismissedFor.current = resetKey;
-    setOpen(false);
-  };
-
-  // 任务开始之后**自动**把 DAG 摊开。
-  //
-  // 2026-09-20 用户要求："没有实时展示 dag，应该在任务开始之后，把 dag 实时展示
-  // 出来，可以放在屏幕中心一些的位置，方便实时了解进度"。此前它只能靠人点顶栏
-  // 那枚胶囊展开 —— 数据一直是活的（结构走 planState 的 5s 静默刷新，节点状态由
-  // 任务树推导），但**没人会去点**，所以"实时"这件事等于不存在。
-  //
-  // 三条边界，避免变成骚扰：
-  //  · 只在这个 issue 上自动开**一次**（autoOpenedFor）；
-  //  · 人一旦自己收起过，就不再替他打开（dismissedFor）—— 这是他的界面；
-  //  · 只在**已经开工**（execution 非空 = 物化后）时才开：还没物化时图上没有进度
-  //    可看，弹出来纯粹挡路。
-  // 换 issue 全部复位（与 resetKey 同一套，不把上一单的"收起过"带到下一单）。
-  useEffect(() => {
-    if (state.status !== "ready" || execution === null) return;
-    if (autoOpenedFor.current === resetKey || dismissedFor.current === resetKey) return;
-    autoOpenedFor.current = resetKey;
-    setOpen(true);
-  }, [resetKey, state.status, execution]);
 
   // 点外部收起（与吸底输入框同一套 mousedown 监听）
   useEffect(() => {
     if (!open) return;
     const onDown = (event: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) closeByHuman();
+      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
@@ -117,7 +88,7 @@ export function PlanDagCapsule({
         <button
           type="button"
           disabled={stageOnly}
-          onClick={() => (open ? closeByHuman() : setOpen(true))}
+          onClick={() => setOpen((v) => !v)}
           className="flex items-center gap-2 transition-colors hover:text-tx disabled:cursor-default"
           title={stageOnly ? "计划快照未就绪，暂无可展开的 DAG" : open ? "收起计划 DAG" : "展开计划 DAG"}
         >
