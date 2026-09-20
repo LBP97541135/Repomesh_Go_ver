@@ -2,10 +2,13 @@ package issues
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"repomesh.local/repomesh/internal/access"
+	"repomesh.local/repomesh/internal/discovery"
 	"repomesh.local/repomesh/internal/projects"
 )
 
@@ -267,4 +270,127 @@ func (s *Service) Conversations(ctx context.Context, principal access.ProjectPri
 		page.NextCursor = &last
 	}
 	return page, nil
+}
+
+// ScopeSelectionCommand 是选仓门批量确认端点的输入(spec 2026-09-20 §3.2):
+// 确认的集合就是本 issue 的仓库范围。
+type ScopeSelectionCommand struct {
+	ProjectID                       string
+	IssueID                         string
+	RepositoryIDs                   []string
+	DecidedBy                       string // manual|ai|timeout
+	IdempotencyKey                  string
+	ExpectedCreationContextRevision string
+}
+
+// ScopeSelectionReceipt 是确认端点的回执;重放返回 status=replayed。
+type ScopeSelectionReceipt struct {
+	Status          string `json:"status"`
+	RepositoryCount int    `json:"repositoryCount"`
+}
+
+// ConfirmScopeSelection 一个事务里完成选仓门的批量确认:校验(≥1 仓、都在
+// 项目内、creation context revision 匹配)→ 写 issue_repository_scope **和**
+// issue_content_scope(双表,建项路径 insertWorkScope/appendProtectedScope 同款,
+// 整组同一把 scope_revision)→ 门单列 CAS 置 resolved(消费 discovery.ResolveGateInTx)。
+//
+// ⚠️ 不复用单仓 AppendRepository:那条路径不原子、revision 逐仓碎裂、还漏写
+// content_scope。幂等:同键重放返回原结果,不重写范围、不改门。
+func (s *Service) ConfirmScopeSelection(ctx context.Context, principal access.ProjectPrincipal, command ScopeSelectionCommand) (ScopeSelectionReceipt, error) {
+	repositories := make([]string, 0, len(command.RepositoryIDs))
+	seen := map[string]bool{}
+	for _, raw := range command.RepositoryIDs {
+		repositoryID := strings.TrimSpace(raw)
+		if repositoryID == "" || seen[repositoryID] {
+			continue
+		}
+		seen[repositoryID] = true
+		repositories = append(repositories, repositoryID)
+	}
+	switch {
+	case len(repositories) == 0:
+		return ScopeSelectionReceipt{}, failure(422, "REPOSITORIES_REQUIRED")
+	case len(repositories) > 100:
+		return ScopeSelectionReceipt{}, failure(422, "REPOSITORY_IDS_TOO_MANY")
+	case command.DecidedBy != "manual" && command.DecidedBy != "ai" && command.DecidedBy != "timeout":
+		return ScopeSelectionReceipt{}, failure(422, "DECIDED_BY_INVALID")
+	case command.IdempotencyKey == "":
+		return ScopeSelectionReceipt{}, failure(422, "IDEMPOTENCY_KEY_REQUIRED")
+	case command.ExpectedCreationContextRevision == "":
+		return ScopeSelectionReceipt{}, failure(422, "EXPECTED_CREATION_CONTEXT_REVISION_REQUIRED")
+	}
+	tx, err := s.beginCreate(ctx)
+	if err != nil {
+		return ScopeSelectionReceipt{}, err
+	}
+	defer rollbackTx(tx)
+	if err := s.authorization.LockProjectPrincipal(ctx, tx, principal); err != nil {
+		return ScopeSelectionReceipt{}, err
+	}
+	locked, err := s.projects.LockForConfiguration(ctx, tx, principal, command.ProjectID)
+	if err != nil {
+		return ScopeSelectionReceipt{}, err
+	}
+	var issueOperation string
+	err = tx.QueryRow(ctx, `SELECT creation_operation_id FROM repomesh_issues.issues
+		WHERE project_id=$1 AND id=$2 AND removed_at IS NULL`, command.ProjectID, command.IssueID).Scan(&issueOperation)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ScopeSelectionReceipt{}, failure(404, "RESOURCE_NOT_FOUND")
+	}
+	if err != nil {
+		return ScopeSelectionReceipt{}, unavailableWith(err)
+	}
+	// 幂等重放先于其余校验:同键重放拿回原结果,不重写范围、不改门。
+	if receipt, found, lookupErr := discovery.ScopeSelectionReceiptInTx(ctx, tx, command.IssueID, command.IdempotencyKey); lookupErr != nil {
+		return ScopeSelectionReceipt{}, unavailableWith(lookupErr)
+	} else if found {
+		count, _ := receipt["repository_count"].(float64)
+		return ScopeSelectionReceipt{Status: "replayed", RepositoryCount: int(count)}, nil
+	}
+	if locked.CreationContextRevision() != command.ExpectedCreationContextRevision {
+		return ScopeSelectionReceipt{}, failure(409, "CREATION_CONTEXT_CHANGED")
+	}
+	var attached int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM repomesh_projects.project_repositories
+		WHERE project_id=$1 AND repository_id = ANY($2)`, command.ProjectID, repositories).Scan(&attached); err != nil {
+		return ScopeSelectionReceipt{}, unavailableWith(err)
+	}
+	if attached != len(repositories) {
+		return ScopeSelectionReceipt{}, failure(409, "REPOSITORY_NOT_IN_PROJECT")
+	}
+	// 整组同一把 scope_revision:确认的集合作为一个整体有据可查。
+	scopeRevision, err := newID("srev_")
+	if err != nil {
+		return ScopeSelectionReceipt{}, err
+	}
+	for _, repositoryID := range repositories {
+		if _, err := tx.Exec(ctx, `INSERT INTO repomesh_issues.issue_repository_scope
+			(issue_id, repository_id, project_id, scope_revision) VALUES ($1,$2,$3,$4)
+			ON CONFLICT (issue_id, repository_id) DO UPDATE SET scope_revision = EXCLUDED.scope_revision`,
+			command.IssueID, repositoryID, command.ProjectID, scopeRevision); err != nil {
+			return ScopeSelectionReceipt{}, unavailableWith(err)
+		}
+		// 内容保护只增不减:已在保护内的仓保留原 introduced_by_operation。
+		if _, err := tx.Exec(ctx, `INSERT INTO repomesh_issues.issue_content_scope
+			(issue_id, repository_id, project_id, introduced_by_operation) VALUES ($1,$2,$3,$4)
+			ON CONFLICT (issue_id, repository_id) DO NOTHING`,
+			command.IssueID, repositoryID, command.ProjectID, issueOperation); err != nil {
+			return ScopeSelectionReceipt{}, unavailableWith(err)
+		}
+	}
+	// 门置 resolved:与双表写同一事务,整组提交或整组回滚。门不存在或已
+	// resolved(查漏「补上并继续」的追加场景)不阻断,如实返回。
+	if _, err := discovery.ResolveGateInTx(ctx, tx, command.IssueID, command.DecidedBy); err != nil {
+		return ScopeSelectionReceipt{}, unavailableWith(err)
+	}
+	receipt := ScopeSelectionReceipt{Status: "committed", RepositoryCount: len(repositories)}
+	if err := discovery.RecordScopeSelectionInTx(ctx, tx, command.IssueID, command.IdempotencyKey, map[string]any{
+		"status": receipt.Status, "repository_count": receipt.RepositoryCount, "decided_by": command.DecidedBy,
+	}); err != nil {
+		return ScopeSelectionReceipt{}, unavailableWith(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ScopeSelectionReceipt{}, unavailableWith(err)
+	}
+	return receipt, nil
 }

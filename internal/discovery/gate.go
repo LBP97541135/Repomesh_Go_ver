@@ -153,3 +153,51 @@ func (s *Service) Gate(ctx context.Context, issueID string) (*Gate, error) {
 	}
 	return gate, nil
 }
+
+// scopeLedgerKey 是范围确认在幂等账里的键:加前缀,免与发现链各步的
+// 幂等键(candidates/classify 等)撞车。
+func scopeLedgerKey(key string) string { return "scope_selection:" + key }
+
+// ScopeSelectionReceiptInTx 查范围确认的幂等账。找到 → 返回原回执
+// (found=true),调用方按重放处理(200,不重写范围、不改门)。
+func ScopeSelectionReceiptInTx(ctx context.Context, tx pgx.Tx, issueID, key string) (map[string]any, bool, error) {
+	if key == "" {
+		return nil, false, nil
+	}
+	var raw []byte
+	err := tx.QueryRow(ctx, `SELECT idempotency_ledger -> $2::text
+		FROM repomesh_issues.issue_discoveries WHERE issue_id=$1`, issueID, scopeLedgerKey(key)).Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	if len(raw) == 0 {
+		return nil, false, nil
+	}
+	var receipt map[string]any
+	if json.Unmarshal(raw, &receipt) != nil {
+		return nil, false, nil
+	}
+	return receipt, true, nil
+}
+
+// RecordScopeSelectionInTx 落范围确认的幂等回执:单列 jsonb 合并,绝不走
+// save()(整行写会与发现链互相丢更新)。发现链行缺失时按 issue 现场补一行
+// 最小状态(与 OpenGate 同思路)。
+func RecordScopeSelectionInTx(ctx context.Context, tx pgx.Tx, issueID, key string, receipt map[string]any) error {
+	payload, err := json.Marshal(map[string]map[string]any{scopeLedgerKey(key): receipt})
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO repomesh_issues.issue_discoveries
+		(issue_id, project_id, requirement_text, idempotency_ledger)
+		SELECT i.id, i.project_id, btrim(i.title || E'\n' || i.description), $2::jsonb
+		FROM repomesh_issues.issues i
+		WHERE i.id = $1
+		ON CONFLICT (issue_id) DO UPDATE SET
+			idempotency_ledger = issue_discoveries.idempotency_ledger || EXCLUDED.idempotency_ledger,
+			updated_at = now()`, issueID, string(payload))
+	return err
+}
