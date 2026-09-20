@@ -220,7 +220,7 @@ func (s *Service) EnsureForRepository(ctx context.Context, projectID, projectRep
 		workerCount = minWorkers
 	}
 	var scanID, projectIDOut, projectSide string
-	if err := s.pool.QueryRow(ctx, repoTeamResolutionQuery+`
+	if err := s.pool.QueryRow(ctx, RepoTeamResolutionQuery+`
 		WHERE pr.project_id=$1 AND pr.repository_id=$2
 		LIMIT 1`, projectID, projectRepositoryID).Scan(&projectIDOut, &projectSide, &scanID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -256,7 +256,11 @@ func (s *Service) EnsureForRepository(ctx context.Context, projectID, projectRep
 // id（Create 用它查仓库名、repository_teams.repository_id 存的也是它）。规则与
 // internal/discovery/recall.go 的 loadRepoPool 完全一致：同一组织下，把扫描 URL 去掉
 // 结尾斜杠与 .git 后，与 https/http/ssh 三种写法之一相等。
-const repoTeamResolutionQuery = `
+// RepoTeamResolutionQuery 把项目侧仓库 id(repo_…)解析成扫描侧 id 的公共片段:
+// 两个 id 空间不同,凡要 join repository_teams 的读面都得先过这一步(0057 起
+// 该表键为 (project_id, 扫描侧 repository_id))。导出给 issues/roomnotice 复用,
+// 单一来源,别处不许自己再写一份。
+const RepoTeamResolutionQuery = `
 	SELECT pr.project_id AS project_id, pr.repository_id AS project_side, COALESCE(s.id, '') AS scan_side
 	FROM repomesh_projects.project_repositories pr
 	JOIN repomesh_projects.repositories r ON r.id = pr.repository_id
@@ -296,7 +300,7 @@ func (s *Service) EnsureForProject(ctx context.Context, projectID string, worker
 	// 所以这里必须先把项目侧仓库解析成扫描侧仓库（按 URL 对齐，与 discovery 的
 	// loadRepoPool 同一条规则），不能拿 "repo_..." 直接去建队 —— 那样 Create 只会
 	// 回 ErrNotFound，团队一支也建不出来。
-	rows, err := s.pool.Query(ctx, repoTeamResolutionQuery+`
+	rows, err := s.pool.Query(ctx, RepoTeamResolutionQuery+`
 		WHERE pr.project_id=$1
 		  AND s.id IS NOT NULL
 		  AND NOT EXISTS (SELECT 1 FROM public.repository_teams t
@@ -418,7 +422,7 @@ func (s *Service) EnsureAll(ctx context.Context, workerCount int) ([]string, err
 	// 与 EnsureForProject 同一条解析规则：只挑"真的还有可建队的仓库"的项目，
 	// 否则每轮都会把没有扫描记录的仓库再算一遍（永远建不出来，纯空转）。
 	rows, err := s.pool.Query(ctx, `SELECT DISTINCT resolved.project_id
-		FROM (`+repoTeamResolutionQuery+`) resolved
+		FROM (`+RepoTeamResolutionQuery+`) resolved
 		WHERE resolved.scan_side <> ''
 		  AND NOT EXISTS (SELECT 1 FROM public.repository_teams t
 		                  WHERE t.project_id=resolved.project_id
