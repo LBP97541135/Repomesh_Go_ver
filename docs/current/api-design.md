@@ -456,6 +456,12 @@ data: {"aggregateType":"task","aggregateId":"6f1d4c0e-2b7a-4a7e-9c1e-1c2f3a4b5d6
 全库拉取（泄漏），后者会因生产者漏填 `assignee` 而让单子对**所有人**隐身（连项目属主
 也看不见）。归属现在取自 `repomesh_projects.projects.owner`。
 
+**审核证据版本（2026-09-20 观测增量）**：当前实现的 `POST /api/v1/projects/{param}/checkpoint-decisions`
+请求必须提供 `review_request_id`、`expected_evidence_version`、`decision`、`reason`。
+`expected_evidence_version` 是审核页面读取的 `evidence_version`，为请求前置条件，不新增数据库列。
+缺少该字段返回 400；事务内锁定审核单后发现证据版本不同或已决，返回 409 `evidence_drifted`，不写决定。
+前端必须刷新并复核新版。此检查保护审核单版本，不自动证明所有外部候选都已正确同步到审核单；产物生产者仍须维护对应的证据版本。
+
 **字段**
 
 | 方案字段 | JSON 字段 | 读写 | 说明 |
@@ -2122,3 +2128,14 @@ data: {"aggregateType":"task","aggregateId":"6f1d4c0e-2b7a-4a7e-9c1e-1c2f3a4b5d6
 22. **`GET /api/repositories/url-type` 无对应端点。** 本文建议并入 `POST /api/repositories` 的校验。需要用户确认。
 23. **`events` 无 `project_id`，`tasks`、`messages` 无时间列。** 项目级订阅只能按 `taskId` 或 `correlationId` 逐个建立；`tasks`、`messages` 列表只能按 `id` 排，无法做时间线。建议方案补列。
 24. **`decision_chain_nodes` 无 `status` 列。** B11 重规划协议要求 BLOCKED 上报与重规划分别落 `status=blocked`、`status=adjusted` 节点（4.3、5.3）；方案该表只有 `action`、`rationale`、`context_ref`。本文沿用协议用词，落点待方案作者补列或改用 `action`。**更正（2026-09-16）**：0008 迁移的 `decision_chain_nodes` **已有** `status` 列（`confirmed`/`rejected` 等，全枚举见附录 D 与 ADR-0023 设计）；本条按已解决处理，B11 的 `blocked`/`adjusted` 落点直接使用该列。
+
+
+## 本地观测模型设置补充（2026-09-20，已实现）
+
+主设置页「模型与 API」使用同源会话、管理员权限与写入 Origin／CSRF 校验维护本机共享观测配置。`purpose` 只接受 `jev`、`deepseek`；本节是设置到本地管理工具的接线，不新增数据库模型资源或跨项目共享供应商 Key。
+
+- `GET /api/settings/observation-models/{purpose}`：返回 `{model, configured, endpoint}`，永不返回 Key。
+- `POST /api/settings/observation-models/{purpose}`：输入 `{model, api_key}`。写入工作台实际使用的配置，空 Key 保留原值，首次或供应商迁移需新 Key。成功返回 `{model, configured, endpoint}`，保存失败不报告成功。
+- `POST /api/settings/observation-models/{purpose}/test`：读取已保存 Key 的真实供应商模型列表，返回 `{ok, authentication_ok, models, selected_model_listing, message}`。不验证推理成功、不发起评分。
+
+Web 的 `REPOMESH_OBSERVE_WORKBENCH_URL` 只接受回环 origin，默认 18090；只转发固定配置路径，不接受浏览器给出的目标 URL，不转发会话 cookie／认证头、不跟随重定向。无登录 401，非管理员／Origin 或 CSRF 不符 403，目的不在允许列表 404，配置不合法 400／409，工作台不可用 503，供应商／响应错误 502。写操作是配置替换，不使用业务模型供应商保存回执协议；连接测试与付费推理的预约台账分开。

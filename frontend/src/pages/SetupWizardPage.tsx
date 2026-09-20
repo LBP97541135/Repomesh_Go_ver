@@ -239,7 +239,10 @@ export function SetupWizardPage({ account, onReady }: { account: Account; onRead
             <div className="eyebrow mb-1">REPOMESH / 安装配置</div>
             <h1 className="text-[20px] font-semibold text-cream">平台启动向导</h1>
           </div>
-          <button className="rounded-hard border border-line px-3 py-1.5 text-[11px] text-tx2 hover:border-amber hover:text-amber" onClick={() => void refresh()}>重新检测</button>
+          <div className="flex flex-wrap gap-3">
+            <a href="#/settings/models" className="rounded-hard border border-amber px-3 py-1.5 text-[11px] text-amber hover:text-amber-hi">模型与 API 设置</a>
+            <button className="rounded-hard border border-line px-3 py-1.5 text-[11px] text-tx2 hover:border-amber hover:text-amber" onClick={() => void refresh()}>重新检测</button>
+          </div>
         </header>
 
         <div className="mt-5 grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">

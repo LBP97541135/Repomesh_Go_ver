@@ -299,6 +299,7 @@ export function ReviewDeskPage({
   ) => {
     await recordCheckpointDecision(review.project_id, {
       review_request_id: review.id,
+      expected_evidence_version: review.evidence_version,
       decision,
       reason,
     });

@@ -66,7 +66,10 @@ func New(options Options) (*Server, error) {
 				return nil, errors.New("read archive does not exist")
 			}
 		}
-		journal, err := observepipe.OpenJournal(abs)
+		journal := j
+		if i > 0 {
+			journal, err = observepipe.OpenJournalReadOnly(abs)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -97,6 +100,7 @@ func Serve(ctx context.Context, addr string, s *Server, out io.Writer) error {
 	}
 	server := &http.Server{Handler: s, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 20 * time.Second, WriteTimeout: 120 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 32 << 10}
 	fmt.Fprintf(out, "RepoMesh local workbench: http://%s\n", listener.Addr())
+	go s.runOnline(ctx)
 	done := make(chan struct{})
 	defer close(done)
 	go func() {
@@ -155,6 +159,48 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == "GET" && r.URL.Path == "/api/health":
 		writeJSON(w, 200, map[string]any{"status": "ok", "service": "repomesh-local-observe", "cloud_required": false})
+	case r.Method == "GET" && r.URL.Path == "/api/assistant":
+		s.assistantSettings(w, r)
+	case r.Method == "PUT" && r.URL.Path == "/api/assistant":
+		s.saveAssistant(w, r)
+	case r.Method == "POST" && r.URL.Path == "/api/assistant/test":
+		s.testAssistant(w, r)
+	case r.Method == "GET" && r.URL.Path == "/api/analyses":
+		s.analysisList(w, r)
+	case r.Method == "POST" && r.URL.Path == "/api/analyses/attribution":
+		s.analyzeSample(w, r)
+	case r.Method == "POST" && r.URL.Path == "/api/analyses/clustering":
+		s.clusterSamples(w, r)
+	case r.Method == "POST" && r.URL.Path == "/api/annotations":
+		s.annotateLocal(w, r)
+	case (r.Method == "GET" || r.Method == "PUT") && r.URL.Path == "/api/evaluation-policy":
+		s.evaluationPolicy(w, r)
+	case r.Method == "GET" && r.URL.Path == "/api/status":
+		s.connectionStatus(w, r)
+	case r.Method == "PUT" && r.URL.Path == "/api/integration":
+		s.saveIntegration(w, r)
+	case r.Method == "GET" && r.URL.Path == "/api/evaluations":
+		s.evaluationList(w, r)
+	case r.Method == "POST" && r.URL.Path == "/api/platform/import":
+		s.importPlatformRun(w, r)
+	case r.Method == "GET" && r.URL.Path == "/api/samples":
+		s.listSamples(w, r)
+	case r.Method == "POST" && r.URL.Path == "/api/samples":
+		s.createSample(w, r)
+	case r.Method == "GET" && r.URL.Path == "/api/samples/export":
+		s.exportSample(w, r)
+	case r.Method == "POST" && r.URL.Path == "/api/annotations/import":
+		s.importAnnotation(w, r)
+	case r.Method == "GET" && r.URL.Path == "/api/trace":
+		s.traceDetails(w, r)
+	case r.Method == "GET" && r.URL.Path == "/api/calls":
+		s.queryCalls(w, r)
+	case r.Method == "GET" && r.URL.Path == "/api/metrics":
+		s.metrics(w, r)
+	case r.Method == "POST" && r.URL.Path == "/api/bindings":
+		s.registerBinding(w, r)
+	case r.Method == "GET" && r.URL.Path == "/api/rubric":
+		writeJSON(w, 200, observepipe.ObservationRubric())
 	case r.Method == "GET" && r.URL.Path == "/api/catalog":
 		s.catalog(w, r)
 	case r.Method == "GET" && r.URL.Path == "/api/evidence":
@@ -173,7 +219,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.testModel(w, r)
 	case r.Method == "POST" && r.URL.Path == "/api/judge":
 		s.judge(w, r)
-	case (r.Method == "GET" || r.Method == "HEAD") && (r.URL.Path == "/" || r.URL.Path == "/settings" || r.URL.Path == "/app.js" || r.URL.Path == "/style.css"):
+	case (r.Method == "GET" || r.Method == "HEAD") && (r.URL.Path == "/" || r.URL.Path == "/settings" || r.URL.Path == "/app.js" || r.URL.Path == "/extended.js" || r.URL.Path == "/style.css"):
 		name := r.URL.Path
 		if name == "/" || name == "/settings" {
 			name = "/index.html"

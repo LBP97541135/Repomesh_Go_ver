@@ -40,6 +40,7 @@ type browserFixtureIDs struct {
 	ExecutionProfile string `json:"executionProfile"`
 }
 type browserFixtureOptions struct {
+	Observation  *ObservationModels
 	EmptyCatalog bool
 }
 type browserTestManifest struct {
@@ -177,7 +178,7 @@ func startProjectBrowserServerWithOptions(t *testing.T, assets string, options b
 	server := httptest.NewUnstartedServer(nil)
 	state.server = server
 	origin := "https://" + server.Listener.Addr().String()
-	product := handlerConfigured(assetsFS, Auth{Service: authService, Origin: origin}, Projects{Service: projectService}, Models{Service: modelService}, Scan{}, Decision{}, Skills{}, Issues{}, Messages{}, AgentTeams{}, Pipeline{}, HumanControl{}, ObserveV1{}, Discovery{}, Console{})
+	product := handlerConfigured(assetsFS, Auth{Service: authService, Origin: origin}, Projects{Service: projectService}, Models{Service: modelService, Observation: options.Observation}, Scan{}, Decision{}, Skills{}, Issues{}, Messages{}, AgentTeams{}, Pipeline{}, HumanControl{}, ObserveV1{}, Discovery{}, Console{})
 	server.Config.Handler = state.wrapProduct(product)
 	server.StartTLS()
 	t.Cleanup(func() {

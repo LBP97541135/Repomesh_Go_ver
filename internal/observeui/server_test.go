@@ -219,82 +219,29 @@ func TestLoopbackAndBrowserBoundaries(t *testing.T) {
 	}
 }
 
-func TestPrivateModelConfigurationAndIndependentJudgment(t *testing.T) {
+func TestLegacyDeepSeekConfigurationRequiresExplicitJevMigration(t *testing.T) {
 	s, h := newTestServer(t)
-	const fakeKey = "test-only-deepseek-key"
-	status, b := request(t, h, "PUT", "/api/model", map[string]string{"model": "deepseek-flash", "api_key": fakeKey})
+	if err := os.WriteFile(s.modelPath(), []byte(`{"model":"deepseek-flash","api_key":"legacy-test-key"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	status, body := request(t, h, "GET", "/api/settings", nil)
+	if status != 200 || bytes.Contains(body, []byte("legacy-test-key")) {
+		t.Fatal("legacy metadata unavailable or key leaked")
+	}
+	status, _ = request(t, h, "POST", "/api/judge", map[string]string{"archive": s.archives[0].ID, "trial_id": "any"})
+	if status != 409 {
+		t.Fatal("legacy generator still used as rubric scorer")
+	}
+	status, _ = request(t, h, "PUT", "/api/model", map[string]string{"provider": "typesafe", "model": "jev-1.13.0", "api_key": ""})
+	if status != 400 {
+		t.Fatal("legacy key reused across providers")
+	}
+	status, _ = request(t, h, "PUT", "/api/model", map[string]string{"provider": "typesafe", "model": "jev-1.13.0", "api_key": "new-test-key"})
 	if status != 200 {
-		t.Fatalf("save: %d %s", status, b)
+		t.Fatal("explicit Jev migration failed")
 	}
 	info, _ := os.Stat(s.modelPath())
 	if info.Mode().Perm() != 0600 {
-		t.Fatal("key file is not private")
-	}
-	_, b = request(t, h, "GET", "/api/settings", nil)
-	if bytes.Contains(b, []byte(fakeKey)) {
-		t.Fatal("settings leaked key")
-	}
-	_, _ = request(t, h, "POST", "/api/trials", map[string]string{"variant": "candidate"})
-	rows, _ := observepipe.DatasetRows(s.archives[0].Journal)
-	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer "+fakeKey {
-			t.Error("missing provider auth")
-		}
-		if r.URL.Path == "/models" {
-			writeJSON(w, 200, map[string]any{"data": []any{map[string]string{"id": "deepseek-flash"}}})
-			return
-		}
-		body, _ := io.ReadAll(r.Body)
-		if bytes.Contains(body, []byte(fakeKey)) || !bytes.Contains(body, []byte("json_object")) || !bytes.Contains(body, []byte(rows[0].TrialID)) {
-			t.Error("wrong model context")
-		}
-		content, _ := json.Marshal(map[string]any{"verdict": "unknown", "explanation": "缺少实际 Agent 交接轨迹", "evidence_refs": rows[0].EvidenceRefs, "missing_evidence": []string{"agent_execution"}})
-		writeJSON(w, 200, map[string]any{"choices": []any{map[string]any{"finish_reason": "stop", "message": map[string]string{"content": string(content)}}}, "usage": map[string]int{"total_tokens": 123}})
-	}))
-	defer provider.Close()
-	s.modelEndpoint = provider.URL
-	s.client = provider.Client()
-	status, b = request(t, h, "POST", "/api/model/test", map[string]any{})
-	if status != 200 || !bytes.Contains(b, []byte(`"ok":true`)) {
-		t.Fatal("model test failed")
-	}
-	status, b = request(t, h, "POST", "/api/judge", map[string]string{"archive": s.archives[0].ID, "trial_id": rows[0].TrialID})
-	if status != 201 {
-		t.Fatalf("judge: %d %s", status, b)
-	}
-	var grade Judgment
-	_ = json.Unmarshal(b, &grade)
-	if grade.Status != "complete" || grade.Verdict != "unknown" {
-		t.Fatal("unknown was lost")
-	}
-	current, _ := observepipe.DatasetRows(s.archives[0].Journal)
-	if current[0].Verdict != "pass" {
-		t.Fatal("AI overwrote independent verification")
-	}
-	grades, err := readJudgments(s.archives[0].Journal)
-	if err != nil || len(grades) != 1 {
-		t.Fatal("judgment not durable")
-	}
-	var input json.RawMessage
-	if err = s.archives[0].Journal.ReadEvidence(grade.InputRef, &input); err != nil || bytes.Contains(input, []byte(fakeKey)) {
-		t.Fatal("bad input evidence")
-	}
-	provider.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(401); _, _ = w.Write([]byte(fakeKey)) })
-	status, b = request(t, h, "POST", "/api/judge", map[string]string{"archive": s.archives[0].ID, "trial_id": rows[0].TrialID})
-	if status != 201 || bytes.Contains(b, []byte(fakeKey)) {
-		t.Fatal("provider failure leaked or lost")
-	}
-	_ = json.Unmarshal(b, &grade)
-	if grade.Status != "error" || grade.Verdict != "unknown" {
-		t.Fatal("provider failure became success")
-	}
-}
-
-func TestJudgeRequiresEvidenceForDefiniteVerdicts(t *testing.T) {
-	if validGrade("pass", "ok", nil, []string{"known"}) || validGrade("fail", "bad", []string{"invented"}, []string{"known"}) || validGrade("other", "bad", nil, nil) {
-		t.Fatal("ungrounded grade accepted")
-	}
-	if !validGrade("unknown", "insufficient", nil, nil) {
-		t.Fatal("unknown rejected")
+		t.Fatal("key file not private")
 	}
 }

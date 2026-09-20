@@ -97,7 +97,7 @@ export function fetchReviewRequests(
  *  两者 detail 原文上抛，各有各的下一步。 */
 export function recordCheckpointDecision(
   projectId: string,
-  payload: { review_request_id: string; decision: CheckpointDecisionKind; reason: string },
+  payload: { review_request_id: string; expected_evidence_version: string; decision: CheckpointDecisionKind; reason: string },
 ): Promise<CheckpointDecisionView> {
   return sessionRequest<CheckpointDecisionView>(
     `/projects/${encodeURIComponent(projectId)}/checkpoint-decisions`,

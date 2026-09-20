@@ -1,0 +1,88 @@
+{
+  "scope": "central observation model settings",
+  "threshold": 0.8,
+  "initial": {
+    "model": "jev-1.13.0",
+    "usage": {
+      "input_tokens": 7066,
+      "output_tokens": 260
+    },
+    "answers": {
+      "actual_persistence": {
+        "choice": "supported",
+        "confidence": 0.95,
+        "probabilities": {
+          "contradicted": 0,
+          "insufficient": 0.03,
+          "supported": 0.97
+        }
+      },
+      "authorization": {
+        "choice": "supported",
+        "confidence": 0.97,
+        "probabilities": {
+          "contradicted": 0.01,
+          "insufficient": 0.02,
+          "supported": 0.97
+        }
+      },
+      "central_forms": {
+        "choice": "supported",
+        "confidence": 0.99,
+        "probabilities": {
+          "contradicted": 0.01,
+          "insufficient": 0,
+          "supported": 0.99
+        }
+      },
+      "not_ready_settings": {
+        "choice": "supported",
+        "confidence": 0.54,
+        "probabilities": {
+          "contradicted": 0.02,
+          "insufficient": 0.29,
+          "supported": 0.69
+        }
+      },
+      "real_list_only": {
+        "choice": "supported",
+        "confidence": 0.98,
+        "probabilities": {
+          "contradicted": 0,
+          "insufficient": 0.01,
+          "supported": 0.99
+        }
+      },
+      "reload_blank_key": {
+        "choice": "supported",
+        "confidence": 0.9,
+        "probabilities": {
+          "contradicted": 0.01,
+          "insufficient": 0.05,
+          "supported": 0.93
+        }
+      }
+    },
+    "test_exit": 1
+  },
+  "navigation_followup": {
+    "model": "jev-1.13.0",
+    "usage": {
+      "input_tokens": 764,
+      "output_tokens": 50
+    },
+    "answers": {
+      "observed_navigation": {
+        "choice": "insufficient",
+        "confidence": 0.37,
+        "probabilities": {
+          "contradicted": 0.08,
+          "insufficient": 0.58,
+          "supported": 0.34
+        }
+      }
+    },
+    "test_exit": 1
+  },
+  "interpretation": "Five initial configuration claims exceed threshold; navigation remains unadopted by Jev despite passing direct browser checks. No threshold changes or claim of full Jev acceptance."
+}

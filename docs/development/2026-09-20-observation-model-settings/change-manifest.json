@@ -1,0 +1,284 @@
+{
+  "base_commit": "86f63e53ed67f231c1abfbe03793d30114e93bf3",
+  "branch": "codex/main-worktree-20260920-120900",
+  "worktree": "/home/xubohan/projects/Repomesh_Go_ver-main-20260920-120900",
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "1126ebb078d8df88786435cd521be0108581f55766c1757ec3aedf648b9ff8b5"
+    },
+    {
+      "path": "cmd/repomesh-coordinator/main.go",
+      "sha256": "1538af23c34b689447dd1040b329362eed4b0d2b2a0f50af2a9d33069f75fe31"
+    },
+    {
+      "path": "cmd/repomesh-observe/main.go",
+      "sha256": "2ed054dae7ff553c55dddaf556f1f2d96b6954c7b37a69066563227bf96687af"
+    },
+    {
+      "path": "cmd/repomesh-web/main.go",
+      "sha256": "8f9f0e41ababd57a844f7de38d9fc9f92e2eac1e29b79e4b3217d99c5b634214"
+    },
+    {
+      "path": "configs/repomesh.env.example",
+      "sha256": "849bff6cbe5cc9e3e9e0a76de55947106f8dff30499a3cebcb0e2bde3394d16c"
+    },
+    {
+      "path": "docs/adr/0024-local-observation-workbench.md",
+      "sha256": "ce4f329c56129effcb4c6d5d081c1cf57e2be0646043701b3277151a31878276"
+    },
+    {
+      "path": "docs/current/HANDOFF.md",
+      "sha256": "413ebeca3bc91e44335440335e1eef9fcf11d3dd94181a61fd5cb42f329d0c22"
+    },
+    {
+      "path": "docs/current/README.md",
+      "sha256": "13ab8bfd39b0ce3a4fc8c7f0aa2ca49730e29a11df8a2838ddc67f999e3cf44e"
+    },
+    {
+      "path": "docs/current/agentloop-observability-evaluation-spec.md",
+      "sha256": "c9516897556373f17be859779d04c26595f0c1f1481c003056786cb84763061a"
+    },
+    {
+      "path": "docs/current/api-design.md",
+      "sha256": "c2c128bf0f50381fb333698a12b564781fe833cd5c85861a74c796bfe893c57a"
+    },
+    {
+      "path": "docs/current/local-observation-workbench.md",
+      "sha256": "952115aceea91d08c96d93ceee5387335380a434e36098b7c09bc3cf818948a8"
+    },
+    {
+      "path": "docs/current/observation-platform-expansion-spec.md",
+      "sha256": "3abe0a4362806e9ce5e30afaf141836619a90caeb376d04da605db506f74bb7b"
+    },
+    {
+      "path": "docs/development/2026-09-20-local-observation-jev/README.md",
+      "sha256": "c287df81400b66b8c67747790537c21684247dee99d24f9ea26b55f50e3ef5c3"
+    },
+    {
+      "path": "docs/development/2026-09-20-local-observation-jev/acceptance-matrix.json",
+      "sha256": "c549c36759ef4a2305ef66e54596ebc866a308c13054f50a1c8eddb11e8561ca"
+    },
+    {
+      "path": "docs/development/2026-09-20-local-observation-jev/change-manifest.json",
+      "sha256": "fc37d2c88e8b2a7ed66e36b177167e8703893bed41b9f76aab642c9157980895"
+    },
+    {
+      "path": "docs/development/2026-09-20-local-observation-jev/jev-acceptance-summary.json",
+      "sha256": "b100e106bf92f952cfac1d99e486403702b795ccc9b00c7fe782bd7449a11c76"
+    },
+    {
+      "path": "docs/development/2026-09-20-observation-model-settings/README.md",
+      "sha256": "541f97b11256705ab5d99650d08b7a3f83fe1da9b295bb29273bd584505c9978"
+    },
+    {
+      "path": "docs/development/2026-09-20-observation-model-settings/jev-review.json",
+      "sha256": "3387efc16282373c6bedd2cdaad9fdafa9a7ac92483072ba00c7798bc42cd70b"
+    },
+    {
+      "path": "docs/plan/README.md",
+      "sha256": "3be419dbddff67e136f60d4a3584b252ecbc36941f79421f373671827b528ee4"
+    },
+    {
+      "path": "docs/plan/observation-platform-validation-and-experiments.md",
+      "sha256": "4aacfcc2e91ccee13067065d3a76fbf21178031d845f8df8b80665153814534e"
+    },
+    {
+      "path": "frontend/README.md",
+      "sha256": "7501793eebaf90c2dbaa95cdcd75665122b1a0614c1436cd8a48df9f43294810"
+    },
+    {
+      "path": "frontend/src/ConsoleShell.tsx",
+      "sha256": "34c38fcaec1974f73dda8c1c273350f6a374db9462f79e92fadc9daf785da15e"
+    },
+    {
+      "path": "frontend/src/api/observationModels.ts",
+      "sha256": "8a276b0ac8e683fe04a25896ebfaa8b4fe78a4b27f75f86c779e47709a3ade99"
+    },
+    {
+      "path": "frontend/src/api/reviewDesk.ts",
+      "sha256": "f2a9088f65968350a8911f28922c3ce46db6189ad69b49a0f9b32a3de530a8d5"
+    },
+    {
+      "path": "frontend/src/components/ModelUsageSettings.tsx",
+      "sha256": "63be03c29ce15746682b378c531cb7ccdbc03929c15357f04c9813e4312e113e"
+    },
+    {
+      "path": "frontend/src/components/ObservationModelSettings.tsx",
+      "sha256": "15a36c2a634883af04b4463b40ccc4f1ab9d232274ab35cf851b5122fd7a79ec"
+    },
+    {
+      "path": "frontend/src/pages/ModelProvidersPage.tsx",
+      "sha256": "0fa6a39ff9209237e4fd43abf1887dc3fc88acee32ba7e2f52e497737772218a"
+    },
+    {
+      "path": "frontend/src/pages/ReviewDeskPage.tsx",
+      "sha256": "093c539b8fb376df4ef727a481fc0ee5e7c146a9cb95f614775011392f883acd"
+    },
+    {
+      "path": "frontend/src/pages/SettingsPage.tsx",
+      "sha256": "3901df3b262a95474b7c4f6a17e4a9cdf2de2b80386bbb4fc27509c6d6da7c88"
+    },
+    {
+      "path": "frontend/src/pages/SetupWizardPage.tsx",
+      "sha256": "1484f27e6369c69f2fdb0294089a8ddd2a5402fb7279392bccd34ff1fcb72078"
+    },
+    {
+      "path": "frontend/src/pages/workbench/FocusPanel.tsx",
+      "sha256": "f585d22dcda9810d413e243082e746939151a1674d8ca8860634897d504b6b15"
+    },
+    {
+      "path": "internal/discovery/llm.go",
+      "sha256": "98a9f506242fdd3897e63df1edd27ab7cfb60dd96fa97a8c386a87b0bb955c04"
+    },
+    {
+      "path": "internal/discovery/service.go",
+      "sha256": "e91b4116463bff5c5d940696bbd8290b2bb5de684a2c964d3258035bde07f5f4"
+    },
+    {
+      "path": "internal/discovery/steps.go",
+      "sha256": "b87e288c48429bb97ef91cab9689137244e865506e0d532861f27f09bfab72bb"
+    },
+    {
+      "path": "internal/humancontrol/evidence_version_postgres_test.go",
+      "sha256": "0c25e9c089a5923d3e150ce60aa5e5498387b2d904f61c07ff50dbd0ac738c48"
+    },
+    {
+      "path": "internal/humancontrol/service.go",
+      "sha256": "7aa907546ae3053e4e66e40278bb68ee0f8fb9cf910d3221c833de3194e38f24"
+    },
+    {
+      "path": "internal/observability/model_call.go",
+      "sha256": "4d1640dd9799039f0d68651c225578518b809a8574cd561a493a995c6487bda3"
+    },
+    {
+      "path": "internal/observepipe/jev.go",
+      "sha256": "5d74c00eeebbe5c56e02c66b8e9853e0679fe3f0b642822c950170078ec6e11b"
+    },
+    {
+      "path": "internal/observepipe/jev_live_test.go",
+      "sha256": "758c86516eab64c11776ab6292ba31919fd2fb876c9ccf63e7494b04dd89c427"
+    },
+    {
+      "path": "internal/observepipe/jev_test.go",
+      "sha256": "d69c99281798e7500f7085cdedcf3c9ec9f095ea7d217b24516b6d638340850a"
+    },
+    {
+      "path": "internal/observepipe/journal.go",
+      "sha256": "a8066943b0b46daa26a731c90c1704b2c29fffe516c0293d1f07e98d19e1880d"
+    },
+    {
+      "path": "internal/observepipe/model_recorder.go",
+      "sha256": "cc873c6ed480db50987553771da5bd217ed6259ff2cdc0cd176561d205437142"
+    },
+    {
+      "path": "internal/observepipe/model_recorder_test.go",
+      "sha256": "bffac320994d3d7040599e82aa385eb9ea140fa2e7ed65cd82ff41f3051c293d"
+    },
+    {
+      "path": "internal/observepipe/otlp.go",
+      "sha256": "440d503e79de1af9b972cb60379ecad319a5f6a63f58c2fa49e7bd4adfe3a61f"
+    },
+    {
+      "path": "internal/observeui/expansion_test.go",
+      "sha256": "9edadb31bcd81701b9f80ae51ad004376ef06062f08429e03676a8b755f80615"
+    },
+    {
+      "path": "internal/observeui/integration.go",
+      "sha256": "6f7f8061e0183a2b9a8a20aba7d93258c5d8a81bf20fcfb179f24db1e7c9e102"
+    },
+    {
+      "path": "internal/observeui/jev.go",
+      "sha256": "7ebab4013124870b3a45510793f146e53c2f38a65106761feb5cafc55bad87b6"
+    },
+    {
+      "path": "internal/observeui/lifecycle.go",
+      "sha256": "0c518015409a3c69d930540f6f09067444fe1982807992d540fd6ccc4b844575"
+    },
+    {
+      "path": "internal/observeui/local_ai.go",
+      "sha256": "3e619e11af51238394bfac4a2e59344d80bac5d722434bc3ac3c2b62f453cb2f"
+    },
+    {
+      "path": "internal/observeui/model.go",
+      "sha256": "92994c29eafdcb58973b6bc6a2171812d8a28245220ea402af86d22c78029701"
+    },
+    {
+      "path": "internal/observeui/model_settings_test.go",
+      "sha256": "ffa90a357a6807a497d58e5b344556ad3c1623e4ff2ce35728963c21fa506605"
+    },
+    {
+      "path": "internal/observeui/observations.go",
+      "sha256": "16d6049fe0eb76e823c4a11c5d71608ebfecc9108bd7aad3857c7b6a730e118a"
+    },
+    {
+      "path": "internal/observeui/online.go",
+      "sha256": "6187c1aadb79b8dacf3d3484aa0330b15e33a9a20deccc8eb48249152385987d"
+    },
+    {
+      "path": "internal/observeui/paid_attempts.go",
+      "sha256": "5c2c11df4271c5e29ae73b5f0441efda6cceb8a8cfe633ed6e7cdfbfbd8abb44"
+    },
+    {
+      "path": "internal/observeui/redaction.go",
+      "sha256": "6415e6b15925fcf165be68da09fd75f8a1843d06ce81195457d33d7362969710"
+    },
+    {
+      "path": "internal/observeui/server.go",
+      "sha256": "6c46f1e9f9a474647dc6dc9fcc1652382265a350c26a04a226a20f0fe8e366a4"
+    },
+    {
+      "path": "internal/observeui/server_test.go",
+      "sha256": "acfecd5a54618b30e1570d33bfc86b5e3bd6c5af00d17f95f3b7aec5455c8fb8"
+    },
+    {
+      "path": "internal/observeui/static/app.js",
+      "sha256": "0192626d3ea90cef71fb5b7837ff7d7ed08110d56dbeff430ce6ff9cf5e3f7c2"
+    },
+    {
+      "path": "internal/observeui/static/extended.js",
+      "sha256": "668700455d2defd07a300a63f8d6ae1f5c022be6016190a6266599e2301da24d"
+    },
+    {
+      "path": "internal/observeui/static/index.html",
+      "sha256": "dc0f3f20f22e6155c01fbe65b2b6883a0b9f7d8e0c01cb4df7a94cd6763b3f03"
+    },
+    {
+      "path": "internal/observeui/static/style.css",
+      "sha256": "8cfbe56dac408427946128e712c1e0ee09d51678bda1a5919bf5ba8a81454c8d"
+    },
+    {
+      "path": "internal/web/humancontrol_routes.go",
+      "sha256": "1dd31403738374a214ea47994561127fad1c2c76d63789d283758cc22ff80d9c"
+    },
+    {
+      "path": "internal/web/models.go",
+      "sha256": "7d04cf4111f69b3c20c0f813cc4a5476bd819199f509a91eab49891fd26d895a"
+    },
+    {
+      "path": "internal/web/observation_models.go",
+      "sha256": "e0b3adbe44edfd51b378950ec62ebe71439f400ee7662e500fcf409e5844e9e1"
+    },
+    {
+      "path": "internal/web/observation_models_test.go",
+      "sha256": "ba0b743f6c49d8ae9fa2eed68d0da047630640354f4a9aa1937b902b05c37353"
+    },
+    {
+      "path": "internal/web/project_browser_test.go",
+      "sha256": "509fed4eb460a97058c2d85c661a26b5b4be8780212745e68832edcc0f4edfde"
+    },
+    {
+      "path": "scripts/test-observation-settings.mjs",
+      "sha256": "00cb026e76d9e2ef3030fa7e961e326ed2bec110a254c5e3cc6bdd8c66a00507"
+    },
+    {
+      "path": "scripts/test-observe-workbench.mjs",
+      "sha256": "256c775648dfe92aebe6d2dc199e097e25e8cca15829d1e3ddc9e34e1b8f39aa"
+    },
+    {
+      "path": "scripts/verify-observe-models.py",
+      "sha256": "6970ab3b76dc38cb99bf43b41eb23c1c03369ac59a12f3552dde13e43e39f14c"
+    }
+  ],
+  "binary_sha256": "b15691180169e2e76ba9fdb6c87df348b6fa428b18be68c39a1c4ac8bdf80a8f"
+}

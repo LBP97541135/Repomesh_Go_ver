@@ -31,7 +31,7 @@ func main() {
 
 const usage = `Usage: repomesh-observe <command> [flags]
   serve            --archive DIR [--read-archive DIR ...] [--addr 127.0.0.1:18090]
-                   local workbench, OTLP receiver, rules and optional DeepSeek judge
+                   local workbench, OTLP, Jev rubric, DeepSeek analysis and human labels
   collect          --archive DIR --project ID --issue ID --source-id NAME
                    reads REPOMESH_OBSERVE_DATABASE_URL (no migration or writes)
   discount         --archive DIR --variant baseline|candidate|assembly-mismatch

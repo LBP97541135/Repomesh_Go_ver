@@ -103,6 +103,7 @@ func (s *Service) IsAdmin(ctx context.Context, actor string) (bool, error) {
 //     那是跨用户泄漏，不是「管理员特权」；
 //   - 非管理员那一支要求 `assignee IS NOT NULL`，而生产者漏填 `assignee` 的行
 //     对**所有人**都不可见（连项目属主也看不见），单子就这么挂在那里没人知道。
+//
 // 现在归属取自 `repomesh_projects.projects.owner` —— 那是项目的权威归属事实，
 // 而不是生产者写在单子上的一个字段。
 func (s *Service) List(ctx context.Context, actor string, admin bool, projectID, status string) ([]ReviewView, error) {
@@ -143,6 +144,8 @@ func scanReviews(rows pgx.Rows) ([]ReviewView, error) {
 // DecisionCommand records one checkpoint decision against the exact evidence
 // the reviewer saw; a changed evidence_version is a 409, not a silent accept.
 type DecisionCommand struct {
+	ExpectedEvidenceVersion string
+
 	ReviewRequestID string
 	Decision        string
 	Reason          string
@@ -272,7 +275,7 @@ func (s *Service) Decide(ctx context.Context, actor, projectID string, command D
 	if requestProject != projectID {
 		return DecisionView{}, pgx.ErrNoRows
 	}
-	if currentStatus != "pending" {
+	if currentStatus != "pending" || command.ExpectedEvidenceVersion != evidence {
 		return DecisionView{}, ErrEvidenceDrifted
 	}
 

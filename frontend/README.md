@@ -130,4 +130,6 @@ replay 数据源默认停在终态（审批合并）；`▶ 回放` 从「契约
 
 点击侧栏「观测」直接打开本地工作台，默认 `http://127.0.0.1:18090/#overview`；旧的 `#/observe/trace`／`logs` 深链转到工作台事件页。前端不再请求云 AgentLoop 配置，也不读取旧的云地址或双入口偏好。更换本机端口时，可在构建前设置 `VITE_OBSERVE_WORKBENCH_URL`，或由部署注入公开运行配置 `window.__REPOMESH_CONFIG__.observeWorkbenchUrl`。只接受回环 HTTP(S) 地址，不包含凭据。
 
-「设置 → 模型与 API」（`#/settings/models`）列明三类用途：仓库分析与 AgentTeams 的模型来源由现有供应商目录管理，项目固定配置决定执行模型；观测评估转到本地工作台独立配置 DeepSeek。保存供应商不代表 AgentTeams／DSH 执行已接通，也不会覆盖观测评估 Key。本次是用途标注与入口调整，不新增三套模型绑定协议。
+「设置 → 模型与 API」（`#/settings/models`）直接提供 Jev／DeepSeek 的模型输入与可选列表、Key 输入、保存、连接测试和重新读取按钮。模型可手输；测试使用已保存 Key 读取供应商真实列表，尚未保存的草稿不会冒充生效配置。Key 留空保留旧值，保存后清空输入，不回读明文或写浏览器存储。
+
+仓库分析与 AgentTeams 的模型来源仍由同页下方的供应商目录管理，项目固定配置决定执行模型；保存供应商不代表 DSH 执行已接通。观测配置通过同源 `/api/settings/observation-models/{purpose}` 写入本地工作台，不从浏览器跨域访问其 API。后端 `REPOMESH_OBSERVE_WORKBENCH_URL` 默认 18090，改端口时应与前述导航地址保持一致。此共享配置要求管理员会话和写入 CSRF；其他平台依赖未就绪也可直接打开本设置页，启动向导提供对应入口。

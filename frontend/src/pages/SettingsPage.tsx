@@ -490,7 +490,7 @@ export function SettingsPage({
         )}
         {category === "models" && (
           <>
-            <ModelUsageSettings />
+            <ModelUsageSettings isAdmin={account.is_admin} />
             {/* 供应商目录（模型来源 / Key / 连通性测试）从侧栏顶级入口收编到这里：
                 侧栏不再单列「模型」，模型配置面收在设置里（2026-09-20 用户裁定）。 */}
             <div id="model-providers" className="mt-6 border-t border-line pt-4">

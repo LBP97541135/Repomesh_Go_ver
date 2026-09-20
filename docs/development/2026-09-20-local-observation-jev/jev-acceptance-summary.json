@@ -1,0 +1,92 @@
+{
+  "model": "jev-1.13.0",
+  "usage": {
+    "input_tokens": 10031,
+    "output_tokens": 353
+  },
+  "policy_confidence_threshold": 0.8,
+  "assertion_test_exit": 1,
+  "answers": {
+    "ai_not_human": {
+      "choice": "supported",
+      "confidence": 0.98,
+      "probabilities": {
+        "contradicted": 0,
+        "insufficient": 0.01,
+        "supported": 0.99
+      },
+      "adopted": true
+    },
+    "jev_typed": {
+      "choice": "supported",
+      "confidence": 0.94,
+      "probabilities": {
+        "contradicted": 0.02,
+        "insufficient": 0.02,
+        "supported": 0.96
+      },
+      "adopted": true
+    },
+    "local_storage": {
+      "choice": "supported",
+      "confidence": 0.91,
+      "probabilities": {
+        "contradicted": 0.01,
+        "insufficient": 0.04,
+        "supported": 0.95
+      },
+      "adopted": true
+    },
+    "native_complete": {
+      "choice": "contradicted",
+      "confidence": 0.99,
+      "probabilities": {
+        "contradicted": 1,
+        "insufficient": 0,
+        "supported": 0
+      },
+      "adopted": true
+    },
+    "paid_replay": {
+      "choice": "supported",
+      "confidence": 0.98,
+      "probabilities": {
+        "contradicted": 0,
+        "insufficient": 0.01,
+        "supported": 0.99
+      },
+      "adopted": true
+    },
+    "real_improvement": {
+      "choice": "insufficient",
+      "confidence": 0.36,
+      "probabilities": {
+        "contradicted": 0.43,
+        "insufficient": 0.57,
+        "supported": 0
+      },
+      "adopted": false
+    },
+    "review_version": {
+      "choice": "supported",
+      "confidence": 0.99,
+      "probabilities": {
+        "contradicted": 0,
+        "insufficient": 0.01,
+        "supported": 0.99
+      },
+      "adopted": true
+    },
+    "unknown_preserved": {
+      "choice": "supported",
+      "confidence": 0.91,
+      "probabilities": {
+        "contradicted": 0.03,
+        "insufficient": 0.03,
+        "supported": 0.94
+      },
+      "adopted": true
+    }
+  },
+  "interpretation": "7 of 8 checks reach frozen threshold. real_improvement remains unadopted, not a product success claim. No retry or lowered threshold."
+}

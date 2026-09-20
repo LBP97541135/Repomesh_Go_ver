@@ -11,7 +11,7 @@ import {
 import { errText } from "../display";
 
 /** 共享模型供应商目录：仓库分析读取可用来源，项目执行引用固定模型配置。
- * 观测评估的模型与 Key 在独立本地工作台配置，不沿此保存路径写入。 */
+ * 观测模型在同一设置分类的 Jev／DeepSeek 表单维护，保存到本地工作台。 */
 
 /** `embedded`：收进设置页「模型与 API」分类时为 true——去掉页面级宽度与大标题，
  *  与其他从侧栏收编进设置的页面（技能 / 智能体 / 本地 CLI）一致。 */
@@ -170,7 +170,7 @@ export function ModelProvidersPage({ embedded = false }: { embedded?: boolean })
       <section className="mb-5 rounded-hard border border-line bg-panel px-4 py-3 text-[11.5px] leading-relaxed text-tx2">
         <p><strong className="text-cream">仓库分析：</strong>用这里的 API 地址、模型和 Key 做需求与仓库的语义匹配。</p>
         <p className="mt-1"><strong className="text-cream">AgentTeams：</strong>这里管理模型来源，实际运行模型由项目执行配置决定；保存供应商不会自动切换团队模型。</p>
-        <p className="mt-1"><strong className="text-cream">观测评估：</strong>在本地观测工作台单独配置（与这里的 Key 分开保存）。</p>
+        <p className="mt-1"><strong className="text-cream">观测评估：</strong>在本页上方的 Jev／DeepSeek 表单配置（与这里的 Key 分开保存）。</p>
       </section>
 
       {notice && (
@@ -183,7 +183,7 @@ export function ModelProvidersPage({ embedded = false }: { embedded?: boolean })
         <section className="mb-6 rounded-hard border border-line bg-panel px-5 py-5">
           <h2 className="text-[14px] font-semibold text-cream">新建中转站</h2>
           <p className="mt-1 text-[11.5px] text-tx2">
-            用途：仓库分析与项目执行的模型来源。API Key 加密保存；观测评估的 Key 在本地工作台单独管理。
+            用途：仓库分析与项目执行的模型来源。API Key 加密保存；观测模型 Key 通过本页上方表单管理。
           </p>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <label className="text-[12.5px] text-tx2">

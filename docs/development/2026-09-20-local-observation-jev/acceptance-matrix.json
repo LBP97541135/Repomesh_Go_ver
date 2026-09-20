@@ -1,0 +1,188 @@
+{
+  "date": "2026-09-20",
+  "base_commit": "86f63e53ed67f231c1abfbe03793d30114e93bf3",
+  "branch": "codex/main-worktree-20260920-120900",
+  "scope": "local implementation and bounded synthetic model validation",
+  "statuses": {
+    "PASS": "该项列出的范围已满足",
+    "PARTIAL": "有实现或部分验证，整行未通过",
+    "NOT_RUN": "该验收未执行"
+  },
+  "private_evidence_root": "/home/xubohan/.local/state/repomesh-observe-jev-20260920-120900",
+  "gates": {
+    "G0": "PARTIAL",
+    "G1": "PARTIAL",
+    "G2": "NOT_RUN",
+    "G3": "NOT_RUN"
+  },
+  "items": [
+    {
+      "id": "OBS01",
+      "status": "PARTIAL",
+      "result": "本地状态、付费预约、采集健康和 DSH 缺口可查；未逐项注入所有状态转换。",
+      "evidence": "internal/observeui/integration.go"
+    },
+    {
+      "id": "OBS02",
+      "status": "PARTIAL",
+      "result": "可信 Trace 绑定及 reported/unresolved 区分通过；真实共享房间并行 Task 尚未运行。",
+      "evidence": "internal/observeui/expansion_test.go:TestCallsPreserveMissingMetricsAndRequireExactBinding"
+    },
+    {
+      "id": "OBS03",
+      "status": "PARTIAL",
+      "result": "沿用原始父子和 Links；尚无完整并行仓库汇合与人工等待生产者。",
+      "evidence": "internal/observeui/spans.go"
+    },
+    {
+      "id": "OBS04",
+      "status": "PARTIAL",
+      "result": "缺父、计数不符和子节点自报完成不被信任；真实进程故障链尚未运行。",
+      "evidence": "internal/observeui/expansion_test.go:TestChildCompletenessAndUnspecifiedTTFTAreNotTrusted"
+    },
+    {
+      "id": "OBS05",
+      "status": "NOT_RUN",
+      "result": "未接真实流式生产者；已测固定 ns 输入换算，不能替代首非空帧时钟实验。",
+      "evidence": "internal/observeui/observations.go"
+    },
+    {
+      "id": "OBS06",
+      "status": "PARTIAL",
+      "result": "非流式 TTFT 与缺失 usage 保持未知；流式生成后取消尚未运行。",
+      "evidence": "internal/observeui/expansion_test.go:TestCallsPreserveMissingMetricsAndRequireExactBinding"
+    },
+    {
+      "id": "OBS07",
+      "status": "PARTIAL",
+      "result": "来源+物理调用去重，冲突排除并报错；真实流式累计 usage/供应商重试待对账。",
+      "evidence": "internal/observeui/expansion_test.go:TestConflictingPhysicalCallsAreExcludedFromMetrics"
+    },
+    {
+      "id": "OBS08",
+      "status": "PARTIAL",
+      "result": "team/verifier/judge/analysis 分组，真实模型评估消耗可查；缺真实共享调用全量对账。",
+      "evidence": "internal/observeui/observations.go"
+    },
+    {
+      "id": "OBS09",
+      "status": "PARTIAL",
+      "result": "真实调用耗时与时点事实分离；尚无真实重叠阶段完整分解。",
+      "evidence": "internal/observeui/observations.go"
+    },
+    {
+      "id": "OBS10",
+      "status": "PASS",
+      "result": "缺证/无轨迹/无效响应不补分，Jev 不覆盖确定性验收；typed 结构与失败测试通过。",
+      "evidence": "internal/observepipe/jev_test.go; internal/observeui/expansion_test.go:TestJevScoresAreDurableAndNeverOverwriteVerification"
+    },
+    {
+      "id": "OBS11",
+      "status": "PARTIAL",
+      "result": "本地调度默认关闭、重启不重付费、Judge 排除经模拟供应商测试；完整迟到/重评生产链待验。",
+      "evidence": "internal/observeui/expansion_test.go:TestOnlineEvaluationIsOptInDeduplicatedAndExcludesJudge"
+    },
+    {
+      "id": "OBS12",
+      "status": "PARTIAL",
+      "result": "样本幂等、AI/人工分离、旧修订冲突与自包含导出通过；真实新候选整个生命周期待验。",
+      "evidence": "internal/observeui/expansion_test.go:TestReadSourceSampleAndLocalLabelsNeverMutateSource"
+    },
+    {
+      "id": "OBS13",
+      "status": "PARTIAL",
+      "result": "审核单 expected_evidence_version 锁内比较、过期及重复决定拒绝通过；候选 SHA 到审核单完整同步未实现。",
+      "evidence": "internal/humancontrol/evidence_version_postgres_test.go"
+    },
+    {
+      "id": "OBS14",
+      "status": "PASS",
+      "result": "历史兼容测试、只读 Journal、不可变冲突检查通过；旧证据不补造运行字段。",
+      "evidence": "internal/observepipe/journal_test.go; internal/observepipe/model_recorder_test.go"
+    },
+    {
+      "id": "OBS15",
+      "status": "PARTIAL",
+      "result": "异步有界队列、丢失/写失败计数、供应商失败与付费未知恢复测试通过；完整进程/资源故障矩阵未执行。",
+      "evidence": "internal/observepipe/model_recorder.go; internal/observeui/expansion_test.go:TestPaidGradingReplayDoesNotRebillAfterResponseOrStorageFailure"
+    },
+    {
+      "id": "OBS16",
+      "status": "PARTIAL",
+      "result": "双供应商密钥、敏感字段、嵌套 JSON 与常见文本模式脱敏；本地来源限制通过，非多租户且不保证任意自然语言秘密检测。",
+      "evidence": "internal/observeui/expansion_test.go:TestModelProjectionRedactsNestedAndFreeTextCredentials"
+    },
+    {
+      "id": "OBS17",
+      "status": "PARTIAL",
+      "result": "浏览器导航、固定 Trial、评分展示、样本人工表单、移动宽度通过；真实失权和跨产物链未验。",
+      "evidence": "checks/browser-final/browser-summary.json; checks/browser-final/sample-review-summary.json"
+    },
+    {
+      "id": "OBS18",
+      "status": "PARTIAL",
+      "result": "30 对本机 caller 开销阈值测试通过且无丢失；未保存逐对时序与内存曲线，不作为完整负载实验。",
+      "evidence": "internal/observepipe/model_recorder_test.go:TestModelCaptureCallerOverheadIsBounded"
+    },
+    {
+      "id": "OBS19",
+      "status": "NOT_RUN",
+      "result": "本轮未以真实 SDK 发送完整 Agent/LLM/Tool 链；单元 OTLP 与历史接收证据不代替该项。",
+      "evidence": "internal/observeui/server_test.go"
+    },
+    {
+      "id": "OBS20",
+      "status": "PARTIAL",
+      "result": "真实 Jev/DeepSeek usage 保留并按用途分组；团队/Verifier 全链实测对账未执行。",
+      "evidence": "checks/live-v3/summary.json"
+    },
+    {
+      "id": "OBS21",
+      "status": "PARTIAL",
+      "result": "实际 rubric 三类固定产物调用完成；调度使用模拟供应商，真实新完成运行链尚未执行。",
+      "evidence": "checks/live-v3/jev-*.json; internal/observeui/expansion_test.go:TestOnlineEvaluationIsOptInDeduplicatedAndExcludesJudge"
+    },
+    {
+      "id": "OBS22",
+      "status": "PASS",
+      "result": "4 条冻结样本真实 DeepSeek 聚类，成员恰好一次；小簇由代码归入离群项，旧失败及新尝试均保留。",
+      "evidence": "checks/live-v3/deepseek-clustering.json; checks/live-v3/deepseek-clustering-retry-v1.json"
+    },
+    {
+      "id": "OBS23",
+      "status": "PARTIAL",
+      "result": "真实负例归因、证据引用与未确认 AI 初标通过；缺消费证据的第二类真实归因未运行。",
+      "evidence": "checks/live-v3/deepseek-attribution.json"
+    },
+    {
+      "id": "OBS24",
+      "status": "PARTIAL",
+      "result": "固定版本样本、多个选样原因、AI 初标和自动浏览器人工表单通过；未由真人完成标签校准。",
+      "evidence": "checks/browser-final/sample-review-summary.json; internal/observeui/lifecycle.go"
+    },
+    {
+      "id": "OBS25",
+      "status": "PASS",
+      "result": "脱敏、请求前付费预约、结果关联、HTTP 重放与写失败不重付费、云配置拒绝测试通过。",
+      "evidence": "internal/observeui/expansion_test.go:TestPaidGradingReplayDoesNotRebillAfterResponseOrStorageFailure"
+    },
+    {
+      "id": "OBS26",
+      "status": "NOT_RUN",
+      "result": "原生 DSH 未接入，用户保留真实任务到后续。",
+      "evidence": "/api/status runtime.native_dsh=not_connected"
+    },
+    {
+      "id": "OBS27",
+      "status": "NOT_RUN",
+      "result": "真实跨仓任务和真实流式 TTFT 未执行。",
+      "evidence": "E2 deferred"
+    },
+    {
+      "id": "OBS28",
+      "status": "NOT_RUN",
+      "result": "无真实 Variant 对照，不宣称成功率/效率改善。",
+      "evidence": "E3/E4 deferred"
+    }
+  ]
+}

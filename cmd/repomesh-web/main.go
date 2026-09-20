@@ -38,6 +38,7 @@ import (
 	"repomesh.local/repomesh/internal/modelbudget"
 	"repomesh.local/repomesh/internal/models"
 	"repomesh.local/repomesh/internal/observability"
+	"repomesh.local/repomesh/internal/observepipe"
 	"repomesh.local/repomesh/internal/projects"
 	"repomesh.local/repomesh/internal/reposcan"
 	"repomesh.local/repomesh/internal/repositoryteams"
@@ -532,6 +533,24 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			// public.plans（全量快照替换 + 任务轴迁移 + 决策链同事务）。不接的话
 			// 第 6 步会如实失败 —— 不假装计划已经重排。
 			WithReplanner(replanAdapter{store: tasks.NewPostgresStore(pipelinePool)})
+		if dir := os.Getenv("REPOMESH_OBSERVE_ARCHIVE"); dir != "" {
+			source := os.Getenv("REPOMESH_OBSERVE_SOURCE_ID")
+			if source == "" {
+				fmt.Fprintln(stderr, "observation source ID is required when capture is enabled")
+				return 1
+			}
+			recorder, captureErr := observepipe.NewModelRecorder(dir, source+"/web", func(reason string) { fmt.Fprintln(stderr, reason) })
+			if captureErr != nil {
+				fmt.Fprintln(stderr, "cannot initialize private observation archive")
+				return 1
+			}
+			discoveryService.WithModelObserver(recorder.Observe)
+			defer func() {
+				closing, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				_ = recorder.Close(closing)
+			}()
+		}
 		// Reviews：发现链的人工步骤（③ 分档审批 / ⑤ 物化确认）镜像成审核台的待审项，
 		// 否则审核台读的 review_requests 恒空（它此前全仓没有生产者）。
 		discoveryAPI = web.Discovery{Service: discoveryService, Maintenance: discovery.NewMaintenance(pipelinePool), Reviews: humanControlAPI.Service}
@@ -603,6 +622,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			}
 		}
 	}
+	observationModels, err := web.NewObservationModels(os.Getenv("REPOMESH_OBSERVE_WORKBENCH_URL"))
+	if err != nil {
+		fmt.Fprintln(stderr, "invalid local observation workbench address")
+		return 1
+	}
+	modelAPI.Observation = observationModels
 	if err := web.RunConfigured(ctx, *addr, *assets, auth, projectAPI, modelAPI, scanAPI, decisionAPI, skillsAPI, issuesAPI, messagesAPI, agentTeamsAPI, pipelineAPI, humanControlAPI, observeV1, discoveryAPI, consoleAPI, certFile, keyFile); err != nil {
 		fmt.Fprintln(stderr, "web stopped:", err)
 		return 1

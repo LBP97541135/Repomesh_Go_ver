@@ -518,7 +518,6 @@ function StageHistory({
   testEvidence,
   trainCars,
   scopeRepoIds,
-  projectId = null,
   repoOptions,
   onAppendRepository,
   planState,

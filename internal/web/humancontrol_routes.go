@@ -137,16 +137,21 @@ func registerHumanControl(mux *http.ServeMux, auth Auth, control HumanControl) {
 			return
 		}
 		var body struct {
-			ReviewRequestID string `json:"review_request_id"`
-			Decision        string `json:"decision"`
-			Reason          string `json:"reason"`
+			ReviewRequestID         string  `json:"review_request_id"`
+			ExpectedEvidenceVersion *string `json:"expected_evidence_version"`
+			Decision                string  `json:"decision"`
+			Reason                  string  `json:"reason"`
 		}
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&body); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "INVALID_BODY"})
 			return
 		}
+		if body.ExpectedEvidenceVersion == nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "EXPECTED_EVIDENCE_VERSION_REQUIRED"})
+			return
+		}
 		view, err := control.Service.Decide(r.Context(), actor, projectID, humancontrol.DecisionCommand{
-			ReviewRequestID: body.ReviewRequestID, Decision: body.Decision, Reason: body.Reason,
+			ReviewRequestID: body.ReviewRequestID, ExpectedEvidenceVersion: *body.ExpectedEvidenceVersion, Decision: body.Decision, Reason: body.Reason,
 		})
 		if err != nil {
 			writeHumanControlError(w, err)

@@ -66,6 +66,20 @@ cd frontend && npm install && npm run dev     # 开发；生产用 npx vite buil
 `REPOMESH_DATABASE_URL`、`AGENTTEAMS_CONTROLLER_URL/_TOKEN`（智能体 runtime）、
 GitHub App 凭据（仓库读写）。
 
+### 本地观测与评估
+
+独立管理工具提供 Trace、计量、Jev rubric 评分、DeepSeek 聚类／归因、数据集及人工复核：
+
+```bash
+go run ./cmd/repomesh-observe serve --archive /absolute/private/observation/archive --addr 127.0.0.1:19091
+```
+
+在主控制台「设置 → 模型与 API」直接输入 Jev／DeepSeek 的模型与 API Key，保存后可测试连接、读取可用模型；也可使用独立工作台的设置页。凭据写入工作台实际使用的私有配置，页面不回读明文。
+Web 默认连接 `http://127.0.0.1:18090`；若工作台按上例运行在 19091，在启动 Web 前设置 `REPOMESH_OBSERVE_WORKBENCH_URL=http://127.0.0.1:19091`。维护本机共享观测配置需要管理员会话，平台其他依赖未就绪时模型设置仍可访问。
+观测、评估调度和数据集留在本机，无需云空间。
+自动评分默认关闭。发现链计量可通过 `REPOMESH_OBSERVE_ARCHIVE` 与 `REPOMESH_OBSERVE_SOURCE_ID` 在下次启动时启用。
+完整配置、接口及未接入边界见[本地观测工作台](docs/current/local-observation-workbench.md)。
+
 ## 五、目录导航
 
 | 路径 | 内容 |

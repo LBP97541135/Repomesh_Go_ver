@@ -23,6 +23,7 @@ import (
 	"repomesh.local/repomesh/internal/humancontrol"
 	"repomesh.local/repomesh/internal/modelbudget"
 	"repomesh.local/repomesh/internal/models"
+	"repomesh.local/repomesh/internal/observepipe"
 	"repomesh.local/repomesh/internal/roomnotice"
 	"repomesh.local/repomesh/internal/tasks"
 )
@@ -104,6 +105,24 @@ func runWorker(args []string) int {
 		EmbeddingAPIKey:  os.Getenv("REPOMESH_EMBEDDING_API_KEY"),
 		EmbeddingModel:   os.Getenv("REPOMESH_EMBEDDING_MODEL"),
 	}, runtime.Pool()))
+	if dir := os.Getenv("REPOMESH_OBSERVE_ARCHIVE"); dir != "" {
+		source := os.Getenv("REPOMESH_OBSERVE_SOURCE_ID")
+		if source == "" {
+			fmt.Fprintln(os.Stderr, "observation source ID is required when capture is enabled")
+			return 1
+		}
+		recorder, captureErr := observepipe.NewModelRecorder(dir, source+"/coordinator", func(reason string) { fmt.Fprintln(os.Stderr, reason) })
+		if captureErr != nil {
+			fmt.Fprintln(os.Stderr, "cannot initialize private observation archive")
+			return 1
+		}
+		discoveryService.WithModelObserver(recorder.Observe)
+		defer func() {
+			closing, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = recorder.Close(closing)
+		}()
+	}
 	automator := newDiscoveryAutomator(discoveryService, runtime.Pool())
 	// 规划期的真实 agent 派发（需求分析/候选评分/生成计划由角色 agent 产出）：
 	// 与发现链状态机同一拍子 —— 先派发/收产物，再让状态机往下走。

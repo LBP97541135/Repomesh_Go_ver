@@ -396,11 +396,14 @@ export default function ConsoleShell() {
     );
   }
 
-  if (setupReady === null) {
+  // Model credentials must remain configurable while other platform
+  // dependencies are missing; otherwise setup can block its own inputs.
+  const modelSettingsRoute = route.nav === "settings" && route.settingsSection === "models";
+  if (setupReady === null && !modelSettingsRoute) {
     return <div className="grid h-screen place-items-center bg-ink"><p className="microlabel">检查平台配置…</p></div>;
   }
 
-  if ((!setupReady || setupRequested) && account.is_admin) {
+  if ((!setupReady || setupRequested) && account.is_admin && !modelSettingsRoute) {
     return (
       <SetupWizardPage
         account={account}

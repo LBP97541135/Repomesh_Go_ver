@@ -263,7 +263,7 @@ func (s *Service) Candidates(ctx context.Context, issueID, agentID, idempotencyK
 	}
 	rawKeywords, _ := st.Analysis["extracted_keywords"].([]any)
 	keywords := toStrings(rawKeywords)
-	verdicts, llmErr := s.semanticRecall(ctx, tx, st.ProjectID, requirement, cards)
+	verdicts, llmErr := s.semanticRecall(ctx, tx, st.ProjectID, st.IssueID, requirement, cards)
 	llmUsed := llmErr == nil
 	llmError := ""
 	if !llmUsed {

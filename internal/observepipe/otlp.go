@@ -64,6 +64,10 @@ func (c ExportConfig) resolve() (string, map[string]string, string, error) {
 	if err != nil || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path == "" || !oneOf(u.Scheme, "http", "https") {
 		return "", nil, "", errors.New("configure an explicit OTLP traces URL in the endpoint environment variable")
 	}
+	ip := net.ParseIP(u.Hostname())
+	if u.Hostname() != "localhost" && (ip == nil || !ip.IsLoopback()) {
+		return "", nil, "", errors.New("observation is local-only; configure a loopback OTLP collector")
+	}
 	if u.Scheme == "http" {
 		ip := net.ParseIP(u.Hostname())
 		if u.Hostname() != "localhost" && (ip == nil || !ip.IsLoopback()) {

@@ -41,6 +41,8 @@ var ErrNoRepositories = errors.New("discovery: no repositories selected")
 
 // Service reads and advances the discovery chain.
 type Service struct {
+	modelObserver func(observability.ModelCall)
+
 	pool *pgxpool.Pool
 
 	// decisions is the optional 历史决策 writer: approval and materialize
@@ -65,6 +67,11 @@ func New(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
 // WithSecrets attaches the deployment secret store (composition root).
 func (s *Service) WithSecrets(store *secrets.Store) *Service {
 	s.secrets = store
+	return s
+}
+
+func (s *Service) WithModelObserver(observer func(observability.ModelCall)) *Service {
+	s.modelObserver = observer
 	return s
 }
 
@@ -130,7 +137,7 @@ type State struct {
 	//
 	// 事实来源是 `repomesh_issues.planning_runs`：`state='pending'` 就是在途
 	// （协调器派发时只写 run_id，不改 state；跑完才改 succeeded/failed）。
-	RunningStep int
+	RunningStep  int
 	RunningRunID *string
 }
 
@@ -330,9 +337,9 @@ func (st *State) View() map[string]any {
 		"approval":                        st.Approval,
 		// plan 块（④ 生成计划的产出；未生成 → null）。此前读面不输出它，
 		// 前端阶段历史与「④ 已生成」判定全部拿不到事实（2026-09-20 补）。
-		"plan":                            st.Plan,
-		"integration":                     st.Integration,
-		"materialization":                 st.Materialization,
+		"plan":            st.Plan,
+		"integration":     st.Integration,
+		"materialization": st.Materialization,
 	}
 	if view["approval"] == nil {
 		view["approval"] = map[string]any{"state": "not_requested", "evidence_version": nil,

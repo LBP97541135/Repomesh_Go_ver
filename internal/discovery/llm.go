@@ -3,11 +3,14 @@ package discovery
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"repomesh.local/repomesh/internal/observability"
 	"strings"
 	"time"
 
@@ -92,7 +95,7 @@ const recallSystemPrompt = `你是仓库发现器。给定一条需求，判断�
 
 // semanticRecall 调模型做语义召回。任何一步失败都返回 error —— 由调用方回退到
 // 关键词路径并如实标注 llm_used=false，绝不假装模型给过分。
-func (s *Service) semanticRecall(ctx context.Context, tx pgx.Tx, projectID, requirement string, cards []repoCard) ([]llmVerdict, error) {
+func (s *Service) semanticRecall(ctx context.Context, tx pgx.Tx, projectID, issueID, requirement string, cards []repoCard) ([]llmVerdict, error) {
 	if s.secrets == nil {
 		return nil, errors.New("discovery: 未接入密钥存储，无法调用模型")
 	}
@@ -141,11 +144,25 @@ func (s *Service) semanticRecall(ctx context.Context, tx pgx.Tx, projectID, requ
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Authorization", "Bearer "+string(key))
 	client := s.client()
+	callID := make([]byte, 16)
+	if _, err := rand.Read(callID); err != nil {
+		return nil, errors.New("discovery: cannot allocate model call identity")
+	}
+	started := time.Now()
+	observation := observability.ModelCall{ID: hex.EncodeToString(callID), ProjectID: projectID, IssueID: issueID, ProviderID: endpoint.ProviderID, RequestedModel: endpoint.ModelID, StartedAt: started.UTC(), Status: "error"}
+	defer func() {
+		observation.DurationNS = time.Since(started).Nanoseconds()
+		if s.modelObserver != nil {
+			s.modelObserver(observation)
+		}
+	}()
 	response, err := client.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("discovery: 调用模型失败: %w", err)
 	}
 	defer response.Body.Close()
+	observation.HTTPStatus = response.StatusCode
+	observation.ProviderRequestID = response.Header.Get("x-request-id")
 	raw, err := io.ReadAll(io.LimitReader(response.Body, 4<<20))
 	if err != nil {
 		return nil, err
@@ -154,6 +171,13 @@ func (s *Service) semanticRecall(ctx context.Context, tx pgx.Tx, projectID, requ
 		return nil, fmt.Errorf("discovery: 模型返回 HTTP %d：%s", response.StatusCode, truncate(string(raw), 200))
 	}
 	var decoded struct {
+		Model string `json:"model"`
+		ID    string `json:"id"`
+		Usage *struct {
+			Prompt     *int64 `json:"prompt_tokens"`
+			Completion *int64 `json:"completion_tokens"`
+			CacheHit   *int64 `json:"prompt_cache_hit_tokens"`
+		} `json:"usage"`
 		Choices []struct {
 			Message struct {
 				Content string `json:"content"`
@@ -163,6 +187,17 @@ func (s *Service) semanticRecall(ctx context.Context, tx pgx.Tx, projectID, requ
 	if err := json.Unmarshal(raw, &decoded); err != nil || len(decoded.Choices) == 0 {
 		return nil, errors.New("discovery: 模型响应无法解析")
 	}
+	observation.ResponseModel = decoded.Model
+	if observation.ProviderRequestID == "" {
+		observation.ProviderRequestID = decoded.ID
+	}
+	if decoded.Usage != nil {
+		observation.InputTokens = nonnegativeUsage(decoded.Usage.Prompt)
+		observation.OutputTokens = nonnegativeUsage(decoded.Usage.Completion)
+		observation.CacheReadTokens = nonnegativeUsage(decoded.Usage.CacheHit)
+	}
+	observation.Status = "ok"
+	observation.ResultStatus = "invalid_output"
 	verdicts, err := parseVerdicts(decoded.Choices[0].Message.Content)
 	if err != nil {
 		return nil, err
@@ -177,6 +212,12 @@ func (s *Service) semanticRecall(ctx context.Context, tx pgx.Tx, projectID, requ
 		if known[strings.ToLower(strings.TrimSpace(verdict.Repository))] {
 			filtered = append(filtered, verdict)
 		}
+	}
+	observation.ResultStatus = "used"
+	observation.ResultUsed = true
+	if len(filtered) == 0 {
+		observation.ResultStatus = "filtered_empty"
+		observation.ResultUsed = false
 	}
 	return filtered, nil
 }
@@ -216,4 +257,12 @@ func truncate(value string, limit int) string {
 		return value
 	}
 	return string(runes[:limit]) + "…"
+}
+
+func nonnegativeUsage(n *int64) *int64 {
+	if n == nil || *n < 0 {
+		return nil
+	}
+	value := *n
+	return &value
 }

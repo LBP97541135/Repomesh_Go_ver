@@ -18,6 +18,7 @@ import (
 )
 
 type Models struct {
+	Observation  *ObservationModels
 	Service      *models.Service
 	Tests        *models.TestService
 	Applications *models.ApplicationService
@@ -26,6 +27,7 @@ type Models struct {
 type modelHandler func(http.ResponseWriter, *http.Request, access.ProjectPrincipal) error
 
 func registerModels(mux *http.ServeMux, auth Auth, api Models) {
+	registerObservationModels(mux, auth, api.Observation)
 	if api.Service == nil {
 		return
 	}

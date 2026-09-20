@@ -7,6 +7,8 @@ implementation: partial-local
 
 # RepoMesh 观测与评估 Spec（默认本地，AgentLoop 可选）
 
+2026-09-20 增量设计入口：[观测平台增量功能 Spec](observation-platform-expansion-spec.md)具体规定本轮调用链、TTFT／Token、AgentLoop 分析／在线评估、样本标注与审核关联，实施验收和后续实验见[新计划](../plan/observation-platform-validation-and-experiments.md)。本篇身份、证据、最小本体改动及独立验收原则继续有效；同一新增功能的口径与完成门槛以增量 Spec 为准。新设计不表示功能已经实施，不改变下述历史验收范围或本地默认部署。
+
 v0.3 部署变更：按用户“全本地”要求及 [ADR 0024](../adr/0024-local-observation-workbench.md)，默认由本地工作台承担查询、证据数据集和评测展示；模型评审允许 DeepSeek API。AgentLoop 的字段映射、云接入流程与对应验收保留为可选适配，不再是本地使用的前置条件。当前能力见[本地工作台说明](local-observation-workbench.md)，其余未实现字段与 DSH 验收仍按各项范围判断。
 
 本文规定应采集什么、如何关联 Trace、如何评估交付效果及如何验收接入。以评委提出的五类交付问题为主线，以用户明确的「后续取消 CLI coding agent，使用 AgentTeams 原生 DeepSeekHarness」为目标执行方向。用户提供的《AgentTeams 评测方法论与实施规范 AgentLoop》v1.0 仅作参考，其 Python Runner、实施指令、样本规模和阈值不自动成为本项目要求。

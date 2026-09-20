@@ -1,5 +1,23 @@
 # RepoMesh 当前交接
 
+## 2026-09-20 观测模型配置收进主设置页
+
+主控制台「设置 → 模型与 API」现在直接维护 Jev／DeepSeek 的模型及 Key，提供保存、真实模型列表／连接测试、重新读取；原供应商目录仍在同页。设置 API 经管理员会话和 Origin／CSRF 校验，写入实际工作台配置；Web 目标由 `REPOMESH_OBSERVE_WORKBENCH_URL` 指定，默认 18090。平台未就绪时模型设置仍可访问，启动向导有入口。
+
+全量隔离数据库 Go 701 通过、4 条件跳过，构建／vet／相关 race 与前端通过；真实表单保存、刷新、空 Key 保留、真实模型列表及未就绪导航均已验证。Jev 对五项配置声明高置信支持，导航项仍不确定，未标 Jev 全项通过。完整结果见[配置实施记录](../development/2026-09-20-observation-model-settings/README.md)。改动仍在独立 worktree，共享实例未切换。
+
+## 2026-09-20 本地 Jev 评分与观测增量实施
+
+按用户后续要求，v1.1 采用全本地观测、档案、调度与标注，Jev 专责 typed rubric，DeepSeek 提供聚类归因与 AI 初标；替代下方设计阶段的云平台选择。已实现调用计量、可信绑定、付费重放保护、样本版本及人工复核、发现链可选采集与审核单证据版本前置条件。独立 worktree／19091 预览，没有替换共享业务实例。
+
+最终隔离数据库 Go 检查 697 通过、3 条件跳过；构建／vet／相关 race、两套前端及浏览器通过。真实 Jev／DeepSeek 固定产物流程已运行；最终 Jev 证据验收 7/8 达门槛，真实收益声明低置信度、未采纳，显式验收测试未全通过。G0／G1 部分完成，G2／G3 未运行；完整记录、既有间歇失败、API 文档基线失败及限制见[实施报告](../development/2026-09-20-local-observation-jev/README.md)和[28 项矩阵](../development/2026-09-20-local-observation-jev/acceptance-matrix.json)。使用方式见[本地工作台](local-observation-workbench.md)。
+
+## 2026-09-20 观测平台新增功能设计（实施前历史检查点）
+
+按用户要求新增[观测平台增量功能 Spec](observation-platform-expansion-spec.md)和[验收与实验计划](../plan/observation-platform-validation-and-experiments.md)。基于独立 worktree 的 `86f63e53ed67f231c1abfbe03793d30114e93bf3` 核对现有代码，细化真实调用链、TTFT／Token、接入状态、AgentLoop 在线评估与聚类归因、数据集标注及交付审核关联；列出代码改动边界、G0—G3 门槛、28 项验收和 E0—E4 后续实验。
+
+继续保留 ADR 0024 的本地默认能力；显式配置的 AgentLoop 集成承担本轮平台分析／评估／标注，全量回应评委建议须另过真实平台门槛。此次仅交付设计与文档检查，不修改产品代码、运行服务或启动真实任务／云端评测；不将原工作区未提交的运行时改造并入本分支。新增功能与实验均未实施，历史验收结论保持原范围。
+
 ## 2026-09-19 与最新 main 集成
 
 本地观测及前端用途入口已与 `c0cd44a` 主线整合，保留 GitHub 重连、智能体／技能设置、仓库团队和健康监控更新。主线已使用 0043／0044，观测迁移调整为 **0045_observation_facts.sql**；此前报告中的 0043 指首轮隔离试验版本，不改写其证据或已应用历史。合并树的 Go 构建／vet、589 个测试（另 2 条件跳过）、相关包 race、两套前端及浏览器导航验证通过。整合范围与限制见[合并检查](../development/2026-09-19-local-observation-02/MAIN-INTEGRATION.md)。

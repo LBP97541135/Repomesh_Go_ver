@@ -16,7 +16,27 @@ const maxRecordBytes = 32 << 20
 
 // Journal is a private, append-only local archive. Consumers acknowledge
 // individual event IDs, not a monotonic source cursor (commits can arrive late).
-type Journal struct{ Dir string }
+type Journal struct {
+	Dir      string
+	readOnly bool
+}
+
+// OpenJournalReadOnly never creates directories or upgrades old archives.
+func OpenJournalReadOnly(dir string) (*Journal, error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return nil, err
+	}
+	info, err := os.Lstat(abs)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm()&0077 != 0 {
+		return nil, errors.New("read archive must be an existing private directory")
+	}
+	return &Journal{Dir: abs, readOnly: true}, nil
+}
+
+func recordBucket(bucket string) bool {
+	return oneOf(bucket, "receipts", "platform", "trials", "spans", "judgments", "bindings", "samples", "annotations", "integrations", "platform_runs", "model_calls", "analyses", "evaluation_claims", "paid_attempts", "sample_selections")
+}
 
 type diskRecord struct {
 	Checksum string          `json:"sha256"`
@@ -191,7 +211,7 @@ func (j *Journal) Events() ([]Event, error) {
 // PutRecord writes an immutable, checksummed administrative record, e.g. an
 // export receipt or a platform evaluation. Same identity/different content fails.
 func (j *Journal) PutRecord(bucket, identity string, value any) error {
-	if !oneOf(bucket, "receipts", "platform", "trials", "spans", "judgments") {
+	if !recordBucket(bucket) {
 		return errors.New("unsupported record bucket")
 	}
 	data, err := json.Marshal(value)
@@ -206,7 +226,7 @@ func (j *Journal) PutRecord(bucket, identity string, value any) error {
 }
 
 func (j *Journal) ReadRecord(bucket, identity string, dest any) error {
-	if !oneOf(bucket, "receipts", "platform", "trials", "spans", "judgments") {
+	if !recordBucket(bucket) {
 		return errors.New("unsupported record bucket")
 	}
 	b, err := j.read(bucket + "/" + Digest([]byte(identity)) + ".json")
@@ -226,7 +246,7 @@ func (j *Journal) ReadRecord(bucket, identity string, dest any) error {
 // Records reads checksummed records without exposing arbitrary file paths.
 // Callers must also validate domain identities using ReadRecord.
 func (j *Journal) Records(bucket string) ([]json.RawMessage, error) {
-	if !oneOf(bucket, "receipts", "platform", "trials", "spans", "judgments") {
+	if !recordBucket(bucket) {
 		return nil, errors.New("unsupported record bucket")
 	}
 	paths, err := filepath.Glob(filepath.Join(j.Dir, bucket, "*.json"))
@@ -249,6 +269,9 @@ func (j *Journal) Records(bucket string) ([]json.RawMessage, error) {
 }
 
 func (j *Journal) immutableWrite(ref string, data []byte) error {
+	if j.readOnly {
+		return errors.New("archive is read-only")
+	}
 	if len(data) > maxRecordBytes {
 		return errors.New("archive record exceeds limit")
 	}
