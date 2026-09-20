@@ -9,6 +9,7 @@ import {
   listSkillVersions,
   listSkills,
   listEvalRuns,
+  registerSkillVersion,
   type EvalRun,
   seedBindingsByRole,
   type SkillAction,
@@ -145,6 +146,17 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
   const [showContent, setShowContent] = useState(false);
   const [snapshots, setSnapshots] = useState<Array<Record<string, unknown>>>([]);
   const [evalRuns, setEvalRuns] = useState<EvalRun[] | null>(null);
+  /** 「登记新版本」表单（2026-09-20 补）。
+   *
+   *  为什么需要它：技能的生命周期是 draft → evaluating → canary → promoted，
+   *  但界面上**只有"推进已有版本"的动作**（送评估/进金丝雀/晋升/回滚），
+   *  没有"登记新版本"—— 于是线上 15 个技能全是 promoted、一个 draft 都没有，
+   *  `evaluation_runs` 至今 0 行：**A/B 评估这条路在界面上根本走不到**。
+   *  后端 `POST /api/skills/versions` 与前端 `registerSkillVersion` 早就有了，
+   *  缺的就是这个入口。 */
+  const [showNewVersion, setShowNewVersion] = useState(false);
+  const [newVersion, setNewVersion] = useState("");
+  const [newContent, setNewContent] = useState("");
 
   useEffect(() => {
     listSkills()
@@ -180,6 +192,29 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
       setEvalRuns(await listEvalRuns(versionId));
     } catch {
       setEvalRuns([]);
+    }
+  };
+
+  /** 登记一个新版本（状态为 draft）—— 之后才走得到"送评估 → A/B 评估"。 */
+  const submitNewVersion = async () => {
+    if (!selected || newVersion.trim() === "" || newContent.trim() === "") return;
+    setBusy(true);
+    try {
+      await registerSkillVersion({
+        skill_id: selected.id,
+        version: newVersion.trim(),
+        content: newContent,
+      });
+      onToast(`已登记版本 ${newVersion.trim()}（draft）—— 现在可以"送评估"了`);
+      setShowNewVersion(false);
+      setNewVersion("");
+      setNewContent("");
+      // 立刻重取版本列表：新 draft 要出现在列表里，否则人以为没生效。
+      setVersions(await listSkillVersions(selected.id));
+    } catch (err) {
+      onToast(`登记失败：${errText(err)}`);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -408,9 +443,52 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
                     ? "系统内置（对所有账号可见）"
                     : `由 ${selected.created_by} 建立`}
                 </div>
-                <button className={`mt-2 ${chip}`} onClick={() => setShowContent(!showContent)}>
-                  {showContent ? "收起原文" : "查看原文"}
-                </button>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button className={chip} onClick={() => setShowContent(!showContent)}>
+                    {showContent ? "收起原文" : "查看原文"}
+                  </button>
+                  {/* 登记新版本：A/B 评估的唯一入口（没有 draft 就永远评不了）。 */}
+                  <button
+                    className={chip}
+                    onClick={() => {
+                      setShowNewVersion(!showNewVersion);
+                      if (!showNewVersion) {
+                        setNewContent(content?.content ?? "");
+                        setNewVersion("");
+                      }
+                    }}
+                  >
+                    {showNewVersion ? "取消登记" : "登记新版本"}
+                  </button>
+                </div>
+                {showNewVersion && (
+                  <div className="mt-2 flex flex-col gap-1.5 rounded-hard border border-line bg-well px-3 py-2">
+                    <p className="text-[11px] leading-[1.7] text-tx2">
+                      登记出来的版本状态是 <span className="font-mono">draft</span>，
+                      之后才能「送评估 → 进金丝雀 → 晋升」。正文默认带出当前版本，
+                      改过再提交才有 A/B 可比性。
+                    </p>
+                    <input
+                      className="rounded-hard border border-line bg-panel px-2 py-1 font-mono text-[12px] text-tx"
+                      placeholder="版本号，如 1.1.0"
+                      value={newVersion}
+                      onChange={(e) => setNewVersion(e.target.value)}
+                    />
+                    <textarea
+                      className="min-h-[120px] rounded-hard border border-line bg-panel px-2 py-1 font-mono text-[11px] text-tx"
+                      placeholder="技能正文（SKILL.md 内容）"
+                      value={newContent}
+                      onChange={(e) => setNewContent(e.target.value)}
+                    />
+                    <button
+                      className={`self-start ${primary}`}
+                      disabled={busy || newVersion.trim() === "" || newContent.trim() === ""}
+                      onClick={() => void submitNewVersion()}
+                    >
+                      {busy ? "提交中…" : "登记为 draft"}
+                    </button>
+                  </div>
+                )}
                 {showContent && content && (
                   <div className="mt-2 rounded-hard border border-line bg-well px-3 py-2">
                     <div className="text-[10.5px] text-tx3">
