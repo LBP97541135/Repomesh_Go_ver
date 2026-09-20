@@ -68,7 +68,10 @@ jobs:
           cd frontend
           npm ci --no-audit --no-fund
           # 跳过 tsc：控制台有既有类型错误，npm run build 会失败
-          npx vite build
+          # REPOMESH_APP_VERSION：把本次提交 SHA 编进前端产物（vite.config.ts 读它），
+          # 与后端 LDFLAGS 同一口径 —— 部署页因此能把"前端构建版本"和"后端运行时版本"
+          # 摆在一起比。此前前端只取 package.json 的 0.0.0，比出来永远是"不一致"。
+          REPOMESH_APP_VERSION="${GITHUB_SHA}" npx vite build
           echo "前端构建完成"
 
       - name: 迁移 → 安装 → 重启

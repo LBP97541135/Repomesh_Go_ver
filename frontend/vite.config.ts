@@ -12,7 +12,15 @@ export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
     define: {
-      __APP_VERSION__: JSON.stringify(pkg.version ?? "0.0.0"),
+      // 版本优先取**构建期注入的 commit**（部署流水传 GITHUB_SHA），回落 package.json。
+      //
+      // 2026-09-20 实测：此前只取 `pkg.version`，而 package.json 里就是 `0.0.0`
+      // —— 于是部署页的"控制台版本（构建期）"永远显示 0.0.0，与后端的 commit
+      // 一比永远"不一致"，成了一句假警报。后端是用 LDFLAGS 把 ${GITHUB_SHA}
+      // 编进二进制的，前端这里用同一口径，两边才比得起来。
+      __APP_VERSION__: JSON.stringify(
+        process.env.REPOMESH_APP_VERSION ?? process.env.GITHUB_SHA ?? pkg.version ?? "0.0.0",
+      ),
     },
     server: {
       host: "127.0.0.1",
