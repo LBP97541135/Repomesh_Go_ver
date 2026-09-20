@@ -72,7 +72,7 @@ func (n *Notifier) Notify(ctx context.Context, issueID, txnID, body string) {
 }
 
 func (n *Notifier) deliver(ctx context.Context, issueID, txnID, body string) {
-	roomID, err := n.roomForIssue(ctx, issueID)
+	roomID, err := RoomForIssue(ctx, n.pool, issueID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "roomnotice: room lookup failed issue=%s: %v\n", issueID, err)
 		return
@@ -94,9 +94,10 @@ func (n *Notifier) deliver(ctx context.Context, issueID, txnID, body string) {
 //
 // 定序仍按范围里的 repository_id:与 issues.GetIssueRooms 一致,两条读面给出不同的
 // "第一间房"会让同一件事在两个地方显示成发生在不同房间。
-func (n *Notifier) roomForIssue(ctx context.Context, issueID string) (string, error) {
+// RoomForIssue 导出给 managerbridge 复用：issue → 第一间有房号的仓库团队房。
+func RoomForIssue(ctx context.Context, pool *pgxpool.Pool, issueID string) (string, error) {
 	var roomID string
-	err := n.pool.QueryRow(ctx, `
+	err := pool.QueryRow(ctx, `
 		SELECT t.team_room_id
 		FROM repomesh_issues.issue_repository_scope s
 		JOIN repomesh_projects.project_repositories pr
