@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -47,6 +49,19 @@ func (c *MatrixClient) httpClient() *http.Client {
 		return c.HTTP
 	}
 	return &http.Client{Timeout: 15 * time.Second}
+}
+
+// matrixHTTPError 保留上游状态码：401（凭据过期）和 404（房间不存在）是完全两种
+// 故障，调用方要能分辨——前者要换凭据重试，后者重试多少次都一样。
+type matrixHTTPError struct {
+	Status int
+	Method string
+	Path   string
+	Detail string
+}
+
+func (e *matrixHTTPError) Error() string {
+	return fmt.Sprintf("matrix %s %s: status %d: %s", e.Method, e.Path, e.Status, e.Detail)
 }
 
 func (c *MatrixClient) do(ctx context.Context, method, path string, payload any, out any) (int, error) {
@@ -79,12 +94,12 @@ func (c *MatrixClient) do(ctx context.Context, method, path string, payload any,
 		return http.StatusBadGateway, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		// 上游错误原文截断后带上：401/403/404 的成因差别很大，笼统一句话没法查。
+		// 上游错误原文截断后带上：笼统一句话没法查。
 		detail := string(data)
 		if len(detail) > 300 {
 			detail = detail[:300]
 		}
-		return resp.StatusCode, fmt.Errorf("matrix %s %s: status %d: %s", method, path, resp.StatusCode, detail)
+		return resp.StatusCode, &matrixHTTPError{Status: resp.StatusCode, Method: method, Path: path, Detail: detail}
 	}
 	if out != nil {
 		if err := json.Unmarshal(data, out); err != nil {
@@ -164,4 +179,97 @@ func (c *MatrixClient) SendMessage(ctx context.Context, roomID, txnID, body stri
 		return "", err
 	}
 	return sent.EventID, nil
+}
+
+// MatrixSession 把"换凭据"和"用凭据"合成一件事：进程内持一枚 access token，
+// 撞上 401 就用控制器换一枚新的、重试一次。
+//
+// 为什么缓存而不是每次现换：换 token 是**轮换**语义（上游 ForceRefreshMatrixToken），
+// 每读一次房间就换一枚会让别处正在用的旧 token 失效。所以只在 401 时换。
+// 也不落库：它是可再生的短期凭据，重启后现换一枚即可，存起来只是多一处泄露面。
+type MatrixSession struct {
+	// Controller 用来换凭据（POST /api/v1/credentials/matrix-token）。
+	Controller *Client
+	// Homeserver 形如 http://127.0.0.1:18080，来自 MATRIX_HOMESERVER_URL。
+	Homeserver string
+	// HTTP 透传给底下的 MatrixClient；测试可注入。
+	HTTP *http.Client
+
+	mu    sync.Mutex
+	token string
+}
+
+func (s *MatrixSession) client(token string) *MatrixClient {
+	return &MatrixClient{BaseURL: s.Homeserver, Token: token, HTTP: s.HTTP}
+}
+
+func (s *MatrixSession) accessToken(ctx context.Context) (string, error) {
+	s.mu.Lock()
+	cached := s.token
+	s.mu.Unlock()
+	if cached != "" {
+		return cached, nil
+	}
+	return s.refreshToken(ctx)
+}
+
+func (s *MatrixSession) refreshToken(ctx context.Context) (string, error) {
+	if s.Controller == nil {
+		return "", fmt.Errorf("agentteams controller client is nil; cannot obtain a matrix token")
+	}
+	token, _, err := s.Controller.MatrixToken(ctx)
+	if err != nil {
+		return "", err
+	}
+	// 兜一道底：空串绝不能当成"换到了"，否则会拿它去打 homeserver。
+	if token == "" {
+		return "", fmt.Errorf("agentteams controller returned an empty matrix token")
+	}
+	s.mu.Lock()
+	s.token = token
+	s.mu.Unlock()
+	return token, nil
+}
+
+// withToken 跑一次需要凭据的操作，401 时换一枚重试。
+//
+// 只重试一次，而且只认 401：403（确实无权）和 404（房间不存在）换多少枚凭据都一样，
+// 重试只是把故障拖长。
+func (s *MatrixSession) withToken(ctx context.Context, run func(*MatrixClient) error) error {
+	token, err := s.accessToken(ctx)
+	if err != nil {
+		return err
+	}
+	err = run(s.client(token))
+	var httpErr *matrixHTTPError
+	if err == nil || !errors.As(err, &httpErr) || httpErr.Status != http.StatusUnauthorized {
+		return err
+	}
+	refreshed, err := s.refreshToken(ctx)
+	if err != nil {
+		return err
+	}
+	return run(s.client(refreshed))
+}
+
+// RoomMessages 读房间时间线，凭据过期会自动换一枚重试。
+func (s *MatrixSession) RoomMessages(ctx context.Context, roomID string, limit int) ([]MatrixMessage, error) {
+	var messages []MatrixMessage
+	err := s.withToken(ctx, func(client *MatrixClient) error {
+		var inner error
+		messages, inner = client.RoomMessages(ctx, roomID, limit)
+		return inner
+	})
+	return messages, err
+}
+
+// SendMessage 往房间发一条消息，凭据过期会自动换一枚重试。
+func (s *MatrixSession) SendMessage(ctx context.Context, roomID, txnID, body string) (string, error) {
+	var eventID string
+	err := s.withToken(ctx, func(client *MatrixClient) error {
+		var inner error
+		eventID, inner = client.SendMessage(ctx, roomID, txnID, body)
+		return inner
+	})
+	return eventID, err
 }

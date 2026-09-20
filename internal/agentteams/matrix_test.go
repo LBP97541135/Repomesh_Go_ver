@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -155,5 +156,106 @@ func TestMatrixTokenReadsAccessToken(t *testing.T) {
 	}
 	if status != http.StatusOK || token != "syt_new" {
 		t.Fatalf("status=%d token=%q", status, token)
+	}
+}
+
+// sessionFixture 造一对假上游：控制器负责发凭据，homeserver 负责读房间。
+type sessionFixture struct {
+	controllerCalls int
+	homeserverCalls int
+	// tokenIssued 是控制器每次发出的凭据序号，用来判断"换没换"。
+	tokenIssued  int
+	rejectTokens map[string]int // token -> 该 token 撞上的 HTTP 状态（0 = 放行）
+}
+
+func (f *sessionFixture) servers(t *testing.T) (*Client, string) {
+	t.Helper()
+	controller := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f.controllerCalls++
+		f.tokenIssued++
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"access_token":"tok-` + strconv.Itoa(f.tokenIssued) + `"}`))
+	}))
+	t.Cleanup(controller.Close)
+
+	homeserver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f.homeserverCalls++
+		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if status := f.rejectTokens[token]; status != 0 {
+			w.WriteHeader(status)
+			_, _ = w.Write([]byte(`{"errcode":"M_UNKNOWN_TOKEN"}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"chunk":[{"type":"m.room.message","event_id":"$m","sender":"@a:hs","origin_server_ts":1,"content":{"body":"ok"}}]}`))
+	}))
+	t.Cleanup(homeserver.Close)
+	return &Client{BaseURL: controller.URL, Token: "sa"}, homeserver.URL
+}
+
+// 控制器给的凭据是**轮换**语义：每读一次房间就换一枚会让别处正在用的旧 token 失效。
+// 所以正常路径只换一次，之后一直复用。
+func TestMatrixSessionCachesTokenAcrossReads(t *testing.T) {
+	fixture := &sessionFixture{rejectTokens: map[string]int{}}
+	controller, homeserver := fixture.servers(t)
+	session := &MatrixSession{Controller: controller, Homeserver: homeserver}
+
+	for i := 0; i < 3; i++ {
+		if _, err := session.RoomMessages(context.Background(), "!room:hs", 10); err != nil {
+			t.Fatalf("read %d: %v", i, err)
+		}
+	}
+	if fixture.controllerCalls != 1 {
+		t.Fatalf("controller calls=%d; want 1 (token must be reused, not rotated per read)", fixture.controllerCalls)
+	}
+}
+
+// 凭据过期是预期内的（上游注释：Workers/Managers 收到 401 时用它换新）。
+// 第一枚被拒 → 换一枚重试 → 成功。
+func TestMatrixSessionRefreshesTokenOn401AndRetriesOnce(t *testing.T) {
+	fixture := &sessionFixture{rejectTokens: map[string]int{"tok-1": http.StatusUnauthorized}}
+	controller, homeserver := fixture.servers(t)
+	session := &MatrixSession{Controller: controller, Homeserver: homeserver}
+
+	messages, err := session.RoomMessages(context.Background(), "!room:hs", 10)
+	if err != nil {
+		t.Fatalf("RoomMessages: %v", err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("got %d messages; want the retry to succeed", len(messages))
+	}
+	if fixture.controllerCalls != 2 {
+		t.Fatalf("controller calls=%d; want 2 (initial + one refresh)", fixture.controllerCalls)
+	}
+}
+
+// 403 是"确实无权"，换多少枚凭据都一样 —— 不能重试，否则只是把故障拖长。
+func TestMatrixSessionDoesNotRetryOn403(t *testing.T) {
+	fixture := &sessionFixture{rejectTokens: map[string]int{"tok-1": http.StatusForbidden}}
+	controller, homeserver := fixture.servers(t)
+	session := &MatrixSession{Controller: controller, Homeserver: homeserver}
+
+	if _, err := session.RoomMessages(context.Background(), "!room:hs", 10); err == nil {
+		t.Fatal("want error on 403")
+	}
+	if fixture.controllerCalls != 1 {
+		t.Fatalf("controller calls=%d; want 1 (403 must not trigger a token refresh)", fixture.controllerCalls)
+	}
+}
+
+// 换不到凭据就如实报错，不能拿空 token 去打 homeserver（那会变成一串难查的 401）。
+func TestMatrixSessionFailsWhenControllerCannotIssueToken(t *testing.T) {
+	controller := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer controller.Close()
+	homeserver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("homeserver must not be reached without a token")
+	}))
+	defer homeserver.Close()
+
+	session := &MatrixSession{Controller: &Client{BaseURL: controller.URL}, Homeserver: homeserver.URL}
+	if _, err := session.RoomMessages(context.Background(), "!room:hs", 10); err == nil {
+		t.Fatal("want error when the controller cannot issue a token")
 	}
 }

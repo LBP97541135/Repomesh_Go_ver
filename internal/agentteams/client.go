@@ -66,10 +66,21 @@ func (c *Client) Workflow(ctx context.Context, projectID, team string) ([]byte, 
 // 是控制器自己给的取凭据接口（上游注释：Workers/Managers 收到 401 时用它换新）。
 //
 // 房间消息只能直接打 homeserver —— 控制器的 REST 里没有"按 roomID 读消息"这条。
+//
+// **拿不到就是错误**：write() 对非 2xx 不返回 error，所以这里必须自己看状态码，
+// 否则 503 会变成"成功返回空串"，调用方拿着空 token 去打 homeserver —— 那会变成
+// 一串难查的 401。
 func (c *Client) MatrixToken(ctx context.Context) (string, int, error) {
 	body, status, err := c.write(ctx, http.MethodPost, "/api/v1/credentials/matrix-token", map[string]any{})
-	if err != nil || status != http.StatusOK {
+	if err != nil {
 		return "", status, err
+	}
+	if status != http.StatusOK {
+		detail := string(body)
+		if len(detail) > 300 {
+			detail = detail[:300]
+		}
+		return "", status, fmt.Errorf("agentteams matrix token: status %d: %s", status, detail)
 	}
 	var issued struct {
 		AccessToken string `json:"access_token"`

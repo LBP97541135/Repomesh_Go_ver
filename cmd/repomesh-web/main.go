@@ -238,6 +238,17 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 				atClient = nil
 			}
 		}
+		// 房间消息走 AgentTeams 的 homeserver：控制器的 REST 里没有"按 roomID 读消息"
+		// 这条（只有 /projects/{id}/spawns/{sessionId}/messages，要求先有项目，而
+		// RepoMesh 不建项目）。凭据现换现用 —— 见 agentteams.MatrixSession。
+		//
+		// 缺任一环境变量就不装：房间消息端点返 503「没配」，而不是返空消息流让界面
+		// 以为"房间没人说话"。房间**关联**不受影响，那部分只读本库。
+		if atClient != nil {
+			if homeserver := strings.TrimRight(os.Getenv("MATRIX_HOMESERVER_URL"), "/"); homeserver != "" {
+				issuesAPI.Matrix = &agentteams.MatrixSession{Controller: atClient, Homeserver: homeserver}
+			}
+		}
 		pipelineAPI.HandoffDocs = web.HandoffDocs{Service: handoff.New(runtime.Pool())}
 		pipelineAPI.Extensions = web.PipelineExtensions{
 			Spec:  spec.New(runtime.Pool()),

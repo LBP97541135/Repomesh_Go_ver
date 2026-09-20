@@ -423,8 +423,33 @@ type RoomsView struct {
 	Leaders []any           `json:"leaders"`
 }
 
-// GetIssueRooms returns the room association view for one issue. Existence of
-// the conversation never implies readiness; canEnter stays false.
+// issueRoom 是 issue 范围里某个仓库关联到的 AgentTeams 房。
+type issueRoom struct {
+	repositoryID string
+	roomID       string
+}
+
+// RepositoryRoom 是 leaders[] 里的一条：哪个仓库、哪间房、能不能进。
+type RepositoryRoom struct {
+	RepositoryID string  `json:"repositoryId"`
+	ReadOnly     bool    `json:"readOnly"`
+	Availability string  `json:"availability"`
+	RoomID       *string `json:"roomId"`
+	CanEnter     bool    `json:"canEnter"`
+}
+
+// GetIssueRooms 返回一个 issue 的房间关联观察。
+//
+// 两个层次分清楚：
+//   - **关联**（有没有房）来自 `repository_teams.team_room_id` —— 那是建团队之后回读
+//     一次 AgentTeams Team CR 的 status 存下来的真实房间号，不是推导出来的。
+//   - **就绪**（能不能进）只在真有房间号时才为真。会话存在本身从来不构成
+//     preparing/ready 依据（契约 §7 明文），所以没有房间号时仍然如实返
+//     unavailable/NOT_ASSOCIATED，绝不编一个出来。
+//
+// 房间是**仓库团队**粒度的，不是 per-issue 的：上游那间房属于"这个仓库的队伍"，
+// 一次 issue 的活会在这几间房里发生。所以 main 取范围里第一个真有房的仓库，
+// 其余进 leaders[]，每条都带 repositoryId —— 谁是哪间房，界面能自己标。
 func (s *Service) GetIssueRooms(ctx context.Context, principal access.ProjectPrincipal, projectID, issueID string) (RoomsView, error) {
 	tx, err := s.beginCreate(ctx)
 	if err != nil {
@@ -446,11 +471,64 @@ func (s *Service) GetIssueRooms(ctx context.Context, principal access.ProjectPri
 		}
 		return RoomsView{}, unavailable()
 	}
+	rooms, err := loadIssueRooms(ctx, tx, projectID, issueID)
+	if err != nil {
+		return RoomsView{}, err
+	}
 	view := RoomsView{IssueID: issueID, Leaders: []any{}}
 	view.Main = RoomObservation{
 		ConversationID: conversationID,
 		Availability:   "unavailable",
 		Reason:         "NOT_ASSOCIATED",
 	}
+	for index, room := range rooms {
+		roomID := room.roomID
+		observation := RoomObservation{
+			ConversationID: conversationID,
+			Availability:   "ready",
+			RoomID:         &roomID,
+			CanEnter:       true,
+		}
+		if index == 0 {
+			view.Main = observation
+			continue
+		}
+		view.Leaders = append(view.Leaders, RepositoryRoom{
+			RepositoryID: room.repositoryID,
+			Availability: "ready",
+			RoomID:       &roomID,
+			CanEnter:     true,
+			ReadOnly:     true,
+		})
+	}
 	return view, nil
+}
+
+// loadIssueRooms 按 issue 的仓库范围找出真有房的仓库，顺序稳定（按 repository_id），
+// 否则同一份数据两次请求可能给出不同的 main。
+func loadIssueRooms(ctx context.Context, tx pgx.Tx, projectID, issueID string) ([]issueRoom, error) {
+	rows, err := tx.Query(ctx, `
+		SELECT scope.repository_id, COALESCE(NULLIF(teams.team_room_id, ''), '')
+		FROM repomesh_issues.issue_repository_scope scope
+		LEFT JOIN public.repository_teams teams ON teams.repository_id = scope.repository_id
+		WHERE scope.project_id = $1 AND scope.issue_id = $2
+		ORDER BY scope.repository_id`, projectID, issueID)
+	if err != nil {
+		return nil, unavailable()
+	}
+	defer rows.Close()
+	rooms := []issueRoom{}
+	for rows.Next() {
+		var room issueRoom
+		if err := rows.Scan(&room.repositoryID, &room.roomID); err != nil {
+			return nil, unavailable()
+		}
+		if room.roomID != "" {
+			rooms = append(rooms, room)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, unavailable()
+	}
+	return rooms, nil
 }

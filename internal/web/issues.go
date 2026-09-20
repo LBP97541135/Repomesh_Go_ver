@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"repomesh.local/repomesh/internal/access"
+	"repomesh.local/repomesh/internal/agentteams"
 	"repomesh.local/repomesh/internal/docparse"
 	"repomesh.local/repomesh/internal/issues"
 	"repomesh.local/repomesh/internal/projects"
@@ -23,6 +24,9 @@ import (
 // skips every route so unconfigured modes keep working.
 type Issues struct {
 	Service *issues.Service
+	// Matrix 读 AgentTeams 房间消息用。为 nil 时房间消息端点返 503（如实说"没配"），
+	// 不影响房间关联本身（那部分只读本库）。
+	Matrix *agentteams.MatrixSession
 }
 
 func registerIssues(mux *http.ServeMux, auth Auth, issueAPI Issues) {

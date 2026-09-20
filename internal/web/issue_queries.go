@@ -86,6 +86,85 @@ func registerIssueRoutes(mux *http.ServeMux, auth Auth, issueAPI Issues) {
 		}
 		writeJSON(w, http.StatusOK, view)
 	})
+	// 房间消息。房间在 AgentTeams 的 homeserver 上，不在本库，所以要打出去；
+	// 控制器的 REST 里没有"按 roomID 读消息"这一条（它只有
+	// /projects/{id}/spawns/{sessionId}/messages，要求先有项目），所以直接读 Matrix。
+	//
+	// 授权复用 GetIssueRooms：**只允许读这个 issue 关联到的房**。房间号是上游的
+	// 不透明 id，凭一个 id 就能读任意房间等于绕过项目边界。
+	mux.HandleFunc("GET /api/issues/{issueId}/rooms/{roomId}/messages", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		if auth.Service == nil || issueAPI.Service == nil {
+			writeProjectError(w, &access.Failure{Status: 503, Code: "AUTH_NOT_CONFIGURED"})
+			return
+		}
+		projectID := r.URL.Query().Get("projectId")
+		if projectID == "" {
+			writeProjectError(w, &issues.Failure{Status: 422, Code: "VALIDATION_FAILED"})
+			return
+		}
+		roomID := r.PathValue("roomId")
+		if roomID == "" {
+			writeProjectError(w, &issues.Failure{Status: 422, Code: "VALIDATION_FAILED"})
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		claims, err := auth.Service.AuthenticateProjectRequest(ctx, cookie(r, sessionCookie), r.Header.Get("X-CSRF-Token"), false)
+		if err != nil {
+			writeProjectError(w, err)
+			return
+		}
+		view, err := issueAPI.Service.GetIssueRooms(ctx, claims, projectID, r.PathValue("issueId"))
+		if err != nil {
+			writeProjectError(w, err)
+			return
+		}
+		if !roomBelongsToIssue(view, roomID) {
+			writeProjectError(w, &issues.Failure{Status: 404, Code: "RESOURCE_NOT_FOUND"})
+			return
+		}
+		if issueAPI.Matrix == nil {
+			// 没配 Matrix 就如实说没配，不返一个空消息流让界面以为"房间没人说话"。
+			writeProjectError(w, &access.Failure{Status: 503, Code: "ROOM_STREAM_NOT_CONFIGURED"})
+			return
+		}
+		limit := atoiDefault(r.URL.Query().Get("limit"), 100)
+		if limit <= 0 || limit > 200 {
+			limit = 100
+		}
+		messages, err := issueAPI.Matrix.RoomMessages(ctx, roomID, limit)
+		if err != nil {
+			// 上游读不到是上游的问题（502），不是"房间空"。
+			writeProjectError(w, &access.Failure{Status: 502, Code: "ROOM_STREAM_UNAVAILABLE"})
+			return
+		}
+		items := make([]map[string]any, 0, len(messages))
+		for _, message := range messages {
+			items = append(items, map[string]any{
+				"eventId": message.EventID,
+				"sender":  message.Sender,
+				"body":    message.Body,
+				"at":      message.Timestamp,
+			})
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"roomId": roomID, "messages": items})
+	})
+}
+
+// roomBelongsToIssue 判断请求的房间号是否真的是这个 issue 关联到的房。
+func roomBelongsToIssue(view issues.RoomsView, roomID string) bool {
+	if view.Main.RoomID != nil && *view.Main.RoomID == roomID {
+		return true
+	}
+	for _, entry := range view.Leaders {
+		room, ok := entry.(issues.RepositoryRoom)
+		if ok && room.RoomID != nil && *room.RoomID == roomID {
+			return true
+		}
+	}
+	return false
 }
 
 func listIssues(w http.ResponseWriter, r *http.Request, service *issues.Service, claims access.ProjectPrincipal) error {
