@@ -519,14 +519,32 @@ func (s *Service) GetIssueRooms(ctx context.Context, principal access.ProjectPri
 //
 // 一并带出仓库名：界面对 `repository_name === null` 的呈现是「catalog 未收录」，
 // 一句我们占不了的说法 —— 名字拿不到就说拿不到，能拿到就别让它去说那句假话。
+//
+// 0057 起 repository_teams 键为 (project_id, 扫描侧 repository_id)，而 issue 范围里
+// 是项目侧 repo_… id —— 先按 URL 对齐把两边认上（与 repositoryteams 的解析同规则），
+// 直接 join 永远命不中。仓库名取扫描侧的名字。
 func loadIssueRooms(ctx context.Context, tx pgx.Tx, projectID, issueID string) ([]issueRoom, error) {
 	rows, err := tx.Query(ctx, `
-		SELECT scope.repository_id, COALESCE(repo.name, ''), COALESCE(NULLIF(teams.team_room_id, ''), '')
-		FROM repomesh_issues.issue_repository_scope scope
-		LEFT JOIN public.repository_teams teams ON teams.repository_id = scope.repository_id
-		LEFT JOIN repomesh_scan.repositories repo ON repo.id = scope.repository_id
-		WHERE scope.project_id = $1 AND scope.issue_id = $2
-		ORDER BY scope.repository_id`, projectID, issueID)
+		SELECT s.repository_id, COALESCE(repo.name, ''), COALESCE(NULLIF(t.team_room_id, ''), '')
+		FROM repomesh_issues.issue_repository_scope s
+		JOIN repomesh_projects.project_repositories pr
+		  ON pr.project_id = s.project_id AND pr.repository_id = s.repository_id
+		JOIN repomesh_projects.repositories r ON r.id = pr.repository_id
+		JOIN repomesh_projects.projects p ON p.id = pr.project_id
+		JOIN repomesh_access.accounts a ON a.id = p.owner
+		LEFT JOIN LATERAL (
+		  SELECT scan.id, scan.name FROM repomesh_scan.repositories scan
+		  WHERE scan.organization_id = a.organization_id
+		    AND lower(regexp_replace(rtrim(scan.url, '/'), '\.git$', '')) IN
+		      (lower('https://' || r.host || '/' || r.owner || '/' || r.name),
+		       lower('http://' || r.host || '/' || r.owner || '/' || r.name),
+		       lower('git@' || r.host || ':' || r.owner || '/' || r.name))
+		  ORDER BY scan.profiled_at DESC, scan.id LIMIT 1
+		) repo ON true
+		LEFT JOIN public.repository_teams t
+		  ON t.project_id = s.project_id AND t.repository_id = repo.id
+		WHERE s.project_id = $1 AND s.issue_id = $2
+		ORDER BY s.repository_id`, projectID, issueID)
 	if err != nil {
 		return nil, unavailable()
 	}

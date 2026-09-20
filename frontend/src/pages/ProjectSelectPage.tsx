@@ -1,5 +1,13 @@
-import { useRef, useState } from "react";
-import { createProject, type ProjectCreateInput, type ProjectListItem } from "../api/projects";
+import { useCallback, useRef, useState } from "react";
+import {
+  archiveProject,
+  createProject,
+  listArchivedProjects,
+  restoreProject,
+  type ArchivedProjectItem,
+  type ProjectCreateInput,
+  type ProjectListItem,
+} from "../api/projects";
 import { errText } from "../display";
 
 /** 项目管理（侧栏「项目」，也是没有当前项目时的落地页）。
@@ -10,8 +18,9 @@ import { errText } from "../display";
  *  与 `AddRepositoryCard`），并把外壳已经给过的页边距让出来（外壳是 `px-8 pt-5 pb-10`，
  *  这里不再叠 `py-6`）。
  *
- *  **行为一行没改**：仍是「建项目 → 选仓库 → 建 Issue」三步，两个动作按钮、幂等键
- *  重试策略、禁用条件都与改版前一致。 */
+ *  2026-09-20 加**归档**（软删除）：每个项目一枚「归档」chip，归档后项目从列表消失、
+ *  数据一行不删；标题行的「已归档」展开归档区，可随时「还原」。归档的是当前项目时，
+ *  外壳会在列表刷新后自动落回这一页（activeProjectId 校验不过即清空）。 */
 
 /** 小尺寸次要按钮：仓库页同款。 */
 const chip =
@@ -28,7 +37,7 @@ export function ProjectSelectPage({ projects, activeProjectId, error, onRetry, o
   activeProjectId: string | null;
   error: string | null;
   onRetry: () => void;
-  onSelect: (id: string, destination: "repositories" | "issues") => void;
+  onSelect: (id: string) => void;
 }) {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
@@ -36,6 +45,61 @@ export function ProjectSelectPage({ projects, activeProjectId, error, onRetry, o
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const attempt = useRef<{ key: string; input: ProjectCreateInput } | null>(null);
+
+  // 归档区：默认收起，第一次展开才拉取（归档量小，一次给全，后端封顶 200）。
+  const [showArchived, setShowArchived] = useState(false);
+  const [archived, setArchived] = useState<ArchivedProjectItem[] | null>(null);
+  const [archivedLoading, setArchivedLoading] = useState(false);
+  const [archivedError, setArchivedError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionFailure, setActionFailure] = useState<string | null>(null);
+
+  const loadArchived = useCallback(() => {
+    setArchivedLoading(true);
+    setArchivedError(null);
+    listArchivedProjects()
+      .then(page => setArchived(page.items))
+      .catch(e => setArchivedError(errText(e)))
+      .finally(() => setArchivedLoading(false));
+  }, []);
+
+  const toggleArchived = () => {
+    const next = !showArchived;
+    setShowArchived(next);
+    if (next) loadArchived();
+  };
+
+  const doArchive = async (id: string, projectName: string) => {
+    if (busyId !== null) return;
+    if (!window.confirm(`是否确认归档「${projectName}」？\n归档是软删除：项目从列表消失、数据保留，可随时还原。`)) return;
+    setBusyId(id);
+    setActionFailure(null);
+    try {
+      await archiveProject(id);
+      onRetry();
+      if (showArchived) loadArchived();
+    } catch (error) {
+      setActionFailure(errText(error));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const doRestore = async (id: string) => {
+    if (busyId !== null) return;
+    setBusyId(id);
+    setActionFailure(null);
+    try {
+      await restoreProject(id);
+      onRetry();
+      loadArchived();
+    } catch (error) {
+      setActionFailure(errText(error));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const submit = async () => {
     if (busy || !name.trim()) return;
     attempt.current ??= { key: crypto.randomUUID(), input: { name: name.trim(), purpose: purpose.trim() || name.trim(), repositoryIds: [] } };
@@ -43,7 +107,7 @@ export function ProjectSelectPage({ projects, activeProjectId, error, onRetry, o
     setFailure(null);
     try {
       const receipt = await createProject(attempt.current.input, attempt.current.key);
-      onSelect(receipt.projectId, "repositories");
+      onSelect(receipt.projectId);
     } catch (error) {
       setFailure(errText(error));
       const status = (error as { status?: number }).status;
@@ -58,10 +122,49 @@ export function ProjectSelectPage({ projects, activeProjectId, error, onRetry, o
         {projects && <span className="text-[11.5px] text-tx2">{projects.length} 个</span>}
         {/* 三步走是这一页唯一需要先讲清的事，放在标题行里，不另起一段占高度。 */}
         <span className="hidden text-[11px] text-tx3 sm:inline">新建 → 接入仓库 → 建 Issue</span>
+        <button className={chip} onClick={toggleArchived}>
+          {showArchived ? "收起已归档" : archived?.length ? `已归档（${archived.length}）` : "已归档"}
+        </button>
         <button className={`ml-auto ${chip}`} onClick={() => setCreating(!creating)}>
           {creating ? "收起" : "+ 新建项目"}
         </button>
       </div>
+
+      {showArchived && (
+        <section className="mt-3 rounded-hard border border-line bg-panel px-4 py-3">
+          <div className="flex items-baseline gap-2">
+            <span className="text-[12.5px] text-cream">已归档项目</span>
+            <span className="text-[11px] text-tx3">软删除：数据保留，可随时还原</span>
+          </div>
+          {archivedLoading && <p className="mt-2 text-[12px] text-tx3">正在读取…</p>}
+          {archivedError && (
+            <p role="alert" className="mt-2 text-[11.5px] text-salmon">
+              {archivedError}
+              <button className="ml-2 underline underline-offset-2 hover:text-salmon-hi" onClick={loadArchived}>重试</button>
+            </p>
+          )}
+          {archived?.length === 0 && <p className="mt-2 text-[12px] text-tx3">没有已归档的项目。</p>}
+          <div className="mt-2 space-y-1.5">
+            {archived?.map(p => (
+              <div key={p.id} className="flex flex-wrap items-center gap-x-2.5 rounded-hard border border-line px-3 py-2">
+                <span className="min-w-0 flex-1 truncate text-[12px] text-tx2">{p.name}</span>
+                {p.removedAt && (
+                  <span className="text-[11px] text-tx3" title={p.removedAt}>
+                    归档于 {new Date(p.removedAt).toLocaleString()}
+                  </span>
+                )}
+                <button className={chip} disabled={busyId !== null} onClick={() => void doRestore(p.id)}>还原</button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {actionFailure && (
+        <p role="alert" className="mt-3 rounded-hard border border-salmon/40 bg-salmon-well px-3 py-2 text-[11.5px] text-salmon">
+          {actionFailure}
+        </p>
+      )}
 
       {creating && (
         <section className="mt-3 rounded-hard border border-line bg-panel px-4 py-3">
@@ -118,8 +221,8 @@ export function ProjectSelectPage({ projects, activeProjectId, error, onRetry, o
             {/* 「当前项目」用全站的 .pill 族，跟仓库页的「已接入本项目」同一套观感。 */}
             {p.id === activeProjectId && <span className="pill pill-done">当前项目</span>}
             <span className="flex flex-none items-center gap-1.5">
-              <button className={chip} onClick={() => onSelect(p.id, "repositories")}>管理仓库</button>
-              <button className={chip} onClick={() => onSelect(p.id, "issues")}>进入 Issue</button>
+              <button className={chip} onClick={() => onSelect(p.id)}>进入项目</button>
+              <button className={chip} disabled={busyId !== null} onClick={() => void doArchive(p.id, p.name)}>归档</button>
             </span>
           </section>
         ))}

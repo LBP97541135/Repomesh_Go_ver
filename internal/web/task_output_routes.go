@@ -149,29 +149,29 @@ func workspaceRootForRead() string {
 }
 
 type taskRunOutput struct {
-	RunID      string `json:"run_id"`
-	AgentKind  string `json:"agent_kind"`
+	RunID      string `json:"runId"`
+	AgentKind  string `json:"agentKind"`
 	State      string `json:"state"`
-	ExitCode   *int   `json:"exit_code"`
+	ExitCode   *int   `json:"exitCode"`
 	Workspace  string `json:"workspace"`
-	Repo       string `json:"repo_full_name"`
-	StartedAt  string `json:"started_at"`
-	ExitedAt   string `json:"exited_at"`
-	StdoutTail string `json:"stdout_tail"`
-	StderrTail string `json:"stderr_tail"`
+	Repo       string `json:"repoFullName"`
+	StartedAt  string `json:"startedAt"`
+	ExitedAt   string `json:"exitedAt"`
+	StdoutTail string `json:"stdoutTail"`
+	StderrTail string `json:"stderrTail"`
 	// StdoutTruncated / StderrTruncated 如实说明"你看到的是尾部"。
-	StdoutTruncated bool `json:"stdout_truncated"`
-	StderrTruncated bool `json:"stderr_truncated"`
+	StdoutTruncated bool `json:"stdoutTruncated"`
+	StderrTruncated bool `json:"stderrTruncated"`
 	// LogsMissing 列出**读不到**的那几份日志（工作区被清掉 / 还没落盘），
 	// 让界面能如实说"没有记录"而不是显示一片空白让人以为"它什么都没干"。
-	LogsMissing []string `json:"logs_missing"`
+	LogsMissing []string `json:"logsMissing"`
 }
 
 type taskAgentOutputView struct {
-	TaskID string          `json:"task_id"`
+	TaskID string          `json:"taskId"`
 	Runs   []taskRunOutput `json:"runs"`
 	// WorkspaceRoot 一并回出去，便于排障时对得上"读的是哪个目录"。
-	WorkspaceRoot string `json:"workspace_root"`
+	WorkspaceRoot string `json:"workspaceRoot"`
 }
 
 type taskOutputQuerier interface {

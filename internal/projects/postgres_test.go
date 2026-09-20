@@ -540,3 +540,166 @@ func TestPostgresInheritFollowsPinnedOrCurrentVersion(t *testing.T) {
 		t.Fatalf("pinning moved the head to %s", head())
 	}
 }
+
+// archiveTestHarness 备好「已登录账号 + 项目服务」这套开局，与
+// TestPostgresProjectTransactionsAndAuthorizationInterleaving 的脚手架一致，
+// 只是收拢成函数，归档用例不再复制 80 行。
+func newArchiveTestHarness(t *testing.T) (context.Context, *Service, access.ProjectPrincipal, func() string) {
+	pool := testdb.Open(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	t.Cleanup(cancel)
+	root := make([]byte, 32)
+	if _, err := rand.Read(root); err != nil {
+		t.Fatal(err)
+	}
+	rootPath := filepath.Join(t.TempDir(), "root.key")
+	if err := os.WriteFile(rootPath, root, 0600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := secrets.New(ctx, pool, secrets.Config{ActiveRootID: "projects-test", Roots: []secrets.RootFile{{ID: "projects-test", Path: rootPath}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider := &projectTestProvider{modes: map[int64]string{}}
+	authorization := access.New(pool, store, provider)
+	service := New(pool, authorization)
+
+	newUUID := func() string {
+		var value [16]byte
+		if _, err := rand.Read(value[:]); err != nil {
+			t.Fatal(err)
+		}
+		value[6] = value[6]&15 | 64
+		value[8] = value[8]&63 | 128
+		return hex.EncodeToString(value[:4]) + "-" + hex.EncodeToString(value[4:6]) + "-" + hex.EncodeToString(value[6:8]) + "-" + hex.EncodeToString(value[8:10]) + "-" + hex.EncodeToString(value[10:])
+	}
+	destination, err := access.ParseDestination([]byte(`{"kind":"home"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	started, err := authorization.Start(ctx, access.StartCommand{ID: newUUID(), Purpose: "login", BindingCookie: "", SessionCookie: "", CSRF: "", Destination: destination})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := url.Parse(started.Result.AuthorizationURL)
+	if err != nil {
+		t.Fatal("authorization URL parsing failed")
+	}
+	completed, err := authorization.CompleteCallback(ctx, access.Callback{BindingCookie: started.BindingCookie, State: parsed.Query().Get("state"), Code: "project-test"})
+	if err != nil || completed.SessionCookie == "" {
+		t.Fatalf("login callback failed: cookiePresent=%t err=%t", completed.SessionCookie != "", err != nil)
+	}
+	session, err := authorization.Session(ctx, completed.SessionCookie)
+	if err != nil {
+		t.Fatal(err)
+	}
+	principal, err := authorization.AuthenticateProjectRequest(ctx, completed.SessionCookie, session.CSRFToken, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ctx, service, principal, newUUID
+}
+
+// 归档（软删除）回归锁：墓碑落下 → 在役读面消失、归档列表出现 → 还原即回来；
+// 重复归档/重复还原 409；不存在（或不是你的）项目 404。
+// 归属判据与 Get/List 同一条 owner 过滤，跨账号场景由既有授权用例覆盖。
+func TestPostgresProjectArchiveAndRestore(t *testing.T) {
+	ctx, service, principal, newUUID := newArchiveTestHarness(t)
+
+	raw, err := ParseRawInput([]byte(`{"name":"Archive target","purpose":"Archive me","repositoryIds":[]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	command, err := PrepareCreate(raw, newUUID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := service.Create(ctx, principal, command)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	projectID := created.Receipt.ProjectID
+	inList := func() bool {
+		page, err := service.List(ctx, principal, ListQuery{Limit: 50})
+		if err != nil {
+			t.Fatalf("list: %v", err)
+		}
+		for _, item := range page.Items {
+			if item.ID == projectID {
+				return true
+			}
+		}
+		return false
+	}
+	asFailure := func(err error) (*Failure, bool) {
+		var result *Failure
+		return result, errors.As(err, &result)
+	}
+
+	if !inList() {
+		t.Fatalf("project %s missing from active list before archiving", projectID)
+	}
+
+	receipt, err := service.Archive(ctx, principal, projectID)
+	if err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+	if !receipt.Archived || receipt.RemovedAt == nil {
+		t.Fatalf("archive receipt = %+v; want archived with a timestamp", receipt)
+	}
+	if inList() {
+		t.Fatalf("archived project %s still in the active list", projectID)
+	}
+	_, err = service.Get(ctx, principal, projectID)
+	if got, ok := asFailure(err); !ok || got.Status != 404 {
+		t.Fatalf("get archived project = %v; want 404", err)
+	}
+	archived, err := service.Archived(ctx, principal)
+	if err != nil {
+		t.Fatalf("archived list: %v", err)
+	}
+	var found bool
+	for _, item := range archived.Items {
+		if item.ID == projectID {
+			found = true
+			if item.RemovedAt == nil {
+				t.Fatal("archived list row carries no removedAt")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("archived project %s missing from the archived list", projectID)
+	}
+	_, err = service.Archive(ctx, principal, projectID)
+	if got, ok := asFailure(err); !ok || got.Status != 409 || got.Code != "PROJECT_ALREADY_ARCHIVED" {
+		t.Fatalf("second archive = %v; want 409 PROJECT_ALREADY_ARCHIVED", err)
+	}
+
+	restored, err := service.Restore(ctx, principal, projectID)
+	if err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	if restored.Archived || restored.RemovedAt != nil {
+		t.Fatalf("restore receipt = %+v; want live with no timestamp", restored)
+	}
+	if !inList() {
+		t.Fatalf("restored project %s not back in the active list", projectID)
+	}
+	archived, err = service.Archived(ctx, principal)
+	if err != nil {
+		t.Fatalf("archived list after restore: %v", err)
+	}
+	for _, item := range archived.Items {
+		if item.ID == projectID {
+			t.Fatalf("restored project %s still in the archived list", projectID)
+		}
+	}
+	_, err = service.Restore(ctx, principal, projectID)
+	if got, ok := asFailure(err); !ok || got.Status != 409 || got.Code != "PROJECT_NOT_ARCHIVED" {
+		t.Fatalf("second restore = %v; want 409 PROJECT_NOT_ARCHIVED", err)
+	}
+	_, err = service.Archive(ctx, principal, newUUID())
+	if got, ok := asFailure(err); !ok || got.Status != 404 {
+		t.Fatalf("archive unknown project = %v; want 404", err)
+	}
+}

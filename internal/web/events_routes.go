@@ -107,6 +107,13 @@ func serveIssueEventStream(w http.ResponseWriter, r *http.Request, service *disc
 		select {
 		case <-ctx.Done(): // 客户端断开:就地返回,连接随 handler 结束关闭
 			return
+		case <-shuttingDown():
+			// 进程在关停（部署重启）：主动收摊。
+			// 不返回的话，`http.Server.Shutdown` 会一直等这条永不结束的流，
+			// 耗满 5 秒期限再强杀 —— 那 5 秒就是站点 502 的窗口。
+			// 客户端会看到流结束并自动重连（EventSource 内建行为），重连时
+			// 新进程通常已经起来了。
+			return
 		case <-heartbeat.C:
 			if _, err := fmt.Fprint(w, ":keepalive\n\n"); err != nil {
 				return

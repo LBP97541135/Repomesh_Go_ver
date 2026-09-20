@@ -177,6 +177,10 @@ type Service struct {
 	// ActorName resolves the operator name for the settings audit trail.
 	// Nil = recorded as empty.
 	ActorName func(r *http.Request) string
+	// ActorID resolves the authenticated actor id for read isolation (list /
+	// similar / semantic-search)。Nil = 不约束（仅测试）。2026-09-20：当前
+	// 阶段所有账号同等对待，无管理员放权。
+	ActorID func(r *http.Request) string
 }
 
 // New wires the module onto the shared pool (composition root only).

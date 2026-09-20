@@ -549,7 +549,7 @@ export default function ConsoleShell() {
         )}
         {route.nav === "observe" && <ObserveHome section={route.observeSection} />}
         {route.nav === "decision-chains" && (
-          <DecisionChainPage organizationId={null} onToast={showToast} />
+          <DecisionChainPage organizationId={null} projectId={activeProjectId} onToast={showToast} />
         )}
         {route.nav === "settings" && (
           <SettingsPage

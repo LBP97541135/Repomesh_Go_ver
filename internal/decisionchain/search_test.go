@@ -50,7 +50,7 @@ func TestSimilarAutoDegradesToStructuralWithoutEmbedding(t *testing.T) {
 
 func TestSemanticSearchRequiresQueryText(t *testing.T) {
 	svc := testService(newFakeStore(), Config{})
-	if _, err := svc.SemanticSearch(context.Background(), "  ", 5, 0); err != ErrBadArgument {
+	if _, err := svc.SemanticSearch(context.Background(), "  ", 5, 0, Scope{}); err != ErrBadArgument {
 		t.Fatalf("empty queryText err = %v, want ErrBadArgument", err)
 	}
 }

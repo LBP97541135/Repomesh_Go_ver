@@ -71,15 +71,23 @@ jobs:
           npx vite build
           echo "前端构建完成"
 
-      - name: 停服 → 迁移 → 安装 → 起服
+      - name: 迁移 → 安装 → 重启
         run: |
           set -euo pipefail
           # 部署凭据只从服务器本地环境文件读，不进仓库、不进 GitHub Secrets
           set -a
           . /etc/repomesh/env
           set +a
-          systemctl stop repomesh-host-executor repomesh-coordinator repomesh-web
+          # ① **先迁移，服务照常开着**。
+          #    2026-09-20 实测：站点 502 与部署窗口逐分钟一一对应（当天 3220 条 502
+          #    全部落在部署的那一分钟里），而窗口 = `systemctl stop` 到 `start`
+          #    这一段。原来的顺序把"迁移"也塞进了停机窗口里，白多停一两秒。
+          #    换成先迁移之后还有个更重要的好处：**迁移失败时旧版本一个字节没动**，
+          #    站点继续服务（旧顺序是"停了服、迁移失败、回滚"，白停一次）。
+          #    前提是迁移保持**向前兼容**（只加列/加表/加索引，不改语义）——
+          #    这是本仓迁移一直遵守的约定；真要破坏兼容时，得改成两步发布。
           ./bin/repomesh-web db migrate --timeout 60s
+          # ② 装文件（Linux 上覆盖正在运行的二进制是安全的：进程持有旧 inode）。
           for b in repomesh-web repomesh-coordinator repomesh-host-executor; do
             install -m 0755 "bin/$b" "/opt/repomesh/bin/$b"
           done
@@ -87,7 +95,10 @@ jobs:
           cp -a frontend/dist/index.html /opt/repomesh/dist/index.html
           rm -rf /opt/repomesh/dist/assets
           cp -a frontend/dist/assets /opt/repomesh/dist/assets
-          systemctl start repomesh-web repomesh-coordinator repomesh-host-executor
+          # ③ 最后才重启 —— 停机窗口只剩这一段（实测约 5 秒，其中大部分是
+          #    web 的 graceful shutdown 等待）。这段时间里前端的网关错误提示
+          #    会明确说"通常是正在部署/重启，稍后重试"，不再甩一坨 nginx HTML。
+          systemctl restart repomesh-web repomesh-coordinator repomesh-host-executor
           echo "三件套已安装并启动"
 
       - name: 验活

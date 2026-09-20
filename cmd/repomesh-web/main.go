@@ -313,6 +313,15 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			}
 			return ""
 		}
+		// 读隔离：列表 / 相似 / 语义检索都只返回该账号自己项目下的决策节点。
+		// 当前阶段所有账号同等对待、无管理员放权（2026-09-20 用户裁定）。
+		decisionService.ActorID = func(r *http.Request) string {
+			if principal, err := runtime.Service.AuthenticateProjectRequest(
+				r.Context(), web.SessionCookie(r), r.Header.Get("X-CSRF-Token"), false); err == nil {
+				return principal.ActorID()
+			}
+			return ""
+		}
 		decisionAPI = web.Decision{API: decisionService}
 
 		// Skill governance block (capability_management plugin ported to Go):

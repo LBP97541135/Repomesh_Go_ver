@@ -88,14 +88,33 @@ func (n *Notifier) deliver(ctx context.Context, issueID, txnID, body string) {
 
 // roomForIssue 取这个 issue 范围里第一间真有房的仓库团队房。
 //
-// 定序必须与 issues.GetIssueRooms 一致（按 repository_id）：两条读面给出不同的
+// 0057 起 repository_teams 键为 (project_id, 扫描侧 repository_id),而 issue 范围里
+// 存的是项目侧 repo_… id —— 必须先过 repositoryteams.RepoTeamResolutionQuery 把
+// 两边对上,直接 join 永远命不中(两个 id 空间不同)。
+//
+// 定序仍按范围里的 repository_id:与 issues.GetIssueRooms 一致,两条读面给出不同的
 // "第一间房"会让同一件事在两个地方显示成发生在不同房间。
 func (n *Notifier) roomForIssue(ctx context.Context, issueID string) (string, error) {
 	var roomID string
 	err := n.pool.QueryRow(ctx, `
 		SELECT t.team_room_id
 		FROM repomesh_issues.issue_repository_scope s
-		JOIN public.repository_teams t ON t.repository_id = s.repository_id
+		JOIN repomesh_projects.project_repositories pr
+		  ON pr.project_id = s.project_id AND pr.repository_id = s.repository_id
+		JOIN repomesh_projects.repositories r ON r.id = pr.repository_id
+		JOIN repomesh_projects.projects p ON p.id = pr.project_id
+		JOIN repomesh_access.accounts a ON a.id = p.owner
+		LEFT JOIN LATERAL (
+		  SELECT scan.id FROM repomesh_scan.repositories scan
+		  WHERE scan.organization_id = a.organization_id
+		    AND lower(regexp_replace(rtrim(scan.url, '/'), '\.git$', '')) IN
+		      (lower('https://' || r.host || '/' || r.owner || '/' || r.name),
+		       lower('http://' || r.host || '/' || r.owner || '/' || r.name),
+		       lower('git@' || r.host || ':' || r.owner || '/' || r.name))
+		  ORDER BY scan.profiled_at DESC, scan.id LIMIT 1
+		) sc ON true
+		JOIN public.repository_teams t
+		  ON t.project_id = s.project_id AND t.repository_id = sc.id
 		WHERE s.issue_id = $1 AND COALESCE(NULLIF(t.team_room_id, ''), '') <> ''
 		ORDER BY s.repository_id
 		LIMIT 1`, issueID).Scan(&roomID)
