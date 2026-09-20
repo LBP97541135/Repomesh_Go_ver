@@ -726,6 +726,9 @@ export interface FocusPanelProps {
   scopeRepoIds: string[];
   /** 本项目已挂的仓库（追加候选只从这里来） */
   repoOptions: Array<{ id: string; name: string }>;
+  /** 当前项目 id —— 「worker 工作内容」读面按 (projectId, taskId) 取，
+   *  而那条读面在服务端按「项目 owner 或 admin」授权。 */
+  projectId?: string | null;
   /** 人确认把一个仓库追加进本次 Issue 的范围 */
   onAppendRepository: (repositoryId: string) => Promise<void>;
   /** 计划换代状态（GET /plans/{id}）：当前版本号与收集窗状态。null = 还没有计划。
@@ -769,6 +772,7 @@ export function FocusPanel({
   tasks,
   trainCars,
   scopeRepoIds,
+  projectId = null,
   repoOptions,
   onAppendRepository,
   onChooseManual,
@@ -816,6 +820,7 @@ export function FocusPanel({
           testEvidence={testEvidence}
           trainCars={trainCars}
           scopeRepoIds={scopeRepoIds}
+          projectId={projectId}
           repoOptions={repoOptions}
           onAppendRepository={onAppendRepository}
           planState={planState}
