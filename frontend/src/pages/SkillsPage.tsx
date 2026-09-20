@@ -281,7 +281,8 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
 
       <div className="grid grid-cols-[minmax(220px,280px)_1fr] gap-5">
         {/* 左：技能目录 */}
-        <div className="rounded-hard border border-line bg-panel">
+        {/* 2026-09-20 用户裁定：去掉最外面的大框——分组头自带分隔线，不需要再套一层盒子。 */}
+        <div>
           {skills === null && <p className="px-3 py-3 text-[12px] text-tx3">正在读取…</p>}
           {skills !== null && skills.length === 0 && (
             <p className="px-3 py-3 text-[12px] text-tx3">还没有技能。</p>
