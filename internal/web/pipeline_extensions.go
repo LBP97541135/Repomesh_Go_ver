@@ -20,6 +20,7 @@ func registerPipelineExtensions(mux *http.ServeMux, auth Auth, extensions Pipeli
 	if extensions.Spec != nil {
 		registerProjectRoute(mux, "POST /api/projects/{projectId}/specs", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {
 			var command spec.CreateCommand
+			// body: { issueId, title, content, repository? } —— issueId 是身份（规格以 issue 为单位）
 			command.ProjectID = r.PathValue("projectId")
 			command.AuthorID = claims.ActorID()
 			if err := decodeBody(w, r, &command); err != nil {
@@ -41,7 +42,8 @@ func registerPipelineExtensions(mux *http.ServeMux, auth Auth, extensions Pipeli
 			return nil
 		})
 		registerProjectRoute(mux, "GET /api/projects/{projectId}/specs/current", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {
-			view, err := extensions.Spec.Current(r.Context(), r.PathValue("projectId"), r.URL.Query().Get("repository"))
+			// 规格以 **issue** 为单位（2026-09-20 用户裁定）：读面按 issueId 取当前生效规格。
+			view, err := extensions.Spec.Current(r.Context(), r.PathValue("projectId"), r.URL.Query().Get("issueId"))
 			if err != nil {
 				return err
 			}

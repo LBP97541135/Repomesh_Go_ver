@@ -13,7 +13,6 @@ export const NAV_HASH: Record<NavKey, string> = {
   repositories: "#/repositories",
   agents: "#/agents",
   observe: "#/observe",
-  specs: "#/specs",
   "decision-chains": "#/decision-chains",
   settings: "#/settings",
 };

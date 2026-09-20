@@ -98,47 +98,6 @@ export function runJointValidation(
   );
 }
 
-/* ════════════ 规格域:spec 生命周期 ════════════ */
-
-export interface SpecView {
-  id: string;
-  version: number;
-  title: string;
-  content: string;
-  /** draft | approved */
-  state: string;
-  authorId: string;
-  [key: string]: unknown;
-}
-
-/** POST /api/projects/{projectId}/specs — 新建规格(201,authorId 取会话主体)。 */
-export function createSpec(
-  projectId: string,
-  input: { repository: string; title: string; content: string; supersedes?: string },
-): Promise<SpecView> {
-  return apiRequest<SpecView>("POST", `/projects/${encodeURIComponent(projectId)}/specs`, {
-    projectId: "",
-    repository: input.repository,
-    title: input.title,
-    content: input.content,
-    ...(input.supersedes ? { supersedes: input.supersedes } : {}),
-  });
-}
-
-/** GET /api/projects/{projectId}/specs/current?repository= — 当前生效规格。 */
-export function getCurrentSpec(projectId: string, repository?: string): Promise<SpecView> {
-  const q = repository ? `?repository=${encodeURIComponent(repository)}` : "";
-  return apiRequest<SpecView>("GET", `/projects/${encodeURIComponent(projectId)}/specs/current${q}`);
-}
-
-/** POST /api/projects/{projectId}/specs/{specId}/approve — 审批规格(200)。 */
-export function approveSpec(projectId: string, specId: string): Promise<SpecView> {
-  return apiRequest<SpecView>(
-    "POST",
-    `/projects/${encodeURIComponent(projectId)}/specs/${encodeURIComponent(specId)}/approve`,
-  );
-}
-
 /* ════════════ 接口文档域:interface document 生命周期 ════════════ */
 
 export interface InterfaceDocumentView {

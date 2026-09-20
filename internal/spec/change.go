@@ -29,14 +29,16 @@ const (
 
 // SpecChangeRequest 是执行中 agent 提出的规格变更请求（产物形状）。
 type SpecChangeRequest struct {
-	Repository string `json:"repository"`
+	// IssueID 是这份规格变更请求的**归属**（规格以 issue 为单位）。
+	IssueID string `json:"issue_id,omitempty"`
+	// Repository 只作上下文（这一版主要动哪个仓库），不参与身份。
+	Repository string `json:"repository,omitempty"`
 	Title      string `json:"title"`
 	Reason     string `json:"reason"`
 	Changes    string `json:"changes"`
 	Evidence   string `json:"evidence,omitempty"`
 	TaskID     string `json:"task_id,omitempty"`
 	RunID      string `json:"run_id,omitempty"`
-	IssueID    string `json:"issue_id,omitempty"`
 }
 
 // ParseChangeRequest 校验产物形状（**结构性**校验，不替 agent 判断内容）。
@@ -53,9 +55,7 @@ func ParseChangeRequest(raw []byte) (SpecChangeRequest, error) {
 	if err := json.Unmarshal([]byte(strings.TrimSpace(trimmed)), &request); err != nil {
 		return SpecChangeRequest{}, fmt.Errorf("spec: 规格变更请求不是合法 JSON：%w", err)
 	}
-	if strings.TrimSpace(request.Repository) == "" {
-		return SpecChangeRequest{}, fmt.Errorf("spec: 规格变更请求缺少 repository")
-	}
+	// 仓库不再是必填（规格以 issue 为单位）：只要求"改成什么"与"为什么"。
 	if strings.TrimSpace(request.Changes) == "" {
 		return SpecChangeRequest{}, fmt.Errorf("spec: 规格变更请求缺少 changes（要改成什么）")
 	}
@@ -168,6 +168,7 @@ func (s *Service) ApproveChange(ctx context.Context, projectID, approverID, evid
 	// agent 只是"提"的人，规格生效这一步必须留下人的 id。
 	created, err := s.Create(ctx, CreateCommand{
 		ProjectID:  projectID,
+		IssueID:    request.IssueID,
 		Repository: request.Repository,
 		AuthorID:   approverID,
 		Title:      request.Title,

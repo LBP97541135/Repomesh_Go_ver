@@ -77,7 +77,6 @@ func TestParseChangeRequestRejectsIncompleteArtifacts(t *testing.T) {
 	cases := map[string]string{
 		"空文件":       "",
 		"不是 JSON":   "{",
-		"缺仓库":       `{"title":"t","reason":"r","changes":"c"}`,
 		"缺 changes": `{"repository":"owner/a","title":"t","reason":"r"}`,
 		"缺 reason":  `{"repository":"owner/a","title":"t","changes":"c"}`,
 	}
@@ -100,7 +99,7 @@ func TestSpecChangeRequestNeedsHumanApproval(t *testing.T) {
 	service := New(pool).WithReviews(reviews)
 
 	request := SpecChangeRequest{
-		Repository: "owner/a", Title: "规格 v1：免运费边界",
+		IssueID: "iss_spec_change_1", Repository: "owner/a", Title: "规格 v1：免运费边界",
 		Reason: "现有规格没写清免运费与小计的边界", Changes: "小计 ≥ 900 时运费为 0",
 		Evidence: "线上复现：900 时仍收 12 元", RunID: "run_spec_change_1", TaskID: "task-1",
 	}
@@ -120,7 +119,7 @@ func TestSpecChangeRequestNeedsHumanApproval(t *testing.T) {
 	}
 
 	// **提交阶段不产生规格** —— agent 不能自己改生效。
-	current, err := service.Current(ctx, projectID, request.Repository)
+	current, err := service.Current(ctx, projectID, request.IssueID)
 	if err != nil {
 		t.Fatalf("Current: %v", err)
 	}
@@ -142,7 +141,7 @@ func TestSpecChangeRequestNeedsHumanApproval(t *testing.T) {
 	if applied.Version != 1 || applied.Repository != request.Repository {
 		t.Fatalf("批准结果 = %+v", applied)
 	}
-	current, err = service.Current(ctx, projectID, request.Repository)
+	current, err = service.Current(ctx, projectID, request.IssueID)
 	if err != nil {
 		t.Fatalf("Current after approve: %v", err)
 	}
@@ -165,7 +164,7 @@ func TestSpecChangeRequestNeedsHumanApproval(t *testing.T) {
 	if secondApplied.Version != 2 {
 		t.Fatalf("第二版号 = %d，应为 2", secondApplied.Version)
 	}
-	current, err = service.Current(ctx, projectID, request.Repository)
+	current, err = service.Current(ctx, projectID, request.IssueID)
 	if err != nil || current.Version != 2 || current.Content != second.Changes {
 		t.Fatalf("v2 规格 = %+v err=%v", current, err)
 	}

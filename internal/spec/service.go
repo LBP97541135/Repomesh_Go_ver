@@ -35,9 +35,15 @@ func (s *Service) WithReviews(sink ReviewSink) *Service {
 }
 
 // CreateCommand submits one spec version.
+//
+// 2026-09-20 用户裁定：**规格以 issue 为单位**（一个 issue = 一个需求 = 一份规格，
+// 版本随澄清与变更演进），不是以仓库为单位。此前 Create/Current 都按 repository
+// 归拢，于是同一个 issue 涉及多个仓库时规格会散成几份、版本轴也各自独立。
+// repository 保留为**可选**上下文（这一版主要动哪个仓库），不再参与身份。
 type CreateCommand struct {
 	ProjectID  string `json:"projectId"`
-	Repository string `json:"repository"`
+	IssueID    string `json:"issueId"`
+	Repository string `json:"repository,omitempty"`
 	AuthorID   string `json:"authorId"`
 	Title      string `json:"title"`
 	Content    string `json:"content"`
@@ -50,6 +56,7 @@ type CreateCommand struct {
 
 // SpecView is the read projection.
 type SpecView struct {
+	IssueID  string `json:"issueId"`
 	ID       string `json:"id"`
 	Version  int    `json:"version"`
 	Title    string `json:"title"`
@@ -60,19 +67,20 @@ type SpecView struct {
 
 // Create stores a draft spec.
 func (s *Service) Create(ctx context.Context, command CreateCommand) (SpecView, error) {
-	if command.ProjectID == "" || command.AuthorID == "" || command.Repository == "" || command.Content == "" {
-		return SpecView{}, fmt.Errorf("spec: project, author, repository and content are required")
+	if command.ProjectID == "" || command.AuthorID == "" || command.IssueID == "" || command.Content == "" {
+		return SpecView{}, fmt.Errorf("spec: project, author, issue and content are required")
 	}
 	id, err := newID("spec_")
 	if err != nil {
 		return SpecView{}, err
 	}
-	version, err := s.NextVersion(ctx, command.ProjectID, command.Repository)
+	version, err := s.NextVersion(ctx, command.ProjectID, command.IssueID)
 	if err != nil {
 		return SpecView{}, err
 	}
 	payload := map[string]any{
-		"repository": command.Repository, "version": version, "title": command.Title,
+		"issue_id": command.IssueID, "repository": command.Repository,
+		"version": version, "title": command.Title,
 		"content": command.Content, "author": command.AuthorID, "state": "draft",
 		"supersedes": command.Supersedes, "origin": command.Origin,
 	}
@@ -82,7 +90,7 @@ func (s *Service) Create(ctx context.Context, command CreateCommand) (SpecView, 
 		id, command.ProjectID, mustJSON(payload)); err != nil {
 		return SpecView{}, fmt.Errorf("spec: insert failed: %w", err)
 	}
-	return SpecView{ID: id, Version: version, Title: command.Title, Content: command.Content, State: "draft", AuthorID: command.AuthorID}, nil
+	return SpecView{ID: id, IssueID: command.IssueID, Version: version, Title: command.Title, Content: command.Content, State: "draft", AuthorID: command.AuthorID}, nil
 }
 
 // Approve publishes a draft (manager action); the approved content becomes
@@ -108,18 +116,18 @@ func (s *Service) Approve(ctx context.Context, specID, approverID string) (SpecV
 		return SpecView{}, fmt.Errorf("spec: approve failed: %w", err)
 	}
 	return SpecView{
-		ID: specID, Version: intOf(payload["version"]), Title: toString(payload["title"]),
+		ID: specID, IssueID: toString(payload["issue_id"]), Version: intOf(payload["version"]), Title: toString(payload["title"]),
 		Content: toString(payload["content"]), State: "approved", AuthorID: toString(payload["author"]),
 	}, nil
 }
 
-// NextVersion 返回该仓库下一个规格版本号（该仓库已出现的最大版本 + 1；没有则 1）。
+// NextVersion 返回该 issue 下一个规格版本号（该 issue 已出现的最大版本 + 1；没有则 1）。
 //
 // 2026-09-20：Create 此前把 version 硬编码成 1 —— 于是"规格升版"这件事在数据上
 // 根本不成立：每一份新规格都是 v1，Current() 只按 repository 过滤、取版本最大的
 // 那一份，升版后界面也看不出换代。A2 的回路（人批 → 规格升版 → 触发重规划）要的
 // 正是这个版本轴，所以先把它补上。
-func (s *Service) NextVersion(ctx context.Context, projectID, repository string) (int, error) {
+func (s *Service) NextVersion(ctx context.Context, projectID, issueID string) (int, error) {
 	rows, err := s.pool.Query(ctx, `SELECT canonical_input, result FROM repomesh_messages.control_operations
 		WHERE project_id=$1 AND action='specification'`, projectID)
 	if err != nil {
@@ -140,7 +148,7 @@ func (s *Service) NextVersion(ctx context.Context, projectID, repository string)
 		if json.Unmarshal(source, &payload) != nil {
 			continue
 		}
-		if toString(payload["repository"]) != repository {
+		if toString(payload["issue_id"]) != issueID {
 			continue
 		}
 		if version := intOf(payload["version"]); version > max {
@@ -153,8 +161,8 @@ func (s *Service) NextVersion(ctx context.Context, projectID, repository string)
 	return max + 1, nil
 }
 
-// Current returns the approved spec of one repository, if any.
-func (s *Service) Current(ctx context.Context, projectID, repository string) (SpecView, error) {
+// Current 返回该 issue 当前生效（approved）的规格；没有则 State="none"。
+func (s *Service) Current(ctx context.Context, projectID, issueID string) (SpecView, error) {
 	rows, err := s.pool.Query(ctx, `SELECT canonical_input, result FROM repomesh_messages.control_operations
 		WHERE project_id=$1 AND action='specification'`, projectID)
 	if err != nil {
@@ -175,7 +183,7 @@ func (s *Service) Current(ctx context.Context, projectID, repository string) (Sp
 		if json.Unmarshal(source, &payload) != nil {
 			continue
 		}
-		if toString(payload["repository"]) != repository {
+		if toString(payload["issue_id"]) != issueID {
 			continue
 		}
 		if toString(payload["state"]) != "approved" {
@@ -184,7 +192,7 @@ func (s *Service) Current(ctx context.Context, projectID, repository string) (Sp
 		version := intOf(payload["version"])
 		if version >= latest.Version {
 			latest = SpecView{
-				ID: "", Version: version, Title: toString(payload["title"]),
+				IssueID: issueID, ID: "", Version: version, Title: toString(payload["title"]),
 				Content: toString(payload["content"]), State: "approved", AuthorID: toString(payload["author"]),
 			}
 		}

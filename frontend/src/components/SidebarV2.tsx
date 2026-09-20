@@ -40,7 +40,6 @@ export type NavKey =
   | "repositories"
   | "agents"
   | "observe"
-  | "specs"
   | "decision-chains"
   | "settings";
 
@@ -53,7 +52,6 @@ const NAV_ICON: Record<NavKey, LucideIcon> = {
   repositories: FolderKanban,
   agents: Bot,
   observe: Activity,
-  specs: FileCheck,
   "decision-chains": History,
   settings: Settings,
 };
@@ -67,7 +65,6 @@ const NAV_LABEL: Record<NavKey, string> = {
   repositories: "仓库",
   agents: "智能体",
   observe: "观测",
-  specs: "规格",
   "decision-chains": "历史决策",
   settings: "设置",
 };
@@ -80,7 +77,7 @@ const NAV_LABEL: Record<NavKey, string> = {
 const NAV_GROUPS: Array<{ heading: string; keys: NavKey[] }> = [
   { heading: "工作台", keys: ["projects", "issues", "reviews", "repositories"] },
   // 治理（2026-09-20 用户裁定）：历史决策归治理；智能体与技能已收编进设置
-  { heading: "治理", keys: ["specs", "models", "observe", "decision-chains"] },
+  { heading: "治理", keys: ["models", "observe", "decision-chains"] },
 ];
 /** 底部常驻项：设置（恢复原样——图标 + 文字的一行，不跟分组抢位置）。 */
 const NAV_BOTTOM: NavKey[] = ["settings"];
