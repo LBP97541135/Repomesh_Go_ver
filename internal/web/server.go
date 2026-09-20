@@ -15,6 +15,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"repomesh.local/repomesh/internal/access"
@@ -40,6 +41,23 @@ func shuttingDown() <-chan struct{} { return shutdownSignal }
 
 func signalShutdown() {
 	shutdownSignalOnce.Do(func() { close(shutdownSignal) })
+}
+
+// activeRequests 是在途 HTTP 请求数（含 SSE 这类长连接）。
+//
+// 为什么要数它：Shutdown 超时时日志只说明"超时了"，不说明"在等谁"。
+// 2026-09-20 实测：关停窗口稳定 5 秒、每次都是 context deadline exceeded，
+// 而当时 8080 上只有 4 条连接、没有任何 SSE —— 也就是"被长连接拖住"这个
+// 假设是错的。要有数字才能继续查。
+var activeRequests int64
+
+// countingRequests 把每个请求计进 activeRequests（只计数，不改行为）。
+func countingRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&activeRequests, 1)
+		defer atomic.AddInt64(&activeRequests, -1)
+		next.ServeHTTP(w, r)
+	})
 }
 
 func Run(ctx context.Context, addr, assets string) error {
@@ -71,7 +89,7 @@ func RunConfigured(ctx context.Context, addr, assets string, auth Auth, projectA
 		listener = tls.NewListener(listener, &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{certificate}})
 	}
 	server := &http.Server{
-		Handler:           handlerConfigured(root, auth, projectAPI, modelAPI, scan, decision, skills, issueAPI, messagesAPI, agentTeams, pipeline, humanControlAPI, observeV1, discoveryAPI, consoleAPI),
+		Handler:           countingRequests(handlerConfigured(root, auth, projectAPI, modelAPI, scan, decision, skills, issueAPI, messagesAPI, agentTeams, pipeline, humanControlAPI, observeV1, discoveryAPI, consoleAPI)),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 		WriteTimeout:      90 * time.Second,
@@ -98,15 +116,25 @@ func serve(ctx context.Context, server *http.Server, listener net.Listener) erro
 		// **那 5 秒正是站点 502 的窗口**（2026-09-20 实测：当天 3220 条 502 全部
 		// 落在部署那一分钟里，而 systemd 日志里 stop→start 恰好 5 秒）。
 		signalShutdown()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		// 期限从 5 秒收到 2 秒：这段等待**整段都是站点不可用**（nginx 没有上游
+		// 就回 502），而 5 秒是每次部署都稳定耗满的值。2 秒仍足够让正在收尾的
+		// 普通请求跑完（绝大多数端点远快于此），同时把窗口砍掉一多半。
+		// 剩下的"到底在等谁"由下面那行日志回答：超时时报出在途请求数，
+		// 有数字才能继续查（此前只有一句"超时了"）。
+		shutdownStart := time.Now()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		// Shutdown closes the listener before draining requests. Wait for the
 		// drain itself, not just Serve, before allowing main to exit.
 		if shutdownErr := server.Shutdown(shutdownCtx); shutdownErr != nil {
+			slog.Warn("graceful shutdown timed out",
+				"after", time.Since(shutdownStart).String(),
+				"active_requests", atomic.LoadInt64(&activeRequests))
 			_ = server.Close()
 			<-result
 			return fmt.Errorf("graceful shutdown: %w", shutdownErr)
 		}
+		slog.Info("graceful shutdown done", "after", time.Since(shutdownStart).String())
 		err = <-result
 	}
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
