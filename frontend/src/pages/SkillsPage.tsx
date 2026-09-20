@@ -324,7 +324,7 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
           {groupedSkills.map((group, index) => (
             <div key={`${group.heading}-${index}`}>
               {editing && group.heading !== UNGROUPED ? (
-                <div className="microlabel flex w-full items-center gap-2">
+                <div className="microlabel flex w-full items-center gap-2 px-3 py-1.5">
                   <input
                     className="min-w-0 flex-1 rounded-hard border border-line bg-ink px-1.5 py-[2px] text-[11px] text-tx focus:border-amber focus:outline-none"
                     value={group.heading}
@@ -341,14 +341,14 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
                   </button>
                 </div>
               ) : (
+                /* 仓库页同款折叠头：箭头 + 名字，仅此而已（用户裁定：不加数字）。 */
                 <button
-                  className="microlabel flex w-full items-center gap-2 text-left"
+                  className="flex w-full items-center gap-2 border-b border-line px-3 py-1.5 text-left hover:text-tx"
                   onClick={() => toggle(group.heading)}
                   aria-expanded={!collapsed.has(group.heading)}
                 >
                   <span className="text-[10px] text-tx3">{collapsed.has(group.heading) ? "▶" : "▼"}</span>
-                  <span className="flex-1">{group.heading}</span>
-                  <span className="font-mono text-[10px] text-tx3">{group.items.length}</span>
+                  <span className="text-[12.5px] font-semibold text-cream">{group.heading}</span>
                 </button>
               )}
               {(!collapsed.has(group.heading) || editing) && group.items.map((skill) => {
