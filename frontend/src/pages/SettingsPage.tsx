@@ -346,10 +346,12 @@ function AgentsCategory({
           agentsPhase === "loading"
             ? "探测中…"
             : kinds.length === 0 && !agentsError && rosterSize > 0
-              ? // 用户原话："运行时种类 无回报" —— 光写"无回报"等于没说。
-                // 它是**结果**不是故障：种类取自"拿到 Controller 观测值的成员"，
-                // 一个都没有自然就空，与「平台 · 连接健康」里的「可达 0」是同一件事。
-                `种类取自**拿到 Controller 观测值的**成员；当前花名册 ${rosterSize} 个成员里 ${runtimeObservable} 个有观测值（见「平台 · 连接健康」）—— 所以这里没有可回报的种类，不是探测失败。`
+              ? // 用户原话："运行时种类 无回报" —— 光写"无回报"等于没说。两种成因要分开：
+                //  · 有观测值、但回报的 runtime_kind 是空的 → 是**上游没回报种类**；
+                //  · 一个观测值都没有 → 与「平台 · 连接健康」的「可达 0」是同一件事。
+                runtimeObservable > 0
+                ? `有 ${runtimeObservable} 个成员拿到了 Controller 观测值，但它们回报的 runtime_kind 是空的 —— 上游没有给出种类，不是探测失败，也不是这里没取。`
+                : `种类取自**拿到 Controller 观测值的**成员；当前花名册 ${rosterSize} 个成员里 0 个有观测值（见「平台 · 连接健康」）—— 所以这里没有可回报的种类，不是探测失败。`
               : undefined
         }
       >
@@ -468,12 +470,14 @@ export function SettingsPage({
   // ⚠️ 标识不能只取 `agentteams_resource_name`：线上实测「无事实」那 5 行的
   // **资源名就是空字符串**（后端拿空名去探上游，自然无事实 —— 它们是本地花名册里
   // 有、上游从未建过资源的行）。只取它的话会渲染成「无事实：、、、、」。
-  // 回退顺序：资源名 → 仓库名 → 角色 → agent_id，总能指出"是哪一个"。
-  const labelOf = (a: ConsoleAgentView) =>
-    a.agentteams_resource_name ||
-    a.repository_name ||
-    a.role ||
-    a.agent_id;
+  // 回退到角色又会**重名**（实测渲染出 `leader、manager、manager、worker、worker`，
+  // 还是认不出是谁），所以角色后面缀上 agent_id 末 4 位 —— 短、但唯一可辨。
+  const labelOf = (a: ConsoleAgentView) => {
+    if (a.agentteams_resource_name) return a.agentteams_resource_name;
+    if (a.repository_name) return a.repository_name;
+    const shortID = (a.agent_id ?? "").slice(-4);
+    return shortID ? `${a.role || "agent"}·${shortID}` : a.role || "agent";
+  };
   const unreachableNames = (rows ?? [])
     .filter((a) => a.runtime !== null && !a.runtime.reachable)
     .map(labelOf);
@@ -485,7 +489,11 @@ export function SettingsPage({
     ...new Set(
       (rows ?? [])
         .map((a) => (a.runtime !== null && a.runtime.reachable ? a.runtime.runtime_kind : null))
-        .filter((k): k is RuntimeKind => k !== null),
+        // ⚠️ **空串也要滤掉**。线上实测（DOM 取证）：那唯一一个"可达"的成员回报的
+        // `runtime_kind` 是**空字符串**（不是 null），只滤 null 的话 kinds = [""] →
+        // 界面上渲染出一个**空白胶囊**（有边框、没字）。看起来像"无回报"，
+        // 其实"有值、值为空" —— 用户报的「运行时种类 无回报」根子在这。
+        .filter((k): k is RuntimeKind => typeof k === "string" && k !== ""),
     ),
   ];
 
