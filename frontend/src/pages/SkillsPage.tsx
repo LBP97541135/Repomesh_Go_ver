@@ -33,6 +33,21 @@ const STATUS_LABEL: Record<SkillStatus, string> = {
   rolled_back: "已回滚",
 };
 
+/** 2026-09-20 统一装修：按钮与状态标签全部换成全站既有写法（仓库页/审核台同款），
+ *  不再各画一套描边。 */
+const chip =
+  "flex-none rounded-hard border border-line px-2.5 py-[3px] text-[11.5px] text-tx2 hover:border-amber hover:text-amber-hi disabled:opacity-50";
+const primary =
+  "flex-none rounded-hard bg-amber px-3 py-[6px] text-[12px] font-extrabold text-on-amber hover:bg-amber-hi disabled:opacity-60";
+/** 状态一律走 .pill 族（原先每种状态各写一个圆角色块）。 */
+const STATUS_PILL: Record<SkillStatus, string> = {
+  draft: "pill pill-meta",
+  evaluating: "pill pill-run",
+  canary: "pill pill-gate",
+  promoted: "pill pill-done",
+  rolled_back: "pill pill-fail",
+};
+
 const NEXT_ACTIONS: Record<SkillStatus, Array<{ action: SkillAction; label: string }>> = {
   draft: [{ action: "evaluate", label: "送评估" }],
   evaluating: [{ action: "canary", label: "进金丝雀" }],
@@ -136,7 +151,7 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
   };
 
   return (
-    <div className={embedded ? "" : "mx-auto max-w-[1040px] px-8 py-10"}>
+    <div className={embedded ? "" : "max-w-[860px]"}>
       <div className={`${embedded ? "mb-3 border-b border-line pb-2.5 " : "mb-6 "}flex flex-wrap items-baseline gap-3`}>
         {!embedded && <h1 className="text-[16px] font-semibold text-cream">技能</h1>}
         {skills && <span className="text-[11.5px] text-tx2">{skills.length} 个</span>}
@@ -146,7 +161,7 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
       </div>
 
       {error && (
-        <p className="mb-4 rounded-hard border border-salmon-deep bg-salmon-well px-3 py-2 text-[12px] text-salmon-hi">
+        <p className="mb-4 rounded-hard border border-salmon/40 bg-salmon-well px-3 py-2 text-[11.5px] text-salmon">
           技能目录加载失败：{error}
         </p>
       )}
@@ -199,10 +214,7 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
                     ? "系统内置（对所有账号可见）"
                     : `由 ${selected.created_by} 建立`}
                 </div>
-                <button
-                  className="mt-2 rounded-hard border border-line-strong px-3 py-[4px] text-[11.5px] text-cream hover:bg-amber/10"
-                  onClick={() => setShowContent(!showContent)}
-                >
+                <button className={`mt-2 ${chip}`} onClick={() => setShowContent(!showContent)}>
                   {showContent ? "收起原文" : "查看原文"}
                 </button>
                 {showContent && content && (
@@ -234,24 +246,21 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-[12.5px] text-tx">{version.version}</span>
-                        <span className="rounded-full bg-amber/20 px-2 py-[1px] text-[10.5px] text-amber-hi">
+                        <span className={STATUS_PILL[version.status] ?? "pill pill-meta"}>
                           {STATUS_LABEL[version.status] ?? version.status}
                         </span>
                       </div>
                       {/* 2026-09-19 用户意见：不要过多 id。版本 uuid 收进 title，
                           列表只留版本号与状态（要看 id 悬停即可）。 */}
                     </div>
-                    <button
-                      className="flex-none rounded-hard border border-line px-2 py-[3px] text-[11px] text-tx2 hover:bg-well"
-                      onClick={() => void loadEvalRuns(version.id)}
-                    >
+                    <button className={chip} onClick={() => void loadEvalRuns(version.id)}>
                       评估历史
                     </button>
                     <div className="flex flex-none gap-2">
                       {(NEXT_ACTIONS[version.status] ?? []).map((item) => (
                         <button
                           key={item.action}
-                          className="rounded-hard border border-line-strong px-3 py-[5px] text-[12px] text-cream hover:bg-amber/10 disabled:opacity-50"
+                          className={primary}
                           disabled={busy}
                           onClick={() => void act(version, item.action, item.label)}
                         >
@@ -276,9 +285,7 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
                     <div className="mt-2 space-y-1">
                       {evalRuns.map((run) => (
                         <div key={run.id} className="flex items-center gap-3 text-[11.5px]">
-                          <span className={`rounded-full px-2 py-[1px] text-[10.5px] font-medium ${
-                            run.result === "pass" ? "bg-green/15 text-green" : "bg-salmon/15 text-salmon-hi"
-                          }`}>
+                          <span className={run.result === "pass" ? "pill pill-done" : "pill pill-fail"}>
                             {run.result === "pass" ? "PASS" : "FAIL"}
                           </span>
                           <span className="text-tx2">{run.arm === "with" ? "有技能" : "无技能"}</span>
@@ -299,7 +306,7 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
               <div className="text-[12.5px] text-cream">技能绑定</div>
               <div className="mt-1 text-[11.5px] text-tx2">{bindings.length} 条</div>
               <button
-                className="mt-2 rounded-hard border border-line-strong px-3 py-[4px] text-[11.5px] text-cream hover:bg-amber/10 disabled:opacity-50"
+                className={`mt-2 ${chip}`}
                 disabled={busy}
                 onClick={() => void doSeedBindings()}
               >
@@ -317,7 +324,7 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
             <div className="flex items-center justify-between">
               <div className="text-[12.5px] text-cream">技能快照</div>
               <button
-                className="rounded-hard border border-line-strong px-3 py-[4px] text-[11.5px] text-cream hover:bg-amber/10 disabled:opacity-50"
+                className={chip}
                 disabled={busy}
                 onClick={() => void doCreateSnapshot()}
               >
