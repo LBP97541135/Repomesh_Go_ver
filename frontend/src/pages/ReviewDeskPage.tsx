@@ -13,24 +13,32 @@ import { ErrorPanel, LoadingLine } from "../components/StatusBlocks";
  *
  *  **为什么是独立一页而不是塞进 issue 详情**：这是一条**跨 issue 的待办队列**。
  *  按 issue 拆开就没有队列了——「今天有几件事等我」正是它唯一要回答的问题。
- *  issue 详情页此前那句「人工检查点走 main 既有审核台」指的就是这里，现在它在同一
- *  个控制台内。
  *
  *  **与决策夹（DecisionDeck）不是一回事**：决策夹装的是**治理决策**（交付门禁上的
  *  ready/blocked/rollback），落在某一轮交付上；这里装的是**项目检查点**
  *  （repository_scope / specification / execution / validation / delivery /
  *  exception_escalation），由拓扑的 `required_checkpoints` 定义、卡在流程节点上。
- *  两者的后端存储、决策类型与权限判定都不同，合并呈现会让人以为批了一个就等于批了
- *  另一个。契约 v0.2 §3/Q6 明文写了决策夹不含 ReviewRequest。
  *
  *  **看得见多少取决于你是谁**：管理员看全部，其他账号只看指派给自己的（后端
  *  `_reviews_for`）。所以队列长度因人而异，这是设计不是取数不稳。
  *
  *  **实时性**：SSE（`/review-requests/events`，2s 比对、变了才推）。流断了退回一次性
- *  取数的结果并显示提示，不静默——一个不再更新却看起来正常的待办队列比空白更危险。 */
-
-/* 检查点措辞表已上提到 display.ts（迁移 5-1a）：issue 详情页的监管策略段要用同一份，
-   两处各存一张表迟早会漏改一处，同一个卡点就在两屏有了两个名字。 */
+ *  取数的结果并显示提示，不静默——一个不再更新却看起来正常的待办队列比空白更危险。
+ *
+ *  ---- 2026-09-20 按用户裁定重排（三条都是他选的）----
+ *
+ *  线上实测：这一页的 10 条**全部**是发现链镜像（`origin=discovery`），而且 10 条的
+ *  summary 一字不差，都是同一句 47 字的登记说明。也就是说它把"回看用的登记"塞进了
+ *  待办队列：页面唯一要回答的"今天有几件事等我"被淹没成"0 条可拍板 + 10 张点了没
+ *  反应的卡，每张还各印一遍同一句话"。三处改动：
+ *
+ *   1. **镜像移出待办**：待办只留能在这儿拍板的检查点；镜像收进下方「发现链登记」
+ *      折叠区（默认收起），那段说明从"每张卡印一遍"改成"区块顶部说一次"。
+ *   2. **同一个 issue 的检查点合并成一张卡**：一次发现链会登记多个步骤，一条一行会
+ *      把同一件事铺成一屏。分组键取 `issue_id`，没有则退到 `project_id`。
+ *   3. **卡片收成两行紧凑版**：第一行检查点 + 标题 + 状态；第二行项目/日期/证据。
+ *      决策理由输入框改成点「要求修改 / 驳回」时才展开——**通过不再带理由**
+ *      （这是选中项里写明的取舍）。 */
 
 const STATUS_LABEL: Record<HumanReviewStatus, string> = {
   pending: "待审",
@@ -39,20 +47,19 @@ const STATUS_LABEL: Record<HumanReviewStatus, string> = {
   changes_requested: "要求修改",
 };
 
-const STATUS_SKIN: Record<HumanReviewStatus, string> = {
-  pending: "border-amber text-amber",
-  approved: "border-olive text-olive",
-  rejected: "border-salmon text-salmon",
-  changes_requested: "border-line text-tx2",
+/** 状态一律走全站 .pill 族，与仓库页/项目页同一套观感（原先每种状态各写一份描边色）。 */
+const STATUS_PILL: Record<HumanReviewStatus, string> = {
+  pending: "pill pill-gate",
+  approved: "pill pill-done",
+  rejected: "pill pill-fail",
+  changes_requested: "pill pill-meta",
 };
 
-const DECISIONS: Array<{ kind: CheckpointDecisionKind; label: string }> = [
-  { kind: "approved", label: "通过" },
-  { kind: "changes_requested", label: "要求修改" },
-  { kind: "rejected", label: "驳回" },
-];
+const chip =
+  "flex-none rounded-hard border border-line px-2.5 py-[3px] text-[11.5px] text-tx2 hover:border-amber hover:text-amber-hi disabled:opacity-50";
 
-function ReviewCard({
+/** 一行检查点。合并卡里、已决列表里都用它，形状只有一种。 */
+function CheckpointRow({
   review,
   onDecide,
   onOpenIssue,
@@ -63,21 +70,23 @@ function ReviewCard({
   onOpenIssue?: (issueId: string) => void;
 }) {
   const [reason, setReason] = useState("");
+  const [asking, setAsking] = useState<CheckpointDecisionKind | null>(null);
   const [busy, setBusy] = useState<CheckpointDecisionKind | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // discovery 来源的待审**不在本页决策**：那是发现链的人工步骤（③ 分档审批 /
-  // ⑤ 物化确认）在 issue 页面上的镜像登记，流水线在那边推进。在这里按「通过」
-  // 推不动它 —— 给一个按了没反应的按钮，比不给按钮更糟。所以只给指回 issue 的入口。
   const fromDiscovery = review.origin === "discovery";
   const pending = review.status === "pending";
+  // discovery 来源的待审**不在本页决策**：那是发现链的人工步骤（③ 分档审批 /
+  // ⑤ 物化确认）在 issue 页面上的镜像登记，流水线在那边推进。在这里按「通过」
+  // 推不动它 —— 给一个按了没反应的按钮，比不给按钮更糟。
   const decidable = pending && !fromDiscovery;
 
-  const decide = async (kind: CheckpointDecisionKind) => {
+  const decide = async (kind: CheckpointDecisionKind, withReason: string) => {
     setBusy(kind);
     setError(null);
     try {
-      await onDecide(review, kind, reason.trim());
+      await onDecide(review, kind, withReason);
       setReason("");
+      setAsking(null);
     } catch (err) {
       // 403 没有决策权 / 409 已决或证据漂移——detail 原文，各有各的下一步
       setError(errText(err));
@@ -87,68 +96,65 @@ function ReviewCard({
   };
 
   return (
-    <div className="rounded-hard border border-line bg-panel px-4 py-3">
-      <div className="flex flex-wrap items-baseline gap-2.5">
-        <span className="text-[12.5px] text-tx">{review.title}</span>
-        <span className={`rounded-hard border px-2 py-px text-[11px] ${STATUS_SKIN[review.status]}`}>
-          {STATUS_LABEL[review.status]}
+    <div className="rounded-hard border border-line bg-panel-2 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+        <span className="pill pill-meta">{checkpointLabel(review.checkpoint)}</span>
+        <span className="min-w-0 flex-1 truncate text-[12.5px] text-tx" title={review.title}>
+          {review.title}
         </span>
-        <span className="rounded-hard border border-line px-2 py-px text-[11px] text-tx2">
-          {checkpointLabel(review.checkpoint)}
+        <span className={STATUS_PILL[review.status]}>{STATUS_LABEL[review.status]}</span>
+        <span
+          className="font-mono text-[10.5px] text-tx3"
+          title={`证据版本 ${review.evidence_version}${review.repository_id ? ` · 仓库 ${review.repository_id}` : ""}`}
+        >
+          证据 {shortId(review.evidence_version)}
+          {review.repository_id !== null && ` · ${shortId(review.repository_id)}`}
         </span>
-        <span className="ml-auto font-mono text-[10.5px] text-tx3" title={`项目 ${review.project_id}`}>
-          #{shortId(review.project_id)} · {dayLabel(review.created_at)}
-        </span>
-      </div>
-
-      {review.summary && (
-        <p className="mt-1.5 whitespace-pre-wrap text-[11.5px] leading-[1.7] text-tx2">{review.summary}</p>
-      )}
-
-      <div className="mt-1.5 font-mono text-[10.5px] text-tx3">
-        {/* 证据版本要露出来：决策钉在它上面，漂了就是 409 */}
-        证据 {review.evidence_version}
-        {review.repository_id !== null && ` · 仓库 ${shortId(review.repository_id)}`}
-        {review.resolved_by_human_id !== null && ` · 决策人 ${shortId(review.resolved_by_human_id)}`}
-      </div>
-
-      {pending && fromDiscovery && (
-        <div className="mt-2.5 rounded-hard border border-line bg-ink px-2.5 py-2">
-          <p className="text-[11.5px] leading-[1.7] text-tx2">
-            这一步在 <b className="text-cream">issue 页面</b> 完成（分档审批 / 物化确认），
-            这里只是它的登记 —— 流水线不在审核台上推进。
-          </p>
-          {onOpenIssue && review.issue_id !== "" && (
-            <button
-              className="mt-1.5 rounded-hard border border-line px-2.5 py-[3px] text-[11.5px] text-tx2 hover:border-amber hover:text-amber-hi"
-              onClick={() => onOpenIssue(review.issue_id)}
-            >
-              去 issue 处理
+        {review.resolved_by_human_id !== null && (
+          <span className="font-mono text-[10.5px] text-tx3" title={`决策人 ${review.resolved_by_human_id}`}>
+            决策人 {shortId(review.resolved_by_human_id)} · {dayLabel(review.updated_at)}
+          </span>
+        )}
+        {fromDiscovery && pending && onOpenIssue && review.issue_id !== "" && (
+          <button className={chip} onClick={() => onOpenIssue(review.issue_id)}>
+            去 issue 处理
+          </button>
+        )}
+        {decidable && (
+          <span className="flex flex-none items-center gap-1.5">
+            <button className={chip} disabled={busy !== null} onClick={() => void decide("approved", "")}>
+              {busy === "approved" ? "提交中…" : "通过"}
             </button>
-          )}
-        </div>
-      )}
-
-      {decidable && (
-        <div className="mt-2.5">
-          <input
-            className="w-full rounded-hard border border-line bg-ink px-2.5 py-1.5 text-[12px] text-tx placeholder:text-tx3 focus:border-amber focus:outline-none"
-            placeholder="决策理由（随决策一并记录）"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-          />
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {DECISIONS.map((item) => (
+            {(["changes_requested", "rejected"] as const).map((kind) => (
               <button
-                key={item.kind}
-                className="rounded-hard border border-line px-2.5 py-[3px] text-[11.5px] text-tx2 hover:border-amber hover:text-amber-hi disabled:opacity-50"
+                key={kind}
+                className={chip}
                 disabled={busy !== null}
-                onClick={() => decide(item.kind)}
+                onClick={() => setAsking(asking === kind ? null : kind)}
               >
-                {busy === item.kind ? "提交中…" : item.label}
+                {STATUS_LABEL[kind]}
               </button>
             ))}
-          </div>
+          </span>
+        )}
+      </div>
+
+      {/* 理由只在需要时说：通过不必填，要求修改/驳回点开才展开输入框。 */}
+      {asking !== null && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <input
+            className="min-w-0 flex-1 rounded-hard border border-line bg-ink px-2.5 py-1.5 text-[12px] text-tx placeholder:text-tx3 focus:border-amber focus:outline-none"
+            placeholder={`${STATUS_LABEL[asking]}的理由（随决策一并记录）`}
+            value={reason}
+            autoFocus
+            onChange={(e) => setReason(e.target.value)}
+          />
+          <button className={chip} disabled={busy !== null} onClick={() => void decide(asking, reason.trim())}>
+            {busy === asking ? "提交中…" : `确认${STATUS_LABEL[asking]}`}
+          </button>
+          <button className={chip} disabled={busy !== null} onClick={() => { setAsking(null); setReason(""); }}>
+            取消
+          </button>
         </div>
       )}
 
@@ -159,6 +165,30 @@ function ReviewCard({
       )}
     </div>
   );
+}
+
+/** 同一个 issue（没有 issue_id 时退到同一个项目）的检查点合成一张卡。 */
+type Group = { key: string; issueId: string; projectId: string; latest: string; rows: HumanReviewRequestView[] };
+
+function groupByIssue(rows: HumanReviewRequestView[]): Group[] {
+  const map = new Map<string, Group>();
+  for (const row of rows) {
+    const key = row.issue_id !== "" ? `issue:${row.issue_id}` : `project:${row.project_id}`;
+    const found = map.get(key);
+    if (found) {
+      found.rows.push(row);
+      if (row.created_at > found.latest) found.latest = row.created_at;
+      continue;
+    }
+    map.set(key, {
+      key,
+      issueId: row.issue_id,
+      projectId: row.project_id,
+      latest: row.created_at,
+      rows: [row],
+    });
+  }
+  return [...map.values()];
 }
 
 export function ReviewDeskPage({
@@ -176,12 +206,13 @@ export function ReviewDeskPage({
   streaming: boolean;
   onRefresh: () => void;
   onToast: (text: string) => void;
-  /** 跳到出处 issue：discovery 来源的待审项只在那边能推进（见 ReviewCard 注释）。 */
+  /** 跳到出处 issue：discovery 来源的待审项只在那边能推进（见 CheckpointRow 注释）。 */
   onOpenIssue?: (issueId: string) => void;
 }) {
   const [showResolved, setShowResolved] = useState(false);
   const [resolved, setResolved] = useState<HumanReviewRequestView[] | null>(null);
   const [resolvedError, setResolvedError] = useState<string | null>(null);
+  const [mirrorsOpen, setMirrorsOpen] = useState(false);
 
   // 已决条目按需取：SSE 只推 pending，已决的要另外问一次全量再筛。
   useEffect(() => {
@@ -211,15 +242,23 @@ export function ReviewDeskPage({
     onRefresh();
   };
 
+  // 待办与登记分开：镜像在本页按不动，混在一起队列长度就不再是"有几件事等我"。
+  const live = rows ?? [];
+  const decidable = live.filter((row) => row.origin !== "discovery");
+  const mirrors = live.filter((row) => row.origin === "discovery");
+  const groups = groupByIssue(decidable);
+
   return (
     <div className="max-w-[860px]">
       <div className="flex items-baseline gap-3 border-b border-line pb-3">
         <h1 className="text-[16px] font-semibold text-cream">人工审核</h1>
-        {rows !== null && <span className="text-[11.5px] text-tx2">{rows.length} 项待审</span>}
-        <button
-          className="ml-auto rounded-hard border border-line px-2.5 py-[3px] text-[11.5px] text-tx2 hover:border-amber hover:text-amber-hi"
-          onClick={() => setShowResolved((v) => !v)}
-        >
+        {rows !== null && (
+          <span className="text-[11.5px] text-tx2">
+            {decidable.length} 项待审
+            {mirrors.length > 0 && ` · ${mirrors.length} 条发现链登记`}
+          </span>
+        )}
+        <button className={`ml-auto ${chip}`} onClick={() => setShowResolved((v) => !v)}>
           {showResolved ? "只看待审" : "查看已决"}
         </button>
       </div>
@@ -237,17 +276,60 @@ export function ReviewDeskPage({
         <ErrorPanel title="审核队列加载失败" message={error} onRetry={onRefresh} />
       ) : rows === null ? (
         <LoadingLine />
-      ) : rows.length === 0 ? (
-        <div className="py-8 text-center text-[12.5px] text-tx3">
-          没有待审事项。检查点由项目拓扑的 required_checkpoints 定义，
-          没有受控项目时这里长期为空是正常的。
-        </div>
       ) : (
-        <div className="mt-4 grid gap-2">
-          {rows.map((review) => (
-            <ReviewCard key={review.id} review={review} onDecide={decide} onOpenIssue={onOpenIssue} />
-          ))}
-        </div>
+        <>
+          {groups.length === 0 ? (
+            <p className="mt-3 rounded-hard border border-line bg-panel px-3 py-2 text-[11.5px] text-tx3">
+              没有需要你拍板的事。检查点由项目拓扑的 required_checkpoints 定义，没有受控项目时这里长期为空是正常的。
+            </p>
+          ) : (
+            <div className="mt-3 grid gap-2">
+              {groups.map((group) => (
+                <section key={group.key} className="rounded-hard border border-line bg-panel px-4 py-3">
+                  <div className="flex flex-wrap items-baseline gap-2.5">
+                    <span className="text-[12.5px] text-cream">
+                      {group.issueId !== "" ? `Issue ${shortId(group.issueId)}` : `项目 ${shortId(group.projectId)}`}
+                    </span>
+                    <span className="pill pill-meta">{group.rows.length} 个检查点待审</span>
+                    <span className="ml-auto font-mono text-[10.5px] text-tx3" title={`项目 ${group.projectId}`}>
+                      {dayLabel(group.latest)}
+                    </span>
+                  </div>
+                  <div className="mt-2 grid gap-1.5">
+                    {group.rows.map((review) => (
+                      <CheckpointRow key={review.id} review={review} onDecide={decide} onOpenIssue={onOpenIssue} />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+
+          {/* 发现链登记：本页推不动（流水线在 issue 那边），所以它不属于待办。
+              那段说明从"每张卡各印一遍"改成这里说一次。 */}
+          {mirrors.length > 0 && (
+            <section className="mt-4">
+              <button
+                className="flex w-full items-baseline gap-2 rounded-hard px-1 py-1.5 text-left"
+                onClick={() => setMirrorsOpen((v) => !v)}
+                aria-expanded={mirrorsOpen}
+              >
+                <span className="text-[10px] text-tx3">{mirrorsOpen ? "▼" : "▶"}</span>
+                <span className="text-[12.5px] text-tx2">发现链登记</span>
+                <span className="text-[11px] text-tx3">
+                  {mirrors.length} 条 · 分档审批 / 物化确认在 issue 页面完成，这里只做登记与回看
+                </span>
+              </button>
+              {mirrorsOpen && (
+                <div className="mt-1.5 grid gap-1.5">
+                  {mirrors.map((review) => (
+                    <CheckpointRow key={review.id} review={review} onDecide={decide} onOpenIssue={onOpenIssue} />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+        </>
       )}
 
       {showResolved && (
@@ -260,15 +342,14 @@ export function ReviewDeskPage({
           ) : resolved.length === 0 ? (
             <p className="text-[11.5px] text-tx3">还没有已决事项。</p>
           ) : (
-            <div className="grid gap-2">
+            <div className="grid gap-1.5">
               {resolved.map((review) => (
-                <ReviewCard key={review.id} review={review} onDecide={decide} onOpenIssue={onOpenIssue} />
+                <CheckpointRow key={review.id} review={review} onDecide={decide} onOpenIssue={onOpenIssue} />
               ))}
             </div>
           )}
         </div>
       )}
-
     </div>
   );
 }
