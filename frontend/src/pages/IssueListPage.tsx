@@ -79,8 +79,8 @@ function IssueRow({
       </button>
 
       {/* v0.5：墓碑行只显示徽标不再提供归档入口；归档不改写 state/phase。
-          2026-09-08：已归档行追加「彻底清除」入口（归档之外的第二个不可逆动作，
-          走独立确认弹窗）——live 模式才出现。 */}
+          已归档行追加「删除」入口（2026-09-20 起为软删除：打 removed_at 墓碑，
+          数据保留、各读面不再显示；此前的硬删除 12 张表已退役）——live 模式才出现。 */}
       {item.archived ? (
         <>
           <span
@@ -92,10 +92,10 @@ function IssueRow({
           {canArchive && (
             <button
               className="mt-3 mr-1.5 flex-none rounded-hard border border-transparent px-2 py-px text-[11px] text-tx3 hover:border-salmon hover:text-salmon"
-              title="硬删除快照、决策链与审计记录（不可逆，仅保留一条清除审计）"
+              title="软删除：数据保留，列表/创建条件/消费面不再显示此 issue（removed_at 墓碑）"
               onClick={() => onPurge(item)}
             >
-              彻底清除
+              删除
             </button>
           )}
         </>
