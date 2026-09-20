@@ -89,6 +89,16 @@ func TestPostgresPolicyDraftLifecycle(t *testing.T) {
 	if _, err := service.ResolveProjectScope(ctx, owner, "not-a-uuid"); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("非法 id 应 404，得到 %v", err)
 	}
+	// 管理员越权只越「这一个项目」：ResolveProjectScopeAs(admin=true) 认得到别人的
+	// 项目（ADR-0022 兜底：人工决议漂移时由组织管理员接手），admin=false 仍 404。
+	// 人工审核台的拍板与控制走的就是这一条 —— 管理员本就看得见全部待审，
+	// 若拍板反而 404，那是「看得见按不动」。
+	if _, err := service.ResolveProjectScopeAs(ctx, owner, true, otherProject); err != nil {
+		t.Fatalf("管理员应能解析别人的项目，得到 %v", err)
+	}
+	if _, err := service.ResolveProjectScopeAs(ctx, owner, false, otherProject); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("非管理员不该解析别人的项目，得到 %v", err)
+	}
 
 	// ⑥ 授权指向不存在的账号 = 422 原文（把审核权交给一个没人能登录的身份）。
 	_, err = service.PutPolicyDraft(ctx, other, otherProject, PolicyDraftCommand{

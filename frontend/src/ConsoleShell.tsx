@@ -191,15 +191,21 @@ export default function ConsoleShell() {
   }, [authState, activeProjectId, issueTab, issuesReload, showArchived]);
 
   useEffect(() => {
-    if (authState !== "authenticated") return;
-    let cancelled = false;
+    // 审核台按**项目 + 用户**两层隔离（2026-09-20）：队列与侧栏徽标都只认当前
+    // 项目。切项目就换一条流；没选项目就没有队列可言 —— 而不是拿全库单子充数
+    // （那正是这次要堵的跨账号泄漏）。
+    setReviews(null);
+    setReviewsStreaming(true);
     setReviewsError(null);
+    if (authState !== "authenticated" || !activeProjectId) return;
+    let cancelled = false;
     // 先一次性取一份垫底：SSE 的首帧要等到 store 有变化或首轮循环，
     // 空手等它会让首屏在两秒里说不清是「没有待办」还是「还没取到」。
-    fetchReviewRequests("pending")
+    fetchReviewRequests(activeProjectId, "pending")
       .then((rows) => !cancelled && setReviews(rows))
       .catch((err: unknown) => !cancelled && setReviewsError(errText(err)));
     const unsubscribe = subscribeReviewRequests(
+      activeProjectId,
       (rows) => {
         if (cancelled) return;
         setReviews(rows);
@@ -215,7 +221,7 @@ export default function ConsoleShell() {
       cancelled = true;
       unsubscribe();
     };
-  }, [authState, reviewsReload]);
+  }, [authState, activeProjectId, reviewsReload]);
 
   const loadMoreIssues = () => {
     const cursor = issues?.next_cursor;
@@ -500,8 +506,11 @@ export default function ConsoleShell() {
               onToast={showToast}
             />
           ))}
-        {route.nav === "reviews" && (
+        {route.nav === "reviews" && activeProjectId !== null && (
           <ReviewDeskPage
+            key={activeProjectId}
+            projectId={activeProjectId}
+            projectName={projects?.find((p) => p.id === activeProjectId)?.name ?? activeProjectId}
             rows={reviews}
             error={reviewsError}
             streaming={reviewsStreaming}
@@ -536,7 +545,7 @@ export default function ConsoleShell() {
           onToast={showToast}
         />
       )}
-        {(route.nav === "projects" || (activeProjectId === null && ["issues", "repositories"].includes(route.nav))) && (
+        {(route.nav === "projects" || (activeProjectId === null && ["issues", "repositories", "reviews"].includes(route.nav))) && (
           <ProjectSelectPage key={account.id} projects={projects} activeProjectId={activeProjectId} error={projectsError} onRetry={() => setProjectsReload(n => n + 1)} onSelect={handleSelectProject} />
         )}
         {route.nav === "models" && <ModelProvidersPage />}

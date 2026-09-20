@@ -439,6 +439,20 @@ data: {"aggregateType":"task","aggregateId":"6f1d4c0e-2b7a-4a7e-9c1e-1c2f3a4b5d6
 | `POST /api/review-requests` | 发起：`projectId`、`objectType`、`objectId`、`requestContent`、`requestedByAgentId`（可省略） | 键（无落点） | 后台（代 Agent） |
 | `POST /api/review-requests/{requestId}/decision` | 批复：`decision` 取 `approve` 或 `reject`，`note` | 键（无落点） | 授权人；漂移时组织管理员兜底（ADR-0022） |
 
+**隔离（2026-09-20 落地，`List(actor, admin, projectId, status)`）**：`projectId` 不只是
+「可选过滤」，它是可见性的开关。
+
+- 带 `projectId`：先按 `ResolveProjectScopeAs` 解析归属，项目 `owner` 或管理员才拿得到，
+  否则 404（不泄露「这个项目存在，只是不是你的」）；
+- 不带 `projectId`：只返回**调用者自己名下项目**的单，**管理员也不例外**；
+- 写路径同理：`POST /api/v1/projects/{projectId}/checkpoint-decisions` 与 `.../control`
+  此前只比对「这张单属于该项目」，等于**任何登录账号**知道 id 就能拍板别人项目的检查点，
+  现在同样先过归属解析。
+
+此前 `List` 的判据是「管理员看全表、非管理员看 `assignee = 自己`」：前者是一次跨账号的
+全库拉取（泄漏），后者会因生产者漏填 `assignee` 而让单子对**所有人**隐身（连项目属主
+也看不见）。归属现在取自 `repomesh_projects.projects.owner`。
+
 **字段**
 
 | 方案字段 | JSON 字段 | 读写 | 说明 |
@@ -2020,8 +2034,8 @@ data: {"aggregateType":"task","aggregateId":"6f1d4c0e-2b7a-4a7e-9c1e-1c2f3a4b5d6
 | `GET /api/projects/{param}/release-gate` | 已实现(2026-09-17 登记) | 发布门禁评估。 |
 | `GET /api/projects/{param}/specs/current` | 已实现(2026-09-17 登记) | 当前规格(?repository=)。 |
 | `GET /api/projects/{param}/topology` | 已实现(2026-09-17 登记) | 拓扑读取。 |
-| `GET /api/v1/review-requests` | 已实现(2026-09-17 登记) | 已实现;字段细节以 internal 实现为准,按板块回填本册。 |
-| `GET /api/v1/review-requests/events` | 已实现(2026-09-17 登记) | 已实现;字段细节以 internal 实现为准,按板块回填本册。 |
+| `GET /api/v1/review-requests` | 已实现(2026-09-17 登记) | 已实现;字段细节以 internal 实现为准,按板块回填本册。**2026-09-20 起按「项目 + 用户」隔离**:带 `projectId` 时要求 owner 或管理员(否则 404),不带时只回调用者自己名下的项目。 |
+| `GET /api/v1/review-requests/events` | 已实现(2026-09-17 登记) | 已实现;字段细节以 internal 实现为准,按板块回填本册。SSE 与列表同一套隔离,按 `projectId` 分片(前端切项目即重订阅)。 |
 | `POST /api/delivery/github-webhook` | 已实现(2026-09-17 登记) | GitHub webhook 入口(签名校验;非浏览器端点)。 |
 | `POST /api/issues/{param}/archive` | 已实现(2026-09-17 登记) | 归档 issue(墓碑语义,非删除)。 |
 | `POST /api/issues/{param}/discovery/analysis` | 已实现(2026-09-17 登记) | 步1 需求分析(含追问澄清)。 |

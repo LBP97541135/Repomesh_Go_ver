@@ -60,7 +60,12 @@ func registerHumanControl(mux *http.ServeMux, auth Auth, control HumanControl) {
 			writeHumanControlError(w, err)
 			return
 		}
-		rows, err := control.Service.List(r.Context(), actor, admin, r.URL.Query().Get("status"))
+		projectID, err := scopedProject(r, control, actor, admin)
+		if err != nil {
+			writeHumanControlError(w, err)
+			return
+		}
+		rows, err := control.Service.List(r.Context(), actor, admin, projectID, r.URL.Query().Get("status"))
 		if err != nil {
 			writeHumanControlError(w, err)
 			return
@@ -82,6 +87,12 @@ func registerHumanControl(mux *http.ServeMux, auth Auth, control HumanControl) {
 			writeHumanControlError(w, err)
 			return
 		}
+		// 流也按项目隔离：审核台跟着当前项目，切项目就换一条流。
+		projectID, err := scopedProject(r, control, actor, admin)
+		if err != nil {
+			writeHumanControlError(w, err)
+			return
+		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		flusher.Flush()
@@ -90,7 +101,7 @@ func registerHumanControl(mux *http.ServeMux, auth Auth, control HumanControl) {
 			if r.Context().Err() != nil {
 				return
 			}
-			rows, err := control.Service.List(r.Context(), actor, admin, "pending")
+			rows, err := control.Service.List(r.Context(), actor, admin, projectID, "pending")
 			if err == nil {
 				payload, _ := json.Marshal(rows)
 				if string(payload) != last {
@@ -111,7 +122,16 @@ func registerHumanControl(mux *http.ServeMux, auth Auth, control HumanControl) {
 
 	mux.HandleFunc("POST /api/v1/projects/{projectId}/checkpoint-decisions", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		actor, _, err := session(w, r)
+		actor, admin, err := session(w, r)
+		if err != nil {
+			writeHumanControlError(w, err)
+			return
+		}
+		// 归属校验（2026-09-20 补）：此前这里直接把路径上的 projectId 交给 Decide，
+		// 而 Decide 只比对「这张单属于该项目」—— 于是**任何登录账号**只要知道
+		// projectId 与 review_request_id，就能拍板别人项目的检查点。
+		// 现在先解析作用域：owner 或 admin 才拿得到项目 id，否则 404。
+		projectID, err := control.Service.ResolveProjectScopeAs(r.Context(), actor, admin, r.PathValue("projectId"))
 		if err != nil {
 			writeHumanControlError(w, err)
 			return
@@ -125,7 +145,7 @@ func registerHumanControl(mux *http.ServeMux, auth Auth, control HumanControl) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "INVALID_BODY"})
 			return
 		}
-		view, err := control.Service.Decide(r.Context(), actor, r.PathValue("projectId"), humancontrol.DecisionCommand{
+		view, err := control.Service.Decide(r.Context(), actor, projectID, humancontrol.DecisionCommand{
 			ReviewRequestID: body.ReviewRequestID, Decision: body.Decision, Reason: body.Reason,
 		})
 		if err != nil {
@@ -140,7 +160,7 @@ func registerHumanControl(mux *http.ServeMux, auth Auth, control HumanControl) {
 				writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "SPEC_CHANGE_NOT_WIRED"})
 				return
 			}
-			if _, err := control.SpecChanges.ApplyApprovedChange(r.Context(), r.PathValue("projectId"), actor, view.ReviewRequestID, view.EvidenceVersion); err != nil {
+			if _, err := control.SpecChanges.ApplyApprovedChange(r.Context(), projectID, actor, view.ReviewRequestID, view.EvidenceVersion); err != nil {
 				writeHumanControlError(w, err)
 				return
 			}
@@ -150,7 +170,14 @@ func registerHumanControl(mux *http.ServeMux, auth Auth, control HumanControl) {
 
 	mux.HandleFunc("POST /api/v1/projects/{projectId}/control", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		actor, _, err := session(w, r)
+		actor, admin, err := session(w, r)
+		if err != nil {
+			writeHumanControlError(w, err)
+			return
+		}
+		// 同 checkpoint-decisions：暂停/恢复/取消是**改项目状态**的动作，
+		// 归属必须先过（此前同样没有）。
+		projectID, err := control.Service.ResolveProjectScopeAs(r.Context(), actor, admin, r.PathValue("projectId"))
 		if err != nil {
 			writeHumanControlError(w, err)
 			return
@@ -162,12 +189,25 @@ func registerHumanControl(mux *http.ServeMux, auth Auth, control HumanControl) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "INVALID_BODY"})
 			return
 		}
-		if err := control.Service.Control(r.Context(), actor, r.PathValue("projectId"), humancontrol.ControlCommand{Action: body.Action}); err != nil {
+		if err := control.Service.Control(r.Context(), actor, projectID, humancontrol.ControlCommand{Action: body.Action}); err != nil {
 			writeHumanControlError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "applied"})
 	})
+}
+
+// scopedProject 解析可选的 `projectId` 查询参数。
+//
+// 空值 = 不限项目，Service.List 会把它收敛到**调用者自己名下**的项目
+// （不带项目也绝不跨账号）。非空时要求调用者对该项目有权（owner 或 admin），
+// 否则 pgx.ErrNoRows → 404，不泄露「这个项目存在，只是不是你的」。
+func scopedProject(r *http.Request, control HumanControl, actor string, admin bool) (string, error) {
+	raw := strings.TrimSpace(r.URL.Query().Get("projectId"))
+	if raw == "" {
+		return "", nil
+	}
+	return control.Service.ResolveProjectScopeAs(r.Context(), actor, admin, raw)
 }
 
 func writeHumanControlError(w http.ResponseWriter, err error) {

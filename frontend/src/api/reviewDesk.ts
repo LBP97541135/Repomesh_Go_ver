@@ -5,9 +5,10 @@
  *  这正是共享 token 换不来的东西——后端把 `actor.id` 直接写进决策行，前端连
  *  `human_principal_id` 这个字段都不用传。
  *
- *  **可见范围随身份变**：管理员看全部，非管理员只看指派给自己的
- *  （后端 `_reviews_for`）。所以同一个待办队列在不同账号下长度不同，这是设计而非
- *  取数不稳。 */
+ *  **可见范围按「项目 + 用户」两层隔离**（2026-09-20）：队列只装**当前项目**的单，
+ *  且只有项目 owner 或管理员读得到（后端 `List` 带 projectId 时校验归属，否则 404）。
+ *  此前是「管理员看全表、非管理员看 assignee=自己」—— 前者是一次跨账号的全库拉取，
+ *  后者会因为生产者漏填 assignee 而让单子对**所有人**隐身（连项目属主也看不见）。 */
 import { sessionRequest } from "./auth";
 
 /** 六个检查点（后端 `ProjectCheckpoint`）。 */
@@ -71,12 +72,20 @@ export interface CheckpointDecisionView {
   decided_at: string;
 }
 
-/** 待办列表。`status` 省略 = 全部状态（含已决的），传 `pending` = 只看待办。 */
+/** 待办列表。**必须带 projectId**——这个队列按项目隔离（2026-09-20）。
+ *
+ *  后端在带 `projectId` 时要求调用者是该项目的 owner，或管理员
+ *  （ADR-0022 兜底）；两者都不是一律 404。不带 projectId 只会回**自己名下项目**
+ *  的单，所以「切个项目就换个队列」是这条端点本来的语义，不是界面在本地过滤。
+ *
+ *  `status` 省略 = 全部状态（含已决的），传 `pending` = 只看待办。 */
 export function fetchReviewRequests(
+  projectId: string,
   status?: HumanReviewStatus,
 ): Promise<HumanReviewRequestView[]> {
-  const q = status ? `?status=${encodeURIComponent(status)}` : "";
-  return sessionRequest<HumanReviewRequestView[]>(`/review-requests${q}`);
+  const params = new URLSearchParams({ projectId });
+  if (status) params.set("status", status);
+  return sessionRequest<HumanReviewRequestView[]>(`/review-requests?${params.toString()}`);
 }
 
 /** 记一条检查点决策。
@@ -109,19 +118,24 @@ export function controlProject(
 
 /** 待办的 SSE 流（`event: review-requests`，每 2s 比对、变了才推）。
  *
+ *  **按项目订阅**：流与一次性取数共用同一条隔离规则，所以 `projectId` 是必填的
+ *  —— 换个项目就得换一条流，调用方负责在项目变化时重订阅（见 ConsoleShell）。
+ *
  *  **不带 Authorization 头**——EventSource 本来也不支持自定义头，而这一面认 cookie，
  *  正好合得上。`withCredentials` 只有跨源才需要；控制台走同源 dev proxy，
  *  同源请求默认就带 cookie。
  *
  *  返回取消函数。调用方负责在卸载时调用它，否则连接会一直挂着。 */
 export function subscribeReviewRequests(
+  projectId: string,
   onData: (rows: HumanReviewRequestView[]) => void,
   onError: () => void,
 ): () => void {
   const base = import.meta.env.VITE_API_BASE ?? "";
-  const source = new EventSource(`${base}/api/v1/review-requests/events`, {
-    withCredentials: true,
-  });
+  const source = new EventSource(
+    `${base}/api/v1/review-requests/events?projectId=${encodeURIComponent(projectId)}`,
+    { withCredentials: true },
+  );
   source.addEventListener("review-requests", (event) => {
     try {
       onData(JSON.parse((event as MessageEvent<string>).data) as HumanReviewRequestView[]);

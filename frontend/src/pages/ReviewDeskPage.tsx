@@ -11,19 +11,23 @@ import { ErrorPanel, LoadingLine } from "../components/StatusBlocks";
 
 /** 人工审核台（迁移 2：main 的 ReviewWorkbench 进控制台）。
  *
- *  **为什么是独立一页而不是塞进 issue 详情**：这是一条**跨 issue 的待办队列**。
- *  按 issue 拆开就没有队列了——「今天有几件事等我」正是它唯一要回答的问题。
+ *  **为什么是独立一页而不是塞进 issue 详情**：这是一条**跨 issue 的待办队列**
+ *  （**项目内**跨 issue —— 它不是跨项目的，见下）。按 issue 拆开就没有队列了，
+ *  「这个项目今天有几件事等我」正是它唯一要回答的问题。
  *
  *  **与决策夹（DecisionDeck）不是一回事**：决策夹装的是**治理决策**（交付门禁上的
  *  ready/blocked/rollback），落在某一轮交付上；这里装的是**项目检查点**
  *  （repository_scope / specification / execution / validation / delivery /
  *  exception_escalation），由拓扑的 `required_checkpoints` 定义、卡在流程节点上。
  *
- *  **看得见多少取决于你是谁**：管理员看全部，其他账号只看指派给自己的（后端
- *  `_reviews_for`）。所以队列长度因人而异，这是设计不是取数不稳。
+ *  **队列按「项目 + 用户」两层隔离**（2026-09-20）：只装**当前项目**的单，且只有该
+ *  项目的 owner 或管理员读得到（后端带 `projectId` 时校验归属，否则 404）。换项目
+ *  就是换一个队列。此前它是「管理员看全表、其他人看 `assignee = 自己`」——
+ *  前者是一次跨账号的全库拉取（泄漏），后者会因生产者漏填 `assignee` 而让单子
+ *  对**所有人**隐身（连项目属主也看不见）。
  *
- *  **实时性**：SSE（`/review-requests/events`，2s 比对、变了才推）。流断了退回一次性
- *  取数的结果并显示提示，不静默——一个不再更新却看起来正常的待办队列比空白更危险。
+ *  **实时性**：SSE（`/review-requests/events?projectId=…`，2s 比对、变了才推）。流断了
+ *  退回一次性取数的结果并显示提示，不静默——一个不再更新却看起来正常的待办队列比空白更危险。
  *
  *  ---- 2026-09-20 按用户裁定重排（三条都是他选的）----
  *
@@ -245,6 +249,8 @@ function GroupCard({
 }
 
 export function ReviewDeskPage({
+  projectId,
+  projectName,
   rows,
   error,
   streaming,
@@ -252,6 +258,11 @@ export function ReviewDeskPage({
   onToast,
   onOpenIssue,
 }: {
+  /** 队列所属项目（必填）。审核台自 2026-09-20 起**按项目隔离** ——
+   *  换项目就是换一个队列，所以这一页不再是无项目的全局收件箱。 */
+  projectId: string;
+  /** 只用于标题上如实在说「在审哪个项目」，取不到时退化成 id。 */
+  projectName: string;
   /** null = 尚未取到（加载中）。空数组 = 队列真的空了，两态不合并。 */
   rows: HumanReviewRequestView[] | null;
   error: string | null;
@@ -271,14 +282,15 @@ export function ReviewDeskPage({
   useEffect(() => {
     if (!showResolved) return;
     let cancelled = false;
+    setResolved(null);
     setResolvedError(null);
-    fetchReviewRequests()
+    fetchReviewRequests(projectId)
       .then((all) => !cancelled && setResolved(all.filter((r) => r.status !== "pending")))
       .catch((err: unknown) => !cancelled && setResolvedError(errText(err)));
     return () => {
       cancelled = true;
     };
-  }, [showResolved]);
+  }, [showResolved, projectId]);
 
   const decide = async (
     review: HumanReviewRequestView,
@@ -306,8 +318,13 @@ export function ReviewDeskPage({
     <div className="max-w-[860px]">
       <div className="flex items-baseline gap-3 border-b border-line pb-3">
         <h1 className="text-[16px] font-semibold text-cream">人工审核</h1>
+        {/* 标题上如实说「在审哪个项目」：这个队列自 2026-09-20 起按项目隔离，
+            不写清楚会让人以为跨项目都看得到。 */}
+        <span className="min-w-0 truncate text-[11.5px] text-tx3" title={`项目 ${projectId}`}>
+          {projectName}
+        </span>
         {rows !== null && (
-          <span className="text-[11.5px] text-tx2">
+          <span className="flex-none text-[11.5px] text-tx2">
             {decidable.length} 项待审
             {mirrors.length > 0 && ` · ${mirrors.length} 条发现链登记`}
           </span>

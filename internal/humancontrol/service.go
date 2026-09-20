@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -90,28 +89,35 @@ func (s *Service) IsAdmin(ctx context.Context, actor string) (bool, error) {
 	return admin, nil
 }
 
-// List returns review requests: everything for admins, only items assigned
-// to the account otherwise (the frontend's `_reviews_for` contract).
-func (s *Service) List(ctx context.Context, actor string, admin bool, status string) ([]ReviewView, error) {
-	query := `SELECT id::text, project_id::text, checkpoint, evidence_version, title, summary, status,
-		repository_id, requested_by_agent_id::text, decided_by::text, created_at, updated_at,
-		COALESCE(request_content->>'origin',''), COALESCE(request_content->>'issue_id','')
-		FROM public.review_requests`
-	args := []any{}
-	conditions := []string{}
-	if !admin {
-		conditions = append(conditions, "(assignee IS NOT NULL AND assignee=$1)")
-		args = append(args, actor)
-	}
-	if status != "" {
-		conditions = append(conditions, fmt.Sprintf("status=$%d", len(args)+1))
-		args = append(args, status)
-	}
-	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
-	}
-	query += " ORDER BY created_at DESC LIMIT 500"
-	rows, err := s.pool.Query(ctx, query, args...)
+// List 返回审核单，**按用户与项目两层隔离**（2026-09-20）。
+//
+// 隔离规则：
+//   - 带 projectID：只返回该项目的单。调用者必须是项目 owner，或 admin
+//     （ADR-0022：证据漂移时组织管理员兜底）。两者都不是时由路由回 404 ——
+//     不泄露「这个项目存在，只是不是你的」。
+//   - 不带 projectID：只返回**调用者自己名下项目**的单。**管理员也不例外**。
+//
+// 为什么换掉旧判据：旧实现是「管理员看全表、非管理员看 `assignee = 自己`」。
+// 那个 `assignee` 是可空文本列，于是两侧都不成立 ——
+//   - 管理员那一支是**无条件全表查询**，一次能拉出全库所有账号的待审单，
+//     那是跨用户泄漏，不是「管理员特权」；
+//   - 非管理员那一支要求 `assignee IS NOT NULL`，而生产者漏填 `assignee` 的行
+//     对**所有人**都不可见（连项目属主也看不见），单子就这么挂在那里没人知道。
+// 现在归属取自 `repomesh_projects.projects.owner` —— 那是项目的权威归属事实，
+// 而不是生产者写在单子上的一个字段。
+func (s *Service) List(ctx context.Context, actor string, admin bool, projectID, status string) ([]ReviewView, error) {
+	// 两条互斥分支写成一句 SQL，避免按分支拼参数序号（那种拼法最容易接错位）。
+	// $1=actor $2=admin $3=projectID $4=status
+	query := `SELECT rr.id::text, rr.project_id::text, rr.checkpoint, rr.evidence_version, rr.title, rr.summary, rr.status,
+		rr.repository_id, rr.requested_by_agent_id::text, rr.decided_by::text, rr.created_at, rr.updated_at,
+		COALESCE(rr.request_content->>'origin',''), COALESCE(rr.request_content->>'issue_id','')
+		FROM public.review_requests rr
+		JOIN repomesh_projects.projects p ON p.id = rr.project_id::text
+		WHERE (($3 <> '' AND rr.project_id::text = $3 AND (p.owner = $1 OR $2))
+		    OR ($3 = '' AND p.owner = $1))
+		  AND ($4 = '' OR rr.status = $4)
+		ORDER BY rr.created_at DESC LIMIT 500`
+	rows, err := s.pool.Query(ctx, query, actor, admin, projectID, status)
 	if err != nil {
 		return nil, fmt.Errorf("humancontrol: list: %w", err)
 	}

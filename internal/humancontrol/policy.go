@@ -115,15 +115,30 @@ type PolicyDraftCommand struct {
 // 所以两种 id 都收：先按 issue id 认，认不到再按项目 id 认。
 //
 // 归属规则与项目读面一致：项目的 owner 必须是调用者，否则 404
-// （不泄露「这个项目存在，只是不是你的」）。
+// （不泄露「这个项目存在，只是不是你的」）。**管理员在这一条上不越权** ——
+// 需要越权的调用方用 ResolveProjectScopeAs。
 func (s *Service) ResolveProjectScope(ctx context.Context, actor, scopeID string) (string, error) {
+	return s.resolveProjectScope(ctx, actor, false, scopeID)
+}
+
+// ResolveProjectScopeAs 同 ResolveProjectScope，但 admin=true 时允许管理员越过
+// owner 判定（ADR-0022：人工决议在证据漂移时由组织管理员兜底）。
+//
+// 越权的是「**这一个**项目」，不是「所有项目」——解析结果仍然只有一个项目 id，
+// 不会退化成一次全量放行。人工审核台的拍板与项目控制走这一条：审核台上管理员
+// 本来就看得见全部待审，若拍板反而 404，那是「看得见按不动」。
+func (s *Service) ResolveProjectScopeAs(ctx context.Context, actor string, admin bool, scopeID string) (string, error) {
+	return s.resolveProjectScope(ctx, actor, admin, scopeID)
+}
+
+func (s *Service) resolveProjectScope(ctx context.Context, actor string, admin bool, scopeID string) (string, error) {
 	if actor == "" || scopeID == "" {
 		return "", pgx.ErrNoRows
 	}
 	var projectID string
 	err := s.pool.QueryRow(ctx, `SELECT i.project_id FROM repomesh_issues.issues i
 		 JOIN repomesh_projects.projects p ON p.id = i.project_id
-		 WHERE i.id=$1 AND p.owner=$2`, scopeID, actor).Scan(&projectID)
+		 WHERE i.id=$1 AND (p.owner=$2 OR $3)`, scopeID, actor, admin).Scan(&projectID)
 	if err == nil {
 		return projectID, nil
 	}
@@ -133,7 +148,7 @@ func (s *Service) ResolveProjectScope(ctx context.Context, actor, scopeID string
 	// 不是 issue id 就按项目 id 认。用文本比较（id::text=$1），
 	// 否则垃圾输入会触发 uuid 的 22P02，把「不是你的」变成 500。
 	err = s.pool.QueryRow(ctx, `SELECT id FROM repomesh_projects.projects
-		 WHERE id::text=$1 AND owner=$2`, scopeID, actor).Scan(&projectID)
+		 WHERE id::text=$1 AND (owner=$2 OR $3)`, scopeID, actor, admin).Scan(&projectID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", pgx.ErrNoRows
 	}
