@@ -262,8 +262,8 @@ export function createApiClient(config: ApiClientConfig) {
         `/issues/${encodeURIComponent(issueId)}/archive`,
       ),
 
-    /** 彻底清除（2026-09-08 用户裁决）：硬删除已归档 issue 的快照、决策链与
-     *  审计事件——只保留一条 IssuePurged 审计。不可逆；409 未归档。 */
+    /** 清除（2026-09-20 改为软删除）：给已归档 issue 打 removed_at 墓碑——数据都在，
+     *  列表/创建条件/消费面不再显示。回执计数 = 随墓碑一起隐藏的数量。409 未归档。 */
     purgeIssue: (issueId: string) =>
       request<{ snapshots: number; decision_chain_nodes: number; audit_events: number }>(
         config,

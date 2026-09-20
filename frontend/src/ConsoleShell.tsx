@@ -322,7 +322,7 @@ export default function ConsoleShell() {
     try {
       const receipt = await purgeIssue(item.issue_id);
       showToast(
-        `issue 已彻底清除：#${shortId(item.issue_id)}（快照 ${receipt.snapshots} · ` +
+        `issue 已删除（软删除，数据保留）：#${shortId(item.issue_id)}（隐藏 快照 ${receipt.snapshots} · ` +
           `决策链 ${receipt.decision_chain_nodes} · 审计 ${receipt.audit_events}）`,
       );
       setIssuesReload((n) => n + 1);
