@@ -29,13 +29,28 @@ const AVA: Record<string, string> = {
   "Leader·顾盼": "L",
 };
 
-const SKIN: Record<CarState, { chip: string; text: string }> = {
-  done: { chip: "border-olive/50 bg-olive/10 text-olive", text: "已合并" },
-  run: {
-    chip: "border-[rgba(94,106,210,.4)] bg-[rgba(94,106,210,.07)] text-[var(--tree-acc)]",
-    text: "进行中",
-  },
-  wait: { chip: "border-[#e0dfdc] bg-[#fafafa] text-[var(--tree-faint)]", text: "等待前序合并" },
+/** 车厢三态的标准文案（2026-09-20 对齐用户原型 pr-train-prototype-v2）：
+ *  「已合并」/「CI 运行中」/「等待前序合并」。原型里的字面色值
+ *  （#16a34a / #5e6ad2 / #f7f7f5）一律不落地，配色复用仓库既有的
+ *  pill-done / pill-run / pill-wait 工具类 —— 它们已经按 --tree-* 与
+ *  --color-* token 定义，深浅两套主题各自有值。 */
+const STATE_TEXT: Record<CarState, string> = {
+  done: "已合并",
+  run: "CI 运行中",
+  wait: "等待前序合并",
+};
+
+const STATE_PILL: Record<CarState, string> = {
+  done: "pill-done",
+  run: "pill-run",
+  wait: "pill-wait",
+};
+
+/** 状态圆点：原型里 run 态的圆点带 pulse 呼吸，其余两点静态。 */
+const STATE_DOT: Record<CarState, string> = {
+  done: "bg-[var(--color-olive)]",
+  run: "animate-pulse bg-[var(--tree-acc)]",
+  wait: "bg-[var(--tree-faint)]",
 };
 
 export interface TrainCarSpec {
@@ -119,7 +134,7 @@ export function PrTrainCard({
         <span className="rounded-full border border-olive/50 bg-olive/10 px-2 py-0.5 text-[10px] font-medium text-olive">
           测试已通过
         </span>
-        <span className="rounded-full border border-[#e0dfdc] bg-[#fafafa] px-2 py-0.5 text-[10px] text-[var(--tree-faint)]">
+        <span className="rounded-full border border-[var(--tree-hairline)] bg-[var(--tree-zone)] px-2 py-0.5 text-[10px] text-[var(--tree-faint)]">
           Manager 已确认
         </span>
         <span className="min-w-0 flex-1 truncate text-[10.5px] text-[var(--tree-faint)]">
@@ -138,7 +153,12 @@ export function PrTrainCard({
       >
         <div className="min-h-0 overflow-hidden">
 
-      {/* 列车:三节,箭头表达顺序 */}
+      {/* 列车:三节并排,箭头表达顺序（2026-09-20 对齐用户原型
+          pr-train-prototype-v2.html）。原型要点:卡片 13px/15px 内边距、
+          圆角 12、白底 + 1px 发丝线 + 极浅投影;卡片间距 26px,箭头是
+          车尾 ::after（right:-19px,垂直居中），不占一列 —— 所以这里
+          用 Tailwind 的 after: 变体挂在车厢外框上。
+          配色全部走 --tree-* / --color-* token,不抄原型的字面色值。 */}
       <div className="mt-2.5 flex items-stretch">
         {list.map((car, i) => {
           const gate = car.changeSetId && projectId ? gates[car.changeSetId as string] : undefined;
@@ -149,46 +169,55 @@ export function PrTrainCard({
                 ? "run"
                 : "wait"
             : (car as { state?: CarState }).state ?? "wait";
-          const text = live
+          // 精确门禁文案退到 chip 的 title:原型的 chip 只表达三态短标签，
+          // 四门细节（「待 未推送 · 未开 PR…」）仍在，只是悬停才展开。
+          const chipHint = live
             ? car.merged
-              ? "已合并"
+              ? undefined
               : car.changeSetId
                 ? gate
                   ? gateText(gate)
                   : "门禁状态未知"
                 : "尚未开 PR · 待提交"
-            : (car as { pr?: string }).pr ?? "";
-          const skin = state === "done" ? SKIN.done : state === "run" ? SKIN.run : SKIN.wait;
+            : undefined;
+          // 原型 `PR !12 · cs-003` 里的 cs-xxx 是 change-set 短 id，现有数据
+          // 只有完整 id（UUID），照搬会很难看，所以如实只显示 PR 标签；没开
+          // PR 的车厢回退「待提交」。
+          const prLine = car.pr ?? car.changeSetId ?? "待提交";
           return (
-            <div key={car.repo} className="flex min-w-[118px] flex-1 items-stretch">
+            <div
+              key={car.repo}
+              className={`relative min-w-[118px] flex-1 ${
+                i < list.length - 1
+                  ? "mr-[26px] after:absolute after:right-[-19px] after:top-1/2 after:-translate-y-1/2 after:text-[14px] after:leading-none after:text-[var(--tree-faint)] after:content-['→']"
+                  : ""
+              }`}
+            >
               <div
-                className={`min-w-[118px] flex-1 rounded-lg border bg-[var(--tree-card)] px-2.5 py-2 transition-colors hover:bg-[var(--tree-zone)] ${
-                  state === "run" ? "border-[rgba(94,106,210,.45)] shadow-[0_0_0_3px_rgba(94,106,210,.07)]" : "border-[var(--tree-hairline)]"
+                className={`h-full rounded-xl border bg-[var(--tree-card)] px-[15px] py-[13px] shadow-[0_1px_2px_rgba(15,15,15,.04)] ${
+                  state === "run"
+                    ? "border-[var(--tree-acc)] ring-[3px] ring-[var(--tree-acc)]/10"
+                    : "border-[var(--tree-hairline)]"
                 }`}
               >
-                <div className="text-[12.5px] font-medium text-[#37352f]">{car.repo}</div>
-                <div className="mt-0.5 font-mono text-[10px] text-[var(--tree-faint)]">
-                  {live ? car.pr ?? car.changeSetId : car.pr}
+                <div className="truncate text-[13px] font-semibold text-[var(--tree-ink)]">{car.repo}</div>
+                <div className="mt-0.5 truncate font-mono text-[10.5px] text-[var(--tree-faint)]">
+                  {prLine}
                 </div>
-                <span className={`mt-1.5 inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10.5px] ${skin.chip}`}>
-                  {state === "run" && (
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--tree-acc)]" />
-                  )}
-                  {skin.text}
+                <span
+                  title={chipHint}
+                  className={`mt-2.5 inline-flex items-center gap-[5px] ${STATE_PILL[state]}`}
+                >
+                  <span className={`h-1.5 w-1.5 flex-none rounded-full ${STATE_DOT[state]}`} />
+                  {STATE_TEXT[state]}
                 </span>
-                <div className="mt-1.5 flex items-center gap-1.5 text-[10.5px] text-[#787774]">
-                  <span className="grid h-[15px] w-[15px] place-items-center rounded-full bg-[linear-gradient(135deg,#4ade80,#16a34a)] text-[7px] font-bold text-white">
+                <div className="mt-[9px] flex items-center gap-[5px] text-[10.5px] text-[var(--tree-sub)]">
+                  <span className="grid h-[15px] w-[15px] flex-none place-items-center rounded-full bg-[linear-gradient(135deg,color-mix(in_oklab,var(--color-olive)_55%,white),var(--color-olive))] text-[7.5px] font-bold text-white">
                     {car.by ? AVA[car.by] ?? car.by[0] : "—"}
                   </span>
-                  {car.by}
+                  <span className="truncate">{car.by}</span>
                 </div>
-                <div className="mt-1.5 truncate text-[10px] text-[var(--tree-faint)]">{text}</div>
               </div>
-              {i < list.length - 1 && (
-                <span aria-hidden className="mx-3 self-center text-[13px] text-[#b9b9b5]">
-                  →
-                </span>
-              )}
             </div>
           );
         })}
