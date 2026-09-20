@@ -33,6 +33,23 @@ func (c *Client) CreateWorker(ctx context.Context, spec WorkerSpec) ([]byte, int
 	return c.write(ctx, http.MethodPost, "/api/v1/workers", spec)
 }
 
+// workerSleepingSpec 是"出生即休眠"的建 worker 载荷(选仓门 §3.3)。
+//
+// 上游 CreateWorkerRequest 原生带 `state *string`(合法值 Running/Sleeping/
+// Stopped),所以休眠建队就是**一步** POST —— 不是"先建 Running 再补一发
+// /sleep":那会先真的起一个 runtime 再停它,正是懒启动要避免的浪费。
+type workerSleepingSpec struct {
+	Name  string `json:"name"`
+	State string `json:"state"`
+}
+
+// CreateWorkerSleeping 注册一个出生即休眠的 worker(POST /api/v1/workers,
+// body {"name":..,"state":"Sleeping"})。团队在仓库接入项目时预建,选进
+// issue 范围时再由 EnsureReadyOrWake 唤醒。
+func (c *Client) CreateWorkerSleeping(ctx context.Context, name string) ([]byte, int, error) {
+	return c.write(ctx, http.MethodPost, "/api/v1/workers", workerSleepingSpec{Name: name, State: string(PhaseSleeping)})
+}
+
 // WorkerStatus returns the live status of one worker (GET /api/v1/workers/{name}/status).
 func (c *Client) WorkerStatus(ctx context.Context, name string) ([]byte, int, error) {
 	return c.read(ctx, http.MethodGet, "/api/v1/workers/"+url.PathEscape(name)+"/status")
@@ -49,8 +66,55 @@ func (c *Client) Sleep(ctx context.Context, name string) ([]byte, int, error) {
 }
 
 // EnsureReady drives a worker to ready state (idempotent upstream).
+//
+// ⚠️ 上游语义(锁版本 lifecycle_handler.go):ensure-ready **只对
+// Sleeping/Stopped 生效**;worker 处于其它相位(Pending/Failed/…)时它是一个
+// 空操作,原样返回当前相位。要走"先试、不行就强制唤醒"的完整语义,用
+// EnsureReadyOrWake —— 这条裸接口保留给 health_gate(它先读相位再行动)。
 func (c *Client) EnsureReady(ctx context.Context, name string) ([]byte, int, error) {
 	return c.write(ctx, http.MethodPost, "/api/v1/workers/"+url.PathEscape(name)+"/ensure-ready", nil)
+}
+
+// workerLifecycleBody 是上游 lifecycle 端点响应的最小形状:{name, phase}。
+type workerLifecycleBody struct {
+	Phase string `json:"phase"`
+}
+
+// EnsureReadyOrWake 把一个 worker 推回可用:先 POST ensure-ready,判定没生效就
+// 回退 POST wake(选仓门 §3.3 的唤醒双保险就走这条)。
+//
+// 为什么要回退:上游 ensure-ready 只对 Sleeping/Stopped 生效,其余相位是空操作;
+// 后端冲突时还会回 409。wake 则是**无条件**把 spec.state 置 Running 的强动作,
+// 拿它兜底。返回最终观测到的相位;ensure-ready 与 wake 两条路都失败才返回错误
+// (调用方要把失败如实写进 run 的失败原因,不许假装成功)。
+func (c *Client) EnsureReadyOrWake(ctx context.Context, name string) (string, error) {
+	data, status, err := c.EnsureReady(ctx, name)
+	if err == nil && status >= http.StatusOK && status < http.StatusMultipleChoices {
+		var response workerLifecycleBody
+		if json.Unmarshal(data, &response) == nil && isReadyPhase(response.Phase) {
+			return response.Phase, nil
+		}
+	}
+	// ensure-ready 没生效(空操作 / 409 / 非 2xx / 传输失败)→ 回退 wake。
+	wakeData, wakeStatus, wakeErr := c.Wake(ctx, name)
+	if wakeErr != nil {
+		return "", fmt.Errorf("wake worker %s: %w", name, wakeErr)
+	}
+	if wakeStatus < http.StatusOK || wakeStatus >= http.StatusMultipleChoices {
+		return "", fmt.Errorf("wake worker %s returned %d", name, wakeStatus)
+	}
+	var woken workerLifecycleBody
+	if err := json.Unmarshal(wakeData, &woken); err != nil || woken.Phase == "" {
+		// 相位读不出来不算成功:上游 wake 总是回 {name, phase:"Running"}。
+		return "", fmt.Errorf("wake worker %s: decode response: %v", name, err)
+	}
+	return woken.Phase, nil
+}
+
+// isReadyPhase 判定 ensure-ready 的响应是否表明"已经可用"(Running,或控制器
+// 在 running+ready 时回的 Ready)。其余相位说明 ensure-ready 是空操作。
+func isReadyPhase(phase string) bool {
+	return phase == string(PhaseRunning) || phase == "Ready"
 }
 
 func (c *Client) write(ctx context.Context, method, path string, payload any) ([]byte, int, error) {
