@@ -678,6 +678,8 @@ export interface FocusPanelProps {
   task: PlanTaskItem | null;
   /** 当前 entry 的会话消息（MGR=主会话 / 任务=该任务房间）；null=加载中或不可用 */
   messages: ConversationMessage[] | null;
+  // Manager 房间的真实消息（AgentTeams）。null=还没有可进的房,回落到 messages。
+  roomMessages: ConversationMessage[] | null;
   /** 人工门动作（页面持写回路） */
   onGate: (action: "approveTiers" | "materialize") => void;
   gateBusy: "approveTiers" | "materialize" | null;
@@ -743,6 +745,7 @@ export function FocusPanel({
   stepStates,
   task,
   messages,
+  roomMessages,
   onGate,
   gateBusy,
   gateError,
@@ -846,7 +849,11 @@ export function FocusPanel({
         {/* 开场两句话排在最前（2026-09-20）：人上传/发送需求这件事发生在建项那一刻，
             不依赖分析有没有开始，所以它必须在时间线之前、且与链路状态无关。 */}
         <RequirementOpening requirement={requirementText} />
-        {messages === null ? (
+        {roomMessages !== null ? (
+          /* AgentTeams 团队房的真实消息：建项「收到新需求」、规划派发/完成/失败都落在这。
+             空数组=真没人说话，如实显示空态；读不到就回落，不冒充。 */
+          <MessageTimeline messages={roomMessages} />
+        ) : messages === null ? (
           <div className="flex flex-1 items-center justify-center py-6 text-[11px] text-[var(--tree-faint)]">主会话加载中…</div>
         ) : (
           <MessageTimeline messages={messages} />

@@ -14,7 +14,7 @@ import {
   resolveProjectId,
   type CreateIssueRequest,
 } from "../../api/issues";
-import { fetchIssueDetail } from "../../api/rooms";
+import { fetchIssueDetail, fetchMainRoomConversation } from "../../api/rooms";
 import { listConversationMessages, submitMessage, type ConversationMessage } from "../../api/conversations";
 import { listPlanTasks, type PlanTaskItem } from "../../api/taskTree";
 import { fetchTestEvidence, type TestEvidenceView } from "../../api/testEvidence";
@@ -464,6 +464,31 @@ export function WorkbenchPage({
       cancelled = true;
     };
   }, [projectId, entryConvId, reload]);
+  // ── Manager 房间的真实消息（AgentTeams 团队房，5s 轮询与房间页同拍）──
+  // null = 该 issue 还没有可进的房：回落到上面的会话时间线，不显示成"房间空"。
+  const [roomMessages, setRoomMessages] = useState<ConversationMessage[] | null>(null);
+  useEffect(() => {
+    if (resolveDataSourceMode() === "replay" || !issueId) {
+      setRoomMessages(null);
+      return;
+    }
+    let cancelled = false;
+    const load = () => {
+      if (document.visibilityState !== "visible") return; // 后台标签页不空转打后端
+      fetchMainRoomConversation(issueId, projectId ?? undefined)
+        .then((items) => {
+          if (!cancelled) setRoomMessages(items);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const timer = window.setInterval(load, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [projectId, issueId, reload]);
+
 
   const clarifyPending =
     !!discovery &&
@@ -1394,6 +1419,7 @@ export function WorkbenchPage({
               stepStates={stepStates}
               task={taskEntry}
               messages={entryMessages}
+              roomMessages={roomMessages}
               onGate={handleGate}
               gateBusy={gateBusy}
               gateError={gateError}
