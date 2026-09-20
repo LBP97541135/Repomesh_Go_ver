@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -75,13 +76,32 @@ func truncateRunes(text string, limit int) string {
 	return string(runes[:limit]) + "…"
 }
 
-// Notify 找到该 issue 的仓库团队房并投一条消息。投不出去只记一行日志。
+// Notify 找到该 issue 的仓库团队房并投一条消息。投不出去只记一行。
 //
-// txnID 是幂等键：同一个逻辑事件重投时上游只认第一条，所以协调器重试不会刷屏。
+// **不占用调用方的时间。** coordinator 那条调度循环给 planner.tick / automator.step /
+// DAG 派发共享**一个 10 秒预算**，而循环间隔只有 500ms：把一次可能十几秒的网络往返
+// 同步塞进去，后面的 PromoteReady / DispatchOne / integrations.tick 就会撞上
+// context deadline，日志里出现一串 "dag promotion deferred"。那正是这个设计要防的
+// 事——观察面拖垮链路。所以自己起一个 goroutine，用自己的有界 context。
+//
+// 并发上限：每条通知一个 goroutine，事件频率 = 规划派发/收产物（每个 issue 个位数），
+// 各自 20 秒封顶，所以积压有界；不会随 tick 次数增长。
 func (n *roomNotifier) Notify(ctx context.Context, issueID, txnID, body string) {
 	if n == nil || n.matrix == nil || n.pool == nil {
 		return
 	}
+	// WithoutCancel 保留 ctx 上的值、脱开它的取消：调用方那 10 秒预算不该决定
+	// 这条消息发不发得出去。上限由这里自己给。
+	detached := context.WithoutCancel(ctx)
+	go func() {
+		sendCtx, cancel := context.WithTimeout(detached, 20*time.Second)
+		defer cancel()
+		n.deliver(sendCtx, issueID, txnID, body)
+	}()
+}
+
+// deliver 是真正做事的那半：查房、投递、失败只记一行。txnID 是幂等键。
+func (n *roomNotifier) deliver(ctx context.Context, issueID, txnID, body string) {
 	roomID, err := n.roomForIssue(ctx, issueID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "coordinator: room lookup failed issue=%s: %v\n", issueID, err)

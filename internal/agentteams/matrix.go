@@ -203,17 +203,28 @@ func (s *MatrixSession) client(token string) *MatrixClient {
 	return &MatrixClient{BaseURL: s.Homeserver, Token: token, HTTP: s.HTTP}
 }
 
+// accessToken 取当前凭据；没有就换一枚。**持锁换**：并发调用只有一个真去打控制器，
+// 其余等它换完直接复用。
 func (s *MatrixSession) accessToken(ctx context.Context) (string, error) {
 	s.mu.Lock()
-	cached := s.token
-	s.mu.Unlock()
-	if cached != "" {
-		return cached, nil
+	defer s.mu.Unlock()
+	if s.token != "" {
+		return s.token, nil
 	}
-	return s.refreshToken(ctx)
+	return s.refreshLocked(ctx, "")
 }
 
-func (s *MatrixSession) refreshToken(ctx context.Context) (string, error) {
+// refreshLocked 换一枚凭据。**调用方必须已持有 s.mu。**
+//
+// 为什么必须串行：换 token 是**轮换**语义（上游 ForceRefreshMatrixToken）。两个并发
+// 401 各自去换，第二枚会把第一枚作废，两个调用就来回打成 401 —— 越换越坏。
+//
+// stale 是调用方刚用过的那一枚：若它已不等于缓存里的值，说明别人刚换过，直接用新的，
+// 不要再换一次（这正是"并发 401 互相作废"的解法）。
+func (s *MatrixSession) refreshLocked(ctx context.Context, stale string) (string, error) {
+	if stale != "" && s.token != "" && s.token != stale {
+		return s.token, nil
+	}
 	if s.Controller == nil {
 		return "", fmt.Errorf("agentteams controller client is nil; cannot obtain a matrix token")
 	}
@@ -225,9 +236,7 @@ func (s *MatrixSession) refreshToken(ctx context.Context) (string, error) {
 	if token == "" {
 		return "", fmt.Errorf("agentteams controller returned an empty matrix token")
 	}
-	s.mu.Lock()
 	s.token = token
-	s.mu.Unlock()
 	return token, nil
 }
 
@@ -245,7 +254,11 @@ func (s *MatrixSession) withToken(ctx context.Context, run func(*MatrixClient) e
 	if err == nil || !errors.As(err, &httpErr) || httpErr.Status != http.StatusUnauthorized {
 		return err
 	}
-	refreshed, err := s.refreshToken(ctx)
+	// 换凭据这一段持锁（必须串行，见 refreshLocked），但**重试本身不持锁** ——
+	// 不然一次网络往返就把所有并发调用堵在锁上。
+	s.mu.Lock()
+	refreshed, err := s.refreshLocked(ctx, token)
+	s.mu.Unlock()
 	if err != nil {
 		return err
 	}

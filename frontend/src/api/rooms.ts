@@ -135,11 +135,14 @@ export async function fetchRooms(issueId: string, projectId?: string): Promise<R
   const pid = projectId ?? (await resolveProjectId());
   if (!pid) return [];
   const res = await defaultClient().listRooms(issueId, pid);
-  // Python 形状 {rooms:[…]} 若真回来了就照用；Go as-built 形状是 {issueId, main, leaders[]}，
-  // 走下面的适配。两种都收，不挑——换后端不该让前端空一片。
-  const legacy = (res as Partial<RoomListResponse>).rooms;
-  if (legacy) return legacy;
-  return goRoomsToViews(res as GoRoomsView, issueId);
+  // 两种形状都收：Go as-built 是 {issueId, main, leaders[]}，Python 是 {rooms:[…]}。
+  //
+  // 判据用**有没有 main/leaders**，不是 `rooms` 在不在：`[]` 在 JS 里是真值，
+  // 将来后端哪天带上一个空的 rooms 字段，按 `rooms` 优先就会把真实的
+  // main/leaders 整个丢掉、静默退回空清单。
+  const go = res as GoRoomsView;
+  if (go.main || go.leaders) return goRoomsToViews(go, issueId);
+  return (res as Partial<RoomListResponse>).rooms ?? [];
 }
 
 /** Go as-built 的房间读面（契约 §7）。`availability` 只有 "ready" 时 roomId 才非空。 */
@@ -149,6 +152,7 @@ interface GoRoomObservation {
   roomId?: string | null;
   canEnter?: boolean;
   repositoryId?: string;
+  repositoryName?: string;
 }
 
 interface GoRoomsView {
@@ -164,7 +168,11 @@ interface GoRoomsView {
  *  界面摆一间进不去的房比空态更误导。
  *
  *  `message_count` / `last_message` 这一版读面不提供，如实留 0 / null ——
- *  这不是"房间是空的"，是"这项没读"。界面不得把它渲染成"还没有消息"。 */
+ *  这不是"房间是空的"，是"这项没读"。界面不得把它渲染成"还没有消息"。
+ *  （查过了：这两个字段目前没有任何组件渲染，只在夹具里出现。）
+ *
+ *  `repository_name` 照实传：传 null 的话界面会显示「catalog 未收录」——
+ *  一句我们占不了的说法，名字拿不到就说拿不到。 */
 function goRoomsToViews(view: GoRoomsView, issueId: string): RoomListItemView[] {
   const rooms: RoomListItemView[] = [];
   const push = (observation: GoRoomObservation | undefined): void => {
@@ -177,7 +185,7 @@ function goRoomsToViews(view: GoRoomsView, issueId: string): RoomListItemView[] 
       issue_id: issueId,
       team_id: "",
       repository_id: observation?.repositoryId ?? "",
-      repository_name: null,
+      repository_name: observation?.repositoryName ?? null,
       members: [],
       last_message: null,
       message_count: 0,

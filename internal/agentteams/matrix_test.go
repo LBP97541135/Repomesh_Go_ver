@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -160,26 +162,28 @@ func TestMatrixTokenReadsAccessToken(t *testing.T) {
 }
 
 // sessionFixture 造一对假上游：控制器负责发凭据，homeserver 负责读房间。
+//
+// 计数器走原子：并发用例会同时打这两个服务，普通 int 在 -race 下会直接报竞争。
 type sessionFixture struct {
-	controllerCalls int
-	homeserverCalls int
+	controllerCalls atomic.Int64
+	homeserverCalls atomic.Int64
 	// tokenIssued 是控制器每次发出的凭据序号，用来判断"换没换"。
-	tokenIssued  int
+	tokenIssued  atomic.Int64
 	rejectTokens map[string]int // token -> 该 token 撞上的 HTTP 状态（0 = 放行）
 }
 
 func (f *sessionFixture) servers(t *testing.T) (*Client, string) {
 	t.Helper()
 	controller := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		f.controllerCalls++
-		f.tokenIssued++
+		f.controllerCalls.Add(1)
+		issued := f.tokenIssued.Add(1)
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"access_token":"tok-` + strconv.Itoa(f.tokenIssued) + `"}`))
+		_, _ = w.Write([]byte(`{"access_token":"tok-` + strconv.FormatInt(issued, 10) + `"}`))
 	}))
 	t.Cleanup(controller.Close)
 
 	homeserver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		f.homeserverCalls++
+		f.homeserverCalls.Add(1)
 		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if status := f.rejectTokens[token]; status != 0 {
 			w.WriteHeader(status)
@@ -205,8 +209,8 @@ func TestMatrixSessionCachesTokenAcrossReads(t *testing.T) {
 			t.Fatalf("read %d: %v", i, err)
 		}
 	}
-	if fixture.controllerCalls != 1 {
-		t.Fatalf("controller calls=%d; want 1 (token must be reused, not rotated per read)", fixture.controllerCalls)
+	if fixture.controllerCalls.Load() != 1 {
+		t.Fatalf("controller calls=%d; want 1 (token must be reused, not rotated per read)", fixture.controllerCalls.Load())
 	}
 }
 
@@ -224,8 +228,8 @@ func TestMatrixSessionRefreshesTokenOn401AndRetriesOnce(t *testing.T) {
 	if len(messages) != 1 {
 		t.Fatalf("got %d messages; want the retry to succeed", len(messages))
 	}
-	if fixture.controllerCalls != 2 {
-		t.Fatalf("controller calls=%d; want 2 (initial + one refresh)", fixture.controllerCalls)
+	if fixture.controllerCalls.Load() != 2 {
+		t.Fatalf("controller calls=%d; want 2 (initial + one refresh)", fixture.controllerCalls.Load())
 	}
 }
 
@@ -238,8 +242,8 @@ func TestMatrixSessionDoesNotRetryOn403(t *testing.T) {
 	if _, err := session.RoomMessages(context.Background(), "!room:hs", 10); err == nil {
 		t.Fatal("want error on 403")
 	}
-	if fixture.controllerCalls != 1 {
-		t.Fatalf("controller calls=%d; want 1 (403 must not trigger a token refresh)", fixture.controllerCalls)
+	if fixture.controllerCalls.Load() != 1 {
+		t.Fatalf("controller calls=%d; want 1 (403 must not trigger a token refresh)", fixture.controllerCalls.Load())
 	}
 }
 
@@ -257,5 +261,54 @@ func TestMatrixSessionFailsWhenControllerCannotIssueToken(t *testing.T) {
 	session := &MatrixSession{Controller: &Client{BaseURL: controller.URL}, Homeserver: homeserver.URL}
 	if _, err := session.RoomMessages(context.Background(), "!room:hs", 10); err == nil {
 		t.Fatal("want error when the controller cannot issue a token")
+	}
+}
+
+// 并发调用**不能各自去换凭据**。换 token 是轮换语义：第二个去换会把第一个刚拿到的
+// 那枚作废，两边于是来回打成 401 —— 越换越坏。所以刷新必须串行、且后到的人复用
+// 前一个刚换到的那枚。这条也用 -race 跑，顺带验证锁没写错（当年就写错过一次：
+// withToken 里连着两次 Lock，sync.Mutex 不可重入，直接死锁）。
+func TestMatrixSessionSharesOneRefreshUnderConcurrency(t *testing.T) {
+	fixture := &sessionFixture{rejectTokens: map[string]int{}}
+	controller, homeserver := fixture.servers(t)
+	session := &MatrixSession{Controller: controller, Homeserver: homeserver}
+
+	var group sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			// 并发里不能用 Fatalf（它只在测试 goroutine 里合法）。
+			if _, err := session.RoomMessages(context.Background(), "!room:hs", 10); err != nil {
+				t.Errorf("concurrent read: %v", err)
+			}
+		}()
+	}
+	group.Wait()
+
+	if calls := fixture.controllerCalls.Load(); calls != 1 {
+		t.Fatalf("controller calls=%d; want 1 (concurrent reads must share one refresh, "+
+			"each extra refresh invalidates the token the others just got)", calls)
+	}
+}
+
+// 已经换过一次之后，另一个调用撞上 401 时必须**复用**那枚新的，而不是再换一枚。
+func TestMatrixSessionReusesFreshlyRefreshedToken(t *testing.T) {
+	fixture := &sessionFixture{rejectTokens: map[string]int{"tok-1": http.StatusUnauthorized}}
+	controller, homeserver := fixture.servers(t)
+	session := &MatrixSession{Controller: controller, Homeserver: homeserver}
+
+	// 先把 tok-1 换掉（这次 401 触发一次刷新）。
+	if _, err := session.RoomMessages(context.Background(), "!room:hs", 10); err != nil {
+		t.Fatalf("first read: %v", err)
+	}
+	after := fixture.controllerCalls.Load()
+
+	// 再来一次：凭据已经是 tok-2，稳过，不应再换。
+	if _, err := session.RoomMessages(context.Background(), "!room:hs", 10); err != nil {
+		t.Fatalf("second read: %v", err)
+	}
+	if calls := fixture.controllerCalls.Load(); calls != after {
+		t.Fatalf("controller calls grew from %d to %d; want no extra refresh", after, calls)
 	}
 }

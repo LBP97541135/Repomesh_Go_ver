@@ -415,9 +415,10 @@ type RoomObservation struct {
 	RoomID         *string    `json:"roomId"`
 	CanEnter       bool       `json:"canEnter"`
 	ObservedAt     *time.Time `json:"observedAt"`
-	// RepositoryID 只有真有房时才带：房间是仓库团队粒度的，界面要能标出
-	// "这是哪个仓的房"。没有房就留空——不拿范围里第一个仓库冒充。
-	RepositoryID string `json:"repositoryId,omitempty"`
+	// RepositoryID / RepositoryName 只有真有房时才带：房间是仓库团队粒度的，界面要能
+	// 标出"这是哪个仓的房"。没有房就留空——不拿范围里第一个仓库冒充。
+	RepositoryID   string `json:"repositoryId,omitempty"`
+	RepositoryName string `json:"repositoryName,omitempty"`
 }
 
 // RoomsView is the rooms query projection.
@@ -429,17 +430,19 @@ type RoomsView struct {
 
 // issueRoom 是 issue 范围里某个仓库关联到的 AgentTeams 房。
 type issueRoom struct {
-	repositoryID string
-	roomID       string
+	repositoryID   string
+	repositoryName string
+	roomID         string
 }
 
 // RepositoryRoom 是 leaders[] 里的一条：哪个仓库、哪间房、能不能进。
 type RepositoryRoom struct {
-	RepositoryID string  `json:"repositoryId"`
-	ReadOnly     bool    `json:"readOnly"`
-	Availability string  `json:"availability"`
-	RoomID       *string `json:"roomId"`
-	CanEnter     bool    `json:"canEnter"`
+	RepositoryID   string  `json:"repositoryId"`
+	RepositoryName string  `json:"repositoryName,omitempty"`
+	ReadOnly       bool    `json:"readOnly"`
+	Availability   string  `json:"availability"`
+	RoomID         *string `json:"roomId"`
+	CanEnter       bool    `json:"canEnter"`
 }
 
 // GetIssueRooms 返回一个 issue 的房间关联观察。
@@ -493,17 +496,19 @@ func (s *Service) GetIssueRooms(ctx context.Context, principal access.ProjectPri
 			RoomID:         &roomID,
 			CanEnter:       true,
 			RepositoryID:   room.repositoryID,
+			RepositoryName: room.repositoryName,
 		}
 		if index == 0 {
 			view.Main = observation
 			continue
 		}
 		view.Leaders = append(view.Leaders, RepositoryRoom{
-			RepositoryID: room.repositoryID,
-			Availability: "ready",
-			RoomID:       &roomID,
-			CanEnter:     true,
-			ReadOnly:     true,
+			RepositoryID:   room.repositoryID,
+			RepositoryName: room.repositoryName,
+			Availability:   "ready",
+			RoomID:         &roomID,
+			CanEnter:       true,
+			ReadOnly:       true,
 		})
 	}
 	return view, nil
@@ -511,11 +516,15 @@ func (s *Service) GetIssueRooms(ctx context.Context, principal access.ProjectPri
 
 // loadIssueRooms 按 issue 的仓库范围找出真有房的仓库，顺序稳定（按 repository_id），
 // 否则同一份数据两次请求可能给出不同的 main。
+//
+// 一并带出仓库名：界面对 `repository_name === null` 的呈现是「catalog 未收录」，
+// 一句我们占不了的说法 —— 名字拿不到就说拿不到，能拿到就别让它去说那句假话。
 func loadIssueRooms(ctx context.Context, tx pgx.Tx, projectID, issueID string) ([]issueRoom, error) {
 	rows, err := tx.Query(ctx, `
-		SELECT scope.repository_id, COALESCE(NULLIF(teams.team_room_id, ''), '')
+		SELECT scope.repository_id, COALESCE(repo.name, ''), COALESCE(NULLIF(teams.team_room_id, ''), '')
 		FROM repomesh_issues.issue_repository_scope scope
 		LEFT JOIN public.repository_teams teams ON teams.repository_id = scope.repository_id
+		LEFT JOIN repomesh_scan.repositories repo ON repo.id = scope.repository_id
 		WHERE scope.project_id = $1 AND scope.issue_id = $2
 		ORDER BY scope.repository_id`, projectID, issueID)
 	if err != nil {
@@ -525,7 +534,7 @@ func loadIssueRooms(ctx context.Context, tx pgx.Tx, projectID, issueID string) (
 	rooms := []issueRoom{}
 	for rows.Next() {
 		var room issueRoom
-		if err := rows.Scan(&room.repositoryID, &room.roomID); err != nil {
+		if err := rows.Scan(&room.repositoryID, &room.repositoryName, &room.roomID); err != nil {
 			return nil, unavailable()
 		}
 		if room.roomID != "" {

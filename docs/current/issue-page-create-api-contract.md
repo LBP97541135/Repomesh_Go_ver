@@ -288,6 +288,19 @@ RM-API-01 r3 的共用解析补充：格式错误、重复JSON属性名及非法
 - `leaders` 返回实际允许披露的关联条目，字段为 `repositoryIssueId`、`repositoryId` 以及与主房间相同的运行观察字段；另外固定 `readOnly:true`。没有关联时可为空，不按选中仓库自动伪造“一仓一个事项／房间”。仓库事项粒度仍需独立建模，按持续授权继续设计。
 - 业务会话历史可读性与实际房间可进入性分开；侧栏可按既有会话查询显示已保存历史，不能因 room 未就绪就把业务会话删除。
 
+**2026-09-20 补充（本条实现为上面基线的第一次真实驱动）：**
+
+- **关联来源。** `roomId` 来自 `repository_teams.team_room_id` —— 建团队之后回读一次 AgentTeams Team CR 的 `status` 存下来的真实房间号（房间由上游控制器**异步**建，`POST/PUT /api/v1/teams` 的响应里没有它）。所以 `availability=ready` 只在确有房间号时出现，没有就仍返 `unavailable/NOT_ASSOCIATED`，不推导、不占位。
+- **粒度。** 房间是**仓库团队**粒度的，不是 per-issue 主房间：上游那间房属于“这个仓库的队伍”，一次 issue 的活会在其范围内各仓的房里发生。因此 `main` 取该 issue 仓库范围里第一间真有房的仓库（按 `repository_id` 定序，保证同一份数据两次请求给出同一个 `main`），其余进 `leaders`。**不宣称它是 per-issue 主房。**
+- **新增字段（可选、只在真有房时出现）：** `main.repositoryId` / `main.repositoryName`，`leaders[].repositoryName`。界面据此标出“这是哪个仓的房”；名字确实取不到时才缺省，不由前端补一句“catalog 未收录”。
+
+`GET /api/issues/{issueId}/rooms/{roomId}/messages?projectId=...&limit=...` —— 读该房间的消息。
+
+- 房间消息在 AgentTeams 的 homeserver 上，由 RepoMesh 后端代理读取；浏览器不直连 Matrix，后端也不下发任何 Matrix 凭据。控制器 REST 里没有“按 roomID 读消息”这一条（只有 `/projects/{id}/spawns/{sessionId}/messages`，要求先有项目），故走 homeserver 客户端 API。
+- 响应 `{ roomId, messages: [{ eventId, sender, body, at }] }`，`messages` **从旧到新**（Matrix 原生是倒序，后端翻正）。`limit` 缺省 100、上限 200；这一版一次给完，**没有游标**。
+- 授权：只允许读该 issue 关联到的房 —— 服务端复用 `rooms` 读面判定，请求的房间号不在其中返 404。房间号是上游的不透明 id，凭一个 id 就能读任意房间等于绕过项目边界。
+- 失败语义与空房间**必须分开**：未配置 Matrix 返 `503 ROOM_STREAM_NOT_CONFIGURED`，上游读不到返 `502 ROOM_STREAM_UNAVAILABLE`；**都不能返空消息流** —— 那会让界面把“读不到”显示成“房间没人说话”。空房间是 `200` + `messages: []`。
+
 ## 8. SSE：通知快照失效，读取仍以查询为准
 
 **P3 已采用：** 详情采用单个 Issue 级订阅，通知 Issue 资料或房间观察变化。路径见 §1，媒体类型 text/event-stream。范围不覆盖项目列表或会话消息正文。
