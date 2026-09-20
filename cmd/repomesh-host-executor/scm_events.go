@@ -121,6 +121,11 @@ var prURLLine = regexp.MustCompile(`REPO_PR_URL=(https://github\.com/\S+/pull/\d
 // 交付列车按任务列车厢，而 change_sets 这一行此前**没有任何生产者**（Freeze 没有
 // 调用方）—— 所以列车永远是空车厢、"确认合并"也没有对象可合。
 func (e *executor) ensureChangeSet(ctx context.Context, taskID string) string {
+	// 交付列车只挂任务车厢：不是任务 id 的引用直接不记（否则 uuid 解析在数据库
+	// 侧报错，而这里原先是 `_, _ =` 吞掉的沉默失败）。
+	if !refIsTaskUUID(taskID) {
+		return ""
+	}
 	var existing string
 	err := e.pool.QueryRow(ctx, `SELECT id::text FROM public.change_sets
 		WHERE task_id = $1::uuid ORDER BY version DESC LIMIT 1`, taskID).Scan(&existing)
@@ -143,6 +148,32 @@ func (e *executor) ensureChangeSet(ctx context.Context, taskID string) string {
 		return ""
 	}
 	return created
+}
+
+// refIsTaskUUID 判断 agent_runs.task_package_ref 是不是一条任务（public.tasks）的 id。
+//
+// 2026-09-20 线上：规划 run 的引用是 "planning:<issueID>:<step>"（见 coordinator 的
+// planningDispatcher.dispatch），而交付记账原先不问形状就拿它去 `task_id = $1::uuid`
+// 比较 —— Postgres 直接回 invalid input syntax for type uuid，5 分钟刷屏几十条。
+// 交付记账只对**任务**有意义：非任务引用一律不记账。
+func refIsTaskUUID(ref string) bool {
+	if len(ref) != 36 {
+		return false
+	}
+	for i := 0; i < len(ref); i++ {
+		c := ref[i]
+		switch i {
+		case 8, 13, 18, 23:
+			if c != '-' {
+				return false
+			}
+		default:
+			if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // recordDeliveryFacts 把交付面**可观测的事实**记进 change set。
@@ -173,7 +204,14 @@ func (e *executor) recordDeliveryFacts(ctx context.Context, runID, workspace str
 		e.recordIntegrationEvidence(ctx, runID, taskRef, workspace, exitCode)
 		return
 	}
-	// A2：执行中的 agent 只能"提"规格变更请求 —— 产物在这里被**收走**（落库 +
+	// 规划 run 的引用是 "planning:<issueID>:<step>"：它不属于任何一条任务，也没有
+	// 交付面可记（规划产物由 coordinator 的 collectFinished 收回）。这里必须显式
+	// 放行，否则下面 ensureChangeSet 会拿它当 uuid 用。
+	if !refIsTaskUUID(taskRef) {
+		fmt.Fprintf(os.Stderr, "executor: 交付记账跳过非任务引用 kind=%s ref=%q\n", agentKind, taskRef)
+		return
+	}
+	// A2：执行中的 agent 只能"提"规格变更请求 —— 产物在这里被**收走**（落库 + 
 	// 落审核台），**不应用**。人批之后才升版并触发重规划（web 侧的审核台）。
 	// 只对开发 run 收（测试 run 不产规格变更；集成 run 走上面那条 plan: 分支）。
 	if agentKind != "test_agent" {
