@@ -20,6 +20,11 @@ import { listPlanTasks, type PlanTaskItem } from "../../api/taskTree";
 import { fetchTestEvidence, type TestEvidenceView } from "../../api/testEvidence";
 import { appendIssueRepository } from "../../api/issueScope";
 import { getPlan, interruptPlan, listPlanRevisions, type InterruptOutcomeView, type PlanRevisionView } from "../../api/plans";
+import {
+  buildDeliveryManifest,
+  getLatestDeliveryManifest,
+  type DeliveryManifestView,
+} from "../../api/deliveryManifest";
 import { approveTask, rejectTask } from "../../api/tasks";
 import {
   fetchDiscovery,
@@ -370,6 +375,31 @@ export function WorkbenchPage({
     };
   }, [projectId, planId, reload]);
 
+  // ── 跨仓交付的一致版本清单（评委建议②）──
+  //
+  //  从一次交付展开完整版本清单：各仓提交/分支/PR、数据库迁移与基线、测试证据，
+  //  以及失败发生在哪个仓库、哪个阶段。404 = 还没有清单（不是错误）。
+  const [deliveryManifest, setDeliveryManifest] = useState<DeliveryManifestView | null>(null);
+  useEffect(() => {
+    if (!detail || !materialized) {
+      setDeliveryManifest(null);
+      return;
+    }
+    let cancelled = false;
+    Promise.resolve(projectId)
+      .then((pid) => (pid ? getLatestDeliveryManifest(pid, detail.issue_id) : null))
+      .then((manifest) => {
+        if (!cancelled) setDeliveryManifest(manifest);
+      })
+      .catch(() => {
+        // 404（还没有清单）与真失败都按"没有清单"显示：卡片自己会给"生成清单"入口。
+        if (!cancelled) setDeliveryManifest(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, detail?.issue_id, materialized, reload]);
+
   // ── 仓库显示名（详情卡与步骤卡用） ──
   const [repoNameById, setRepoNameById] = useState<Record<string, string>>({});
   const repoListKey = detail?.issue_id ?? null;
@@ -710,6 +740,23 @@ export function WorkbenchPage({
     );
     setReload((n) => n + 1);
     return outcome;
+  };
+
+  /** 生成一份交付版本清单快照（幂等键由前端持有，重放返回同一份）。 */
+  const handleBuildManifest = async () => {
+    if (!detail) throw new Error("issue 还没加载完");
+    const pid = await resolveProjectId();
+    if (!pid) throw new Error("没有可用项目，无法生成清单");
+    const manifest = await buildDeliveryManifest(pid, detail.issue_id, {
+      planId: planId ?? undefined,
+      idempotencyKey: newIdempotencyKey("manifest"),
+    });
+    setDeliveryManifest(manifest);
+    onToast(
+      manifest.status === "consistent"
+        ? "清单已生成：各仓代码/数据库/测试三面一致"
+        : `清单已生成：${manifest.failureSummary ?? "存在未达成的仓库"}`,
+    );
   };
   /** 经理门：blocked 任务的通过/驳回（审核段唯一的写动作）。 */
   const handleDecideTask = async (taskId: string, decision: "approve" | "reject", reason: string) => {
@@ -1302,6 +1349,8 @@ export function WorkbenchPage({
               planState={planState}
               onInterruptPlan={handleInterruptPlan}
             planRevisions={planRevisions}
+            deliveryManifest={deliveryManifest}
+            onBuildManifest={handleBuildManifest}
               stepStates={stepStates}
               task={taskEntry}
               messages={entryMessages}

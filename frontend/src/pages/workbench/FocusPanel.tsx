@@ -20,6 +20,7 @@ import { STEP_LABELS, type FocusEntry, type StepState } from "./treeModel";
 import type { TestEvidenceItem, TestEvidenceView } from "../../api/testEvidence";
 import type { TrainCarSpec } from "./PrTrainCard";
 import type { InterruptOutcomeView, PlanRevisionView } from "../../api/plans";
+import type { DeliveryManifestView } from "../../api/deliveryManifest";
 import { documentTitleOf, splitRequirement } from "../../api/issues";
 import { SupervisionPolicyCard, type PolicyDraftState } from "../../components/SupervisionPolicyCard";
 
@@ -445,6 +446,69 @@ function PlanReplanCard({
   );
 }
 
+/** 跨仓交付的**一致版本清单**（评委建议②）。
+ *
+ *  从一次交付展开完整版本清单：需求、每个仓库的提交/分支/PR、数据库迁移版本与数据
+ *  基线、分支与验证结论、测试证据，以及**失败发生在哪个仓库、哪个阶段** —— 而不是
+ *  只看到"任务全部变绿"。没有清单就如实说没有（不摆假的），并给一个"生成清单"入口。 */
+function DeliveryManifestCard({
+  manifest,
+  onBuild,
+}: {
+  manifest: DeliveryManifestView | null;
+  onBuild: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const build = () => {
+    if (busy) return;
+    setBusy(true);
+    setErr(null);
+    onBuild()
+      .catch((e: unknown) => setErr(e instanceof Error ? e.message : String(e)))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <div className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
+      <div className="flex items-center gap-2">
+        <p className="min-w-0 flex-1 text-[11.5px] text-[var(--tree-ink)]">
+          交付版本清单{manifest ? `（${manifest.planVersion} · ${manifest.status === "consistent" ? "一致" : "不一致"}）` : ""}
+        </p>
+        <button
+          className="flex-none rounded-[6px] border border-[var(--tree-acc)] px-2 py-0.5 text-[10.5px] text-[var(--tree-acc)] disabled:opacity-50"
+          disabled={busy}
+          onClick={build}
+        >
+          {busy ? "生成中…" : "生成清单"}
+        </button>
+      </div>
+      {!manifest && (
+        <p className="mt-1 text-[10.5px] text-[var(--tree-faint)]">还没有清单 —— 点「生成清单」按当前事实落一份快照。</p>
+      )}
+      {manifest && manifest.failureSummary ? (
+        <p className="mt-1 break-all text-[10.5px] text-salmon">{manifest.failureSummary}</p>
+      ) : null}
+      {(manifest?.entries ?? []).map((entry) => (
+        <div key={entry.repositoryName} className="mt-1.5 border-t border-[var(--tree-hairline)] pt-1.5 text-[10.5px] leading-[1.7] text-[var(--tree-sub)]">
+          <div className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate">{entry.repositoryName}</span>
+            <span className={entry.failureStage ? "text-salmon" : "text-olive"}>{entry.failureStage ? "未达成" : "已达成"}</span>
+          </div>
+          <p className="break-all">代码：{entry.commitSha ? entry.commitSha.slice(0, 10) : "无提交"}{entry.branchRef ? ` · ${entry.branchRef}` : ""}</p>
+          {entry.pullRequestUrl ? <p className="break-all">PR：{entry.pullRequestUrl}</p> : <p>PR：未开</p>}
+          <p>数据库：{entry.validationStatus}{entry.databaseProvider ? ` · ${entry.databaseProvider}` : ""}{entry.databaseBaseline ? ` · 基线 ${entry.databaseBaseline}` : ""}</p>
+          {entry.migrations.length > 0 && <p className="break-all">迁移 {entry.migrations.length} 条：{entry.migrations[0]}</p>}
+          {entry.testEvidence.length > 0 && (
+            <p className="break-all">测试：{entry.testEvidence.map((item) => `${item.kind}${item.passed ? "通过" : "未过"}`).join(" / ")}</p>
+          )}
+          {entry.failureStage && <p className="break-all text-salmon">失败阶段 {entry.failureStage}：{entry.failureDetail ?? ""}</p>}
+        </div>
+      ))}
+      {err !== null && <p className="mt-1 text-[10.5px] text-salmon">{err}</p>}
+    </div>
+  );
+}
+
 function StageHistory({
   stage,
   discovery,
@@ -592,6 +656,7 @@ function StageHistory({
           </p>
         </div>
       ))}
+      <DeliveryManifestCard manifest={deliveryManifest} onBuild={onBuildManifest} />
     </div>
   );
 }
@@ -658,6 +723,10 @@ export interface FocusPanelProps {
   planState: { planVersion: string; replanState: string } | null;
   /** ③ 执行中人工打断：提交一个**人点名**的仓库，后端判定它是否影响当前计划。 */
   planRevisions: PlanRevisionView[] | null;
+  /** 跨仓交付的一致版本清单（null = 还没有清单）。 */
+  deliveryManifest: DeliveryManifestView | null;
+  /** 生成一份清单快照（幂等键由页面持有）。 */
+  onBuildManifest: () => Promise<void>;
   onInterruptPlan: (repository: string, note: string) => Promise<InterruptOutcomeView>;
 }
 
@@ -695,6 +764,8 @@ export function FocusPanel({
   planState,
   onInterruptPlan,
   planRevisions,
+  deliveryManifest,
+  onBuildManifest,
 }: FocusPanelProps) {
   const body = (() => {
     if (entry === null) {
@@ -736,6 +807,8 @@ export function FocusPanel({
           planState={planState}
           onInterruptPlan={onInterruptPlan}
           planRevisions={planRevisions}
+          deliveryManifest={deliveryManifest}
+          onBuildManifest={onBuildManifest}
         />
       );
     }

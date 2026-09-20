@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"repomesh.local/repomesh/internal/access"
+	"repomesh.local/repomesh/internal/branchvalidation"
 	"repomesh.local/repomesh/internal/buildinfo"
 	"repomesh.local/repomesh/internal/database"
 	"repomesh.local/repomesh/internal/decisionchain"
@@ -120,6 +121,11 @@ func runWorker(args []string) int {
 	dagLedger := &coordinatorLedger{pool: runtime.Pool()}
 	// 节点级测试派发（本仓库集成 / 跨仓库联调回归）：见 integration.go。
 	integrations := newIntegrationDispatcher(runtime.Pool())
+	// C③ 环境回收治理：分支环境的**创建/使用/清理**状态全在库里（cleanup_pending、
+	// cleanup_attempts、last_cleanup_error、reclaimed_at），所以扫描是"从库里恢复"的 ——
+	// 服务重启后自然接着清，不需要额外的内存态。
+	reclaimer := branchvalidation.New(runtime.Pool(), coordinatorBranchProvider())
+	ticks := 0
 	// Delivery pipeline loop: independent of the auth worker so a hung
 	// upstream call inside RunOne cannot stall 自动托管 and DAG dispatch.
 	// SKIP LOCKED keeps this loop safe against any future concurrent scheduler.
@@ -138,6 +144,22 @@ func runWorker(args []string) int {
 			// 节点级测试：计划的每条任务都过了经理门之后，再做本仓库集成；
 			// 计划跨仓库时再做跨仓库联调 + 回归（见 integration.go）。
 			integrations.tick(dagCtx)
+			// 每 60 拍（约 30 秒）扫一轮待回收的分支环境：先把进程中断留下的行对账
+			// （有分支的标待回收、没分支的如实标失败），再真去清。
+			ticks++
+			if ticks%60 == 0 {
+				if reconciled, err := reclaimer.ReconcileStale(dagCtx, 30*time.Minute); err != nil {
+					slog.Warn("branch reconcile deferred", "reason", err.Error())
+				} else if reconciled > 0 {
+					slog.Info("branch reconcile", "runs", reconciled)
+				}
+				if result, err := reclaimer.SweepCleanup(dagCtx, 20); err != nil {
+					slog.Warn("branch reclamation deferred", "reason", err.Error())
+				} else if result.Scanned > 0 {
+					slog.Info("branch reclamation", "scanned", result.Scanned,
+						"reclaimed", result.Reclaimed, "failed", result.Failed)
+				}
+			}
 			dagCancel()
 			timer := time.NewTimer(500 * time.Millisecond)
 			select {

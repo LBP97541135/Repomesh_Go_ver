@@ -152,3 +152,75 @@ func (svc *Service) ReleaseOrAutoPass(ctx context.Context, versionID string, age
 	}
 	return BindingApprovalRelease, nil
 }
+
+// AssembleWithVersions resolves each preset skill ID to its currently active
+// version and returns a dispatch-ready capability bundle with version numbers
+// and content hashes. This is what the coordinator calls before dispatching a
+// task: the resulting version set is what the task runs against.
+type ResolvedEntry struct {
+	SkillID     string `json:"skill_id"`
+	Version     string `json:"version"`
+	ContentHash string `json:"content_hash"`
+	Content     string `json:"content"`
+}
+
+type ResolvedBundle struct {
+	Role    string          `json:"role"`
+	Profile string          `json:"profile"`
+	Skills  []ResolvedEntry `json:"skills"`
+	Servers []McpPolicy     `json:"servers"`
+}
+
+func (svc *Service) AssembleWithVersions(ctx context.Context, organizationID, role, profile string, taskFeatures []string) (*ResolvedBundle, error) {
+	base, err := Assemble(role, profile, taskFeatures)
+	if err != nil {
+		return nil, err
+	}
+	out := &ResolvedBundle{Role: base.Role, Profile: profile}
+	if out.Profile == "" {
+		out.Profile = DefaultTeamProfile
+	}
+	for _, skillID := range base.Skills {
+		v, err := svc.Store.ResolveCurrent(ctx, skillID)
+		if err != nil {
+			return nil, Refused("skill_no_active_version",
+				"skill %q has no promoted or canary version; refuse to dispatch without it", skillID)
+		}
+		out.Skills = append(out.Skills, ResolvedEntry{
+			SkillID:     skillID,
+			Version:     v.Version,
+			ContentHash: v.ContentHash,
+			Content:     v.Content,
+		})
+	}
+	if out.Skills == nil {
+		out.Skills = []ResolvedEntry{}
+	}
+	policies, err := svc.Store.ListMcpPolicies(ctx)
+	if err != nil {
+		return nil, err
+	}
+	features := map[string]bool{}
+	for _, f := range taskFeatures {
+		features[f] = true
+	}
+	for _, p := range policies {
+		if len(p.RequiredTaskFeatures) > 0 {
+			ok := false
+			for _, rf := range p.RequiredTaskFeatures {
+				if features[rf] {
+					ok = true
+					break
+				}
+			}
+			if !ok {
+				continue
+			}
+		}
+		out.Servers = append(out.Servers, p)
+	}
+	if out.Servers == nil {
+		out.Servers = []McpPolicy{}
+	}
+	return out, nil
+}

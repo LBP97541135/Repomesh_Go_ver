@@ -16,6 +16,9 @@ func registerPipelineRoutes(mux *http.ServeMux, auth Auth, pipeline Pipeline) {
 		return
 	}
 
+	// 跨仓交付的一致版本清单（评委建议②）：读最近一份 / 建一份快照。
+	registerDeliveryManifestRoutes(mux, auth, pipeline)
+
 	// ---- M4: organization assembly ----
 	mux.HandleFunc("POST /api/organizations/{orgId}/assembly", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")

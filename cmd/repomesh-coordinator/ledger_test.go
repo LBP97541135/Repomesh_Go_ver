@@ -11,7 +11,7 @@ import (
 //  2. 每个 task 必须走**一棵新的 worktree**（2026-09-20 用户裁定），而不是每次整仓 clone。
 func TestBuildAgentCommandKeepsScriptQuotableAndUsesWorktree(t *testing.T) {
 	command, err := buildAgentCommand("codex_cli", "MiniMax-M2",
-		"把运费改成满 900 免运费", "owner/name", "att_1", "满900免运费", "iss_1")
+		"把运费改成满 900 免运费", "owner/name", "att_1", "满900免运费", "iss_1", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,6 +33,18 @@ func TestBuildAgentCommandKeepsScriptQuotableAndUsesWorktree(t *testing.T) {
 	}
 	if strings.Contains(inner, "git clone --depth 5 https://x-access-token:$T@github.com/$R.git repo\n") {
 		t.Fatal("还在用整仓 clone 建工作区（应改为共享基础克隆 + worktree add）")
+	}
+}
+
+func TestBuildAgentCommandIncludesSkillContent(t *testing.T) {
+	skillDoc := "You are a task execution worker. Follow the acceptance criteria."
+	command, err := buildAgentCommand("codex_cli", "MiniMax-M2",
+		"do the thing", "owner/name", "att_1", "title", "iss_1", skillDoc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(command, "task execution worker") {
+		t.Fatal("技能原文没有注入 prompt")
 	}
 }
 

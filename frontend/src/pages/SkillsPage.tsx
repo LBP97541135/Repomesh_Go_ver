@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
 import {
   advanceSkillVersion,
+  createSnapshot,
+  fetchSkillContent,
   listMcpPolicies,
   listSkillBindings,
+  listSnapshots,
   listSkillVersions,
   listSkills,
+  listEvalRuns,
+  type EvalRun,
+  seedBindingsByRole,
   type SkillAction,
   type SkillStatus,
   type SkillSummary,
@@ -48,6 +54,10 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
   const [bindings, setBindings] = useState<Array<Record<string, unknown>>>([]);
   const [policies, setPolicies] = useState<Array<Record<string, unknown>>>([]);
   const [busy, setBusy] = useState(false);
+  const [content, setContent] = useState<{ content: string; version: string; hash: string } | null>(null);
+  const [showContent, setShowContent] = useState(false);
+  const [snapshots, setSnapshots] = useState<Array<Record<string, unknown>>>([]);
+  const [evalRuns, setEvalRuns] = useState<EvalRun[] | null>(null);
 
   useEffect(() => {
     listSkills()
@@ -58,6 +68,7 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
       });
     listSkillBindings().then(setBindings).catch(() => undefined);
     listMcpPolicies().then(setPolicies).catch(() => undefined);
+    listSnapshots().then(setSnapshots).catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -69,7 +80,47 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
     listSkillVersions(selected.id)
       .then(setVersions)
       .catch(() => setVersions([]));
+    setContent(null);
+    fetchSkillContent(selected.name)
+      .then(setContent)
+      .catch(() => setContent(null));
   }, [selected]);
+
+  // 每次选中一个版本时，加载该版本的评估历史。
+  const loadEvalRuns = async (versionId: string) => {
+    setEvalRuns(null);
+    try {
+      setEvalRuns(await listEvalRuns(versionId));
+    } catch {
+      setEvalRuns([]);
+    }
+  };
+
+  const doSeedBindings = async () => {
+    setBusy(true);
+    try {
+      const r = await seedBindingsByRole();
+      onToast(`已创建 ${r.seeded} 条种子绑定`);
+      setBindings(await listSkillBindings());
+    } catch (err) {
+      onToast(`创建绑定失败：${errText(err)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doCreateSnapshot = async () => {
+    setBusy(true);
+    try {
+      await createSnapshot();
+      onToast("快照已创建");
+      setSnapshots(await listSnapshots());
+    } catch (err) {
+      onToast(`快照创建失败：${errText(err)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const act = async (version: SkillVersion, action: SkillAction, label: string) => {
     setBusy(true);
@@ -139,6 +190,25 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
                 <div className="mt-0.5 text-[11.5px] text-tx2">
                   {selected.scenario} · 目标角色 {selected.target_agent_role} · 由 {selected.created_by} 建立
                 </div>
+                <button
+                  className="mt-2 rounded-hard border border-line-strong px-3 py-[4px] text-[11.5px] text-cream hover:bg-amber/10"
+                  onClick={() => setShowContent(!showContent)}
+                >
+                  {showContent ? "收起原文" : "查看原文"}
+                </button>
+                {showContent && content && (
+                  <div className="mt-2 rounded-hard border border-line bg-well px-3 py-2">
+                    <div className="text-[10.5px] text-tx3">
+                      版本 {content.version} · {content.hash.slice(0, 20)}…
+                    </div>
+                    <pre className="mt-1 max-h-[300px] overflow-auto whitespace-pre-wrap font-mono text-[11px] text-tx">
+                      {content.content}
+                    </pre>
+                  </div>
+                )}
+                {showContent && !content && (
+                  <p className="mt-2 text-[11.5px] text-tx3">没有可用的 promoted/canary 版本。</p>
+                )}
               </div>
 
               {versions === null && <p className="text-[12.5px] text-tx3">正在读取版本…</p>}
@@ -162,6 +232,12 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
                       {/* 2026-09-19 用户意见：不要过多 id。版本 uuid 收进 title，
                           列表只留版本号与状态（要看 id 悬停即可）。 */}
                     </div>
+                    <button
+                      className="flex-none rounded-hard border border-line px-2 py-[3px] text-[11px] text-tx2 hover:bg-well"
+                      onClick={() => void loadEvalRuns(version.id)}
+                    >
+                      评估历史
+                    </button>
                     <div className="flex flex-none gap-2">
                       {(NEXT_ACTIONS[version.status] ?? []).map((item) => (
                         <button
@@ -180,6 +256,31 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
                   </div>
                 ))}
               </div>
+
+              {/* A/B 评估历史（点了"评估历史"按钮后展示） */}
+              {evalRuns !== null && (
+                <div className="mt-3 rounded-hard border border-line bg-panel px-4 py-3">
+                  <div className="text-[12px] font-medium text-cream">A/B 评估历史</div>
+                  {evalRuns.length === 0 ? (
+                    <p className="mt-1 text-[11.5px] text-tx3">这个版本还没有评估记录。</p>
+                  ) : (
+                    <div className="mt-2 space-y-1">
+                      {evalRuns.map((run) => (
+                        <div key={run.id} className="flex items-center gap-3 text-[11.5px]">
+                          <span className={`rounded-full px-2 py-[1px] text-[10.5px] font-medium ${
+                            run.result === "pass" ? "bg-green/15 text-green" : "bg-salmon/15 text-salmon-hi"
+                          }`}>
+                            {run.result === "pass" ? "PASS" : "FAIL"}
+                          </span>
+                          <span className="text-tx2">{run.arm === "with" ? "有技能" : "无技能"}</span>
+                          <span className="font-mono text-tx3">{run.blinded_label}</span>
+                          <span className="ml-auto text-tx3">{new Date(run.run_at).toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
 
@@ -188,11 +289,49 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
             <div className="rounded-hard border border-line bg-panel px-4 py-3">
               <div className="text-[12.5px] text-cream">技能绑定</div>
               <div className="mt-1 text-[11.5px] text-tx2">{bindings.length} 条</div>
+              <button
+                className="mt-2 rounded-hard border border-line-strong px-3 py-[4px] text-[11.5px] text-cream hover:bg-amber/10 disabled:opacity-50"
+                disabled={busy}
+                onClick={() => void doSeedBindings()}
+              >
+                按角色批量建绑定
+              </button>
             </div>
             <div className="rounded-hard border border-line bg-panel px-4 py-3">
               <div className="text-[12.5px] text-cream">MCP 调用策略</div>
               <div className="mt-1 text-[11.5px] text-tx2">{policies.length} 条</div>
             </div>
+          </div>
+
+          {/* 技能快照 */}
+          <div className="mt-5 rounded-hard border border-line bg-panel px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="text-[12.5px] text-cream">技能快照</div>
+              <button
+                className="rounded-hard border border-line-strong px-3 py-[4px] text-[11.5px] text-cream hover:bg-amber/10 disabled:opacity-50"
+                disabled={busy}
+                onClick={() => void doCreateSnapshot()}
+              >
+                创建快照
+              </button>
+            </div>
+            <div className="mt-1 text-[11.5px] text-tx2">{snapshots.length} 个（运行中的任务保持启动时的版本集）</div>
+            {snapshots.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {snapshots.slice(0, 5).map((snap, i) => {
+                  const s = snap as { id?: string; superseded_at?: string; versions?: Array<{ skill_id?: string; version?: string }> };
+                  return (
+                    <div key={s.id ?? i} className="text-[11px] text-tx2">
+                      <span className="font-mono">{s.id?.slice(0, 8)}…</span>
+                      {" · "}
+                      {s.versions?.length ?? 0} 个版本
+                      {" · "}
+                      {s.superseded_at ? "已取代" : "活跃"}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>

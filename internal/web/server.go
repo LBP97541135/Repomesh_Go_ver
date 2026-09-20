@@ -119,6 +119,7 @@ func handlerConfigured(assets fs.FS, auth Auth, projectAPI Projects, modelAPI Mo
 	registerScanRoutes(mux, scan)
 	registerDecisionRoutes(mux, decision)
 	registerSkillRoutes(mux, skills)
+	registerResponsibilityRoutes(mux, responsibilitySvc)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"process": "repomesh-web", "version": buildinfo.Version,

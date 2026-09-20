@@ -380,6 +380,7 @@ export function AgentsPage({
                       <option value="">继承（项目 / 部署默认）</option>
                       <option value="codex_cli">codex_cli</option>
                       <option value="claude_cli">claude_cli</option>
+                      <option value="dsh">dsh（AgentTeams 原生）</option>
                     </select>
                     <button
                       className="rounded-hard border border-line-strong px-3 py-[5px] text-[12px] text-cream hover:bg-amber/10"

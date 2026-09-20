@@ -24,6 +24,7 @@ import (
 	"repomesh.local/repomesh/internal/console"
 	"repomesh.local/repomesh/internal/database"
 	"repomesh.local/repomesh/internal/decisionchain"
+	"repomesh.local/repomesh/internal/deliverymanifest"
 	"repomesh.local/repomesh/internal/discovery"
 	"repomesh.local/repomesh/internal/gates"
 	"repomesh.local/repomesh/internal/handoff"
@@ -38,6 +39,7 @@ import (
 	"repomesh.local/repomesh/internal/observability"
 	"repomesh.local/repomesh/internal/projects"
 	"repomesh.local/repomesh/internal/reposcan"
+	"repomesh.local/repomesh/internal/responsibility"
 	"repomesh.local/repomesh/internal/repositoryteams"
 	"repomesh.local/repomesh/internal/scan"
 	"repomesh.local/repomesh/internal/scm"
@@ -427,11 +429,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		// 集群）。两者产生的证据各自标注 provider，谁也不冒充谁。
 		// 未配置时明确报错而不是静默退化 —— 见 branchProvider()。
 		pipelineAPI = web.Pipeline{
-			Tasks:        tasks.NewPostgresStore(pipelinePool),
-			Assembly:     assembly.New(pipelinePool, atClient, nil),
-			InterfaceDoc: interfacedoc.New(pipelinePool),
-			BranchValid:  branchvalidation.New(pipelinePool, branchProvider()),
-			Observation:  observability.New(pipelinePool),
+			Tasks:             tasks.NewPostgresStore(pipelinePool),
+			Assembly:          assembly.New(pipelinePool, atClient, nil),
+			InterfaceDoc:      interfacedoc.New(pipelinePool),
+			BranchValid:       branchvalidation.New(pipelinePool, branchProvider()),
+			Observation:       observability.New(pipelinePool),
+			DeliveryManifests: deliverymanifest.New(pipelinePool),
 			Extensions: web.PipelineExtensions{
 				Spec:  spec.New(pipelinePool),
 				Gates: gates.New(pipelinePool),
@@ -494,6 +497,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		humanControlAPI = web.HumanControl{Service: humancontrol.New(pipelinePool)}
 		observeV1 = web.ObserveV1{Service: observability.New(pipelinePool)}
 		web.SetAgentSettingsPool(pipelinePool)
+		web.SetResponsibilityService(responsibility.New(pipelinePool))
 		// The discovery chain audits approval + materialize decisions into
 		// the same decision chain as the scan scope seam (B3 wiring); its
 		// embedding config mirrors the main decision service.
@@ -541,9 +545,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 }
 
 // branchProvider 选数据库分支验证的 provider（评委①）：
-//   · 配了 REPOMESH_POLAR_BRANCH_DSN → PolarDB（PostgreSQL 兼容集群，从**业务数据
-//     基线库**开分支；没有基线库就明确报错，不拿空库糊弄）；
-//   · 否则 → 本地 PostgreSQL（同一实例 TEMPLATE 克隆）。
+//
+//	· 配了 REPOMESH_POLAR_BRANCH_DSN → PolarDB（PostgreSQL 兼容集群，从**业务数据
+//	  基线库**开分支；没有基线库就明确报错，不拿空库糊弄）；
+//	· 否则 → 本地 PostgreSQL（同一实例 TEMPLATE 克隆）。
+//
 // 两条路径的 run 行里都记着 provider 名，证据不会互相冒充。
 func branchProvider() branchvalidation.BranchProvider {
 	if dsn := strings.TrimSpace(os.Getenv("REPOMESH_POLAR_BRANCH_DSN")); dsn != "" {

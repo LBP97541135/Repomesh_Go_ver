@@ -481,3 +481,202 @@ func (s *Store) SetFeature(ctx context.Context, feature string, enabled bool, up
 		feature, enabled, updatedBy)
 	return err
 }
+
+// --- Skill content serving -------------------------------------------------
+
+// ResolveContent returns the SKILL.md content of the currently promoted (or
+// newest canary) version for the named skill within the caller's organization.
+// Returns ErrNoRows when the skill is unknown or has no active version.
+func (s *Store) ResolveContent(ctx context.Context, organizationID, skillName string) (string, string, string, error) {
+	sk, err := s.GetSkillByName(ctx, organizationID, skillName)
+	if err != nil {
+		return "", "", "", err
+	}
+	v, err := s.ResolveCurrent(ctx, sk.ID)
+	if err != nil {
+		return "", "", "", err
+	}
+	return v.Content, v.Version, v.ContentHash, nil
+}
+
+// --- MCP policy update -----------------------------------------------------
+
+// UpdateMcpPolicy updates timeout, retries and degradation flags for a named
+// MCP server policy. Returns ErrNoRows when the policy does not exist.
+func (s *Store) UpdateMcpPolicy(ctx context.Context, serverID string, p McpPolicy) (*McpPolicy, error) {
+	if p.TimeoutSeconds < 1 || p.TimeoutSeconds > 600 {
+		return nil, Refused("mcp_policy_invalid", "timeout_seconds must be 1..600, got %d", p.TimeoutSeconds)
+	}
+	if p.MaxRetries < 0 || p.MaxRetries > 5 {
+		return nil, Refused("mcp_policy_invalid", "max_retries must be 0..5, got %d", p.MaxRetries)
+	}
+	row := s.Pool.QueryRow(ctx, `
+		UPDATE public.mcp_server_policies
+		SET timeout_seconds = $2, max_retries = $3,
+			retryable_only_reads = $4, degraded_block_writes = $5
+		WHERE server_name = $1
+		RETURNING server_name, timeout_seconds, max_retries, retryable_only_reads, degraded_block_writes, required_task_features::text`,
+		serverID, p.TimeoutSeconds, p.MaxRetries, p.RetryableOnlyReads, p.DegradedBlockWrites)
+	out := &McpPolicy{}
+	var features string
+	if err := row.Scan(&out.ServerName, &out.TimeoutSeconds, &out.MaxRetries,
+		&out.RetryableOnlyReads, &out.DegradedBlockWrites, &features); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(features), &out.RequiredTaskFeatures); err != nil {
+		out.RequiredTaskFeatures = []string{}
+	}
+	return out, nil
+}
+
+// --- Skill snapshots --------------------------------------------------------
+
+// SnapshotEntry is one skill version pinned inside an organization snapshot.
+type SnapshotEntry struct {
+	SkillID     string `json:"skill_id"`
+	Version     string `json:"version"`
+	ContentHash string `json:"content_hash"`
+}
+
+// SkillSnapshot is an immutable set of skill versions pinned for a dispatch.
+type SkillSnapshot struct {
+	ID             string          `json:"id"`
+	OrganizationID *string         `json:"organization_id"`
+	Versions       []SnapshotEntry `json:"versions"`
+	CreatedAt      time.Time       `json:"created_at"`
+	SupersededAt   *time.Time      `json:"superseded_at"`
+}
+
+// CreateSnapshot pins the currently promoted (or newest canary) version of
+// every skill visible to the organization into a new active snapshot.
+func (s *Store) CreateSnapshot(ctx context.Context, organizationID string) (*SkillSnapshot, error) {
+	entries, err := s.collectActiveEntries(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	blob, err := json.Marshal(entries)
+	if err != nil {
+		return nil, err
+	}
+	// Supersede any existing active snapshot for this org, then insert.
+	if _, err := s.Pool.Exec(ctx, `
+		UPDATE public.skill_snapshots SET superseded_at = now()
+		 WHERE organization_id IS NOT DISTINCT FROM $1::uuid AND superseded_at IS NULL`,
+		nullableUUID(organizationID)); err != nil {
+		return nil, err
+	}
+	row := s.Pool.QueryRow(ctx, `
+		INSERT INTO public.skill_snapshots (organization_id, versions)
+		VALUES ($1::uuid, $2::jsonb)
+		RETURNING id, organization_id::text, versions::text, created_at, superseded_at`,
+		nullableUUID(organizationID), string(blob))
+	return scanSnapshot(row)
+}
+
+// collectActiveEntries resolves the current version for every skill in scope.
+func (s *Store) collectActiveEntries(ctx context.Context, organizationID string) ([]SnapshotEntry, error) {
+	skills, err := s.ListSkills(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var entries []SnapshotEntry
+	for _, sk := range skills {
+		v, err := s.ResolveCurrent(ctx, sk.ID)
+		if err != nil {
+			continue // skill has no promoted/canary version; skip it
+		}
+		entries = append(entries, SnapshotEntry{SkillID: sk.ID, Version: v.Version, ContentHash: v.ContentHash})
+	}
+	if entries == nil {
+		entries = []SnapshotEntry{}
+	}
+	return entries, nil
+}
+
+// GetSnapshot returns one snapshot by id, or ErrNoRows.
+func (s *Store) GetSnapshot(ctx context.Context, id string) (*SkillSnapshot, error) {
+	row := s.Pool.QueryRow(ctx,
+		`SELECT id, organization_id::text, versions::text, created_at, superseded_at
+		 FROM public.skill_snapshots WHERE id = $1`, id)
+	return scanSnapshot(row)
+}
+
+// ActiveSnapshot returns the current active snapshot for the organization,
+// or ErrNoRows if none exists (caller should CreateSnapshot first).
+func (s *Store) ActiveSnapshot(ctx context.Context, organizationID string) (*SkillSnapshot, error) {
+	row := s.Pool.QueryRow(ctx, `
+		SELECT id, organization_id::text, versions::text, created_at, superseded_at
+		FROM public.skill_snapshots
+		 WHERE organization_id IS NOT DISTINCT FROM $1::uuid AND superseded_at IS NULL
+		 ORDER BY created_at DESC LIMIT 1`,
+		nullableUUID(organizationID))
+	return scanSnapshot(row)
+}
+
+// ListSnapshots returns all snapshots for the organization (active first).
+func (s *Store) ListSnapshots(ctx context.Context, organizationID string) ([]SkillSnapshot, error) {
+	rows, err := s.Pool.Query(ctx, `
+		SELECT id, organization_id::text, versions::text, created_at, superseded_at
+		FROM public.skill_snapshots
+		 WHERE organization_id IS NOT DISTINCT FROM $1::uuid
+		 ORDER BY superseded_at IS NULL DESC, created_at DESC`,
+		nullableUUID(organizationID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []SkillSnapshot
+	for rows.Next() {
+		snap, err := scanSnapshot(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *snap)
+	}
+	return out, rows.Err()
+}
+
+// SnapshotInSpace checks whether the snapshot belongs to the caller's org (or is global).
+func (s *Store) SnapshotInSpace(ctx context.Context, organizationID, snapshotID string) (bool, error) {
+	var ok bool
+	err := s.Pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM public.skill_snapshots
+			 WHERE id = $1 AND (organization_id IS NULL OR organization_id = $2::uuid))`,
+		snapshotID, nullableUUID(organizationID)).Scan(&ok)
+	return ok, err
+}
+
+// SeedBindingsByRole creates active bindings for every seed skill's promoted
+// 1.0.0 version, using a deterministic UUID per skill name for the agent_id.
+// Idempotent: re-running never duplicates rows.
+func (s *Store) SeedBindingsByRole(ctx context.Context) (int, error) {
+	tag, err := s.Pool.Exec(ctx, `
+		INSERT INTO public.agent_skill_bindings (agent_id, version_id, source, active)
+		SELECT
+			('00000000-0000-4000-8000-' || lpad(to_hex(abs(hashtext(s.name))), 12, '0'))::uuid,
+			v.id, 'revision_auto', true
+		FROM public.skills s
+		JOIN public.skill_versions v ON v.skill_id = s.id AND v.version = '1.0.0' AND v.status = 'promoted'
+		WHERE s.organization_id IS NULL
+		  AND NOT EXISTS (
+			SELECT 1 FROM public.agent_skill_bindings b
+			WHERE b.version_id = v.id AND b.active = true)
+		ON CONFLICT DO NOTHING`)
+	if err != nil {
+		return 0, err
+	}
+	return int(tag.RowsAffected()), nil
+}
+
+func scanSnapshot(row rowScanner) (*SkillSnapshot, error) {
+	snap := &SkillSnapshot{}
+	var versionsText string
+	if err := row.Scan(&snap.ID, &snap.OrganizationID, &versionsText, &snap.CreatedAt, &snap.SupersededAt); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(versionsText), &snap.Versions); err != nil {
+		snap.Versions = []SnapshotEntry{}
+	}
+	return snap, nil
+}

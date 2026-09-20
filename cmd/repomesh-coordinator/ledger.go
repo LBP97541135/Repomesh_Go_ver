@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -47,10 +48,13 @@ func sanitizeSingleQuoted(text string) string {
 // the real requirement, commit, push a delivery branch and open the pull
 // request. The App installation token is read from the cache file refreshed
 // by repomesh-gh-token.timer — never embedded into the stored command.
-func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, issueTitle, issueID string) (string, error) {
+func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, issueTitle, issueID, skillContent string) (string, error) {
 	prompt := strings.TrimSpace(instruction)
 	if prompt == "" {
 		prompt = "Complete the assigned task in this repository. Implement the requirement, run the existing checks, commit your changes with a summary."
+	}
+	if strings.TrimSpace(skillContent) != "" {
+		prompt = "## 你的技能（技能库原文）\n\n" + skillContent + "\n\n---\n\n" + prompt
 	}
 	prompt = sanitizeSingleQuoted(prompt)
 	safeTitle := sanitizeSingleQuoted(issueTitle)
@@ -66,6 +70,16 @@ func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, i
 		agentLine = fmt.Sprintf("codex exec -c model_provider=minimax -c model=%s --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox \"%s\"", model, prompt)
 	case "claude_cli":
 		agentLine = fmt.Sprintf("claude -p \"%s\" --model %s --dangerously-skip-permissions", prompt, model)
+	case "dsh":
+		// AgentTeams 原生 DeepSeek Harness（实验性）。DSH CLI 直接调 DeepSeek API，
+		// 不经过 codex CLI → MiniMax 间接层。API key 走 DEEPSEEK_API_KEY 环境变量。
+		// 命令模板可通过 REPOMESH_DSH_COMMAND 覆盖（%s 为 prompt 占位符），
+		// 便于适配不同 DSH 版本的 CLI 接口而不重新编译。
+		dshCmd := os.Getenv("REPOMESH_DSH_COMMAND")
+		if dshCmd == "" {
+			dshCmd = "dsh run --model %s --prompt \"%s\" --auto-approve"
+		}
+		agentLine = fmt.Sprintf(dshCmd, model, prompt)
 	default:
 		return "", fmt.Errorf("coordinator: unsupported agent kind %q", agentKind)
 	}
@@ -117,7 +131,7 @@ func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, i
 // "verification" was a human reading the pull request: agent_runs carried no
 // test evidence at all (contract's test_command/test_results stayed null/[]).
 // The exit code of this run is the platform's first machine-checkable signal.
-func buildTestCommand(agentKind, model, instruction, repoFullName, attemptID, issueTitle string) (string, error) {
+func buildTestCommand(agentKind, model, instruction, repoFullName, attemptID, issueTitle, testSkillContent string) (string, error) {
 	requirement := strings.TrimSpace(instruction)
 	if requirement == "" {
 		requirement = strings.TrimSpace(issueTitle)
@@ -142,6 +156,9 @@ func buildTestCommand(agentKind, model, instruction, repoFullName, attemptID, is
 		`"exit_code":<integer>,"passed":<true|false>,"summary":"<one line, what you actually observed>"}. ` +
 		"If the change does not satisfy the requirement, set passed=false and say so in summary " +
 		"instead of reporting success. Do not invent results."
+	if strings.TrimSpace(testSkillContent) != "" {
+		testPrompt = "## 你的技能（技能库原文）\n\n" + testSkillContent + "\n\n---\n\n" + testPrompt
+	}
 	testPrompt = sanitizeSingleQuoted(testPrompt)
 	var agentLine string
 	switch agentKind {
@@ -149,6 +166,12 @@ func buildTestCommand(agentKind, model, instruction, repoFullName, attemptID, is
 		agentLine = fmt.Sprintf("codex exec -c model_provider=minimax -c model=%s --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox \"%s\"", model, testPrompt)
 	case "claude_cli":
 		agentLine = fmt.Sprintf("claude -p \"%s\" --model %s --dangerously-skip-permissions", testPrompt, model)
+	case "dsh":
+		dshCmd := os.Getenv("REPOMESH_DSH_COMMAND")
+		if dshCmd == "" {
+			dshCmd = "dsh run --model %s --prompt \"%s\" --auto-approve"
+		}
+		agentLine = fmt.Sprintf(dshCmd, model, testPrompt)
 	default:
 		return "", fmt.Errorf("coordinator: unsupported test agent kind %q", agentKind)
 	}
@@ -207,7 +230,11 @@ func (l *coordinatorLedger) ReserveForTask(ctx context.Context, workerID, taskID
 	if configuredModel == "" {
 		configuredModel = "MiniMax-M2"
 	}
-	command, err := buildAgentCommand(agentKind, configuredModel, instruction, repoFullName, attemptID, issueTitle, issueID)
+	// Fetch the active skill content for the worker role (this task's executor).
+	sb := newSkillBridge(l.pool)
+	workerSkill, _ := sb.ForRole(ctx, "worker")
+
+	command, err := buildAgentCommand(agentKind, configuredModel, instruction, repoFullName, attemptID, issueTitle, issueID, workerSkill.Content)
 	if err != nil {
 		return "", err
 	}
@@ -274,7 +301,8 @@ func (l *coordinatorLedger) ReserveForTask(ctx context.Context, workerID, taskID
 	if err != nil {
 		return "", err
 	}
-	testCommand, err := buildTestCommand(agentKind, configuredModel, instruction, repoFullName, attemptID, issueTitle)
+	testSkill, _ := sb.ForRole(ctx, "worker")
+	testCommand, err := buildTestCommand(agentKind, configuredModel, instruction, repoFullName, attemptID, issueTitle, testSkill.Content)
 	if err != nil {
 		return "", err
 	}

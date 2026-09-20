@@ -30,7 +30,7 @@ var agentSettingsPool *pgxpool.Pool
 func SetAgentSettingsPool(pool *pgxpool.Pool) { agentSettingsPool = pool }
 
 func validAgentKind(kind string) bool {
-	return kind == "codex_cli" || kind == "claude_cli"
+	return kind == "codex_cli" || kind == "claude_cli" || kind == "dsh"
 }
 
 // registerAgentSettings exposes the per-project agent execution controls used

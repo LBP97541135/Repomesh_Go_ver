@@ -92,12 +92,12 @@ func killedBySignal(exitErr *exec.ExitError) bool {
 }
 
 // sanitizedEnv strips every credential-bearing variable the executor process
-// holds except the agent-scoped MINIMAX_API_KEY: codex reads its model-provider
-// key from that env var (model_providers.minimax.env_key), and it never equals
-// a platform secret.
+// holds except the agent-scoped MINIMAX_API_KEY and DEEPSEEK_API_KEY:
+// codex reads its model-provider key from the former, DSH from the latter.
+// Neither equals a platform secret.
 func sanitizedEnv(ghToken string) []string {
 	keep := map[string]bool{"PATH": true, "HOME": true, "LANG": true, "LC_ALL": true, "TERM": true,
-		"TMPDIR": true, "USER": true, "SHELL": true, "MINIMAX_API_KEY": true}
+		"TMPDIR": true, "USER": true, "SHELL": true, "MINIMAX_API_KEY": true, "DEEPSEEK_API_KEY": true}
 	var result []string
 	for _, entry := range os.Environ() {
 		name, _, found := strings.Cut(entry, "=")

@@ -24,6 +24,7 @@ func (s *Service) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/skills/versions", s.guarded(s.handleRegisterVersion))
 	mux.HandleFunc("POST /api/skills/versions/{id}/evaluate", s.guarded(s.handleEvaluate))
 	mux.HandleFunc("POST /api/skills/versions/{id}/evaluations", s.guarded(s.handleRecordRun))
+	mux.HandleFunc("GET /api/skills/versions/{id}/evaluations", s.guarded(s.handleListEvalRuns))
 	mux.HandleFunc("POST /api/skills/versions/{id}/canary", s.guarded(s.handleCanary))
 	mux.HandleFunc("POST /api/skills/versions/{id}/promote", s.guarded(s.handlePromote))
 	mux.HandleFunc("POST /api/skills/versions/{id}/rollback", s.guarded(s.handleRollback))
@@ -35,10 +36,18 @@ func (s *Service) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/skills/bindings", s.guarded(s.handleListBindings))
 	mux.HandleFunc("POST /api/skills/bindings", s.guarded(s.handleBind))
 	mux.HandleFunc("DELETE /api/skills/bindings/{id}", s.guarded(s.handleUnbind))
+	mux.HandleFunc("POST /api/skills/bindings/seed-by-role", s.guarded(s.handleSeedBindingsByRole))
 	mux.HandleFunc("POST /api/skills/suggestions", s.guarded(s.handleAddSuggestion))
 	mux.HandleFunc("POST /api/skills/suggestions/{id}/decide", s.guarded(s.handleDecideSuggestion))
 	mux.HandleFunc("GET /api/skills/mcp-policies", s.guarded(s.handleMcpPolicies))
+	mux.HandleFunc("PUT /api/skills/mcp-policies/{id}", s.guarded(s.handleUpdateMcpPolicy))
 	mux.HandleFunc("POST /api/skills/assemble", s.guarded(s.handleAssemble))
+	mux.HandleFunc("POST /api/skills/assemble-with-versions", s.guarded(s.handleAssembleWithVersions))
+	mux.HandleFunc("GET /api/skills/content/{skill}", s.guarded(s.handleContent))
+	mux.HandleFunc("POST /api/skills/snapshots", s.guarded(s.handleCreateSnapshot))
+	mux.HandleFunc("GET /api/skills/snapshots", s.guarded(s.handleListSnapshots))
+	mux.HandleFunc("GET /api/skills/snapshots/active", s.guarded(s.handleActiveSnapshot))
+	mux.HandleFunc("GET /api/skills/snapshots/{id}", s.guarded(s.handleGetSnapshot))
 	mux.HandleFunc("GET /api/settings/skill-governance", s.guarded(s.handleGetSetting))
 	mux.HandleFunc("PUT /api/settings/skill-governance", s.guarded(s.handlePutSetting))
 }
@@ -343,6 +352,32 @@ func (s *Service) handleRelease(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleListEvalRuns returns the evaluation run history for a version.
+func (s *Service) handleListEvalRuns(w http.ResponseWriter, r *http.Request) {
+	if !s.requireEnabled(w, r) {
+		return
+	}
+	versionID := r.PathValue("id")
+	ok, err := s.Store.VersionInSpace(r.Context(), s.organization(r), versionID)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	if !ok {
+		writeError(w, http.StatusNotFound, "no such version")
+		return
+	}
+	runs, err := s.Store.ListRuns(r.Context(), versionID)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	if runs == nil {
+		runs = []EvalRun{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"runs": runs})
+}
+
 func (s *Service) handleCreateApproval(w http.ResponseWriter, r *http.Request) {
 	if !s.requireEnabled(w, r) {
 		return
@@ -595,6 +630,125 @@ func (s *Service) handleMcpPolicies(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"policies": policies})
 }
 
+func (s *Service) handleUpdateMcpPolicy(w http.ResponseWriter, r *http.Request) {
+	if !s.requireEnabled(w, r) {
+		return
+	}
+	serverID := r.PathValue("id")
+	var body struct {
+		TimeoutSeconds      int  `json:"timeout_seconds"`
+		MaxRetries          int  `json:"max_retries"`
+		RetryableOnlyReads  bool `json:"retryable_only_reads"`
+		DegradedBlockWrites bool `json:"degraded_block_writes"`
+	}
+	if !decodeBody(w, r, &body) {
+		return
+	}
+	p, err := s.Store.UpdateMcpPolicy(r.Context(), serverID, McpPolicy{
+		ServerName:          serverID,
+		TimeoutSeconds:      body.TimeoutSeconds,
+		MaxRetries:          body.MaxRetries,
+		RetryableOnlyReads:  body.RetryableOnlyReads,
+		DegradedBlockWrites: body.DegradedBlockWrites,
+	})
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
+}
+
+// handleContent returns the SKILL.md content of the currently promoted (or
+// newest canary) version for the named skill.
+func (s *Service) handleContent(w http.ResponseWriter, r *http.Request) {
+	if !s.requireEnabled(w, r) {
+		return
+	}
+	skillName := r.PathValue("skill")
+	content, version, hash, err := s.Store.ResolveContent(r.Context(), s.organization(r), skillName)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Header().Set("X-Skill-Version", version)
+	w.Header().Set("X-Skill-Hash", hash)
+	_, _ = w.Write([]byte(content))
+}
+
+func (s *Service) handleCreateSnapshot(w http.ResponseWriter, r *http.Request) {
+	if !s.requireEnabled(w, r) {
+		return
+	}
+	snap, err := s.Store.CreateSnapshot(r.Context(), s.organization(r))
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, snap)
+}
+
+func (s *Service) handleActiveSnapshot(w http.ResponseWriter, r *http.Request) {
+	if !s.requireEnabled(w, r) {
+		return
+	}
+	snap, err := s.Store.ActiveSnapshot(r.Context(), s.organization(r))
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, snap)
+}
+
+func (s *Service) handleGetSnapshot(w http.ResponseWriter, r *http.Request) {
+	if !s.requireEnabled(w, r) {
+		return
+	}
+	id := r.PathValue("id")
+	ok, err := s.Store.SnapshotInSpace(r.Context(), s.organization(r), id)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	if !ok {
+		writeError(w, http.StatusNotFound, "snapshot not found")
+		return
+	}
+	snap, err := s.Store.GetSnapshot(r.Context(), id)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, snap)
+}
+
+func (s *Service) handleListSnapshots(w http.ResponseWriter, r *http.Request) {
+	if !s.requireEnabled(w, r) {
+		return
+	}
+	rows, err := s.Store.ListSnapshots(r.Context(), s.organization(r))
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"snapshots": rows})
+}
+
+// handleSeedBindingsByRole creates an active binding for every seed skill's
+// promoted 1.0.0 version, keyed by the skill's target_agent_role. Idempotent:
+// re-running never duplicates rows. This is the "who uses which skill" baseline.
+func (s *Service) handleSeedBindingsByRole(w http.ResponseWriter, r *http.Request) {
+	if !s.requireEnabled(w, r) {
+		return
+	}
+	count, err := s.Store.SeedBindingsByRole(r.Context())
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"seeded": count})
+}
+
 func (s *Service) handleAssemble(w http.ResponseWriter, r *http.Request) {
 	if !s.requireEnabled(w, r) {
 		return
@@ -610,6 +764,34 @@ func (s *Service) handleAssemble(w http.ResponseWriter, r *http.Request) {
 	bundle, err := Assemble(body.Role, body.Profile, body.TaskFeatures)
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "permission refused") {
+			writeCoded(w, http.StatusForbidden, "permission_refused", err.Error())
+			return
+		}
+		s.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, bundle)
+}
+
+func (s *Service) handleAssembleWithVersions(w http.ResponseWriter, r *http.Request) {
+	if !s.requireEnabled(w, r) {
+		return
+	}
+	var body struct {
+		Role         string   `json:"role"`
+		Profile      string   `json:"profile"`
+		TaskFeatures []string `json:"task_features"`
+	}
+	if !decodeBody(w, r, &body) {
+		return
+	}
+	bundle, err := s.AssembleWithVersions(r.Context(), s.organization(r), body.Role, body.Profile, body.TaskFeatures)
+	if err != nil {
+		if ref, ok := err.(*LifecycleRefused); ok && strings.HasPrefix(ref.Code, "skill_no_active") {
+			writeCoded(w, http.StatusConflict, ref.Code, ref.Message)
+			return
+		}
+		if strings.Contains(err.Error(), "permission refused") {
 			writeCoded(w, http.StatusForbidden, "permission_refused", err.Error())
 			return
 		}

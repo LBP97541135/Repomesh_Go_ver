@@ -129,3 +129,53 @@ export function bindSkillVersion(input: {
 export function unbindSkill(bindingId: string): Promise<void> {
   return apiRequest<void>("DELETE", `/skills/bindings/${encodeURIComponent(bindingId)}`);
 }
+
+/** GET /api/skills/versions/{id}/evaluations —— 某版本的 A/B 评估历史。 */
+export interface EvalRun {
+  id: string;
+  version_id: string;
+  question_id: string;
+  arm: "with" | "without";
+  blinded_label: string;
+  answer: Record<string, unknown>;
+  judged_by: string | null;
+  result: "pass" | "fail";
+  run_at: string;
+}
+
+export async function listEvalRuns(versionId: string): Promise<EvalRun[]> {
+  return unwrap<EvalRun>(
+    await apiRequest<unknown>("GET", `/skills/versions/${encodeURIComponent(versionId)}/evaluations`),
+    ["runs", "items"],
+  );
+}
+
+/** GET /api/skills/content/{skill} —— 技能原文（当前 promoted/canary 版本的 SKILL.md）。
+ *  返回纯文本；响应头 X-Skill-Version / X-Skill-Hash 携带版本与内容摘要。 */
+export async function fetchSkillContent(skillName: string): Promise<{ content: string; version: string; hash: string }> {
+  const res = await fetch(`/api/skills/content/${encodeURIComponent(skillName)}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return {
+    content: await res.text(),
+    version: res.headers.get("X-Skill-Version") ?? "",
+    hash: res.headers.get("X-Skill-Hash") ?? "",
+  };
+}
+
+/** POST /api/skills/bindings/seed-by-role —— 按角色批量建种子绑定。 */
+export function seedBindingsByRole(): Promise<{ seeded: number }> {
+  return apiRequest<{ seeded: number }>("POST", "/skills/bindings/seed-by-role", {});
+}
+
+/** POST /api/skills/snapshots —— 创建组织级技能快照。 */
+export function createSnapshot(): Promise<Record<string, unknown>> {
+  return apiRequest("POST", "/skills/snapshots", {});
+}
+
+/** GET /api/skills/snapshots —— 列出全部快照。 */
+export async function listSnapshots(): Promise<Array<Record<string, unknown>>> {
+  return unwrap<Record<string, unknown>>(
+    await apiRequest<unknown>("GET", "/skills/snapshots"),
+    ["snapshots", "items"],
+  );
+}
