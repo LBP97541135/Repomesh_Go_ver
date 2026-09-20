@@ -170,12 +170,21 @@ function TestSchedule({ tasks, view }: { tasks: PlanTaskItem[] | null; view: Tes
   }
   for (const repo of repos) {
     const rec = firstOf((i) => i.kind === "repo_integration" && i.repository_id === repo);
+    // "待跑"的**理由**要按事实说：如果该仓的任务都已经完成（经理门也过了），
+    // 那它就不是"在等上游"，而是"上游到了、这一步还没有记录" —— 这两件事
+    // 对排障完全不同（前者等着就行，后者得去看这条链路跑没跑）。
+    const repoTasks = tasks.filter((t) => t.repositoryId === repo);
+    const allDone = repoTasks.length > 0 && repoTasks.every((t) => t.status === "done");
     rows.push({
       key: `ri-${repo}`,
       stage: "节点级",
       what: `仓库集成验证 · ${repo}`,
       state: rec ? (rec.passed ? "done" : "failed") : "todo",
-      note: rec ? (rec.summary || "已产出记录") : "等该仓全部任务过了经理门",
+      note: rec
+        ? rec.summary || "已产出记录"
+        : allDone
+          ? `该仓 ${repoTasks.length} 条任务都已过经理门，但**还没有**集成验证记录（这一步可能没跑）`
+          : `等该仓剩余任务过经理门（${repoTasks.filter((t) => t.status !== "done").length}/${repoTasks.length} 条未完成）`,
     });
   }
   if (repos.length > 1) {
