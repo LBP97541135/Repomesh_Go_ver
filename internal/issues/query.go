@@ -2,9 +2,12 @@ package issues
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -94,7 +97,13 @@ func (s *Service) ListIssues(ctx context.Context, principal access.ProjectPrinci
 	if _, err := readProjectRow(ctx, tx, projectID, principal.ActorID()); err != nil {
 		return IssuePage{}, err
 	}
-	scope := queryCursorScope{actor: principal.ActorID(), kind: "issues", projectID: projectID, query: query.Text + "\x00" + query.RepositoryID, limit: query.Limit}
+	scope := queryCursorScope{
+		actor:     principal.ActorID(),
+		kind:      "issues",
+		projectID: projectID,
+		query:     cursorScopeFingerprint(principal.ActorID(), "issues", projectID, query.Text, query.RepositoryID, query.Limit),
+		limit:     query.Limit,
+	}
 	after := ""
 	if query.Cursor != "" {
 		cursor, readErr := readIssueCursor(ctx, tx, query.Cursor, scope)
@@ -269,6 +278,24 @@ type queryCursorScope struct {
 	limit     int
 }
 
+// cursorScopeFingerprint 把「这条游标属于谁、在哪个项目、查什么、每页多大」压成
+// 一个可以直接入库的指纹。
+//
+// 2026-09-20 线上实测（全库日志 65 次，与 503 一一对应）：原先直接把
+// `query.Text + "\x00" + query.RepositoryID` 存进 repomesh_projects.cursors.query。
+// Postgres 的 text 类型**不接受 NUL 字节**，于是那条 INSERT 每次都以
+// `invalid byte sequence for encoding "UTF8": 0x00`（portal parameter $5）失败，
+// writeIssueCursor 把它判成 503 RESULT_UNCONFIRMED —— 界面上就是"服务端暂时不可用"，
+// 而且只在分页写游标时出现，所以看起来时有时无。
+//
+// 换成 sha256 十六进制：不含 NUL，也不把用户输入原样落库；分隔符用 \x1f（US）
+// 而不是 \x00，同样只是为了拼接不产生歧义，它不会进数据库。
+func cursorScopeFingerprint(actor, kind, projectID, text, repositoryID string, limit int) string {
+	sum := sha256.Sum256([]byte(strings.Join(
+		[]string{actor, kind, projectID, text, repositoryID, strconv.Itoa(limit)}, "\x1f")))
+	return hex.EncodeToString(sum[:])
+}
+
 type queryCursorRecord struct {
 	id        string
 	scope     queryCursorScope
@@ -287,7 +314,7 @@ func readIssueCursor(ctx context.Context, tx pgx.Tx, id string, scope queryCurso
 		if errors.Is(err, pgx.ErrNoRows) {
 			return queryCursorRecord{}, failure(400, "INVALID_CURSOR")
 		}
-		return queryCursorRecord{}, unavailable()
+		return queryCursorRecord{}, unavailableWith(err)
 	}
 	if actor != scope.actor || kind != scope.kind || projectID != scope.projectID || query != scope.query || limit != scope.limit {
 		return queryCursorRecord{}, failure(400, "INVALID_CURSOR")
@@ -305,7 +332,7 @@ func writeIssueCursor(ctx context.Context, tx pgx.Tx, record queryCursorRecord) 
 		VALUES($1,$2,$3,$4,$5,$6,$7,'',$8)`,
 		record.id, record.scope.actor, record.scope.kind, record.scope.projectID, record.scope.query, record.scope.limit, record.afterID, record.expiresAt)
 	if err != nil {
-		return unavailable()
+		return unavailableWith(err)
 	}
 	return nil
 }

@@ -60,19 +60,19 @@ func (s *Service) phase(ctx context.Context, at transactionPhase) error {
 func (s *Service) beginCreate(ctx context.Context) (pgx.Tx, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
-		return nil, unavailable()
+		return nil, unavailableWith(err)
 	}
 	if _, err := tx.Exec(ctx, `SET LOCAL lock_timeout='2s'`); err != nil {
 		rollbackTx(tx)
-		return nil, unavailable()
+		return nil, unavailableWith(err)
 	}
 	if _, err := tx.Exec(ctx, `SET LOCAL statement_timeout='10s'`); err != nil {
 		rollbackTx(tx)
-		return nil, unavailable()
+		return nil, unavailableWith(err)
 	}
 	if _, err := tx.Exec(ctx, `SET LOCAL synchronous_commit=on`); err != nil {
 		rollbackTx(tx)
-		return nil, unavailable()
+		return nil, unavailableWith(err)
 	}
 	return tx, nil
 }
