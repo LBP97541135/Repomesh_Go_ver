@@ -143,7 +143,9 @@ export type GoIssueDetail = {
   title: string;
   createdAt: string;
   description: string;
-  repositoryIds: string[];
+  /** 建项不再选仓（2026-09-20）：范围改由「选仓门」确认，门确认前的 issue
+   *  这里可能是空数组甚至缺省——读方一律 `?? []`，不得假设字段必在。 */
+  repositoryIds?: string[];
   source: { kind: string; conversationId: string };
   /** 人审门模式（0053 落列的服务端事实）：ai = 自动托管，hitl = 门等真人。
    *  缺省/老数据按 hitl 处理 —— 最保守，不替人做主。 */

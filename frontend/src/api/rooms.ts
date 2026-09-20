@@ -94,7 +94,9 @@ function goIssueDetailToView(d: GoIssueDetail): IssueDetailView {
     latest_round_id: null,
     pending_decision_count: 0,
     pending_planning: true,
-    repository_count: d.repositoryIds.length,
+    // 2026-09-20 建项不选仓：范围改由「选仓门」确认，门确认前 Go 详情可能不带
+    // repositoryIds（字段缺省）——不 `?? []` 的话这里直接 TypeError，整页白屏。
+    repository_count: (d.repositoryIds ?? []).length,
     team_count: 0,
     plan_version: "",
     operational_status: "active",
@@ -107,7 +109,7 @@ function goIssueDetailToView(d: GoIssueDetail): IssueDetailView {
     archived_at: null,
     source: d.source,
     rounds: [],
-    repositories: d.repositoryIds.map((id) => ({
+    repositories: (d.repositoryIds ?? []).map((id) => ({
       repository_id: id,
       // 详情只给 id；显示名由工作台用控制台仓库清单回填（WorkbenchPage）
       name: shortId(id),
