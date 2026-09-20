@@ -228,6 +228,26 @@ func persistRepository(ctx context.Context, tx pgx.Tx, repository access.Reposit
 	return nil
 }
 
+// persistRepositoryRow 把一行仓库登记进项目注册表，单独一个短事务。
+//
+// 只给「URL 形态的接入」用（2026-09-20）：那条路要先拿到 `repo_` id 才能走下面的
+// 观测与校验，而 id 必须先有注册表行。**只登记、不接入** —— 接入受观测与上限约束，
+// 留在原有路径上。失败时留下的只是一行目录记录，与扫描目录同性质，无害。
+func (s *Service) persistRepositoryRow(ctx context.Context, repository access.RepositoryLocator) error {
+	tx, err := s.beginWrite(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollback(tx)
+	if err := persistRepository(ctx, tx, repository); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return unavailable()
+	}
+	return nil
+}
+
 func addRepository(ctx context.Context, tx pgx.Tx, projectID, revision string, at time.Time, repository access.RepositoryLocator) error {
 	if _, err := tx.Exec(ctx, `INSERT INTO repomesh_projects.project_repositories(project_id,repository_id,joined_revision,joined_at)
 		VALUES($1,$2,$3,$4) ON CONFLICT(project_id,repository_id) DO NOTHING`, projectID, repository.ID, revision, at); err != nil {

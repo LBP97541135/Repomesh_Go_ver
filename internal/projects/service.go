@@ -225,6 +225,28 @@ func (s *Service) prepareUpdate(ctx context.Context, principal access.ProjectPri
 	if input.RepositoryIDsToAdd != nil {
 		requested = *input.RepositoryIDsToAdd
 	}
+	// URL 形态的接入（2026-09-20）：仓库页（扫描目录）只有 URL，给不出 `repo_` id。
+	// 这里把它换成 id —— 按 owner/name 去 GitHub 取数字 id、登记进项目注册表，
+	// 再拼进**同一份** requested：后面的参与权观测、校验、上限、幂等台账全都不变。
+	if input.RepositoryURLsToAdd != nil {
+		for _, raw := range *input.RepositoryURLsToAdd {
+			host, owner, name, parseErr := ParseRepositoryURL(raw)
+			if parseErr != nil {
+				return updatePlan{}, validation("repositoryUrlsToAdd")
+			}
+			locator, resolveErr := s.access.ResolveRepositoryByName(ctx, principal, host, owner, name)
+			if resolveErr != nil {
+				return updatePlan{}, resolveErr
+			}
+			// 登记用**单独一个短事务**，只登记、不接入：接入仍在下面那条路径上（受观测
+			// 与上限约束）。若后面失败，留下的只是一行"这个部署认识这个仓"的目录记录
+			// —— 扫描目录本来就是这个性质，无害。
+			if persistErr := s.persistRepositoryRow(ctx, locator); persistErr != nil {
+				return updatePlan{}, persistErr
+			}
+			requested = append(requested, locator.ID)
+		}
+	}
 	addIDs := repositoryAdditions(existing, requested)
 	if len(existing)+len(addIDs) > 100 {
 		return updatePlan{}, validation("repositoryIdsToAdd")

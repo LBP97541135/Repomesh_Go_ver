@@ -89,7 +89,7 @@ func parseUpdate(input RawInput, schemaVersion int) (UpdateInput, normalizedInpu
 	if schemaVersion != 1 || input.fields == nil {
 		return UpdateInput{}, normalizedInput{}, validation("")
 	}
-	if err := rejectUnknownFields(input.fields, []string{"expectedProjectRevision", "name", "purpose", "repositoryIdsToAdd", "configuration"}); err != nil {
+	if err := rejectUnknownFields(input.fields, []string{"expectedProjectRevision", "name", "purpose", "repositoryIdsToAdd", "repositoryUrlsToAdd", "configuration"}); err != nil {
 		return UpdateInput{}, normalizedInput{}, err
 	}
 	if len(input.fields) < 2 {
@@ -124,6 +124,13 @@ func parseUpdate(input RawInput, schemaVersion int) (UpdateInput, normalizedInpu
 			return UpdateInput{}, normalizedInput{}, validation("repositoryIdsToAdd")
 		}
 		result.RepositoryIDsToAdd = &value
+	}
+	if raw, ok := input.fields["repositoryUrlsToAdd"]; ok {
+		value, err := parseRepositoryURLs(raw)
+		if err != nil {
+			return UpdateInput{}, normalizedInput{}, validation("repositoryUrlsToAdd")
+		}
+		result.RepositoryURLsToAdd = &value
 	}
 	if raw, ok := input.fields["configuration"]; ok {
 		value, err := parseConfiguration(raw)
@@ -195,6 +202,38 @@ func parseRepositoryIDs(raw json.RawMessage, required bool) ([]string, error) {
 		}
 		seen[id] = true
 		result = append(result, id)
+	}
+	return result, nil
+}
+
+// parseRepositoryURLs 解析 `repositoryUrlsToAdd`：一串仓库 URL。
+//
+// 只做**形状**校验（github.com + owner/name），不在这里访问网络 ——「这个仓存不存在、
+// 你有没有权」由后面的参与权观测回答（ObserveProjectRepositoriesFresh），失败也在
+// 那个语义下报错，而不是在这里冒充一个 422。
+func parseRepositoryURLs(raw json.RawMessage) ([]string, error) {
+	var values []json.RawMessage
+	if len(raw) == 0 || json.Unmarshal(raw, &values) != nil || values == nil || len(values) == 0 || len(values) > 100 {
+		return nil, validation("repositoryUrlsToAdd")
+	}
+	result := make([]string, 0, len(values))
+	seen := make(map[string]bool, len(values))
+	for _, rawURL := range values {
+		text, err := parseOpaqueID(rawURL)
+		if err != nil {
+			return nil, validation("repositoryUrlsToAdd")
+		}
+		if _, _, _, err := ParseRepositoryURL(text); err != nil {
+			return nil, validation("repositoryUrlsToAdd")
+		}
+		if seen[text] {
+			continue
+		}
+		seen[text] = true
+		result = append(result, text)
+	}
+	if len(result) == 0 {
+		return nil, validation("repositoryUrlsToAdd")
 	}
 	return result, nil
 }

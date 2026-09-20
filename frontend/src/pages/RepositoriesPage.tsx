@@ -51,6 +51,7 @@ function RepositoryCardView({
   appStatus,
   inProject,
   attachBusy,
+  attachResult,
   onAttach,
   onManageTeam,
 }: {
@@ -59,7 +60,10 @@ function RepositoryCardView({
   /** 这个仓在不在**当前项目**里（`project_repositories`）。undefined = 读面还没到。 */
   inProject?: boolean;
   attachBusy?: boolean;
-  onAttach?: (repositoryId: string) => void;
+  /** 这一次接入的结果，**就地**显示在这张卡上（成功/失败都显示）。
+   *  此前只写页面顶部的横幅——人在下面卡片点、横幅在屏幕外，看到的就是"根本没反应"。 */
+  attachResult?: { ok: boolean; text: string } | null;
+  onAttach?: () => void;
   onManageTeam?: (repositoryId: string) => void;
 }) {
   return (
@@ -106,7 +110,7 @@ function RepositoryCardView({
           <button
             type="button"
             className="ml-auto flex flex-none items-center gap-1.5 rounded-hard border border-line px-2 py-[2px] text-[11px] text-tx2 hover:border-amber hover:text-amber-hi disabled:opacity-50"
-            onClick={() => onAttach(repo.id)}
+            onClick={() => onAttach()}
             disabled={attachBusy}
             title="把这个仓库接入当前项目——不接入的话，建 issue 时它不出现在可选仓库里"
           >
@@ -126,11 +130,26 @@ function RepositoryCardView({
           </button>
         )}
       </div>
+      {attachResult && (
+        <p className={`mt-1 text-[11px] ${attachResult.ok ? "text-olive" : "text-salmon"}`} role="status">
+          {attachResult.text}
+        </p>
+      )}
     </div>
   );
 }
 
 const COLLAPSED_KEY = "repomesh.repos.collapsedOrgs";
+
+/** 目录卡片的**全名**（`owner/name`）。
+ *
+ *  2026-09-20：目录读面只给 `name`（不含 owner）与 `url`；项目读面给的是
+ *  `displayName`（owner/name）。两边的 **id 是不同的空间**（目录 = 32 位随机 hex，
+ *  项目 = `repo_<GitHub 数字 id>`）——直接比 id 永远不相等，所以一律按全名对齐。 */
+function fullNameOf(repo: { name: string; url: string }): string {
+  const org = orgOf(repo.url);
+  return org ? `${org}/${repo.name}` : repo.name;
+}
 
 function readCollapsed(): string[] {
   try {
@@ -163,10 +182,15 @@ export function RepositoriesPage({
   const [addOpen, setAddOpen] = useState(false);
   const [presetOrgUrl, setPresetOrgUrl] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(readCollapsed()));
-  /** 仓库 id → App 工作授权状态（项目成员读面；目录读面不返回它）。 */
-  const [appStatusById, setAppStatusById] = useState<Record<string, string>>({});
-  /** 本项目已接入的仓库 id。null = 还没读到——此时不显示接入状态，也不拿它做判断。 */
-  const [attachedIds, setAttachedIds] = useState<Set<string> | null>(null);
+  /** 仓库 `owner/name` → App 工作授权状态（项目成员读面；目录读面不返回它）。
+   *  **按名字对齐，不按 id**：目录的 id 是 32 位随机 hex、项目的 id 是
+   *  `repo_<GitHub 数字 id>`，两个 id 空间，直接比永远不相等（此前就是这么错的，
+   *  于是「已接入」与「App 状态」两个徽标从来没显示过）。 */
+  const [appStatusByName, setAppStatusByName] = useState<Record<string, string>>({});
+  /** 本项目已接入的仓库 `owner/name`。null = 还没读到——不显示接入状态、也不拿它判断。 */
+  const [attachedNames, setAttachedNames] = useState<Set<string> | null>(null);
+  /** 手工接入的结果，就地显示在那张卡片上（不是只写页面顶部横幅）。 */
+  const [attachResult, setAttachResult] = useState<{ name: string; ok: boolean; text: string } | null>(null);
   const [attachBusy, setAttachBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   /** 建项目更新要的 `expectedProjectRevision`：与 attachedIds 同一次读面拿回。 */
@@ -174,40 +198,48 @@ export function RepositoriesPage({
   /** 上一次看到的目录 id 集合——用来认出「这次扫描新登记了哪些仓」。 */
   const knownIdsRef = useRef<Set<string> | null>(null);
   /** 已接入 / 正在接入的 id（ref，因为下面的自动接入跑在回调里，拿不到最新 state）。 */
-  const attachedIdsRef = useRef<Set<string>>(new Set());
+  const attachedNamesRef = useRef<Set<string>>(new Set());
   const inFlightRef = useRef<Set<string>>(new Set());
 
   const refresh = useCallback(() => setReload((n) => n + 1), []);
 
-  /** 把仓库接入本项目。**只加不移**——后端 `repositoryIdsToAdd` 就只支持加。 */
+  /** 把仓库接入本项目。**只加不移**——后端只支持加。
+   *
+   *  传的是 **URL 而不是 id**：接入接口要 `repo_<GitHub 数字 id>`，而目录页只有
+   *  `owner/name` 与 URL。后端按 URL 取数字 id、登记进项目注册表再接入。
+   *  （此前传目录 id，线上实测必得 422 —— 那是两个 id 空间。） */
   const attachRepos = useCallback(
-    async (ids: string[], source: "manual" | "scan") => {
+    async (targets: Array<{ url: string; name: string }>, source: "manual" | "scan") => {
       const revision = projectRevisionRef.current;
-      const fresh = ids.filter((id) => !attachedIdsRef.current.has(id) && !inFlightRef.current.has(id));
+      const fresh = targets.filter((t) => !attachedNamesRef.current.has(t.name) && !inFlightRef.current.has(t.name));
       if (fresh.length === 0) return;
       if (!revision) {
-        setNotice({ kind: "err", text: "项目版本还没取到——等列表刷出来再试一次" });
+        const text = "项目版本还没取到——等列表刷出来再试一次";
+        if (source === "manual") setAttachResult({ name: fresh[0].name, ok: false, text });
+        else setNotice({ kind: "err", text });
         return;
       }
-      fresh.forEach((id) => inFlightRef.current.add(id));
-      if (source === "manual") setAttachBusy(fresh[0]);
+      fresh.forEach((t) => inFlightRef.current.add(t.name));
+      if (source === "manual") setAttachBusy(fresh[0].name);
       setNotice(null);
       try {
         await updateProject(
           projectId,
-          { expectedProjectRevision: revision, repositoryIdsToAdd: fresh },
+          { expectedProjectRevision: revision, repositoryUrlsToAdd: fresh.map((t) => t.url) },
           crypto.randomUUID(),
         );
-        setNotice({
-          kind: "ok",
-          text: source === "scan" ? `已自动接入本次新登记的 ${fresh.length} 个仓库` : "已接入本项目",
-        });
+        const text = source === "scan" ? `已自动接入本次新登记的 ${fresh.length} 个仓库` : "已接入本项目";
+        if (source === "manual") setAttachResult({ name: fresh[0].name, ok: true, text });
+        else setNotice({ kind: "ok", text });
         setReload((n) => n + 1);
       } catch (err) {
-        // 失败就撤掉在途标记，好让人再点一次；已接入集合由列表刷新来纠正
-        setNotice({ kind: "err", text: `接入失败：${errText(err)}` });
+        // 失败就撤掉在途标记，好让人再点一次；已接入集合由列表刷新来纠正。
+        // **结果就地显示在那张卡上**——顶栏横幅在屏幕外，等于没反馈。
+        const text = `接入失败：${errText(err)}`;
+        if (source === "manual") setAttachResult({ name: fresh[0].name, ok: false, text });
+        else setNotice({ kind: "err", text });
       } finally {
-        fresh.forEach((id) => inFlightRef.current.delete(id));
+        fresh.forEach((t) => inFlightRef.current.delete(t.name));
         if (source === "manual") setAttachBusy(null);
       }
     },
@@ -228,7 +260,9 @@ export function RepositoriesPage({
         const known = knownIdsRef.current;
         knownIdsRef.current = ids;
         if (known) {
-          const registeredNow = rows.filter((r) => !known.has(r.id)).map((r) => r.id);
+          const registeredNow = rows
+            .filter((r) => !known.has(r.id))
+            .map((r) => ({ url: r.url, name: fullNameOf(r) }));
           if (registeredNow.length > 0) void attachRepos(registeredNow, "scan");
         }
       })
@@ -246,12 +280,15 @@ export function RepositoriesPage({
         const map: Record<string, string> = {};
         const attached = new Set<string>();
         for (const r of page.items) {
-          attached.add(r.id);
-          if (r.appCapability?.status) map[r.id] = r.appCapability.status;
+          // 项目读面给 `repo_<数字 id>` + `displayName`（owner/name）。**按名字对齐**：
+          // 目录的 id 是另一个空间，比 id 永远不相等。
+          const name = r.displayName ?? r.id;
+          attached.add(name);
+          if (r.appCapability?.status) map[name] = r.appCapability.status;
         }
-        setAppStatusById(map);
-        setAttachedIds(attached);
-        attachedIdsRef.current = attached;
+        setAppStatusByName(map);
+        setAttachedNames(attached);
+        attachedNamesRef.current = attached;
         projectRevisionRef.current = page.projectRevision;
       })
       .catch(() => {
@@ -335,7 +372,7 @@ export function RepositoriesPage({
           设置页由后端算好），点一下就能补上。没有缺口时组件自己返回 null。 */}
       <AppInstallGuide variant="inline" />
       {/* 项目一个仓都没接入时把话说死：建 issue 会直接 0 个可选，别让人自己去猜 */}
-      {attachedIds !== null && attachedIds.size === 0 && repos !== null && repos.length > 0 && (
+      {attachedNames !== null && attachedNames.size === 0 && repos !== null && repos.length > 0 && (
         <p className="mt-2 rounded-hard border border-amber/40 bg-amber-well px-3 py-2 text-[11.5px] text-amber">
           本项目还没有接入任何仓库——建 issue 时会一个都选不出来。在下面任意一张卡片上点「接入本项目」。
         </p>
@@ -397,10 +434,11 @@ export function RepositoriesPage({
                       <RepositoryCardView
                         key={repo.id}
                         repo={repo}
-                        appStatus={appStatusById[repo.id]}
-                        inProject={attachedIds === null ? undefined : attachedIds.has(repo.id)}
-                        attachBusy={attachBusy === repo.id}
-                        onAttach={(id) => void attachRepos([id], "manual")}
+                        appStatus={appStatusByName[fullNameOf(repo)]}
+                        inProject={attachedNames === null ? undefined : attachedNames.has(fullNameOf(repo))}
+                        attachBusy={attachBusy === fullNameOf(repo)}
+                        attachResult={attachResult?.name === fullNameOf(repo) ? attachResult : null}
+                        onAttach={() => void attachRepos([{ url: repo.url, name: fullNameOf(repo) }], "manual")}
                         onManageTeam={isAdmin ? onManageTeam : undefined}
                       />
                     ))}

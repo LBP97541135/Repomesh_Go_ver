@@ -49,6 +49,14 @@ type UpdateInput struct {
 	Name                    *string              `json:"name,omitempty"`
 	Purpose                 *string              `json:"purpose,omitempty"`
 	RepositoryIDsToAdd      *[]string            `json:"repositoryIdsToAdd,omitempty"`
+	// RepositoryURLsToAdd 用**仓库 URL** 指名要接入的仓（2026-09-20）。
+	//
+	// repositoryIdsToAdd 只吃 `repo_<20 位 GitHub 数字 id>`，而那个 id 只有**发现面**
+	// 给得出来；仓库页列的是**扫描目录**，id 是 32 位随机 hex —— 线上实测：用户点
+	// 「接入本项目」四次，后端四次 422 VALIDATION_FAILED。扫描目录本来就有全 URL，
+	// 所以让它直接报 URL：后端按 owner/name 去 GitHub 取数字 id、登记进项目注册表、
+	// 再走**同一条**更新路径（revision、幂等台账、参与权观测、上限保护全都复用）。
+	RepositoryURLsToAdd     *[]string            `json:"repositoryUrlsToAdd,omitempty"`
 	Configuration           *ConfigurationChoice `json:"configuration,omitempty"`
 }
 
