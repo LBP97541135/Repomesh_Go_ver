@@ -8,7 +8,12 @@ import type { FocusEntry } from "./treeModel";
 import { IconBolt, IconUser } from "./treeIcons";
 import type { DagExecutionView } from "../../types";
 import type { DiscoveryView, IssueDetailView, TaskDisplayStatus } from "../../api/contract";
-import { parseRequirementDocument, resolveProjectId, type CreateIssueRequest } from "../../api/issues";
+import {
+  composeRequirementText,
+  parseRequirementDocument,
+  resolveProjectId,
+  type CreateIssueRequest,
+} from "../../api/issues";
 import { fetchIssueDetail } from "../../api/rooms";
 import { listConversationMessages, submitMessage, type ConversationMessage } from "../../api/conversations";
 import { listPlanTasks, type PlanTaskItem } from "../../api/taskTree";
@@ -64,12 +69,8 @@ const STEP_KEY_BY_STEP = {
 } as const;
 
 /** 需求文本里「用户手打的话」与「附件文档解析全文」的分界（U+2063 不可见分隔符）。
- *  契约里文档解析文本只能随 requirement_text 交给规划，但不进聊天气泡——
- *  用户没打字就一个字都不替他展示。 */
-const DOC_SENTINEL = "\u2063";
-function composeRequirementText(typed: string, documentText: string): string {
-  return typed ? `${typed}\n\n${DOC_SENTINEL}\n${documentText}` : `${DOC_SENTINEL}\n${documentText}`;
-}
+ *  定义已上移到 `../../api/issues`（它是需求文本这个线上字段的形状，读写两侧
+ *  必须同一份）——这里只留这条指向。 */
 
 /** 当前焦点的会话 id：MGR/步骤 → 主会话；任务 → 该任务协作房间；测试组 → 无。
  *
@@ -1266,6 +1267,7 @@ export function WorkbenchPage({
             <FocusPanel
               entry={activeEntry}
               discovery={discovery}
+              requirementText={detail.requirement_text ?? discovery?.requirement_text ?? ""}
               testEvidence={testEvidence}
               tasks={tasks}
               trainCars={trainCars}

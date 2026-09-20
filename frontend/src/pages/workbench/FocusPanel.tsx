@@ -20,6 +20,7 @@ import { STEP_LABELS, type FocusEntry, type StepState } from "./treeModel";
 import type { TestEvidenceItem, TestEvidenceView } from "../../api/testEvidence";
 import type { TrainCarSpec } from "./PrTrainCard";
 import type { InterruptOutcomeView } from "../../api/plans";
+import { documentTitleOf, splitRequirement } from "../../api/issues";
 import { SupervisionPolicyCard, type PolicyDraftState } from "../../components/SupervisionPolicyCard";
 
 /** 消息作者 → 角色显示。先看 authorKind（user 是人），服务侧 agent 再按
@@ -561,6 +562,10 @@ function StageHistory({
 export interface FocusPanelProps {
   entry: FocusEntry | null;
   discovery: DiscoveryView | null;
+  /** 需求正文（issue 的 description，缺失时回退发现链的 requirement_text）。
+   *  Manager 房间的开场消息用它——它描述的是"人提交了什么"，建项那一刻就有，
+   *  所以**不能**挂在 `discovery.analysis` 上（那是分析跑完才有的东西）。 */
+  requirementText: string;
   stepStates: StepState[];
   task: PlanTaskItem | null;
   /** 当前 entry 的会话消息（MGR=主会话 / 任务=该任务房间）；null=加载中或不可用 */
@@ -621,6 +626,7 @@ export interface FocusPanelProps {
 export function FocusPanel({
   entry,
   discovery,
+  requirementText,
   stepStates,
   task,
   messages,
@@ -717,9 +723,12 @@ export function FocusPanel({
     }
     // MGR：主会话完整时间线（回看入口）+ 待人审计项就地成为消息
     return (
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        {/* 开场两句话排在最前（2026-09-20）：人上传/发送需求这件事发生在建项那一刻，
+            不依赖分析有没有开始，所以它必须在时间线之前、且与链路状态无关。 */}
+        <RequirementOpening requirement={requirementText} />
         {messages === null ? (
-          <div className="flex flex-1 items-center justify-center text-[11px] text-[var(--tree-faint)]">主会话加载中…</div>
+          <div className="flex flex-1 items-center justify-center py-6 text-[11px] text-[var(--tree-faint)]">主会话加载中…</div>
         ) : (
           <MessageTimeline messages={messages} />
         )}
@@ -869,6 +878,80 @@ function RoomAvatar({ member }: { member: RoomMember }) {
 /** 待人审计项:就地成为 Manager 房间里的带按钮消息(「需要人的地方成为消息」
  *  惯例)。分档审批 / 物化确认 / 合并确认,与树上步骤卡共用同一套写回路。 */
 
+/** 房间里的一条消息（发言人行）：M=Manager / 你=用户。
+ *  StepStream 与开场消息共用同一套——同一间房里的消息不该长两种样子。 */
+function ChatRow({ who, children }: { who: "user" | "mgr"; children: ReactNode }) {
+  return (
+    <div className="flex gap-2.5">
+      {who === "mgr" ? (
+        <span className="mt-0.5 grid h-[22px] w-[22px] flex-none place-items-center rounded-full bg-[var(--tree-acc)] text-[8.5px] font-bold text-white">M</span>
+      ) : (
+        <span className="mt-0.5 grid h-[22px] w-[22px] flex-none place-items-center rounded-full bg-[var(--tree-zone)] text-[8.5px] font-bold text-[var(--tree-sub)]">你</span>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="mb-0.5 flex items-center gap-1.5">
+          <span className="text-[11px] font-semibold text-[var(--tree-ink)]">{who === "mgr" ? "Manager" : "你"}</span>
+          <span className="rounded-[5px] bg-[var(--tree-acc)]/12 px-1.5 py-px text-[9.5px] text-[var(--tree-acc)]">{who === "mgr" ? "Manager" : "用户"}</span>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ChatCard({ children }: { children: ReactNode }) {
+  return (
+    <div className="rounded-lg border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2 text-[11.5px] leading-[1.65] text-[var(--tree-ink)]">{children}</div>
+  );
+}
+
+/** 房间的开场两句话：「你上传了需求文档」→「收到，开始分析需求…」。
+ *
+ *  2026-09-20 修两个叠在一起的问题（用户实测：点进 Manager 房间，流里没有
+ *  "我上传需求文档"这一条）：
+ *
+ *  1. **挂错了数据源**。此前这两条长在 `StepStream` 里、读的是
+ *     `discovery.analysis.analyzed_requirement`——那是**分析跑完之后**才有的东西。
+ *     而"我上传了需求文档"这件事发生在**建项那一刻**，早于任何分析：刚建完还没跑
+ *     分析时 `issue_discoveries` 连行都还没有（discovery 为 null），`StepStream`
+ *     第一行的 `if (!discovery ...) return null` 就把整段开场吞掉了；跑完分析之后
+ *     读到的又变成"模型改写后的一行摘要"，而不是用户真正提交的东西。
+ *     现在它自己成一块、由需求正文驱动，**与链路状态无关**——人说过的话不依赖
+ *     机器有没有开始干活。
+ *
+ *  2. **位置不在最前**。此前它排在 `MessageTimeline` **之后**，所以就算渲染出来也
+ *     不是房间里的第一句。现在由 Manager 房间体摆在时间线**之前**。
+ *
+ *  文档正文本身不往气泡里倒（契约：用户没打字就一个字都不替他展示），只报
+ *  「上传了需求文档」+ 文档自己的标题。 */
+function RequirementOpening({ requirement }: { requirement: string }) {
+  const { typed, document } = splitRequirement(requirement);
+  if (typed === "" && document === "") return null;
+  const docTitle = document ? documentTitleOf(document) : null;
+  return (
+    <div className="flex flex-col gap-3 px-4 pt-3 pb-1">
+      <ChatRow who="user">
+        <ChatCard>
+          <span className="whitespace-pre-wrap break-words font-semibold">
+            {typed !== "" ? typed : "上传了需求文档"}
+          </span>
+          {document !== "" && (
+            <p className="mt-1 break-words text-[11px] text-[var(--tree-sub)]">
+              {typed !== "" ? "并上传了文档：" : "文档："}
+              {docTitle ?? "未命名文档"}
+            </p>
+          )}
+        </ChatCard>
+      </ChatRow>
+      <ChatRow who="mgr">
+        <ChatCard>
+          <span className="font-semibold">收到，开始分析需求…</span>
+        </ChatCard>
+      </ChatRow>
+    </div>
+  );
+}
+
 /** 规划步骤流(2026-09-18):①-⑤ 全部消息化进 Manager 主房间。
  *  数据从发现链读面推导——真实链路每进一步,轮询刷新即流入新「消息」;
  *  人工门(③⑤)的消息带按钮,就地成为可操作的对话。 */
@@ -885,33 +968,15 @@ function StepStream({
 }) {
   if (!discovery || stepStates[0] === "wait") return null;
   const msgRow = (node: ReactNode, key: string, who: "user" | "mgr" = "mgr") => (
-    <div key={key} className="flex gap-2.5">
-      {who === "mgr" ? (
-        <span className="mt-0.5 grid h-[22px] w-[22px] flex-none place-items-center rounded-full bg-[var(--tree-acc)] text-[8.5px] font-bold text-white">M</span>
-      ) : (
-        <span className="mt-0.5 grid h-[22px] w-[22px] flex-none place-items-center rounded-full bg-[var(--tree-zone)] text-[8.5px] font-bold text-[var(--tree-sub)]">你</span>
-      )}
-      <div className="min-w-0 flex-1">
-        <div className="mb-0.5 flex items-center gap-1.5">
-          <span className="text-[11px] font-semibold text-[var(--tree-ink)]">{who === "mgr" ? "Manager" : "你"}</span>
-          <span className="rounded-[5px] bg-[var(--tree-acc)]/12 px-1.5 py-px text-[9.5px] text-[var(--tree-acc)]">{who === "mgr" ? "Manager" : "用户"}</span>
-        </div>
-        {node}
-      </div>
-    </div>
+    <ChatRow key={key} who={who}>
+      {node}
+    </ChatRow>
   );
-  const card = (children: ReactNode) => (
-    <div className="rounded-lg border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2 text-[11.5px] leading-[1.65] text-[var(--tree-ink)]">{children}</div>
-  );
+  const card = (children: ReactNode) => <ChatCard>{children}</ChatCard>;
   const flow: ReactNode[] = [];
-  // 开场双消息：用户发送了需求 → Manager 开始分析（2026-09-18 用户裁定）
-  const requirementText = discovery.analysis?.analyzed_requirement ?? "";
-  flow.push(msgRow(card(<>
-    <span className="font-semibold">{requirementText.includes("\n") || requirementText.length > 80 ? "发送了需求文档" : requirementText.trim() || "发送了需求"}</span>
-  </>), "m0", "user"));
-  flow.push(msgRow(card(<>
-    <span className="font-semibold">收到，开始分析需求…</span>
-  </>), "m1"));
+  // 开场两句话（「你上传了需求文档」→「收到，开始分析需求…」）已经挪到
+  // RequirementOpening：由需求正文驱动、与链路状态无关，而且排在时间线之前。
+  // 这里只留"链路开始干活之后"的消息——不在这里再报一遍用户说过的话。
   // ① 需求分析
   const a = discovery.analysis;
   if (a) {

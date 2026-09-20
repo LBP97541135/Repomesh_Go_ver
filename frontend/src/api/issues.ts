@@ -8,10 +8,59 @@ import { defaultClient } from "./client";
 import { createIssueCreation } from "./projectIssues";
 import { readActiveProject } from "./activeProject";
 
-/** 标题 = 需求首个非空行,截 200(契约 §3 title 上限)。 */
+/** 需求正文里「用户手打的话」与「附件文档解析全文」的分界（U+2063 不可见分隔符）。
+ *  契约里文档解析文本只能随 requirement_text 交给规划，但不进聊天气泡——
+ *  用户没打字就一个字都不替他展示。
+ *
+ *  2026-09-20 从 WorkbenchPage 移到 API 层：它描述的是**需求文本这个线上字段的
+ *  形状**，读的一方（开场消息、建项标题）和写的一方（composeRequirementText）
+ *  都该拿到同一份定义，不然就是各猜各的。 */
+export const DOC_SENTINEL = "\u2063";
+
+export function composeRequirementText(typed: string, documentText: string): string {
+  return typed ? `${typed}\n\n${DOC_SENTINEL}\n${documentText}` : `${DOC_SENTINEL}\n${documentText}`;
+}
+
+/** 把需求正文拆回两半。没有分隔符 = 全是手打的话（老数据、纯打字提交都走这条）。 */
+export function splitRequirement(raw: string): { typed: string; document: string } {
+  const at = raw.indexOf(DOC_SENTINEL);
+  if (at < 0) return { typed: raw.trim(), document: "" };
+  return {
+    typed: raw.slice(0, at).replace(/\u2063/g, "").trim(),
+    document: raw.slice(at + DOC_SENTINEL.length).replace(/\u2063/g, "").trim(),
+  };
+}
+
+/** 文档正文里第一条 markdown 标题（去掉 `#`）。取不到就 null——不编一个标题。 */
+export function documentTitleOf(document: string): string | null {
+  const heading = document
+    .split("\n")
+    .map((l) => l.trim())
+    .find((l) => /^#{1,6}\s+\S/.test(l));
+  const value = heading?.replace(/^#{1,6}\s+/, "").trim();
+  return value ? value.slice(0, 200) : null;
+}
+
+/** 建项标题。
+ *
+ *  2026-09-20 修：此前直接取「第一个非空行」，而附件场景下需求正文是
+ *  `\u2063\n{doc}`——第一行只有一个不可见分隔符，且 **U+2063 不是空白字符，
+ *  `trim()` 去不掉它**，于是整条 issue 的标题变成一个看不见的字符，列表里看着
+ *  就是空标题（线上两条新 issue 的 title 实测就是 `\u2063`）。
+ *  现在按「文档自己的标题 → 用户手打的第一行 → 文档第一行 → 兜底词」取，
+ *  并显式剔除分隔符。 */
 function firstLine(text: string): string {
-  const line = text.split("\n").find((l) => l.trim().length > 0);
-  return (line ?? "需求").trim().slice(0, 200);
+  const { typed, document } = splitRequirement(text);
+  const candidates = [
+    documentTitleOf(document),
+    typed.split("\n").find((l) => l.trim().length > 0),
+    document.split("\n").find((l) => l.trim().length > 0),
+  ];
+  for (const candidate of candidates) {
+    const value = (candidate ?? "").replace(/\u2063/g, "").trim();
+    if (value.length > 0) return value.slice(0, 200);
+  }
+  return "需求";
 }
 import { resolveDataSourceMode, type DataSourceMode } from "./source";
 import { issuesFixture } from "../data/issues";
