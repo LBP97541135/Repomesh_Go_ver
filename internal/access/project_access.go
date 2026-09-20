@@ -32,6 +32,15 @@ const (
 	// participationProbeConcurrency 是单次全量探测的最大并发。
 	// 8 路够把 49 仓从十几秒压到约 2s,又不至于把 GitHub 打限流。
 	participationProbeConcurrency = 8
+	// repositoryProbeTimeout 是**单次**探测（参与权 / App 覆盖）自己的上限。
+	//
+	// 整份 options 的预算按「波数 × 每波耗时」估，只要有**一个**仓的连接挂住
+	// 不返回，它就占着信号量不放，后面几波全排不上，最后整体
+	// `context deadline exceeded`（线上 503 的形态之一，见
+	// internal/web/projects.go 的 projectFanOutTimeout 注释）。
+	// 封顶之后：慢的那一个仓如实记 unknown，其余照常推进，界面上是"这一个仓
+	// 暂时不可选"而不是"整页 503"。8s 远大于 GitHub 的正常响应（实测 0.15~0.6s）。
+	repositoryProbeTimeout = 8 * time.Second
 )
 
 type ProjectPrincipal struct {
@@ -292,7 +301,13 @@ func (s *Service) observeProjectRepositories(ctx context.Context, principal Proj
 				sem <- struct{}{}
 				defer func() { <-sem }()
 				entry := observations[index]
-				app, appErr := s.provider.AppCapability(ctx, entry.Locator.Owner, entry.Locator.Name)
+				// 单次探测自带超时：整份预算按"波数×每波耗时"算，只要有一个仓
+				// 的连接挂住不返回，它就会一直占着信号量，把后面几波全堵死，
+				// 最后整体 `context deadline exceeded`（线上 503 的形态之一）。
+				// 给每次调用封顶，慢的那一个仓如实记 unknown，其余照常推进。
+				probeCtx, probeCancel := context.WithTimeout(ctx, repositoryProbeTimeout)
+				app, appErr := s.provider.AppCapability(probeCtx, entry.Locator.Owner, entry.Locator.Name)
+				probeCancel()
 				if appErr != nil {
 					app = github.Capability{Status: "unknown", ReasonCodes: []string{"APP_AUTHORIZATION_UNCONFIRMED"}}
 				}
@@ -315,7 +330,10 @@ func (s *Service) observeProjectRepositories(ctx context.Context, principal Proj
 // 之前拦下。
 func (s *Service) probeRepository(ctx context.Context, principal ProjectPrincipal, credential credential, locator RepositoryLocator) RepositoryObservation {
 	observation := RepositoryObservation{Locator: locator, ParticipationStatus: "unknown", ParticipationReasons: []string{"AUTHORIZATION_UNCONFIRMED"}}
-	repository, repositoryErr := s.provider.Repository(ctx, credential.token, locator.Owner, locator.Name)
+	// 同 App 覆盖探测：单次封顶，别让一个慢仓把整波堵死（见 repositoryProbeTimeout）。
+	probeCtx, probeCancel := context.WithTimeout(ctx, repositoryProbeTimeout)
+	repository, repositoryErr := s.provider.Repository(probeCtx, credential.token, locator.Owner, locator.Name)
+	probeCancel()
 	observed := time.Now().UTC()
 	if repositoryErr != nil {
 		log.Printf("access: participation probe failed actor=%s repo=%s/%s err=%v", principal.ActorID(), locator.Owner, locator.Name, repositoryErr)

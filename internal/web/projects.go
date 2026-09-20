@@ -186,6 +186,25 @@ func registerProjects(mux *http.ServeMux, auth Auth, projectAPI Projects) {
 }
 
 func registerProjectRoute(mux *http.ServeMux, pattern string, auth Auth, handler projectHandler) {
+	registerProjectRouteWithTimeout(mux, pattern, auth, projectRouteTimeout, handler)
+}
+
+// projectRouteTimeout 是**普通**项目路由的请求预算。
+const projectRouteTimeout = 15 * time.Second
+
+// projectFanOutTimeout 是「一个请求要打 N 次 GitHub」那类读路由的预算。
+//
+// 2026-09-20 线上实测：`GET /projects/{id}/issue-creation-options` 返回
+// `503 RESULT_UNCONFIRMED`，日志里对得上的一条是
+// `err=issues: RESULT_UNCONFIRMED: context deadline exceeded`（17:15:47）。
+// 原因是这条路由按 15s 封顶，而它要为**每个仓库**现探一次 App 覆盖
+// （`ObserveProjectRepositories` 的 appOnly 分支，并发上限 8）：
+// 目录 48 仓就是 6 波，任何一波慢一点就整体超时，界面显示"服务端暂时不可用"，
+// 而事实是它只是还没探完。仓库越多越必现，属于**结构性的预算不够**，
+// 不是偶发抖动 —— 所以按路由给预算，别用一把尺子量所有端点。
+const projectFanOutTimeout = 60 * time.Second
+
+func registerProjectRouteWithTimeout(mux *http.ServeMux, pattern string, auth Auth, timeout time.Duration, handler projectHandler) {
 	mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Referrer-Policy", "no-referrer")
@@ -198,7 +217,7 @@ func registerProjectRoute(mux *http.ServeMux, pattern string, auth Auth, handler
 			writeProjectError(w, &access.Failure{Status: 403, Code: "ORIGIN_REJECTED"})
 			return
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), timeout)
 		defer cancel()
 		principal, err := auth.Service.AuthenticateProjectRequest(ctx, cookie(r, sessionCookie), r.Header.Get("X-CSRF-Token"), write)
 		if err != nil {

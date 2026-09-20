@@ -43,7 +43,9 @@ func registerIssues(mux *http.ServeMux, auth Auth, issueAPI Issues) {
 	registerProjectRoute(mux, "GET /api/projects/{projectId}/issue-creations/{creationId}", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {
 		return getIssueCreation(w, r, issueAPI.Service, claims)
 	})
-	registerProjectRoute(mux, "GET /api/projects/{projectId}/issue-creation-options", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {
+	// 这条读路由要为**每个仓库**现探一次 App 覆盖（见 ObserveProjectRepositories），
+	// 是唯一按仓库数线性扇出的读端点，所以给它自己的预算（projectFanOutTimeout）。
+	registerProjectRouteWithTimeout(mux, "GET /api/projects/{projectId}/issue-creation-options", auth, projectFanOutTimeout, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {
 		return issueOptions(w, r, issueAPI.Service, claims)
 	})
 	registerProjectRoute(mux, "GET /api/projects/{projectId}/issue-conversations", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {
