@@ -27,6 +27,12 @@ const (
 	// （接入钩子之后还有 2 分钟一次的兜底收敛）—— 语义仍然是"接入即建队"，只是排队
 	// 建，不给控制面制造尖峰。
 	maxTeamsPerEnsure = 5
+	// maxTeamsPerSweep 是兜底扫掠**一次**的上限：比接入钩子更保守。
+	//
+	// 接入钩子是用户刚刚做的动作（一个项目通常 1-3 个仓，立刻建完最好）；扫掠面对的是
+	// 历史积压（线上实测 55 个已接入仓库），一次只建 1 支，慢慢收敛 —— 2026-09-20
+	// 实测一次建 5 支就把这台机器压到 load 100+。
+	maxTeamsPerSweep = 1
 )
 
 var (
@@ -303,7 +309,7 @@ func (s *Service) EnsureAll(ctx context.Context, workerCount int) ([]string, err
 	created := []string{}
 	var firstErr error
 	for _, projectID := range projects {
-		if len(created) >= maxTeamsPerEnsure {
+		if len(created) >= maxTeamsPerSweep {
 			// 一次扫掠也有总量上限：收敛可以慢，但不能给控制面制造尖峰。
 			break
 		}

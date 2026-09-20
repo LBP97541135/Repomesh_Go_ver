@@ -536,7 +536,14 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	// 仓库作用域的团队管理（2026-09-20 并入）：只有拿到库池才建服务；
 	// 服务缺席时路由如实回 503 service_not_configured，不假装能用。
 	agentTeamsAPI := web.AgentTeams{Client: atClient}
-	if pipelinePool != nil {
+	// 2026-09-20 线上事故：自动建队把 embedded AgentTeams 灌爆了 —— 42 支队 / 124 个
+	// worker 挤在一台机器上，load 冲到 100+，连登录都被拖死（用户当场反馈"登录不上去"）。
+	// 远端队伍是**真资源**（每个 worker 一个 runtime），而"接入即建队"面对的是几十个
+	// 历史仓库；创建失败时远端可能已经建好、本地没落库，于是重试不断堆出孤儿队。
+	//
+	// 因此给它一个**总开关**，并且默认关掉：REPOMESH_REPOSITORY_TEAM_AUTOCREATE=on
+	// 才开。要用的人自己开，开了之后也要盯着控制面的容量。
+	if pipelinePool != nil && autoCreateRepositoryTeams() {
 		agentTeamsAPI.RepositoryTeams = repositoryteams.New(pipelinePool, atClient)
 		// 仓库接入即建队（2026-09-20 用户裁定）：项目新建/更新成功之后，异步给这个
 		// 项目里**还没有团队**的仓库各建一支（幂等，已建过的跳过）。失败不回滚项目
@@ -554,7 +561,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		// 兜底收敛：本次改动之前接入的仓库、以及上一轮因 AT 控制面不可用而没建成的
 		// 仓库，靠这条低频循环补上。服务重启后它同样会跑（幂等）。
 		go func() {
-			// 第一次扫掠只等 20 秒，之后每 2 分钟一次。
+			// 第一次扫掠只等 20 秒，之后每 5 分钟一次（每次最多 1 支，见 maxTeamsPerSweep）。
 			//
 			// 2026-09-20 线上实测：原先第一句就是 time.Sleep(2*time.Minute)，而部署
 			// 很频繁 —— 每次重启都把计时器清零，这条循环在反复部署期间一次都没跑到
@@ -573,7 +580,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 				} else if len(created) > 0 {
 					slog.Info("repository teams created by sweep", "count", len(created))
 				}
-				timer.Reset(2 * time.Minute)
+				timer.Reset(5 * time.Minute)
 			}
 		}()
 	}
@@ -586,16 +593,36 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 // repositoryTeamWorkerCount 是"仓库接入时自动建队"给每支队伍配几名执行者。
 //
-// 默认 2：一个仓库的串行交付用不满更多，而 AgentTeams 的 worker 是稀缺资源（控制面
-// 里每个 worker 都是一个真实 runtime）。可用 REPOMESH_REPOSITORY_TEAM_WORKERS 覆盖；
-// 越界或非数字一律退回默认，不拿一个坏值去建队。
+// autoCreateRepositoryTeams 是"仓库接入即自动建队"的**总开关**，默认关。
+//
+// 2026-09-20 线上事故：这个功能把 embedded AgentTeams 灌爆了 —— 42 支队 / 124 个
+// worker 挤在一台机器上，load 冲到 100+，用户当场反馈"登录不上去"。远端队伍是真资源
+// （每个 worker 一个 runtime），而创建失败时远端可能已经建好、本地没落库，重试会不断
+// 堆出孤儿队。所以在"接入即建队"的语义真正做完（按用量惰性建、带容量护栏）之前，
+// 默认关；要开就显式 REPOMESH_REPOSITORY_TEAM_AUTOCREATE=on，并盯着控制面容量。
+func autoCreateRepositoryTeams() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("REPOMESH_REPOSITORY_TEAM_AUTOCREATE"))) {
+	case "on", "true", "1", "yes":
+		return true
+	default:
+		return false
+	}
+}
+
+//
+// 默认 **1**（2026-09-20 线上实测后从 2 降下来）：AgentTeams 的每个 worker 都是一个
+// 真实 runtime（embedded kube 里的一个 pod），而"接入即建队"面对的是几十个仓库 ——
+// 每队 2 名 worker 时，9 支队伍就把这台机器压到 load 100+（实测 kube-apiserver /
+// minio / 一堆 qwenpaw worker 一起抢 CPU），部署与验收全部开始超时。
+// 一个仓库的**串行**交付本来也用不满第二名 worker；需要并行的项目用
+// REPOMESH_REPOSITORY_TEAM_WORKERS 显式调大即可（越界或非数字一律退回默认）。
 func repositoryTeamWorkerCount() int {
 	if raw := strings.TrimSpace(os.Getenv("REPOMESH_REPOSITORY_TEAM_WORKERS")); raw != "" {
 		if n, err := strconv.Atoi(raw); err == nil && n >= 1 && n <= 20 {
 			return n
 		}
 	}
-	return 2
+	return 1
 }
 
 // branchProvider 选数据库分支验证的 provider（评委①）：

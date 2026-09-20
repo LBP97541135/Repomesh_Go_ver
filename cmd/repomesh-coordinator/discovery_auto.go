@@ -119,6 +119,19 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 		slog.Info("autohost: approving tiers", "issue", p.issueID)
 		_, err = a.service.Approval(ctx, p.issueID, autohostAgent, idem+":approval",
 			"approved", "自动托管：分档审批自动通过", nil, p.evidenceVersion)
+		// 「一个仓库都没纳入」有一种可自愈的情形：评分时仓库池还是空的（需求没点名仓库
+		// 且当时的口径只取已确认范围），候选因此为空，分档随之全排除。池子口径已经修好，
+		// 这里把这种**空候选**打回 ② 重做一次（幂等键保证只重开一次；真评过的候选、
+		// 或项目里确实没有仓库的，都不动）。
+		if errors.Is(err, discovery.ErrNoRepositories) {
+			reopened, reopenErr := a.service.ReopenEmptyCandidates(ctx, p.issueID, autohostAgent, idem+":reopen-candidates")
+			if reopenErr != nil {
+				slog.Warn("autohost: reopen empty candidates failed", "issue", p.issueID, "reason", reopenErr.Error())
+			} else if reopened {
+				slog.Info("autohost: reopened empty candidates", "issue", p.issueID)
+				return true
+			}
+		}
 		return done(err)
 	case !p.hasPlan:
 		// 2026-09-20：④ 生成计划交给 Repository Leader agent（任务 DAG 由它拆）。
