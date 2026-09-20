@@ -13,9 +13,6 @@ import type { PlanTaskItem } from "../../api/taskTree";
 import type { TestEvidenceView } from "../../api/testEvidence";
 import { STEP_LABELS, deriveStepStates, type FocusEntry, type StepState } from "./treeModel";
 import { IconChevron, IconClock, IconFlask, IconRun, IconCheck, IconUser } from "./treeIcons";
-import { ErrorBoundary } from "../../components/ErrorBoundary";
-import { PlanDagPanel, type PlanDagState } from "../../components/PlanDagPanel";
-import type { DagExecutionView } from "../../types";
 
 export type { FocusEntry, StepState };
 
@@ -76,10 +73,6 @@ export function DispatchTree({
   onOpen,
   testEvidence,
   hitl = false,
-  planState,
-  dagExecution,
-  onRetryPlan,
-  steps,
 }: {
   title: string;
   discovery: DiscoveryView | null;
@@ -96,15 +89,9 @@ export function DispatchTree({
    *  推导 —— 人工参与模式下右栏明明写着「待人审」，左栏却显示"未开始"，两边
    *  对不上。模式是服务端事实，两边必须同源。 */
   hitl?: boolean;
-  /** 计划 DAG 的状态与执行态着色 —— 图直接摆在本树里「Manager · 主脑」**上面**
-   *  （2026-09-20 用户裁定："把 dag 放在主脑上面"）。
-   *  此前它只藏在一枚顶栏胶囊里，要看必须点开，于是"实时了解进度"等于不存在。 */
-  planState: PlanDagState;
-  dagExecution: DagExecutionView | null;
-  onRetryPlan: () => void;
-  /** 规划五步链条（name+state）。步骤态的唯一推导在 workbench/treeModel，
-   *  这里只透传给图 —— 本组件不重算。 */
-  steps?: Array<{ label: string; state: string }>;
+  /* 2026-09-20 用户最终裁定：DAG 按 9.16 原型做、放顶栏胶囊里（本树不再内联
+     DAG——先前内联的仓库批次图与胶囊里的原型任务图重复，且 5s 整块刷新会闪）。
+     planState / dagExecution / onRetryPlan / steps 四个 props 一并退役。 */
 }) {
   const [openLeader, setOpenLeader] = useState<string | null>(null);
   const stepStates = deriveStepStates(discovery, hitl);
@@ -164,32 +151,6 @@ export function DispatchTree({
             规划中 <b className="font-semibold text-[var(--tree-ink)]">{doneSteps}/5</b>
           </span>
         )}
-      </div>
-
-      {/* 计划 DAG —— 就摆在「Manager · 主脑」**上面**。
-          2026-09-20 用户裁定原话："把 dag 放在主脑上面"。此前它只藏在一枚顶栏胶囊里，
-          要看必须点开，于是"任务开始之后实时了解进度"这件事等于不存在。
-          内联在这里之后：图跟着左树一起滚、跟着状态一起刷新（planState 5s 静默刷新、
-          execution 由任务树推导），不需要人做任何动作。
-          整块包在区块级 ErrorBoundary 里：图渲染失败只塌这一块，树照常用。 */}
-      <div className="mb-3 rounded-[9px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2">
-        <div className="mb-1.5 flex items-center gap-2">
-          <span className="microlabel">计划 DAG</span>
-          {planState.status === "ready" && (
-            <span className="text-[10px] text-[var(--tree-faint)]">
-              v{planState.plan.plan_version} · {planState.plan.dag.nodes.length} 节点 ·{" "}
-              {planState.plan.execution_batches.length} 批次
-            </span>
-          )}
-        </div>
-        <ErrorBoundary block="计划 DAG" resetKey={title}>
-          <PlanDagPanel
-            state={planState}
-            execution={dagExecution}
-            onRetry={onRetryPlan}
-            steps={steps}
-          />
-        </ErrorBoundary>
       </div>
 
       {/* Manager 组：常驻一生。2026-09-18 微态：整卡 hover 轻抬底色（不做放大/重阴影） */}
