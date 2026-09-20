@@ -14,11 +14,33 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"repomesh.local/repomesh/internal/access"
 	"repomesh.local/repomesh/internal/buildinfo"
 )
+
+// shutdownSignal 在进程收到退出信号（serve 的 ctx 结束）时被关闭，供**长连接
+// handler** 监听 —— 关闭后它们应尽快返回。
+//
+// 为什么需要它：`http.Server.Shutdown` **不会取消在途请求的 context**，它等请求
+// 自己结束；而 SSE（/api/issues/events）是**永不结束**的流（设计如此：靠客户端
+// 断开才退）。于是每次 `systemctl restart` 都要耗满 shutdown 期限再强杀 ——
+// 线上日志固定是 `graceful shutdown: context deadline exceeded` + `status=1/FAILURE`，
+// 而那段等待正是站点 502 的窗口（2026-09-20 实测：当天 3220 条 502 全部落在
+// 部署那一分钟里，systemd 日志里 stop→start 恰好 5 秒）。
+var (
+	shutdownSignal     = make(chan struct{})
+	shutdownSignalOnce sync.Once
+)
+
+// shuttingDown 给长连接 handler 用：这个 channel 关闭后应尽快收摊。
+func shuttingDown() <-chan struct{} { return shutdownSignal }
+
+func signalShutdown() {
+	shutdownSignalOnce.Do(func() { close(shutdownSignal) })
+}
 
 func Run(ctx context.Context, addr, assets string) error {
 	return RunAuthenticated(ctx, addr, assets, Auth{}, "", "")
@@ -66,6 +88,16 @@ func serve(ctx context.Context, server *http.Server, listener net.Listener) erro
 	select {
 	case err = <-result:
 	case <-ctx.Done():
+		// 先通知长连接（SSE）收摊，再走 Shutdown。
+		//
+		// 为什么必须这样：`http.Server.Shutdown` **不会取消在途请求的 context**
+		// —— 它等请求自己结束。而 SSE（/api/issues/events）是**永不结束**的流
+		// （设计如此：靠客户端断开才退）。于是每次部署 `systemctl restart` 都要
+		// 耗满下面这个 5 秒期限再强杀，线上日志固定是
+		// `graceful shutdown: context deadline exceeded` + `status=1/FAILURE`。
+		// **那 5 秒正是站点 502 的窗口**（2026-09-20 实测：当天 3220 条 502 全部
+		// 落在部署那一分钟里，而 systemd 日志里 stop→start 恰好 5 秒）。
+		signalShutdown()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		// Shutdown closes the listener before draining requests. Wait for the
