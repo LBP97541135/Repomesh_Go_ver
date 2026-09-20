@@ -133,7 +133,13 @@ func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, i
 		"find . -type d -name __pycache__ -prune -exec rm -rf {} +\n" +
 		"find . -type f -name \"*.pyc\" -delete\n" +
 		"rm -rf .pytest_cache\n" +
-		"git add -A\n" +
+		// 2026-09-20 线上实测：上面那两条 find **没能**把产物挡在提交之外（PR 里
+		// 依然出现 src/__pycache__/*.pyc）。所以再加一道**不依赖顺序**的闸：
+		// git add 直接按 pathspec 排除构建产物 —— 就算文件还在工作区，也进不了提交。
+		// 这不是"眼不见为净"：产物本来就不该进交付，交付物要能被人看懂。
+		// 注意：整段脚本被 bash -c '...' 包着，所以 pathspec 只能用**双引号**
+		// （脚本内出现单引号会让外层引号提前闭合，交付序列被静默截断）。
+		"git add -A -- . \":(exclude)**/__pycache__/**\" \":(exclude)**/*.pyc\" \":(exclude)**/*.pyo\" \":(exclude)**/.pytest_cache/**\"\n" +
 		"if git diff --cached --quiet; then echo REPO_DELIVERY_EMPTY=1; exit 3; fi\n" +
 		"git commit -m \"RepoMesh delivery " + issueID + ": " + safeTitle + "\"\n" +
 		"git push origin HEAD:refs/heads/$B\n" +
