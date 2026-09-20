@@ -296,11 +296,7 @@ export function AddRepositoryCard({
       </div>
 
       <p className="mt-0.5 text-[11px] text-tx3">
-        贴组织链接批量扫描，或贴单个仓库链接。识别由后端判定，界面只回显结论。
-      </p>
-      <p className="mt-0.5 text-[11px] text-tx3">
-        私有仓凭据由服务端环境变量配置（REPOMESH_REPOSITORY_SCAN_GITHUB_TOKEN /
-        _GITLAB_TOKEN），本界面不接受凭据。
+        贴组织链接批量扫描，或贴单个仓库链接。
       </p>
 
       <input
