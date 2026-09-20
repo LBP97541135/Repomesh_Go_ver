@@ -268,13 +268,13 @@ export default function ConsoleShell() {
     setRoute({ nav: "issues", issueId, roomId: null, observeSection: null, settingsSection: null });
   };
 
-  const handleSelectProject = (projectId: string) => {
+  const handleSelectProject = (projectId: string, destination: "repositories" | "issues" = "issues") => {
     issuesEpoch.current += 1;
     setIssues(null);
     selectionRef.current = projectId;
     setActiveProject(projectId);
     setActiveProjectId(projectId);
-    navigate("issues");
+    navigate(destination);
     // Includes freshly created projects; the side bar and manager share one list.
     const epoch = ++projectListEpoch.current;
     listAllProjects().then(items => { if (epoch === projectListEpoch.current) setProjects(items); }).catch(e => { if (epoch === projectListEpoch.current) setProjectsError(errText(e)); });
@@ -549,7 +549,7 @@ export default function ConsoleShell() {
         )}
         {route.nav === "observe" && <ObserveHome section={route.observeSection} />}
         {route.nav === "decision-chains" && (
-          <DecisionChainPage organizationId={null} onToast={showToast} />
+          <DecisionChainPage organizationId={null} projectId={activeProjectId} onToast={showToast} />
         )}
         {route.nav === "settings" && (
           <SettingsPage

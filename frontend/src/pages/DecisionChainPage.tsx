@@ -901,10 +901,13 @@ function nodeStatusChip(status: string): string {
 
 export function DecisionChainPage({
   organizationId,
+  projectId,
   onToast,
 }: {
   /** live 模式 trace/similar 的 L1 命名空间；null = 跨组织（审计人员未必知道归属组织） */
   organizationId: string | null;
+  /** 当前项目 id；决策单目录按项目过滤（null = 未选项目，列表空态提示先选项目） */
+  projectId: string | null;
   onToast: (text: string) => void;
 }) {
   const [mode, setMode] = useState<SearchMode>("semantic");
@@ -945,6 +948,7 @@ export function DecisionChainPage({
         keyword: nodeFilters.keyword || undefined,
         step: nodeFilters.step || undefined,
         repository: nodeFilters.repository || undefined,
+        projectId: projectId ?? undefined,
         limit: 100,
       });
       setNodes(view.nodes);
@@ -953,7 +957,7 @@ export function DecisionChainPage({
     } finally {
       setNodeListBusy(false);
     }
-  }, [nodeFilters]);
+  }, [nodeFilters, projectId]);
 
   useEffect(() => {
     fetchDecisionToggle()
