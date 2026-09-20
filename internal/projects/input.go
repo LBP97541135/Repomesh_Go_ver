@@ -219,7 +219,11 @@ func parseRepositoryURLs(raw json.RawMessage) ([]string, error) {
 	result := make([]string, 0, len(values))
 	seen := make(map[string]bool, len(values))
 	for _, rawURL := range values {
-		text, err := parseOpaqueID(rawURL)
+		// 用 parseText 而不是 parseOpaqueID：后者走 validResourceID，校验的是
+		// **资源 id 的形状**（小写字母数字加下划线的定长串）——URL 根本过不了它。
+		// 这个坑是测试抓出来的：写成 parseOpaqueID 的话，这个通道**永远 422**，
+		// 等于修复白做。上限给 2000 只是防炸弹，不是业务约束。
+		text, err := parseText(rawURL, 2000)
 		if err != nil {
 			return nil, validation("repositoryUrlsToAdd")
 		}
