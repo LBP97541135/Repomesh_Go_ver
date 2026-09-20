@@ -178,6 +178,9 @@ func (s *Service) Create(ctx context.Context, repositoryID string, workerCount i
 			return Snapshot{}, reconciliationError(fmt.Errorf("persist repository Worker: %w", err))
 		}
 	}
+	if err := s.persistRooms(ctx, tx, repositoryID, prefix); err != nil {
+		return Snapshot{}, reconciliationError(err)
+	}
 
 	snapshot, err := s.loadSnapshot(ctx, tx, repositoryID)
 	if err != nil {
@@ -456,6 +459,9 @@ func (s *Service) scaleUp(ctx context.Context, tx pgx.Tx, repositoryID string, c
 	if err := advanceRevision(ctx, tx, repositoryID, current.RosterRevision); err != nil {
 		return Snapshot{}, reconciliationError(err)
 	}
+	if err := s.persistRooms(ctx, tx, repositoryID, remotePrefix(repositoryID)); err != nil {
+		return Snapshot{}, reconciliationError(err)
+	}
 	updated, err := s.loadSnapshot(ctx, tx, repositoryID)
 	if err != nil {
 		return Snapshot{}, reconciliationError(fmt.Errorf("load scaled roster: %w", err))
@@ -526,6 +532,9 @@ func (s *Service) scaleDown(ctx context.Context, tx pgx.Tx, repositoryID string,
 	if err := advanceRevision(ctx, tx, repositoryID, current.RosterRevision); err != nil {
 		return Snapshot{}, reconciliationError(err)
 	}
+	if err := s.persistRooms(ctx, tx, repositoryID, remotePrefix(repositoryID)); err != nil {
+		return Snapshot{}, reconciliationError(err)
+	}
 	updated, err := s.loadSnapshot(ctx, tx, repositoryID)
 	if err != nil {
 		return Snapshot{}, reconciliationError(fmt.Errorf("load reduced roster: %w", err))
@@ -561,7 +570,8 @@ func (s *Service) loadSnapshot(ctx context.Context, db snapshotQuerier, reposito
 	var leaderID string
 	err := db.QueryRow(ctx, `
 		SELECT t.repository_id, r.name, t.roster_revision, t.runtime_status,
-		       t.leader_id::text, t.leader_resource_name
+		       t.leader_id::text, t.leader_resource_name,
+		       COALESCE(t.team_room_id, ''), COALESCE(t.leader_dm_room_id, '')
 		FROM public.repository_teams t
 		JOIN repomesh_scan.repositories r ON r.id = t.repository_id
 		WHERE t.repository_id = $1`, repositoryID,
@@ -572,6 +582,8 @@ func (s *Service) loadSnapshot(ctx context.Context, db snapshotQuerier, reposito
 		&snapshot.RuntimeStatus,
 		&leaderID,
 		&snapshot.Leader.ResourceName,
+		&snapshot.TeamRoomID,
+		&snapshot.LeaderDMRoomID,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Snapshot{}, fmt.Errorf("%w: repository %q", ErrNotFound, repositoryID)
@@ -739,6 +751,34 @@ func (s *Service) updateRemoteTeam(ctx context.Context, name string, members []a
 	}
 	_, status, err := s.client.UpdateTeam(ctx, name, members)
 	return teamWriteResultError("replace Team membership", status, err)
+}
+
+// persistRooms 回读远端团队，把房间号落到本行。
+//
+// 房间由 AgentTeams 控制器**异步**建立 Matrix 房之后回填进 Team CR 的 status，
+// 所以 `POST/PUT /api/v1/teams` 的响应里根本没有它 —— 建完立刻回读通常也还是空的。
+// 因此这里读不到就当"还没建好"：不报错、不重试、不覆盖已有值，等下一次改编制再刷。
+// 房间号是观察事实，拿不到就保持 NULL，不拿团队名拼一个假的出来。
+func (s *Service) persistRooms(ctx context.Context, tx pgx.Tx, repositoryID, teamName string) error {
+	if s.client == nil {
+		return nil
+	}
+	view, status, err := s.client.GetTeam(ctx, teamName)
+	if err != nil || status != http.StatusOK {
+		return nil
+	}
+	if view.TeamRoomID == "" && view.LeaderDMRoomID == "" {
+		return nil
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE public.repository_teams
+		SET team_room_id = COALESCE(NULLIF($2, ''), team_room_id),
+		    leader_dm_room_id = COALESCE(NULLIF($3, ''), leader_dm_room_id),
+		    updated_at = now()
+		WHERE repository_id = $1`, repositoryID, view.TeamRoomID, view.LeaderDMRoomID); err != nil {
+		return fmt.Errorf("persist repository team rooms: %w", err)
+	}
+	return nil
 }
 
 func (s *Service) workerPhase(ctx context.Context, name string) (string, error) {

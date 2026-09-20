@@ -10,6 +10,10 @@ type Snapshot struct {
 	RuntimeStatus  string   `json:"runtime_status"`
 	Leader         Member   `json:"leader"`
 	Workers        []Member `json:"workers"`
+	// AgentTeams 团队房与 Leader DM 房。空串 = 还没回读到（房间由控制器异步建），
+	// 不拿仓库名或团队名拼一个假的出来。
+	TeamRoomID     string `json:"team_room_id"`
+	LeaderDMRoomID string `json:"leader_dm_room_id"`
 }
 
 type Member struct {
