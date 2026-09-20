@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -45,6 +46,31 @@ func fakeController(t *testing.T) *agentteams.Client {
 	}))
 	t.Cleanup(server.Close)
 	return &agentteams.Client{BaseURL: server.URL, Token: "test-token"}
+}
+
+// recordingController 是会**记下每条请求路径**的假控制器。
+//
+// 为什么需要它：`fakeController` 只回固定 payload，能证明"调用成功了"，
+// 但证明不了"平台把请求打到了**哪个**队名上"。而 0057 之后队名必须读库
+// （存量队的名字不含项目维度，重算会指错队），所以"打到哪个名字"正是要害。
+func recordingController(t *testing.T) (*agentteams.Client, *[]string) {
+	t.Helper()
+	var mu sync.Mutex
+	paths := &[]string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		*paths = append(*paths, r.URL.Path)
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "/status") {
+			_, _ = w.Write([]byte(`{"status":{"phase":"Running"}}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	t.Cleanup(server.Close)
+	return &agentteams.Client{BaseURL: server.URL, Token: "test-token"}, paths
 }
 
 // seedScanRepository 植入**扫描侧**仓库行。
@@ -282,15 +308,67 @@ func TestGetAndChangeAreProjectScoped(t *testing.T) {
 		t.Fatalf("项目 B 的花名册版本不该变：%d → %d", snapshotB.RosterRevision, afterB.RosterRevision)
 	}
 
-	// Change 用的队名必须是**库里那一行**的队名（存量队名不含项目维度，重算会指错队）。
-	var teamNameA string
-	if err := pool.QueryRow(ctx, `
-		SELECT agentteams_team_name FROM public.repository_teams
-		WHERE project_id = $1 AND repository_id = $2`, projectA, scanID).Scan(&teamNameA); err != nil {
-		t.Fatalf("回读队名失败：%v", err)
+	// Change 用的队名必须是**库里那一行**的队名，不能是重算的。
+	//
+	// 为什么这么测：存量队（2026-09-20 自动建队事故留下的那批，线上真实存在
+	// `repomesh-r-4eff238cd863eaa4` 这类）的名字**不含项目维度**，而
+	// `remotePrefix()` 现在含项目 —— 重算会算出另一个字符串、指向一支不存在的
+	// 远端队，等于把存量队变成孤儿（远端资源再也没人管）。所以这里**故意**把库里
+	// 的队名改写成存量风格，再扩编一次，断言请求真的打到了库里那个名字上。
+	//
+	// 2026-09-20 修：此前这段只是断言 `remotePrefix(...) != 库里队名`。但队是刚
+	// 用 Create 建的、Create 内部就是 remotePrefix —— 两者永远相等，那个断言
+	// **永远成立不了**，测试必红（且红的理由与它想守的东西无关）。
+	const legacyName = "repomesh-r-0000000000000000"
+	if legacyName == remotePrefix(projectA, scanID) {
+		t.Fatalf("用例前提不成立：占位存量队名与现算队名撞了（%q）", legacyName)
 	}
-	if got, want := remotePrefix(projectA, scanID), teamNameA; got == want {
-		t.Fatalf("本用例失去意义：新算的名字 %q 与存量队名相同，无法证明是「读库」而不是「重算」", got)
+	if _, err := pool.Exec(ctx, `
+		UPDATE public.repository_teams SET agentteams_team_name = $3
+		WHERE project_id = $1 AND repository_id = $2`, projectA, scanID, legacyName); err != nil {
+		t.Fatalf("改写成存量队名失败：%v", err)
+	}
+
+	controller, paths := recordingController(t)
+	service = New(pool, controller)
+	snapshotA, err = service.Get(ctx, projectA, scanID)
+	if err != nil {
+		t.Fatalf("改写队名后读项目 A 失败：%v", err)
+	}
+	// 从 3 人扩到 4 人：走 scaleUp，它一定会 UpdateTeam（PUT /api/v1/teams/{队名}）。
+	if _, err := service.Change(ctx, projectA, scanID, ChangeCommand{
+		WorkerCount: 4, RosterRevision: snapshotA.RosterRevision,
+	}); err != nil {
+		t.Fatalf("按存量队名扩编失败：%v", err)
+	}
+
+	targeted := []string{}
+	for _, p := range *paths {
+		if strings.HasPrefix(p, "/api/v1/teams/") {
+			targeted = append(targeted, p)
+		}
+	}
+	want := "/api/v1/teams/" + legacyName
+	hit := false
+	for _, p := range targeted {
+		if p == want {
+			hit = true
+		}
+	}
+	if !hit {
+		t.Fatalf("扩编没有打到库里存的队名 %q —— 实际打到：%v", legacyName, targeted)
+	}
+	// 反向断言：**队级**路径不该出现重算出来的名字。
+	//
+	// 只查队级路径（`targeted`），不查全量 paths —— leader / worker 的**资源名**
+	// 是建队时写死在 `leader_resource_name` / `resource_name` 两列里的另一回事
+	// （它们本来就带着建队当时的队名前缀，读库读到的就是它）。把这两类混在一起
+	// 断言，会把"按库里存的资源名探活"误判成"重算队名"。
+	recomputed := remotePrefix(projectA, scanID)
+	for _, p := range targeted {
+		if strings.Contains(p, recomputed) {
+			t.Fatalf("有请求打到了**重算**出来的队名 %q（%s）—— 说明代码在重算而不是读库", recomputed, p)
+		}
 	}
 }
 
