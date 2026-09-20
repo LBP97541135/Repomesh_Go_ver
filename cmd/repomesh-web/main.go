@@ -554,10 +554,18 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		// 兜底收敛：本次改动之前接入的仓库、以及上一轮因 AT 控制面不可用而没建成的
 		// 仓库，靠这条低频循环补上。服务重启后它同样会跑（幂等）。
 		go func() {
+			// 第一次扫掠只等 20 秒，之后每 2 分钟一次。
+			//
+			// 2026-09-20 线上实测：原先第一句就是 time.Sleep(2*time.Minute)，而部署
+			// 很频繁 —— 每次重启都把计时器清零，这条循环在反复部署期间一次都没跑到
+			// （repository_teams 一直停在 1 行、59 个已接入仓库全都"待建队"）。
+			timer := time.NewTimer(20 * time.Second)
+			defer timer.Stop()
 			for {
-				time.Sleep(2 * time.Minute)
-				if ctx.Err() != nil {
+				select {
+				case <-ctx.Done():
 					return
+				case <-timer.C:
 				}
 				created, err := teamService.EnsureAll(ctx, repositoryTeamWorkerCount())
 				if err != nil {
@@ -565,6 +573,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 				} else if len(created) > 0 {
 					slog.Info("repository teams created by sweep", "count", len(created))
 				}
+				timer.Reset(2 * time.Minute)
 			}
 		}()
 	}
