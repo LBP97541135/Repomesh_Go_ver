@@ -12,12 +12,11 @@ import type {
   RoomStreamPage,
 } from "./contract";
 import type { RepositoryEnv } from "../types";
-import { defaultClient, type GoIssueDetail } from "./client";
+import { defaultClient, type GoIssueDetail, type MatrixRoomMessageView } from "./client";
 import { resolveDataSourceMode } from "./source";
 import { resolveProjectId } from "./issues";
 import { shortId } from "../display";
 import { repositoryEnvFromAggregate } from "../viewmodel";
-import { listConversationMessages, type ConversationMessage } from "./conversations";
 import {
   ISSUE_DETAIL_FIXTURE_DEFAULT,
   deliveryAggregateFixture,
@@ -135,50 +134,101 @@ export async function fetchRooms(issueId: string, projectId?: string): Promise<R
   }
   const pid = projectId ?? (await resolveProjectId());
   if (!pid) return [];
-  // Go as-built 房间读面是 {main:{availability,roomId,…}} 基线：运行时观察器
-  // 未接线，roomId 恒 null → 没有可进房间；Python 形状 {rooms:[…]} 落地前按空态。
-  const res = (await defaultClient().listRooms(issueId, pid)) as Partial<RoomListResponse>;
-  return res.rooms ?? [];
+  const res = await defaultClient().listRooms(issueId, pid);
+  // Python 形状 {rooms:[…]} 若真回来了就照用；Go as-built 形状是 {issueId, main, leaders[]}，
+  // 走下面的适配。两种都收，不挑——换后端不该让前端空一片。
+  const legacy = (res as Partial<RoomListResponse>).rooms;
+  if (legacy) return legacy;
+  return goRoomsToViews(res as GoRoomsView, issueId);
 }
 
-/** 房间消息流。live 走 Go as-built 的会话消息端点
- *  `GET /api/projects/{projectId}/conversations/{conversationId}/messages`——
- *  `/rooms/{roomId}/stream` 后端未实现;conversationId 由房间清单自带
- *  (Go 读面字段 conversationId)。replay 仍按 roomId 走夹具。 */
+/** Go as-built 的房间读面（契约 §7）。`availability` 只有 "ready" 时 roomId 才非空。 */
+interface GoRoomObservation {
+  conversationId?: string;
+  availability?: string;
+  roomId?: string | null;
+  canEnter?: boolean;
+  repositoryId?: string;
+}
+
+interface GoRoomsView {
+  issueId?: string;
+  main?: GoRoomObservation;
+  leaders?: GoRoomObservation[];
+}
+
+/** Go 的 {main, leaders[]} → 契约的 RoomListItemView[]。
+ *
+ *  只收**真有房**的条目：availability 不是 "ready" 或 roomId 为空的一律不要。
+ *  后端在那两种情形下本来就什么都没承诺（unavailable/NOT_ASSOCIATED），
+ *  界面摆一间进不去的房比空态更误导。
+ *
+ *  `message_count` / `last_message` 这一版读面不提供，如实留 0 / null ——
+ *  这不是"房间是空的"，是"这项没读"。界面不得把它渲染成"还没有消息"。 */
+function goRoomsToViews(view: GoRoomsView, issueId: string): RoomListItemView[] {
+  const rooms: RoomListItemView[] = [];
+  const push = (observation: GoRoomObservation | undefined): void => {
+    const roomId = observation?.roomId ?? null;
+    if (!roomId || observation?.availability !== "ready") return;
+    rooms.push({
+      room_id: roomId,
+      // 团队房。Leader DM 房这一版读面没单独给，等它给出来再区分，不猜。
+      kind: "team_room",
+      issue_id: issueId,
+      team_id: "",
+      repository_id: observation?.repositoryId ?? "",
+      repository_name: null,
+      members: [],
+      last_message: null,
+      message_count: 0,
+      live: false,
+      conversation_id: observation?.conversationId ?? null,
+    });
+  };
+  push(view.main);
+  for (const leader of view.leaders ?? []) push(leader);
+  return rooms;
+}
+
+/** 房间消息流。live 打 `GET /api/issues/{issueId}/rooms/{roomId}/messages`：
+ *  房间在 AgentTeams 的 homeserver 上，由后端代理读取——浏览器不直连 Matrix，
+ *  后端也不把凭据下发。replay 仍按 roomId 走夹具。
+ *
+ *  这一版后端一次给完（上限 200 条），没有游标，所以 `next_cursor` 恒为 null。 */
 export async function fetchRoomStream(
+  issueId: string,
   roomId: string,
-  conversationId?: string | null,
-  cursor?: string,
 ): Promise<RoomStreamPage> {
   if (resolveDataSourceMode() === "replay") {
     return roomStreamFixtures[roomId] ?? EMPTY_STREAM;
   }
-  if (!conversationId) return EMPTY_STREAM;
   const pid = await resolveProjectId();
   if (!pid) return EMPTY_STREAM;
-  const page = await listConversationMessages(pid, conversationId, {
-    cursor,
+  const page = await defaultClient().getIssueRoomMessages(issueId, roomId, pid, {
     limit: ROOM_STREAM_LIMIT,
   });
   return {
-    next_cursor: page.nextCursor,
-    items: page.items.map((m) => conversationToStreamItem(m, roomId)),
+    next_cursor: null,
+    items: page.messages.map((m) => matrixMessageToStreamItem(m, roomId)),
   };
 }
 
-/** 会话消息 → 房间流条目(契约 §5.2 形状;Go 未存的任务/仓库指针留空)。 */
-function conversationToStreamItem(m: ConversationMessage, roomId: string): RoomStreamItemView {
+/** Matrix 房间消息 → 房间流条目(契约 §5.2 形状)。
+ *
+ *  这些是**真房间消息**，所以 `message` 非 null、可以渲染成聊天气泡
+ *  （契约 §5.2：只有真实房间消息才可渲染成气泡）。Go 未存的任务/仓库指针留空。 */
+function matrixMessageToStreamItem(m: MatrixRoomMessageView, roomId: string): RoomStreamItemView {
   return {
-    at: m.createdAt,
+    at: m.at,
     source: "message",
     room_id: roomId,
     message: {
-      id: m.id,
+      id: m.eventId,
       kind: "conversation_message",
       subject: "",
       body: m.body,
-      sender_agent_id: m.actorId,
-      sender_name: m.actorId,
+      sender_agent_id: m.sender,
+      sender_name: m.sender,
       recipient_agent_id: "",
       recipient_name: null,
       repository_id: null,
@@ -188,7 +238,7 @@ function conversationToStreamItem(m: ConversationMessage, roomId: string): RoomS
     text: m.body,
     repository_id: null,
     task_id: null,
-    payload_ref: m.id,
+    payload_ref: m.eventId,
   };
 }
 

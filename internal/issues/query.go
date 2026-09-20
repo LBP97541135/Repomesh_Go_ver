@@ -404,9 +404,10 @@ func (s *Service) GetIssue(ctx context.Context, principal access.ProjectPrincipa
 }
 
 // RoomObservation is the main-room projection (creation contract §7). B07
-// ships the unavailable baseline: no runtime observer is wired yet, so the
-// room reports unavailable/NOT_ASSOCIATED with the conversation reference,
-// never a fabricated preparing or ready.
+// shipped the unavailable baseline; the room is now driven by real evidence
+// (repository_teams.team_room_id, read back from the AgentTeams Team CR after
+// the team was created), and stays unavailable/NOT_ASSOCIATED when there is
+// genuinely no room — never a fabricated preparing or ready.
 type RoomObservation struct {
 	ConversationID string     `json:"conversationId"`
 	Availability   string     `json:"availability"`
@@ -414,6 +415,9 @@ type RoomObservation struct {
 	RoomID         *string    `json:"roomId"`
 	CanEnter       bool       `json:"canEnter"`
 	ObservedAt     *time.Time `json:"observedAt"`
+	// RepositoryID 只有真有房时才带：房间是仓库团队粒度的，界面要能标出
+	// "这是哪个仓的房"。没有房就留空——不拿范围里第一个仓库冒充。
+	RepositoryID string `json:"repositoryId,omitempty"`
 }
 
 // RoomsView is the rooms query projection.
@@ -488,6 +492,7 @@ func (s *Service) GetIssueRooms(ctx context.Context, principal access.ProjectPri
 			Availability:   "ready",
 			RoomID:         &roomID,
 			CanEnter:       true,
+			RepositoryID:   room.repositoryID,
 		}
 		if index == 0 {
 			view.Main = observation
