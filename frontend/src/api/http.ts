@@ -18,14 +18,46 @@ const BASE = "/api";
 
 let csrfToken = "";
 
+/** 等令牌的写请求（见下面 `waitForCsrfToken` 的注释）。 */
+let csrfWaiters: Array<(token: string) => void> = [];
+
 /** 登录后由 session 拉取方注入；未注入时写请求不带该头（后端 403 ORIGIN_REJECTED /
  *  CSRF 校验会拒绝——这是预期信号，说明还没走登录）。 */
 export function setCsrfToken(token: string): void {
   csrfToken = token;
+  const waiters = csrfWaiters;
+  csrfWaiters = [];
+  for (const resolve of waiters) resolve(token);
 }
 
 export function getCsrfToken(): string {
   return csrfToken;
+}
+
+/** 等 CSRF 令牌就绪（**只给写请求用**）。
+ *
+ *  2026-09-21 线上实测：页面加载瞬间会有若干并发 POST（工作台引导、健康探测、
+ *  物化状态刷新）抢在 `GET /api/session` 返回之前发出去，于是全被后端
+ *  403 CSRF_REJECTED —— 15 分钟内成簇 20+ 条。这些请求**不是用户操作失败**，
+ *  是时序问题：令牌晚到几百毫秒而已。
+ *
+ *  所以写请求不再"没令牌就裸发"，而是**等一小会儿**：令牌一到立刻发；超时
+ *  （默认 3s）仍没有就照旧裸发 —— 没登录时本来也该 403，这条不改变那种情形的结论，
+ *  只是不再把"登录引导竞态"混进同一堆 403 里。
+ */
+export function waitForCsrfToken(timeoutMs = 3000): Promise<string> {
+  if (csrfToken) return Promise.resolve(csrfToken);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      csrfWaiters = csrfWaiters.filter((waiter) => waiter !== onToken);
+      resolve("");
+    }, timeoutMs);
+    const onToken = (token: string) => {
+      clearTimeout(timer);
+      resolve(token);
+    };
+    csrfWaiters.push(onToken);
+  });
 }
 
 /** 读后端自报版本：`GET /healthz`（**不在 /api 下**，无鉴权，返回
@@ -86,8 +118,28 @@ async function errorFromResponse(
   }
   let detail: unknown = raw;
   try {
-    const parsed = JSON.parse(raw) as { detail?: unknown };
+    const parsed = JSON.parse(raw) as { detail?: unknown; error?: unknown };
     if (parsed.detail !== undefined) detail = parsed.detail;
+    else if (parsed.error !== undefined) {
+      // 接入层错误信封 `{"error":{"code","message"}}` —— **message 才是人能看懂的那句话**。
+      //
+      // 2026-09-21 用户实测：合并失败时 toast 显示
+      //   `POST …/merge → HTTP 503 · {"error":{"code":"RESULT_UNCONFIRMED",…}}`
+      // 而服务端明明写好了「合并闸门未开（push=… PR=… CI=… 评审=…）」——
+      // 那句话在信封的 message 里，被 JSON.stringify 埋了。用户看到的是一坨机器字段，
+      // 看不到"缺哪一门"。这里把 message 提出来（附上 code 便于对日志），
+      // 认不出形状才回落成原来的整段 JSON。
+      const envelope = parsed.error;
+      if (typeof envelope === "string") {
+        detail = envelope;
+      } else if (envelope !== null && typeof envelope === "object") {
+        const record = envelope as { code?: unknown; message?: unknown };
+        const code = typeof record.code === "string" ? record.code : "";
+        const message = typeof record.message === "string" ? record.message : "";
+        if (message !== "") detail = code !== "" ? `${message}（${code}）` : message;
+        else if (code !== "") detail = code;
+      }
+    }
   } catch {
     // 非 JSON 体：**HTML 不原样展示**（多半是代理错误页，见上）。
     // 其它文本照旧 —— 有些端点的错误就是纯文本。
@@ -114,7 +166,12 @@ export async function apiRequest<T>(
   const headers: Record<string, string> = { Accept: "application/json", ...extraHeaders };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   const isWrite = method !== "GET";
-  if (isWrite && csrfToken) headers["X-CSRF-Token"] = csrfToken;
+  // 写请求**等令牌**再发（见 waitForCsrfToken 的注释）：此前是"有就带、没有就裸发"，
+  // 页面加载瞬间的并发 POST 会集体撞 403 CSRF_REJECTED。
+  if (isWrite) {
+    const token = await waitForCsrfToken();
+    if (token) headers["X-CSRF-Token"] = token;
+  }
 
   let res: Response;
   try {

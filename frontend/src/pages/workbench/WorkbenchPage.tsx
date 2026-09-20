@@ -50,6 +50,7 @@ import { PlanDagCapsule } from "../../components/PlanDagCapsule";
 import { SupervisionPolicyDialog } from "../../components/SupervisionPolicyDialog";
 import { AIChatInput } from "../../components/ui/ai-chat-input";
 import { errText } from "../../display";
+import { ApiError } from "../../api/client";
 
 /** 工作台（方案 A「树贯穿一生」· 2026-09-17 用户确认原型 dispatch-tree-lifecycle.html）。
  *
@@ -259,6 +260,15 @@ export function WorkbenchPage({
   /** 静默轮询与首载的界线：换 issue 才整页 loading，轮询只换数据不闪屏
    *  （树与右栏每 5s 卸载重挂正是「一闪一闪」的根源，旧工作台同款保护）。 */
   const loadedIssueRef = useRef<string | null>(null);
+  /** 这个 issue **不属于当前项目**（后端 404）。
+   *
+   *  2026-09-21 用户实测：在 e2e 项目下打开 sealor 的 issue 链接，页面显示
+   *  「该功能在当前服务端版本尚未就绪（404）——请稍后重试或联系部署者升级」，
+   *  而且**每 5 秒重试一次**，日志里刷成 404 风暴。两句都是假的：
+   *    · 不是"服务端版本没就绪"，是这个 issue 在**别的项目**里（真话要能指导动作：
+   *      切项目，而不是等升级）；
+   *    · 重试没有意义 —— 项目没切之前，同一条请求永远 404。轮询必须停。 */
+  const [foreignIssue, setForeignIssue] = useState(false);
 
   useEffect(() => {
     if (isNew) {
@@ -266,6 +276,7 @@ export function WorkbenchPage({
       setDetail(null);
       setLoading(false);
       setError(null);
+      setForeignIssue(false);
       setActiveEntry(null);
       return;
     }
@@ -275,6 +286,7 @@ export function WorkbenchPage({
       loadedIssueRef.current = issueId;
       setLoading(true);
       setError(null);
+      setForeignIssue(false);
       // 首次进入 issue：右栏自动跳 Manager 主房间对话（2026-09-18 用户裁决；
       // 2026-09-20 LBP 线搬运时漏掉，右栏只剩「点击左侧步骤 / 任务行」空态）。
       setActiveEntry({ kind: "mgr" });
@@ -287,6 +299,16 @@ export function WorkbenchPage({
       })
       .catch((err: unknown) => {
         if (cancelled) return;
+        // 404 单独说人话：这一条不是"取数失败"，是"你打开的是别的项目的 issue"。
+        if (err instanceof ApiError && err.status === 404) {
+          setForeignIssue(true);
+          setError(
+            `这个 issue 不在当前项目（${projectName ?? projectId}）里 —— 它属于别的项目。` +
+              `请先在左上角切换到它所属的项目再打开；在切换之前，这里不会重试（重试必然还是 404）。`,
+          );
+          setLoading(false);
+          return;
+        }
         setError(errText(err));
         setLoading(false);
       });
@@ -296,10 +318,12 @@ export function WorkbenchPage({
   }, [projectId, issueId, isNew, reload]);
 
   useEffect(() => {
-    if (isNew) return;
+    // 跨项目 404 时停轮询：同一条请求在项目切换之前永远是 404，每 5 秒打一次
+    // 只是把真故障淹进噪音里（线上实测 15 分钟 16 条）。
+    if (isNew || foreignIssue) return;
     const timer = window.setInterval(() => setReload((n) => n + 1), POLL_MS);
     return () => window.clearInterval(timer);
-  }, [isNew]);
+  }, [isNew, foreignIssue]);
 
   // ── 发现链读投影（树的数据源）：SSE 主通道 + 首拍，5s 大轮询兜底 ──
   const [discovery, setDiscovery] = useState<DiscoveryView | null>(null);
@@ -1552,12 +1576,23 @@ export function WorkbenchPage({
       {!loading && error && (
         <div className="flex-1 bg-[var(--tree-bg)] px-6 py-4">
           <p className="rounded-[9px] border border-salmon/40 bg-salmon-well px-3 py-2 text-[12px] text-salmon">{error}</p>
-          <button
-            className="mt-2 rounded-[7px] border border-[var(--tree-line)] bg-[var(--tree-card)] px-3 py-1 text-[11.5px] text-[var(--tree-ink)] hover:border-[var(--tree-acc)]"
-            onClick={() => setReload((n) => n + 1)}
-          >
-            重试
-          </button>
+          {/* 跨项目 404 不给「重试」：项目没切之前重试必然还是 404，摆一个点了必失败
+              的按钮比不摆更糟。改给一个真能走出去的动作（回列表，再从左上角切项目）。 */}
+          {foreignIssue ? (
+            <button
+              className="mt-2 rounded-[7px] border border-[var(--tree-line)] bg-[var(--tree-card)] px-3 py-1 text-[11.5px] text-[var(--tree-ink)] hover:border-[var(--tree-acc)]"
+              onClick={() => onBack?.()}
+            >
+              ‹ 返回 issue 列表（再从左上角切换项目）
+            </button>
+          ) : (
+            <button
+              className="mt-2 rounded-[7px] border border-[var(--tree-line)] bg-[var(--tree-card)] px-3 py-1 text-[11.5px] text-[var(--tree-ink)] hover:border-[var(--tree-acc)]"
+              onClick={() => setReload((n) => n + 1)}
+            >
+              重试
+            </button>
+          )}
         </div>
       )}
       {!loading && !error && detail && (

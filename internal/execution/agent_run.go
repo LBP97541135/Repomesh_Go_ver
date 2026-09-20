@@ -142,8 +142,14 @@ func (s *Service) MarkAgentExited(ctx context.Context, runID string, exitCode in
 	}
 	if taskRef != "" && agentKind != "test_agent" && agentKind != "review_agent" {
 		if exitCode == 0 && !killed {
-			if _, err := s.pool.Exec(ctx, `UPDATE public.tasks SET status='blocked'
-				WHERE id::text=$1 AND status='running'`, taskRef); err != nil {
+			// 2026-09-21 用户实测：30 条 blocked 任务的 result_summary **全是空的** ——
+			// 界面因此只能说"卡住了"，说不出为什么。原因就在这里：下面失败那条路径
+			// 写了 result_summary，而这条**成功**路径只改状态、不留一句话。
+			// 留痕不是装饰：经理门要批的是"执行者跑完了什么"，这句话就是那件事本身。
+			summary := fmt.Sprintf(
+				"开发 run 正常退出（exit=0，未被杀），任务交回经理门待批。run=%s", runID)
+			if _, err := s.pool.Exec(ctx, `UPDATE public.tasks SET status='blocked', result_summary=$2
+				WHERE id::text=$1 AND status='running'`, taskRef, summary); err != nil {
 				return unavailable()
 			}
 		} else {
