@@ -308,7 +308,14 @@ func OpenABJudge(ctx context.Context, store *Store, open SecretOpener, opts ABJu
 		if store == nil || open == nil {
 			return nil, "", errors.New("skills: 未配置模型裁判（环境变量不全，且没有可用的密钥存储去读部署里的中转站）")
 		}
-		endpoint, err := store.FirstEnabledChatEndpoint(ctx, strings.TrimSpace(opts.PreferModel))
+		// 选哪条中转站：PreferModel 优先；没给就用 Model 本身当偏好 ——
+		// 否则"只指定了模型名、没给 key"时，会挑到**第一条**启用供应商的
+		// base_url/key，却仍然拿这个模型名去请求，等于把模型名发给了不认识的网关。
+		prefer := strings.TrimSpace(opts.PreferModel)
+		if prefer == "" {
+			prefer = model
+		}
+		endpoint, err := store.FirstEnabledChatEndpoint(ctx, prefer)
 		if err != nil {
 			return nil, "", err
 		}
