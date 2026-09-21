@@ -146,7 +146,10 @@ func (s *Service) Approval(ctx context.Context, issueID, agentID, idempotencyKey
 			return nil, err
 		}
 		if !tiersHaveSelection(st.EffectiveTiers) {
-			return nil, fmt.Errorf("%w：本次没有任何仓库被纳入改动（全部为「排除」）。请把至少一个仓库调整为「必需」或「可能」后再确认", ErrNoRepositories)
+			// 守卫保留：正常路径下人确认过的范围不会再全被排除（classify 已按
+			// 「人的确认优先」把范围内的仓至少放进 maybe），但异常路径仍可能走到
+			// 这里（确认范围为空、或确认的仓一个都没进候选）。文案要说清**怎么办**。
+			return nil, fmt.Errorf("%w：本次没有任何仓库被纳入改动（全部为「排除」）。请到选仓门确认至少一个仓库纳入本次范围，或在分档里把某个仓库调整为「必需」/「可能」后再确认", ErrNoRepositories)
 		}
 	}
 	st.Approval = approval
