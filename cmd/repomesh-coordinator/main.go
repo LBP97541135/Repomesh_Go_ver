@@ -21,6 +21,7 @@ import (
 	"repomesh.local/repomesh/internal/decisionchain"
 	"repomesh.local/repomesh/internal/discovery"
 	"repomesh.local/repomesh/internal/humancontrol"
+	"repomesh.local/repomesh/internal/managerbridge"
 	"repomesh.local/repomesh/internal/modelbudget"
 	"repomesh.local/repomesh/internal/models"
 	"repomesh.local/repomesh/internal/roomnotice"
@@ -126,6 +127,9 @@ func runWorker(args []string) int {
 	// cleanup_attempts、last_cleanup_error、reclaimed_at），所以扫描是"从库里恢复"的 ——
 	// 服务重启后自然接着清，不需要额外的内存态。
 	reclaimer := branchvalidation.New(runtime.Pool(), coordinatorBranchProvider())
+	// 人 ↔ Manager 双向桥（docs/design/manager-bridge.md）：正向这一截——
+	// 把会话流里人说过的话投进该 issue 的队房。缺配置时是 nil，空操作。
+	bridge := managerbridge.NewFromEnv(runtime.Pool())
 	ticks := 0
 	// Delivery pipeline loop: independent of the auth worker so a hung
 	// upstream call inside RunOne cannot stall 自动托管 and DAG dispatch.
@@ -148,6 +152,13 @@ func runWorker(args []string) int {
 			// 每 60 拍（约 30 秒）扫一轮待回收的分支环境：先把进程中断留下的行对账
 			// （有分支的标待回收、没分支的如实标失败），再真去清。
 			ticks++
+			// 每 20 拍（约 10 秒）投一轮人消息：Matrix 确认才落台账，没建队的下次再来
+			// （设计 §5 的"规划期消息不丢"）。节奏与既有循环一致，不自造退避。
+			if ticks%20 == 0 && bridge != nil {
+				if forwarded := bridge.ForwardOnce(dagCtx); forwarded > 0 {
+					slog.Info("manager bridge forwarded", "messages", forwarded)
+				}
+			}
 			if ticks%60 == 0 {
 				if reconciled, err := reclaimer.ReconcileStale(dagCtx, 30*time.Minute); err != nil {
 					slog.Warn("branch reconcile deferred", "reason", err.Error())

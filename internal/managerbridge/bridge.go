@@ -7,11 +7,10 @@ package managerbridge
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"time"
+	"os"
+	"strings"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"repomesh.local/repomesh/internal/agentteams"
@@ -28,47 +27,48 @@ func New(pool *pgxpool.Pool, matrix *agentteams.MatrixSession) *Bridge {
 	return &Bridge{pool: pool, matrix: matrix}
 }
 
-// Enqueue 在人消息落库后登记一条待投递。失败只记一行——桥是观察面，
-// 不能让人发消息这件事失败（设计 §4-①：会话流才是唯一真相）。
-func (b *Bridge) Enqueue(ctx context.Context, issueID, conversationID, submissionID, actor, body string) {
-	if b == nil || b.pool == nil || b.matrix == nil || body == "" || issueID == "" || conversationID == "" {
-		return
+// NewFromEnv 按环境组装（与 roomnotice.NewFromEnv 同一条凭据路，见其说明）。
+// 缺配置返回 nil：桥对 nil 是空操作，行为与没有桥时完全一致。
+func NewFromEnv(pool *pgxpool.Pool) *Bridge {
+	controllerURL := strings.TrimRight(os.Getenv("AGENTTEAMS_CONTROLLER_URL"), "/")
+	var controller *agentteams.Client
+	if controllerURL != "" {
+		controller = &agentteams.Client{BaseURL: controllerURL, Token: os.Getenv("AGENTTEAMS_CONTROLLER_TOKEN")}
 	}
-	_, err := b.pool.Exec(ctx,
-		`INSERT INTO repomesh_messages.bridge_deliveries
-		   (direction, issue_id, conversation_id, submission_id, actor, body)
-		 VALUES ('human', $1, $2, NULLIF($3,''), $4, $5)
-		 ON CONFLICT DO NOTHING`,
-		issueID, conversationID, submissionID, actor, body)
-	if err != nil {
-		fmt.Printf("managerbridge: enqueue failed issue=%s: %v\n", issueID, err)
+	session := agentteams.NewSessionFromEnv(controller)
+	if session == nil {
+		return nil
 	}
+	return New(pool, session)
 }
 
-// ForwardOnce 扫一小批 pending 的人消息投出去，返回处理条数。
-// 由协调器按退避节奏调用；单条失败置回 pending 并记 last_error，
-// 连续失败由调用方的退避兜住（不在桥里再造退避，A3/A4 的教训）。
+// ForwardOnce 扫一小批**未投递的人消息**投进该 issue 的队房，返回处理条数。
+//
+// 不设 Enqueue 推送口：会话流里的 conversation_messages 行本身就是"人说了话"这个
+// 事实（设计 §4-①），桥只按主键差集找没投过的，投成功才落 bridge_deliveries。
+// 少一条写路径、少一处依赖注入，也不存在"两个写不原子"——那个坑就是被这么消掉的。
 func (b *Bridge) ForwardOnce(ctx context.Context) int {
 	if b == nil || b.pool == nil || b.matrix == nil {
 		return 0
 	}
-	rows, err := b.pool.Query(ctx,
-		`SELECT id, issue_id, conversation_id, actor, body
-		   FROM repomesh_messages.bridge_deliveries
-		  WHERE direction='human' AND status='pending'
-		  ORDER BY created_at LIMIT 20`)
+	rows, err := b.pool.Query(ctx, `
+		SELECT m.id, m.conversation_id, i.id, COALESCE(a.display_name, m.actor_id, ''), m.body
+		  FROM repomesh_messages.conversation_messages m
+		  JOIN repomesh_issues.issues i ON i.main_conversation_id = m.conversation_id
+		  LEFT JOIN repomesh_access.accounts a ON a.id = m.actor_id
+		  LEFT JOIN repomesh_messages.bridge_deliveries d
+		         ON d.submission_id = m.id AND d.direction = 'human'
+		 WHERE m.author_kind = 'user' AND d.id IS NULL
+		 ORDER BY m.id LIMIT 20`)
 	if err != nil {
 		fmt.Printf("managerbridge: scan failed: %v\n", err)
 		return 0
 	}
-	type item struct {
-		id   int64
-		issue, conv, actor, body string
-	}
+	type item struct{ msgID, conv, issue, actor, body string }
 	var batch []item
 	for rows.Next() {
 		var it item
-		if err := rows.Scan(&it.id, &it.issue, &it.conv, &it.actor, &it.body); err != nil {
+		if err := rows.Scan(&it.msgID, &it.conv, &it.issue, &it.actor, &it.body); err != nil {
 			rows.Close()
 			return len(batch)
 		}
@@ -76,44 +76,31 @@ func (b *Bridge) ForwardOnce(ctx context.Context) int {
 	}
 	rows.Close()
 
-	done := 0
+	sent := 0
 	for _, it := range batch {
 		roomID, err := roomnotice.RoomForIssue(ctx, b.pool, it.issue)
-		if err != nil {
-			b.mark(ctx, it.id, "pending", err)
+		if err != nil || roomID == "" {
+			// 取房失败或还没建队（物化前）：**不落台账**，下一拍原样重来
+			// ——补发语义就是"没投出去的下次还找得到"（设计 §5）。
 			continue
 		}
-		if roomID == "" {
-			// 没建队（物化前）：留 pending，桥启动补发（设计 §5）。不算失败。
-			b.mark(ctx, it.id, "pending", nil)
-			continue
-		}
-		txn := fmt.Sprintf("repomesh-bridge-%d", it.id)
+		txn := "repomesh-bridge-" + it.msgID
 		eventID, err := b.matrix.SendMessage(ctx, roomID, txn, messageBody(it.actor, it.body))
 		if err != nil {
-			b.mark(ctx, it.id, "pending", err)
+			fmt.Printf("managerbridge: send failed issue=%s room=%s: %v\n", it.issue, roomID, err)
 			continue
 		}
 		if _, err := b.pool.Exec(ctx,
-			`UPDATE repomesh_messages.bridge_deliveries
-			    SET status='sent', matrix_event_id=$2, last_error=NULL, updated_at=now()
-			  WHERE id=$1`, it.id, eventID); err != nil {
-			fmt.Printf("managerbridge: mark sent failed id=%d: %v\n", it.id, err)
+			`INSERT INTO repomesh_messages.bridge_deliveries
+			   (direction, issue_id, conversation_id, submission_id, matrix_event_id, actor, body, status)
+			 VALUES ('human', $1, $2, $3, $4, $5, $6, 'sent')
+			 ON CONFLICT DO NOTHING`,
+			it.issue, it.conv, it.msgID, eventID, it.actor, it.body); err != nil {
+			fmt.Printf("managerbridge: ledger write failed msg=%s: %v\n", it.msgID, err)
 		}
-		done++
+		sent++
 	}
-	return done
-}
-
-func (b *Bridge) mark(ctx context.Context, id int64, status string, cause error) {
-	msg := ""
-	if cause != nil {
-		msg = cause.Error()
-	}
-	_, _ = b.pool.Exec(ctx,
-		`UPDATE repomesh_messages.bridge_deliveries
-		    SET status=$2, last_error=NULLIF($3,''), attempts=attempts+1, updated_at=now()
-		  WHERE id=$1`, id, status, msg)
+	return sent
 }
 
 // messageBody 服务身份发言，正文自报家门（v1，见文件头 ponytail 注）。
@@ -123,8 +110,3 @@ func messageBody(actor, body string) string {
 	}
 	return "[user: " + actor + "] " + body
 }
-
-// Compile-time pins.
-var _ = errors.Is
-var _ = pgx.ErrNoRows
-var _ = time.Second
