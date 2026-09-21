@@ -73,9 +73,26 @@ export function BranchValidationCard({
       .finally(() => setBusy(false));
   };
 
+  /** 折叠栏（2026-09-21 用户要求）：默认展开（下面有「跑一次分支验证」这个动作入口，
+   *  藏起来就等于没有入口），点标题收起。 */
+  const [open, setOpen] = useState(true);
+
   return (
     <div className="border-t border-dashed border-[var(--tree-hairline)] px-4 py-3">
-      <span className="microlabel">数据库分支验证</span>
+      <div className="flex items-center gap-2">
+        {/* 折叠栏（2026-09-21 用户要求）：标题本身就是开关，不额外加一条只用来折叠的横条。 */}
+        <button
+          type="button"
+          className="flex items-center gap-1.5"
+          title={open ? "收起这一段" : "展开这一段"}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <span className="text-[9px] text-[var(--tree-sub)]">{open ? "▾" : "▸"}</span>
+          <span className="microlabel">数据库分支验证</span>
+        </button>
+      </div>
+      {open && (
+        <>
       <p className="mt-1 text-[10.5px] leading-[1.7] text-[var(--tree-faint)]">
         为一个候选开一条独立分支：从业务数据基线库克隆（不是空库），逐条跑迁移并留结果，
         跑完清理。同候选的多个服务共用一条分支，不同候选互不干扰；分支数据不进生产。
@@ -167,6 +184,8 @@ export function BranchValidationCard({
             </button>
           )}
         </div>
+      )}
+        </>
       )}
     </div>
   );

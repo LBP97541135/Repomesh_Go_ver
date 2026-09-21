@@ -64,6 +64,9 @@ export function ResponsibilityCaseCard({
   const [busy, setBusy] = useState(false);
   const [opError, setOpError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  /** 折叠栏（2026-09-21 用户要求）：这一段内容长，默认展开（动作入口不能被藏起来），
+   *  点标题即收起。标题本身就是开关 —— 不额外加一条只用来折叠的横条。 */
+  const [open, setOpen] = useState(true);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -134,7 +137,15 @@ export function ResponsibilityCaseCard({
   return (
     <div className="border-t border-dashed border-[var(--tree-hairline)] px-4 py-3">
       <div className="flex items-center gap-2">
-        <span className="microlabel">跨仓职责 · 授权 · 冲突</span>
+        <button
+          type="button"
+          className="flex items-center gap-1.5"
+          title={open ? "收起这一段" : "展开这一段"}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <span className="text-[9px] text-[var(--tree-sub)]">{open ? "▾" : "▸"}</span>
+          <span className="microlabel">跨仓职责 · 授权 · 冲突</span>
+        </button>
         <button
           type="button"
           className="ml-auto text-[10.5px] text-[var(--tree-sub)] hover:text-[var(--tree-ink)]"
@@ -143,6 +154,8 @@ export function ResponsibilityCaseCard({
           刷新
         </button>
       </div>
+      {open && (
+        <>
       <p className="mt-1 text-[10.5px] leading-[1.7] text-[var(--tree-faint)]">
         记录谁在什么时候做了什么：Manager 定方向、Leader 认领仓库并申请授权、执行角色报冲突。
         动作只有人能发起，agent 只留事件。
@@ -296,6 +309,8 @@ export function ResponsibilityCaseCard({
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }
