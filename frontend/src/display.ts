@@ -345,7 +345,17 @@ export function shortId(id: string | null | undefined): string {
 export function errText(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 401) return "登录会话已过期或未登录——请先在登录页完成 GitHub 授权";
-    if (err.status === 404) return "该功能在当前服务端版本尚未就绪（404）——请稍后重试或联系部署者升级";
+    // 404 有两种，含义**完全相反**，必须分开说（2026-09-21 用户实测）：
+    //   not_implemented = 服务端没有这条能力 → 动作是"等升级 / 找部署者"；
+    //   其它（resource_not_found 等）= 对象不在当前项目 / 不存在 → 动作是"切项目、核对链接"。
+    // 此前一律说成前者：用户拿着"在 e2e 项目下打开 sealor 的 issue"这种链接，
+    // 被告知"服务端版本尚未就绪，请稍后重试"，于是去等一个永远不会来的升级。
+    if (err.status === 404) {
+      if (serverErrorCode(err) === "not_implemented") {
+        return "该功能在当前服务端版本尚未就绪（404）——请稍后重试或联系部署者升级";
+      }
+      return serverMessage(err) ?? "这个对象不在当前项目里（404）——请确认左上角项目是否选对，或核对链接";
+    }
     if (err.status === 0) return `无法连接服务：${err.message}`;
     // 2026-09-19：后端现在会带 `{"error": code, "message": "人能看懂的那句话"}`。
     // 有 message 就原样用它——"计划里没有仓库，请回第 3 步指定"这类业务前提说明，
@@ -382,6 +392,32 @@ function serverMessage(err: ApiError): string | null {
     if (candidate && typeof candidate === "object" && "message" in candidate) {
       const message = (candidate as { message?: unknown }).message;
       if (typeof message === "string" && message.trim() !== "") return message.trim();
+    }
+  }
+  return null;
+}
+
+/** 从后端错误体里取出机器可读的错误码（`{"error": "..."}`）。
+ *
+ *  与 serverMessage 同一套解析，只是取 code 那一栏 —— **状态码不够用来分派动作**：
+ *  同一个 404 底下，「能力还没实现」和「对象不在这里」要做的事正好相反
+ *  （等升级 vs 切项目）。 */
+function serverErrorCode(err: ApiError): string | null {
+  const candidates: unknown[] = [];
+  if (typeof err.detail === "string") {
+    try {
+      candidates.push(JSON.parse(err.detail));
+    } catch {
+      // 裸字符串：不是 JSON，取不到 code，跳过。
+    }
+    candidates.push(err.detail);
+  } else {
+    candidates.push(err.detail);
+  }
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === "object" && "error" in candidate) {
+      const code = (candidate as { error?: unknown }).error;
+      if (typeof code === "string" && code.trim() !== "") return code.trim();
     }
   }
   return null;
