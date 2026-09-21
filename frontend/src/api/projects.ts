@@ -237,6 +237,32 @@ export function listConfigurationProfiles(query?: PageQuery): Promise<Configurat
   return apiRequest<ConfigurationProfilePage>("GET", `/configuration-profiles${pageQuery(query)}`);
 }
 
+/** PUT /api/configuration-profiles/{kind}/default —— 把某个档案设成**默认**。
+ *
+ *  2026-09-22 补：这是那条缺失链路的前端一半。
+ *
+ *  在此之前 `repomesh_projects.defaults` 只有导入路径能写、**没有任何 HTTP 入口**，
+ *  而 `model` 那一侧连写函数都不存在 —— 线上实测 catmem 有一个完整可用的模型档案
+ *  （deepseek，enabled），却**没有任何办法把它设成默认**，于是他的项目走 `inherit`
+ *  解析到空，建 issue 被「执行配置未完成」**永久**阻断，而且他自己解不开。
+ *
+ *  **版本号不传**：默认永远指向档案的 current_version（服务端定），
+ *  否则会出现"默认指向一个已经不是当前的版本"，与档案页显示的不一致。
+ *
+ *  kind 走**路径段**而不是请求体 —— 它是资源身份的一部分（model 与 execution 是
+ *  两类档案），放路径里路由与鉴权一眼可见。
+ *
+ *  失败语义（服务端）：422 = kind 不在闭集里或 profileId 为空；
+ *  404 = 档案不存在 / 不是你的 / 未启用 / 当前版本行缺失（**不区分**，不泄露存在性）。 */
+export function setDefaultConfigurationProfile(
+  kind: "model" | "execution",
+  profileId: string,
+): Promise<{ kind: string; profileId: string; status: string }> {
+  return apiRequest("PUT", `/configuration-profiles/${encodeURIComponent(kind)}/default`, {
+    profileId,
+  });
+}
+
 export function listAllProjects(): Promise<ProjectListItem[]> {
   return allPages((cursor) => listProjects({ cursor, limit: 100 }));
 }
