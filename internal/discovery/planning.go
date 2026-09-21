@@ -309,6 +309,17 @@ func (s *Service) ApplyPlanningArtifact(ctx context.Context, tx pgx.Tx, st *Stat
 		}
 		text := analyzed
 		st.AnalyzedText = &text
+		// ① 分析应用成功即**开门**(spec 2026-09-20 修订,Task 顺序修正):门先出现,
+		// 建议为空;人在门上点「让 AI 定」时才去 ② 生成建议。ai 模式带 10 分钟截止
+		// (无人点则协调器走同一条"生成+采纳"),hitl 无截止。门是单列写,不会被本
+		// 事务稍后的 save() 整行重写抹掉;门已存在时 openGateInTx 幂等不覆盖。
+		deadline, err := s.gateDeadlineForIssue(ctx, tx, st.IssueID)
+		if err != nil {
+			return err
+		}
+		if err := openGateInTx(ctx, tx, st.IssueID, nil, deadline); err != nil {
+			return err
+		}
 	case PlanningCandidates:
 		// 把 agent 的分档结论映射成界面既有形状（items[] 带 score/rationale）。
 		// `agent_tier` 原样保留：③ 分档审批据此**直接采用 agent 的判断**，
@@ -349,11 +360,11 @@ func (s *Service) ApplyPlanningArtifact(ctx context.Context, tx pgx.Tx, st *Stat
 				"run_id": prov.RunID, "agent_kind": prov.AgentKind,
 			},
 		}
-		// 候选落库即开选仓门(Task B1,spec §3.2):建议集合=候选全名;ai 模式带
-		// 10 分钟截止,hitl 模式无截止(门无限等待)。写在**同一事务**里——候选与门
-		// 要么一起提交、要么一起回滚;门是单列写,不会被本事务稍后的 save() 整行
-		// 重写抹掉。门已存在时 openGateInTx 幂等不覆盖,重复应用产物不开第二扇门。
-		if err := s.openGateForCandidates(ctx, tx, st, items); err != nil {
+		// 候选落库即**补建议**(Task 顺序修正,spec 2026-09-20 修订):门已在 ①
+		// 之后开出(建议为空),这里只把候选全名填进门;门不因候选落库才出现或消失。
+		// 写在**同一事务**里——候选与建议要么一起提交、要么一起回滚;门是单列写,
+		// 不会被 save() 整行重写抹掉。已决的门由 CAS 如实跳过。
+		if err := s.fillGateSuggestedForCandidates(ctx, tx, st, items); err != nil {
 			return err
 		}
 	case PlanningGapAudit:
