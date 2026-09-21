@@ -38,6 +38,12 @@ func confirmScopeSelection(w http.ResponseWriter, r *http.Request, service *issu
 		return err
 	}
 	writeJSON(w, http.StatusOK, receipt)
+	// ai_requested(spec 2026-09-20 修订):人点了「让 AI 定」但建议还没生成,范围
+	// 还没落地、门还没关 —— 回执照 200 原样返回(前端据 status 提示"正在生成建议"),
+	// 但**不投"已确认"进房、不唤醒团队**(那两件事的前提是范围已定)。
+	if receipt.Status == "ai_requested" {
+		return nil
+	}
 	// 门确认的两件后事(都在回执之后,失败不改判定):
 	//   1) 房间留一条——谁选的、选了几个,人回看时知道范围是怎么定的;
 	//   2) 唤醒入选仓库的团队——建队时 worker 是 Sleeping 的(spec §3.3),
