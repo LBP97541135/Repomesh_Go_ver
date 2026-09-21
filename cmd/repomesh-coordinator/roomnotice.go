@@ -41,3 +41,31 @@ func truncateRunes(text string, limit int) string {
 // 编译期钉住：coordinator 用的是共享通知器，别在本地再长一份。
 var _ = roomnotice.New
 var _ = strings.TrimSpace
+
+// gateOpenedNotice 选仓门开启。只在候选步成功后发一次。
+func gateOpenedNotice(suggested int) string {
+	return "【RepoMesh】选仓门已开：AI 建议 " + itoa(suggested) + " 个仓库，等人勾选或让 AI 定。"
+}
+
+// gateAuditNotice 查漏结果(只提示,不擅自改范围)。
+func gateAuditNotice(missing []string) string {
+	joined := missing[0]
+	if len(missing) > 1 {
+		joined = joined + " 等 " + itoa(len(missing)) + " 个"
+	}
+	return "【RepoMesh】查漏：已确认范围可能漏了 " + joined + "，请确认补不补。"
+}
+
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	buf := [20]byte{}
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(buf[i:])
+}

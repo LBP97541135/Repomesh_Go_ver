@@ -335,6 +335,16 @@ func (d *planningDispatcher) collectFinished(ctx context.Context) (bool, error) 
 					reason = fmt.Sprintf("产物入库失败：%v", err)
 				} else {
 					d.raiseReview(ctx, one.issueID, one.step)
+					// 门事件也进房间(spec §3.4):选仓门刚开一条、查漏有漏一条。
+					// 幂等键按 run id,重投不刷屏。
+					switch one.step {
+					case discovery.PlanningCandidates:
+						d.rooms.Notify(ctx, one.issueID, "gate:"+one.issueID+":opened", gateOpenedNotice(len(gateSuggested(artifact))))
+					case discovery.PlanningGapAudit:
+						if missing := gateSuggested(artifact); len(missing) > 0 {
+							d.rooms.Notify(ctx, one.issueID, "gate:"+one.issueID+":audit:"+one.id, gateAuditNotice(missing))
+						}
+					}
 				}
 			}
 		}
@@ -411,3 +421,32 @@ func tailText(text string, limit int) string {
 }
 
 var _ = time.Now
+
+// gateSuggested 从规划产物里取出"仓库名列表":候选步取 items[].repository_name,
+// 查漏步取 missing[].repository。取不到就返回空——通知宁缺勿编。
+func gateSuggested(artifact map[string]any) []string {
+	keys := []string{"items", "missing"}
+	for _, key := range keys {
+		raw, ok := artifact[key].([]any)
+		if !ok {
+			continue
+		}
+		names := make([]string, 0, len(raw))
+		for _, entry := range raw {
+			entryMap, ok := entry.(map[string]any)
+			if !ok {
+				continue
+			}
+			for _, field := range []string{"repository_name", "repository"} {
+				if name, ok := entryMap[field].(string); ok && name != "" {
+					names = append(names, name)
+					break
+				}
+			}
+		}
+		if len(names) > 0 {
+			return names
+		}
+	}
+	return nil
+}

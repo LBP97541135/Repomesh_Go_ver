@@ -588,6 +588,14 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	agentTeamsAPI := web.AgentTeams{Client: atClient}
 	if pipelinePool != nil {
 		agentTeamsAPI.RepositoryTeams = repositoryteams.New(pipelinePool, atClient)
+		// 选仓门确认成功 → 唤醒入选仓库的团队(spec §3.3):团队建的时候 worker 是
+		// Sleeping 的,不唤醒就没有可接活的 runtime。fire-and-forget,失败只告警。
+		{
+			waker := agentTeamsAPI.RepositoryTeams
+			issuesAPI.OnScopeConfirmed = func(callCtx context.Context, projectID string, repositoryIDs []string) {
+				waker.WakeTeamsForRepositories(callCtx, projectID, repositoryIDs...)
+			}
+		}
 		// 建队时机 = **确认接入**:仓库页单仓「接入本项目」与批量「全部接入」
 		// 走同一条路(见下方 OnRepositoriesConfirmed 与 spec §3.3)。
 		teamService := agentTeamsAPI.RepositoryTeams

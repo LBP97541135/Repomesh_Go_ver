@@ -46,3 +46,37 @@ func TestPlanningNoticesCarryStepAndSource(t *testing.T) {
 		}
 	}
 }
+
+// 门事件文案：谁选的必须说清楚（人勾的与 AI 定的在审计上不是一回事），
+// 查漏只说数量+首个仓名，不擅自改范围。
+func TestGateNotices(t *testing.T) {
+	opened := gateOpenedNotice(5)
+	if !strings.Contains(opened, "选仓门已开") || !strings.Contains(opened, "5") {
+		t.Fatalf("opened notice: %q", opened)
+	}
+	audit := gateAuditNotice([]string{"acme/billing", "acme/notify", "acme/pay"})
+	if !strings.Contains(audit, "acme/billing") || !strings.Contains(audit, "3") {
+		t.Fatalf("audit notice should name the first repo and the count: %q", audit)
+	}
+	if !strings.Contains(audit, "请确认补不补") {
+		t.Fatalf("audit must stay a prompt, not a decision: %q", audit)
+	}
+}
+
+// gateSuggested 对两种产物形状各取各的字段；取不到返回空（宁缺勿编）。
+func TestGateSuggested(t *testing.T) {
+	candidates := map[string]any{"items": []any{
+		map[string]any{"repository_name": "acme/checkout"},
+		map[string]any{"repository_name": "acme/shared-lib"},
+	}}
+	if got := gateSuggested(candidates); len(got) != 2 || got[0] != "acme/checkout" {
+		t.Fatalf("candidates: %v", got)
+	}
+	audit := map[string]any{"missing": []any{map[string]any{"repository": "acme/billing"}}}
+	if got := gateSuggested(audit); len(got) != 1 || got[0] != "acme/billing" {
+		t.Fatalf("audit: %v", got)
+	}
+	if got := gateSuggested(map[string]any{}); got != nil {
+		t.Fatalf("empty artifact must yield nil, got %v", got)
+	}
+}

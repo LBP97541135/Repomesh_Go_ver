@@ -199,3 +199,14 @@ func TestIssueScopeSelectionConfirm(t *testing.T) {
 		t.Fatalf("重放不得改写决定人: %q %v", decidedBy, err)
 	}
 }
+
+// 确认进房的文案：三种判定各说各的，别把"人勾的"说成"AI 定的"。
+func TestScopeConfirmedNotice(t *testing.T) {
+	cases := map[string]string{"manual": "人勾选", "ai": "AI 定", "timeout": "超时代选"}
+	for decidedBy, want := range cases {
+		got := scopeConfirmedNotice(decidedBy, 3)
+		if !strings.Contains(got, want) || !strings.Contains(got, "3") {
+			t.Fatalf("%s: %q", decidedBy, got)
+		}
+	}
+}

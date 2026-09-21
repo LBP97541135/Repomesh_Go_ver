@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -31,6 +32,11 @@ type Issues struct {
 	Matrix *agentteams.MatrixSession
 	// Rooms 把"建项成功"这类事件投进团队房。nil 时静默不投，建项行为不变。
 	Rooms *roomnotice.Notifier
+	// OnScopeConfirmed 是选仓门确认成功后的回调(组合根接"唤醒入选仓库的团队"):
+	// spec 2026-09-20 §3.3 —— 团队建的时候 worker 是 Sleeping 的,不唤醒就没有可接活的
+	// runtime。走 hook 而不是让 issues 包直接依赖 repositoryteams(域不依赖适配器)。nil 时
+	// 静默跳过,确认行为不变。
+	OnScopeConfirmed func(ctx context.Context, projectID string, repositoryIDs []string)
 }
 
 func registerIssues(mux *http.ServeMux, auth Auth, issueAPI Issues) {
