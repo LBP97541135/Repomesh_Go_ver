@@ -63,13 +63,21 @@ type IssuePage struct {
 type IssueListQuery struct {
 	Text         string
 	RepositoryID string
+	// State 是 issue 列表两个标签页的过滤：open / closed / all。
+	//
+	// 2026-09-21：此前这个字段**根本不存在**，handler 也没读 `state` 查询参数 ——
+	// 控制台点「Open / Closed」传了值，服务端直接丢掉，两个标签页永远返回同一份
+	// 全量列表（用户报的"open 和 close 页没有过滤，都是全量展示"）。
+	// 口径与逐行 state 同源：归档即 closed（`archived_at`）。
+	// 空值收敛成 all（= 修复前的行为），所以老脚本/老调用方不会静默少行。
+	State  string
 	Cursor       string
 	Limit        int
 }
 
 // ParseIssueListQuery applies the documented limits: limit 1..100 default 50,
 // q at most 200 Unicode scalars.
-func ParseIssueListQuery(text, repositoryID, cursor string, limit int) (IssueListQuery, error) {
+func ParseIssueListQuery(text, repositoryID, state, cursor string, limit int) (IssueListQuery, error) {
 	if limit == 0 {
 		limit = 50
 	}
@@ -79,7 +87,16 @@ func ParseIssueListQuery(text, repositoryID, cursor string, limit int) (IssueLis
 	if len([]rune(text)) > 200 {
 		return IssueListQuery{}, failure(422, "VALIDATION_FAILED")
 	}
-	return IssueListQuery{Text: text, RepositoryID: repositoryID, Cursor: cursor, Limit: limit}, nil
+	// 认这三个值 + 空；别的一律 422，而不是悄悄当成 all —— 写错一个字母就拿到
+	// "看起来对"的全量列表，那正是这个 bug 能藏这么久的原因。
+	switch state {
+	case "":
+		state = "all"
+	case "open", "closed", "all":
+	default:
+		return IssueListQuery{}, failure(422, "VALIDATION_FAILED")
+	}
+	return IssueListQuery{Text: text, RepositoryID: repositoryID, State: state, Cursor: cursor, Limit: limit}, nil
 }
 
 // ListIssues returns the readable issue list for one project. Only issues whose
@@ -101,7 +118,7 @@ func (s *Service) ListIssues(ctx context.Context, principal access.ProjectPrinci
 		actor:     principal.ActorID(),
 		kind:      "issues",
 		projectID: projectID,
-		query:     cursorScopeFingerprint(principal.ActorID(), "issues", projectID, query.Text, query.RepositoryID, query.Limit),
+		query:     cursorScopeFingerprint(principal.ActorID(), "issues", projectID, query.Text, query.RepositoryID, query.State, query.Limit),
 		limit:     query.Limit,
 	}
 	after := ""
@@ -114,14 +131,26 @@ func (s *Service) ListIssues(ctx context.Context, principal access.ProjectPrinci
 	}
 	where := `WHERE i.project_id=$1 AND i.removed_at IS NULL AND i.id>$2`
 	args := []any{projectID, after}
+	// 占位符改成动态序号。此前是写死的 $3 / $4：只要"只按仓库过滤、不传 q"，
+	// 参数就只有 3 个却引用了 $4，PostgreSQL 直接报参数不存在 → 503。
+	next := func(value any) string {
+		args = append(args, value)
+		return "$" + itoa(len(args))
+	}
 	if query.Text != "" {
-		where += ` AND strpos(lower(i.title),lower($3))>0`
-		args = append(args, query.Text)
+		where += ` AND strpos(lower(i.title),lower(` + next(query.Text) + `))>0`
 	}
 	if query.RepositoryID != "" {
 		where += ` AND EXISTS (SELECT 1 FROM repomesh_issues.issue_repository_scope s
-			WHERE s.issue_id=i.id AND s.repository_id=$4)`
-		args = append(args, query.RepositoryID)
+			WHERE s.issue_id=i.id AND s.repository_id=` + next(query.RepositoryID) + `)`
+	}
+	// state：与逐行 state 同源（归档即 closed），两个标签页各看自己那一半。
+	// 用 archived_at 而不是别处派生 —— 那正是 SELECT 里 CASE 的依据，两处必须同源。
+	switch query.State {
+	case "open":
+		where += ` AND i.archived_at IS NULL`
+	case "closed":
+		where += ` AND i.archived_at IS NOT NULL`
 	}
 	args = append(args, query.Limit+1)
 	rows, err := tx.Query(ctx, `SELECT i.id,i.number,i.title,i.main_changeset_id,i.revision,i.created_at,i.main_conversation_id,
@@ -290,9 +319,11 @@ type queryCursorScope struct {
 //
 // 换成 sha256 十六进制：不含 NUL，也不把用户输入原样落库；分隔符用 \x1f（US）
 // 而不是 \x00，同样只是为了拼接不产生歧义，它不会进数据库。
-func cursorScopeFingerprint(actor, kind, projectID, text, repositoryID string, limit int) string {
+// 指纹必须把 state 算进去：否则「open 标签页第一页」的游标能在「closed 标签页」
+// 上重放，翻页会翻到另一个集合里去（而且不报错，静默错行）。
+func cursorScopeFingerprint(actor, kind, projectID, text, repositoryID, state string, limit int) string {
 	sum := sha256.Sum256([]byte(strings.Join(
-		[]string{actor, kind, projectID, text, repositoryID, strconv.Itoa(limit)}, "\x1f")))
+		[]string{actor, kind, projectID, text, repositoryID, state, strconv.Itoa(limit)}, "\x1f")))
 	return hex.EncodeToString(sum[:])
 }
 

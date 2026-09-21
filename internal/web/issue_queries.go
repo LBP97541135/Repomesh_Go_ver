@@ -173,7 +173,9 @@ func roomBelongsToIssue(view issues.RoomsView, roomID string) bool {
 
 func listIssues(w http.ResponseWriter, r *http.Request, service *issues.Service, claims access.ProjectPrincipal) error {
 	projectID := r.PathValue("projectId")
-	query, err := issues.ParseIssueListQuery(r.URL.Query().Get("q"), r.URL.Query().Get("repositoryId"), r.URL.Query().Get("cursor"), atoiDefault(r.URL.Query().Get("limit"), 50))
+	// state 是 issue 列表两个标签页的过滤（open / closed / all）。此前这里**根本没读它**，
+	// 前端传了也被丢掉 → 两个标签页返回同一份全量列表（用户报的"没有过滤"）。
+	query, err := issues.ParseIssueListQuery(r.URL.Query().Get("q"), r.URL.Query().Get("repositoryId"), r.URL.Query().Get("state"), r.URL.Query().Get("cursor"), atoiDefault(r.URL.Query().Get("limit"), 50))
 	if err != nil {
 		return err
 	}
