@@ -103,6 +103,10 @@ jobs:
           install -d -m 0700 /opt/repomesh/observe-archive
           # 单元文件跟仓库走：改配置就是改代码，不再靠手工在服务器上编辑。
           install -m 0644 configs/repomesh-observe.service /etc/systemd/system/repomesh-observe.service
+          # executor 的单元文件也跟仓库走（2026-09-22）：它里面的 I/O 与 CPU 优先权
+          # 是"agent 不许把平台饿死"那条控制。留在服务器上手工改，下次部署就被这份
+          # 仓库副本覆盖回去了 —— 控制必须和代码一起走。
+          install -m 0644 configs/repomesh-host-executor.service /etc/systemd/system/repomesh-host-executor.service
           systemctl daemon-reload
           systemctl enable repomesh-observe >/dev/null 2>&1 || true
           # 前端只覆盖 index.html 与 assets/，保留服务器本地的 runtime-config.js

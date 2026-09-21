@@ -1,0 +1,27 @@
+[Unit]
+Description=RepoMesh Host Executor (claims and launches agent runs)
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+EnvironmentFile=/etc/repomesh/env
+ExecStart=/opt/repomesh/bin/repomesh-host-executor -worker wrk_accept_codex
+Restart=on-failure
+RestartSec=3
+
+# 2026-09-22：agent 是**批处理**，平台是**在线服务** —— 两者抢同一块盘时必须让 agent
+# 永远排在人后面。此前没有这条，8 个 agent 同时 find / 扫 295GB 盘就把 I/O 队列打满：
+# load 冲到 82、SSH 连 banner 都换不出来、部署的 go build 卡 20 分钟、站点 502
+# —— 平台被自己的批处理饿死了。
+#
+# IOSchedulingClass/Priority 走 ioprio_set，**子进程继承**，所以 agent 一起被管住。
+# 不用 idle(-c3)：这台机器上还有 AgentTeams 那套常年有 I/O 的服务，idle 会让 agent
+# 长期拿不到盘、任务永远跑不完；best-effort/7 是最低档的"让人先走"，仍能推进。
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+# CPU 同理：让出优先权，但不至于饿死。
+Nice=10
+CPUWeight=50
+
+[Install]
+WantedBy=multi-user.target
