@@ -650,6 +650,39 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 				timer.Reset(5 * time.Minute)
 			}
 		}()
+		// 建队兜底扫掠（2026-09-21 用户要求："让『仓库已接入项目』这件事**无论从哪条路
+		// 进来**都触发建队，现在只认选仓门那一条"）。
+		//
+		// 事实：钩子只有下面那一个 OnRepositoriesConfirmed（选仓门定稿）。扫描后直接进
+		// 项目、批量导入等路径都不经过它 —— 线上实测 106 条「项目-仓库」关系里**一条队
+		// 都没有**（sealor 的 4 个仓正是扫描进来的，所以它一个队也没有）。
+		//
+		// 与其去追每一个入口（漏一个就再犯一次），不如按**结果**收敛：周期性地把
+		// "还没有队的仓库"补上。EnsureAll 早就写好了，只是 20c63ba1 之后**没有调用方**
+		// —— 那次撤它是因为一次灌出 42 队/124 worker 把 load 压到 100+。现在它自带三道
+		// 护栏（maxTeamsPerSweep 每次上限、逐仓串行 + 每仓 2s、worker 一律 Sleeping 不起
+		// 真 runtime），所以可以接回来，但**保持它保守**：上限不动，只给一个稳定的节奏。
+		//
+		// 幂等：已建队的仓库不会被重复建（EnsureForProject 里的 NOT EXISTS 判据）。
+		// 起跑先等 40 秒，避开启动瞬间的其它后台工作。
+		go func() {
+			timer := time.NewTimer(40 * time.Second)
+			defer timer.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-timer.C:
+				}
+				if created, err := teamService.EnsureAll(ctx, repositoryTeamWorkerCount()); err != nil {
+					// 单批失败不阻断：下一轮接着补。err 里带着原因，不吞。
+					slog.Warn("repository team sweep deferred", "reason", err.Error(), "created", len(created))
+				} else if len(created) > 0 {
+					slog.Info("repository team sweep", "created", len(created))
+				}
+				timer.Reset(time.Minute)
+			}
+		}()
 		// 建队时机:仓库**接入项目**即建(单仓/批量都建)——选仓门定稿
 		// (2026-09-20,spec §3.3)取代此前"只有恰好新增 1 个仓才建"的裁定。
 		//
