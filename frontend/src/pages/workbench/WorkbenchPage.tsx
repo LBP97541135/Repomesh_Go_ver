@@ -672,11 +672,15 @@ export function WorkbenchPage({
   }, [projectId, issueId, reload, foreignIssue]);
 
 
+  // `questions` 可能**整个字段都不在**：① 失败时的状态块只有 error/ran_at/producer
+  // （2026-09-22 线上）。这里不设防的话，`undefined.length` 会在 render 期抛
+  // TypeError，把整个控制台打成白屏 —— 用户看到的是"网站用不了了"，与真实原因
+  // （模型额度耗尽导致分析失败）隔着十万八千里。读外部数据一律按可能缺字段来读。
   const clarifyPending =
     !!discovery &&
     discovery.analysis !== null &&
     !discovery.analysis.sufficient &&
-    discovery.analysis.questions.length > 0;
+    (discovery.analysis.questions ?? []).length > 0;
 
   // 追问待答且右栏没有选中条目时，自动跳到步 1（2026-09-20 移植主线 5743fbc2）：
   // ① 现在会停在「待人答」门态，但人不点左树就看不到追问与回答框 —— 自动选中

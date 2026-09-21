@@ -656,6 +656,51 @@ func (s *Service) ApplyPlanningRun(ctx context.Context, issueID string, step int
 	return tx.Commit(ctx)
 }
 
+// analysisFailureBlock / candidatesFailureBlock 是**失败态的状态块**。
+//
+// 它们必须仍然满足契约声明的形状（见 frontend 的 DiscoveryAnalysisBlock /
+// DiscoveryCandidatesBlock）：前端按契约读 `analysis.questions` 这类必填数组，
+// 少一个字段不是"少显示一行"，而是 render 期抛 TypeError 把整页打成白屏。
+//
+// 2026-09-22 线上就是这么来的：模型额度耗尽 → ① 分析失败 → 失败块只有
+// {error, ran_at, producer} → 工作台 `discovery.analysis.questions.length`
+// 当场 TypeError → 整个控制台白屏。用户看到的是"网站用不了了"，而真正的原因
+// 只在数据库里那三个键上。
+//
+// 这里给的是**空形状 + error**：`sufficient:false`、数组为空、`analyzed_requirement`
+// 为空串 —— 不编造结论，失败的事实由 error 承载。
+func analysisFailureBlock(reason string) map[string]any {
+	return map[string]any{
+		"sufficient":           false,
+		"informative":          false,
+		"confidence":           0.0,
+		"missing_dimensions":   []any{},
+		"dimensions":           []any{},
+		"questions":            []any{},
+		"extracted_keywords":   []any{},
+		"answers":              nil,
+		"analyzed_requirement": "",
+		"forced_continue":      nil,
+		"error":                reason,
+		"ran_at":               time.Now().UTC(),
+		"by_agent_id":          nil,
+		"producer":             map[string]any{"role": "unavailable"},
+	}
+}
+
+func candidatesFailureBlock(reason string) map[string]any {
+	return map[string]any{
+		"items":       []any{},
+		"llm_used":    false,
+		"limit":       0,
+		"entry_point": nil,
+		"error":       reason,
+		"ran_at":      time.Now().UTC(),
+		"by_agent_id": nil,
+		"producer":    map[string]any{"role": "unavailable"},
+	}
+}
+
 // FailPlanningRun 把失败**如实写进发现链状态**。
 //
 // 2026-09-20 审计里最刺眼的一条就是"什么都不显示"：前端 driver 静默吞错、
@@ -677,9 +722,9 @@ func (s *Service) FailPlanningRun(ctx context.Context, issueID string, step int,
 	}
 	switch step {
 	case PlanningAnalysis:
-		st.Analysis = block
+		st.Analysis = analysisFailureBlock(reason)
 	case PlanningCandidates:
-		st.Candidates = block
+		st.Candidates = candidatesFailureBlock(reason)
 	case PlanningGapAudit:
 		// 查漏失败没有对应的状态块(它的结论只落门的 audit 子键):如实记
 		// audit.error,单列写,不走 save()——不编一个假结论,也不留"成功"的假象。
