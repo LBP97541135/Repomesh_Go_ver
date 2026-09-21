@@ -153,6 +153,21 @@ func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, i
 		"find . -type d -name __pycache__ -prune -exec rm -rf {} +\n" +
 		"find . -type f -name \"*.pyc\" -delete\n" +
 		"rm -rf .pytest_cache\n" +
+		// 交付前回滚 **lockfile 噪声**（2026-09-21 线上实测）。
+		//
+		// 实测：agent 跑一次 npm/pnpm install 就会把 package-lock.json 整个重写 ——
+		// 那次 PR 是 +31,442 / -23,402 行，而任务真实改动只有 11 行（新增
+		// src/health/probe.ts 6 行 + 测试 5 行）。评审的人从 diff 里看不出"到底改了什么"，
+		// 而 PR 的体积本身就会被当成交付质量问题。
+		//
+		// 判据：**清单文件没变** → 说明依赖不是这次任务的一部分 → 把 lockfile 回滚掉。
+		// 清单变了（package.json / pnpm-workspace.yaml）则保留：那可能是任务要求升级依赖，
+		// 此时 lockfile 的改动是真的交付物，不能丢。
+		// 只回滚**已跟踪**的 lockfile（`git checkout --` 对不存在的路径会报错，故 || true）：
+		// 不删未跟踪文件 —— 那可能是仓库里本来就该有的东西，删了就成破坏。
+		"if git diff --quiet -- package.json pnpm-workspace.yaml; then\n" +
+		"  git checkout -- package-lock.json pnpm-lock.yaml yarn.lock npm-shrinkwrap.json 2>/dev/null || true\n" +
+		"fi\n" +
 		// 2026-09-20 线上实测：上面那两条 find **没能**把产物挡在提交之外（PR 里
 		// 依然出现 src/__pycache__/*.pyc）。所以再加一道**不依赖顺序**的闸：
 		// git add 直接按 pathspec 排除构建产物 —— 就算文件还在工作区，也进不了提交。
