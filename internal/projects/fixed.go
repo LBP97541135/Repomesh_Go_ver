@@ -344,6 +344,48 @@ type CheckedFixed struct {
 	ObservedAt    time.Time
 }
 
+// inheritedProfileUsable 判定 inherit 形态下、该账号的默认档案能不能用。
+//
+// 返回 (可用, 原因码)。原因码**刻意分成两种**，因为修法完全不同：
+//
+//	default_<kind>_missing —— 该账号压根没设默认档案 → 动作是"去设置里选一个默认"
+//	<kind>_unavailable     —— 设了，但解析不出来（档案被停用 / 版本行缺失）
+//	                          → 动作是"查这个档案本身"
+//
+// 合成一个码就等于把两种修法不同的事混成一句"不可用"，用户还是不知道该干什么。
+//
+// 解析路径与 storage.go 的 resolveProfile **同一张表**（defaults → profiles），
+// 不另造一套：inherit 的语义在系统里只能有一个来源。
+func (s *Service) inheritedProfileUsable(ctx context.Context, tx pgx.Tx, actor, kind string) (bool, string) {
+	var profileID, currentVersion string
+	var enabled bool
+	err := tx.QueryRow(ctx, `
+		SELECT p.id, p.current_version, p.enabled
+		FROM repomesh_projects.defaults d
+		JOIN repomesh_projects.profiles p ON p.kind = d.kind AND p.id = d.profile_id
+		WHERE d.actor = $1 AND d.kind = $2 AND p.owner = $1`, actor, kind).
+		Scan(&profileID, &currentVersion, &enabled)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, "default_" + kind + "_missing"
+	}
+	if err != nil {
+		return false, kind + "_unavailable"
+	}
+	if !enabled || currentVersion == "" {
+		return false, kind + "_unavailable"
+	}
+	// 默认档案的**当前版本**必须真的有对应的版本行 —— 否则"设了默认"只是挂了个名字，
+	// 执行面照样解析不出配方。
+	var versionExists bool
+	if err := tx.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM repomesh_projects.profile_versions
+		WHERE kind = $1 AND profile_id = $2 AND version = $3)`,
+		kind, profileID, currentVersion).Scan(&versionExists); err != nil || !versionExists {
+		return false, kind + "_unavailable"
+	}
+	return true, ""
+}
+
 // InspectFixedForCreation inspects a fixed configuration for creation-context
 // use. It never initializes quota windows.
 func (s *Service) InspectFixedForCreation(ctx context.Context, tx pgx.Tx, principal access.ProjectPrincipal, projectID string, revision ConfigurationRevision, now time.Time) (CheckedFixed, error) {
@@ -352,13 +394,34 @@ func (s *Service) InspectFixedForCreation(ctx context.Context, tx pgx.Tx, princi
 		return CheckedFixed{}, err
 	}
 	checked := CheckedFixed{Configuration: fixed, Status: "ready", ObservedAt: now}
+	actor := principal.ActorID()
+	// 2026-09-21 用户实测（catmem 的 1111 / 111test）：此前这里**只认显式钉住的档案**，
+	// 而 "mode":"inherit" 恰恰是**默认形态**（ModelChoice() 在 nil 时返回 inherit）——
+	// 于是"没钉档案"被当成"档案坏了"，把**默认配置**判成了故障，这两个项目因此
+	// 永久建不了 issue（界面只显示笼统的「执行配置未完成」）。
+	//
+	// 现在按契约里的两种形态分别判：
+	//   钉住了 → 就看钉住的那个能不能解析（原来的逻辑，保持不变）；
+	//   inherit → 回退到该账号的默认档案（与 resolveProfile 同一张表）。
 	if _, ok := fixed.Model(); !ok {
-		checked.Status = "blocked"
-		checked.Reasons = append(checked.Reasons, "model_unavailable")
+		if fixed.HasModelReference() {
+			// 引用了却解析不出来 → 真的是历史/档案缺失，不是没配。
+			checked.Status = "blocked"
+			checked.Reasons = append(checked.Reasons, "model_unavailable")
+		} else if usable, reason := s.inheritedProfileUsable(ctx, tx, actor, "model"); !usable {
+			checked.Status = "blocked"
+			checked.Reasons = append(checked.Reasons, reason)
+		}
 	}
 	if _, ok := fixed.ExecutionRecipe(); !ok {
-		checked.Status = "blocked"
-		checked.Reasons = append(checked.Reasons, "execution_recipe_unavailable")
+		if _, pinned := fixed.Execution(); pinned {
+			// 同上：钉了但解析不出配方（历史缺失 / schema1 旧格式）。
+			checked.Status = "blocked"
+			checked.Reasons = append(checked.Reasons, "execution_recipe_unavailable")
+		} else if usable, reason := s.inheritedProfileUsable(ctx, tx, actor, "execution"); !usable {
+			checked.Status = "blocked"
+			checked.Reasons = append(checked.Reasons, reason)
+		}
 	}
 	return checked, nil
 }
