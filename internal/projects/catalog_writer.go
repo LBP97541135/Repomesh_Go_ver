@@ -95,19 +95,42 @@ func (w *CatalogWriter) RegisterExecutionVersion(ctx context.Context, tx pgx.Tx,
 	return nil
 }
 
-func (w *CatalogWriter) BindExecutionDefault(ctx context.Context, tx pgx.Tx, owner, profileID, version string) (string, error) {
+// BindDefault 把某个档案设成该账号在 kind 上的**默认**。
+//
+// 2026-09-21 用户实测（catmem）：此前**只有 BindExecutionDefault、没有 model 那一侧**
+// —— 于是"配了模型却没有任何办法把它设成默认"。而 `inherit` 解析的正是 defaults 表
+// （见 storage.go 的 resolveProfile），没有默认 → inherit 解析到空 → 建 issue 被
+// 「执行配置未完成」**永久**阻断，且用户自己无法解开。
+//
+// 这里把 kind 参数化，两种档案走**同一条**写入路径 —— 上一版的教训正是"只做了一边"。
+func (w *CatalogWriter) BindDefault(ctx context.Context, tx pgx.Tx, owner, kind, profileID, version string) (string, error) {
 	if owner == "" || profileID == "" || version == "" {
+		return "", unavailable()
+	}
+	// kind 是闭集：写错了不是"多一条脏数据"，是让 inherit 永远解析不到。
+	if kind != "model" && kind != "execution" {
 		return "", unavailable()
 	}
 	revision := newCatalogID()
 	_, err := tx.Exec(ctx, `INSERT INTO repomesh_projects.defaults(actor,kind,profile_id,default_revision,pinned_version)
-		VALUES ($1,'execution',$2,$3,$4)
+		VALUES ($1,$2,$3,$4,$5)
 		ON CONFLICT (actor,kind) DO UPDATE SET profile_id=EXCLUDED.profile_id,default_revision=EXCLUDED.default_revision,pinned_version=EXCLUDED.pinned_version`,
-		owner, profileID, revision, version)
+		owner, kind, profileID, revision, version)
 	if err != nil {
 		return "", unavailable()
 	}
 	return revision, nil
+}
+
+// BindModelDefault 是 BindDefault 在 model 上的显式入口（对称性：调用方读代码时
+// 一眼能看出"两种 kind 都支持"，不必去猜为什么只有 execution 有名字）。
+func (w *CatalogWriter) BindModelDefault(ctx context.Context, tx pgx.Tx, owner, profileID, version string) (string, error) {
+	return w.BindDefault(ctx, tx, owner, "model", profileID, version)
+}
+
+// BindExecutionDefault 保留旧名：sources/import_v2.go 在用，不改它的调用点。
+func (w *CatalogWriter) BindExecutionDefault(ctx context.Context, tx pgx.Tx, owner, profileID, version string) (string, error) {
+	return w.BindDefault(ctx, tx, owner, "execution", profileID, version)
 }
 
 func newCatalogID() string {

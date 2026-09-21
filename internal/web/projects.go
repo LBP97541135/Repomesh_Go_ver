@@ -184,6 +184,35 @@ func registerProjects(mux *http.ServeMux, auth Auth, projectAPI Projects) {
 		}
 		return err
 	})
+	// 把某个档案设成**默认**（2026-09-21 补的能力）。
+	//
+	// 此前 `repomesh_projects.defaults` 只有导入路径能写、没有任何 HTTP 入口，
+	// 而 model 那一侧连写函数都不存在 —— 线上实测 catmem 有一个完整可用的模型档案，
+	// 却**没法把它设成默认**，于是 inherit 解析到空、建 issue 被「执行配置未完成」
+	// 永久阻断，且他自己解不开。这条路由就是那个缺失的入口。
+	//
+	// kind 走路径段而不是请求体：它是**资源身份的一部分**（model 与 execution 是
+	// 两类档案），放在路径里才能被路由与鉴权一眼看到。
+	registerProjectRoute(mux, "PUT /api/configuration-profiles/{kind}/default", auth, func(w http.ResponseWriter, r *http.Request, principal access.ProjectPrincipal) error {
+		if projectAPI.Service == nil {
+			return &projects.Failure{Status: 503, Code: "RESULT_UNCONFIRMED", FieldErrors: []projects.FieldError{}}
+		}
+		var body struct {
+			ProfileID string `json:"profileId"`
+		}
+		if err := decodeBody(w, r, &body); err != nil {
+			return err
+		}
+		if err := projectAPI.Service.SetDefaultProfile(r.Context(), principal, r.PathValue("kind"), body.ProfileID); err != nil {
+			return err
+		}
+		writeJSON(w, http.StatusOK, map[string]string{
+			"kind":      r.PathValue("kind"),
+			"profileId": body.ProfileID,
+			"status":    "default_set",
+		})
+		return nil
+	})
 	registerProjectRoute(mux, "POST /api/projects/{projectId}/archive", auth, func(w http.ResponseWriter, r *http.Request, principal access.ProjectPrincipal) error {
 		if projectAPI.Service == nil {
 			return &projects.Failure{Status: 503, Code: "RESULT_UNCONFIRMED", FieldErrors: []projects.FieldError{}}
