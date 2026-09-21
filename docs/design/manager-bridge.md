@@ -134,3 +134,22 @@ AgentTeams 队房（TeamRoomID）◀──────────────�
   conversation_id)（即"人先说过的那些 issue"）。ponytail: 天花板是
   **Manager 主动先说话的场景桥不到**（没有人的消息就没有台账行）；等真有这个
   需求再做房间→issue 的完整反查（把 RoomForIssue 的 SQL 反着写一遍）。
+
+### ④ 回写的入口（2026-09-20 定位，动手前读这两个文件）
+
+换代/重规划通道**已经存在**，不用发明：
+
+- `internal/discovery/planning.go`
+  - `PlanningPrompt(step, requirement, repoSummaries, skillDoc, prior ReplanContext)`
+    —— 提示词**已经接受 replan 上下文**；
+  - `EnqueuePlanningRunWithContext(ctx, issueID, step, runContext)` —— 带上下文入队的
+    重规划入口（这正是 ④ 要调的那个：把人/Manager 的变更意图塞进 runContext）；
+  - `ApplyPlanningRun` / `ApplyPlanningArtifact` —— 产物落库；
+- `internal/discovery/plan.go`
+  - `Plan` / `Approval` / `Materialize` —— 计划生成 → 分档审批 → 物化（换代后
+    重新物化走同一条）；
+  - `recordDecision(...)` —— 每次决策写决策链（换代的可追溯性在这）。
+
+**④ 的最小形状**：桥检测 `Workflow()` 与本地计划快照的差异 → 若有差异，
+`EnqueuePlanningRunWithContext(issueID, step, {"source":"manager-bridge", "diff":...})`
+→ 既有链路自然产出新 `plan_version` + revision。**不新建换代机制**。
