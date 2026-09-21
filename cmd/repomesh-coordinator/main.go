@@ -27,6 +27,7 @@ import (
 	"repomesh.local/repomesh/internal/observepipe"
 	"repomesh.local/repomesh/internal/repositoryteams"
 	"repomesh.local/repomesh/internal/roomnotice"
+	"repomesh.local/repomesh/internal/scm"
 	"repomesh.local/repomesh/internal/tasks"
 )
 
@@ -158,6 +159,9 @@ func runWorker(args []string) int {
 	}
 	taskStore := tasks.NewPostgresStore(runtime.Pool())
 	dagLedger := &coordinatorLedger{pool: runtime.Pool()}
+	// 交付闸门记账面：自动托管代行经理门审批时要往 change set 上补一条 review
+	// （与经理端点同一条路径）。webhook secret 只用于验签，这里不验签，取空也安全。
+	scmSvc := scm.New(runtime.Pool(), os.Getenv("REPOMESH_WEBHOOK_SECRET"))
 	// 节点级测试派发（本仓库集成 / 跨仓库联调回归）：见 integration.go。
 	integrations := newIntegrationDispatcher(runtime.Pool())
 	// C③ 环境回收治理：分支环境的**创建/使用/清理**状态全在库里（cleanup_pending、
@@ -193,6 +197,13 @@ func runWorker(args []string) int {
 					slog.Warn("task sweep deferred", "reason", err.Error())
 				} else if swept > 0 {
 					slog.Info("task sweep", "tasks", swept)
+				}
+				// 自动托管下的经理门：hitl_mode='ai' 的 issue 由 Leader 代行审批，
+				// 不让"全自动"在每个任务末尾都停下来等人（见 task_sweep.go）。
+				if approved, err := sweepAutoApproveManagerGate(dagCtx, runtime.Pool(), taskStore, scmSvc); err != nil {
+					slog.Warn("autohost gate deferred", "reason", err.Error())
+				} else if approved > 0 {
+					slog.Info("autohost gate approved", "tasks", approved)
 				}
 				if reconciled, err := reclaimer.ReconcileStale(dagCtx, 30*time.Minute); err != nil {
 					slog.Warn("branch reconcile deferred", "reason", err.Error())

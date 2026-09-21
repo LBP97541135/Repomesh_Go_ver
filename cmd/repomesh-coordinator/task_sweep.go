@@ -8,7 +8,85 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"repomesh.local/repomesh/internal/execution"
+	"repomesh.local/repomesh/internal/scm"
+	"repomesh.local/repomesh/internal/tasks"
 )
+
+// sweepAutoApproveManagerGate 在「自动托管」的 issue 上**由 Leader 代行经理门审批**。
+//
+// 为什么需要它（2026-09-21 用户原话："worker 受阻这个问题，我都用了自动模式了，
+// 应该让 leader 帮我审批的"）：自动托管（hitl_mode='ai'）此前只覆盖**发现链**的
+// 那几道门（分档审批、生成计划、物化确认 —— 见 discovery_auto.go），
+// 而 DAG 跑起来之后的**经理门**（任务置 blocked 等人点「通过」）压根不在它的
+// 管辖范围里。于是"全自动"跑到每个任务末尾都会停下来等人 —— 用户看到的正是这个。
+//
+// 判定与处置：
+//
+//	· 只挑 status='blocked' 且**该 issue 是 ai 模式**的任务；hitl 模式一行不碰
+//	  （那是"门等真人"的语义，替人做主比不做事更坏）；
+//	· 审批走**与 HTTP 端点同一条服务方法**（tasks.ApproveStep），不另写一套状态迁移；
+//	· 同时补记交付闸门的 review 那一项（与经理端点一样，fail-open：记账失败不回滚审批）。
+//
+// 不拿"自动"当放行的理由：result_summary 如实写明是谁批的、以及单点验收到底有没有过。
+// 验收缺失/未过时**照样批**（闸门是人的判断，不该由这里替它下结论），但那句话会写在
+// 任务上；真正的拦截留给交付闸门（pushed/pr/ci/reviewed 四项 fail-closed）。
+func sweepAutoApproveManagerGate(ctx context.Context, pool *pgxpool.Pool, store *tasks.PostgresStore, scmSvc *scm.Service) (int, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT t.id::text,
+		       (SELECT count(*) FROM public.test_evidence e
+		         WHERE e.task_id = t.id AND e.kind = 'task_single_point') AS evidence_rows,
+		       COALESCE((SELECT bool_or(e.passed) FROM public.test_evidence e
+		         WHERE e.task_id = t.id AND e.kind = 'task_single_point'), false) AS evidence_passed
+		FROM public.tasks t
+		JOIN public.plans p ON p.id = t.plan_id
+		JOIN repomesh_issues.issues i ON i.id = p.issue_id AND i.project_id = p.project_id::text
+		WHERE t.status = 'blocked' AND i.hitl_mode = 'ai'`)
+	if err != nil {
+		return 0, fmt.Errorf("autohost gate: 巡检查询失败: %w", err)
+	}
+	type gated struct {
+		id     string
+		rows   int
+		passed bool
+	}
+	var candidates []gated
+	for rows.Next() {
+		item := gated{}
+		if err := rows.Scan(&item.id, &item.rows, &item.passed); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("autohost gate: 巡检读取失败: %w", err)
+		}
+		candidates = append(candidates, item)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	approved := 0
+	for _, item := range candidates {
+		summary := "自动托管：Leader 代行经理门审批（本 issue 未开启人工参与审计）"
+		switch {
+		case item.passed:
+			summary += "；单点验收已通过"
+		case item.rows > 0:
+			summary += "；已有单点验收记录但未通过 —— 交付闸门仍会拦，不会因此放行"
+		default:
+			summary += "；尚无单点验收记录 —— 交付闸门仍会拦，不会因此放行"
+		}
+		if err := store.ApproveStep(ctx, item.id, autohostAgent, summary); err != nil {
+			return approved, fmt.Errorf("autohost gate: 代行审批失败 task=%s: %w", item.id, err)
+		}
+		if scmSvc != nil {
+			if changeSetID, csErr := scmSvc.ChangeSetForTask(ctx, item.id); csErr == nil && changeSetID != "" {
+				_ = scmSvc.RecordEvent(ctx, changeSetID, "review",
+					`{"actor":"`+autohostAgent+`","decision":"approved","mode":"autohost"}`)
+			}
+		}
+		approved++
+	}
+	return approved, nil
+}
 
 // task_sweep.go 收尾"任务标着在跑、却**没有任何在跑的 run**"的行。
 //
