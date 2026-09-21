@@ -104,9 +104,21 @@ func (s *Service) Classification(ctx context.Context, issueID, agentID, idempote
 		if lowSignal {
 			reason += "（扫描信号不足）"
 		}
-		// 越范围但 agent 想纳入(required/maybe)的候选:不进分档,改走 gap 提示桶。
-		// 排除档的越范围候选无害(不进计划/任务),仍按原样留在 excluded。
-		if !confirmed[name] && (status == "REQUIRED" || status == "MAYBE") {
+		// 2026-09-21 用户裁定：**分档权威在人这一边**。人在选仓门确认范围内的
+		// 仓库——agent 判 required → required；agent 判 maybe/excluded →
+		// **maybe**（取较高者，required > maybe > excluded）。线上实测的报错就是
+		// 这里：人选了仓，③ 却直接采用 agent 的旧 excluded 判定，把人选的仓
+		// 排除光，于是「本次没有任何仓库被纳入改动」。
+		// 范围外的候选仍按老规矩：想纳入（required/maybe）的进 gap 提示桶，
+		// 排除档原样留在 excluded。
+		if confirmed[name] {
+			if status != "REQUIRED" {
+				if status != "MAYBE" {
+					reason += "；已在选仓门确认的范围内，按「可能」档纳入"
+				}
+				status = "MAYBE"
+			}
+		} else if status == "REQUIRED" || status == "MAYBE" {
 			gapEntries = append(gapEntries, map[string]any{"repository": name, "reason": reason})
 			continue
 		}

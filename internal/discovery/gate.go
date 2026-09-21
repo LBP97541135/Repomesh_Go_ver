@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -31,24 +32,91 @@ const (
 // Gate 是 scope_gate 列的读面。空列(老 issue)读 nil,调用方视为已
 // resolve、直接跳过门——老 issue 不回填。
 type Gate struct {
-	State      GateState
-	DecidedBy  string // manual|ai|timeout
-	Suggested  []string
-	DeadlineAt *time.Time // 只在 ai 模式置(开门+10 分钟);hitl 无截止、门无限等待
-	ResolvedAt *time.Time
+	State     GateState
+	DecidedBy string // manual|ai|timeout
+	// Suggested 是建议的**仓名列表**（历史读法：options 采纳、超时代选都按名字映射 id）。
+	// 完整形状（分数/档位/理由）见 Suggestions。
+	Suggested   []string
+	Suggestions []GateSuggestion
+	DeadlineAt  *time.Time // 只在 ai 模式置(开门+10 分钟);hitl 无截止、门无限等待
+	ResolvedAt  *time.Time
 	// AIRequested 记「人在门上点了『让 AI 定』」(spec 2026-09-20 修订):门先出现,
 	// 点了才去生成建议。ai 语义的门 10 分钟无人点由协调器走同一条生成+采纳。
 	AIRequested bool
 }
 
+// GateSuggestion 是选仓门建议列表里的一行（2026-09-21 用户裁定）：仓名 + 置信度
+// 分数（0..1）+ 档位标签 + 理由。理由默认折叠由前端决定，后端只如实存下四样。
+// **排除档不进这份列表**：门只发「建议纳入的仓」，把 agent 判过排除的仓又摆回人
+// 面前等于噪音。
+type GateSuggestion struct {
+	Repository string  `json:"repository"`
+	Score      float64 `json:"score"`
+	Tier       string  `json:"tier"` // required|maybe
+	Reason     string  `json:"reason"`
+}
+
+// suggestedJSON 兼容两种落库形状：老数据是仓名数组（`[]string`），2026-09-21 起
+// 是带分数/档位/理由的对象数组。读面**永远折成对象数组**——仓名字符串折成只有
+// repository 的条目，前端因此只需处理一种形状。
+type suggestedJSON []GateSuggestion
+
+func (s *suggestedJSON) UnmarshalJSON(raw []byte) error {
+	// 先按老形状（仓名数组）解；解不动再按新形状（对象数组）解。
+	var names []string
+	if err := json.Unmarshal(raw, &names); err == nil {
+		converted := make(suggestedJSON, 0, len(names))
+		for _, name := range names {
+			converted = append(converted, GateSuggestion{Repository: name})
+		}
+		*s = converted
+		return nil
+	}
+	var objects []GateSuggestion
+	if err := json.Unmarshal(raw, &objects); err != nil {
+		return err
+	}
+	*s = objects
+	return nil
+}
+
+func (s suggestedJSON) MarshalJSON() ([]byte, error) {
+	if s == nil {
+		return []byte("[]"), nil
+	}
+	return json.Marshal([]GateSuggestion(s))
+}
+
+// names 只取仓名（历史读法：options 采纳、超时代选都按名字映射项目内 id）。
+func (s suggestedJSON) names() []string {
+	names := make([]string, 0, len(s))
+	for _, item := range s {
+		if name := strings.TrimSpace(item.Repository); name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// suggestionsFromNames 把仓名折成建议条目（只有 repository 的薄形状）。
+func suggestionsFromNames(names []string) suggestedJSON {
+	converted := make(suggestedJSON, 0, len(names))
+	for _, name := range names {
+		if trimmed := strings.TrimSpace(name); trimmed != "" {
+			converted = append(converted, GateSuggestion{Repository: trimmed})
+		}
+	}
+	return converted
+}
+
 // gateJSON 与列内 JSON 形状一一对应;时间用 RFC3339 文本存取。
 type gateJSON struct {
-	State       string     `json:"state"`
-	DecidedBy   string     `json:"decided_by"`
-	Suggested   []string   `json:"suggested"`
-	DeadlineAt  *time.Time `json:"deadline_at"`
-	ResolvedAt  *time.Time `json:"resolved_at"`
-	AIRequested bool       `json:"ai_requested"`
+	State       string        `json:"state"`
+	DecidedBy   string        `json:"decided_by"`
+	Suggested   suggestedJSON `json:"suggested"`
+	DeadlineAt  *time.Time    `json:"deadline_at"`
+	ResolvedAt  *time.Time    `json:"resolved_at"`
+	AIRequested bool          `json:"ai_requested"`
 }
 
 // gateAutoDeadline 是 ai 模式选仓门的自动代选宽限(spec 2026-09-20 §1):
@@ -74,10 +142,7 @@ func (s *Service) OpenGate(ctx context.Context, issueID string, suggested []stri
 // openGateInTx 是同事务版:② 候选产物落库的事务里顺手开门(gate_flow),
 // 候选与门要么一起提交、要么一起回滚;单列写不受 save() 整行重写影响。
 func openGateInTx(ctx context.Context, tx pgx.Tx, issueID string, suggested []string, deadline *time.Time) error {
-	if suggested == nil {
-		suggested = []string{}
-	}
-	payload, err := json.Marshal(gateJSON{State: string(GatePending), Suggested: suggested, DeadlineAt: deadline})
+	payload, err := json.Marshal(gateJSON{State: string(GatePending), Suggested: suggestionsFromNames(suggested), DeadlineAt: deadline})
 	if err != nil {
 		return err
 	}
@@ -172,7 +237,8 @@ func GateInTx(ctx context.Context, q interface {
 	gate := &Gate{
 		State:       GateState(payload.State),
 		DecidedBy:   payload.DecidedBy,
-		Suggested:   payload.Suggested,
+		Suggested:   payload.Suggested.names(),
+		Suggestions: payload.Suggested,
 		DeadlineAt:  payload.DeadlineAt,
 		ResolvedAt:  payload.ResolvedAt,
 		AIRequested: payload.AIRequested,
@@ -180,31 +246,34 @@ func GateInTx(ctx context.Context, q interface {
 	if gate.Suggested == nil {
 		gate.Suggested = []string{}
 	}
+	if gate.Suggestions == nil {
+		gate.Suggestions = []GateSuggestion{}
+	}
 	return gate, nil
 }
 
 // FillGateSuggested 补建议(单列 CAS UPDATE,绝不走 save()):**只在门还 pending
 // 时写**——已决(resolved)的门不复活、不被改写。① 分析应用即开门(建议为空),
 // ② 候选产物落地时才把候选全名补进来;门不是因为候选落库才出现/消失。
+//
+// 这是**接受仓名的薄包装**（历史调用方与测试用）：把仓名折成只有 repository 的
+// 建议条目。带分数/档位/理由的完整形状走 fillGateSuggestedForCandidates。
 func (s *Service) FillGateSuggested(ctx context.Context, issueID string, names []string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if err := fillGateSuggestedInTx(ctx, tx, issueID, names); err != nil {
+	if err := fillGateSuggestedInTx(ctx, tx, issueID, suggestionsFromNames(names)); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
 }
 
 // fillGateSuggestedInTx 是同事务版:② 候选产物落库的事务里顺手补建议,与候选块
-// 一起提交/回滚。
-func fillGateSuggestedInTx(ctx context.Context, tx pgx.Tx, issueID string, names []string) error {
-	if names == nil {
-		names = []string{}
-	}
-	payload, err := json.Marshal(names)
+// 一起提交/回滚。建议以**对象数组**落库（repository/score/tier/reason）。
+func fillGateSuggestedInTx(ctx context.Context, tx pgx.Tx, issueID string, suggestions suggestedJSON) error {
+	payload, err := json.Marshal(suggestions)
 	if err != nil {
 		return err
 	}
@@ -319,19 +388,40 @@ func (s *Service) gateDeadlineForIssue(ctx context.Context, tx pgx.Tx, issueID s
 }
 
 // fillGateSuggestedForCandidates 在②候选产物落库的事务里**补建议**(门已在①分析
-// 之后开出,这里只填 suggested,不再开门)。建议集合取候选块的 repository_name
-// (全名),过滤空名。已决的门由 fillGateSuggestedInTx 的 CAS 如实跳过。
+// 之后开出,这里只填 suggested,不再开门)。建议取候选块的 repository_name/score/
+// agent_tier/rationale,构造 {repository, score, tier, reason} 对象——**排除档不写**
+// (2026-09-21 用户裁定:门只发建议纳入的仓),按分数降序。已决的门由 CAS 如实跳过。
 func (s *Service) fillGateSuggestedForCandidates(ctx context.Context, tx pgx.Tx, st *State, items []any) error {
-	suggested := make([]string, 0, len(items))
+	suggestions := make(suggestedJSON, 0, len(items))
 	for _, itemAny := range items {
 		item, _ := itemAny.(map[string]any)
 		name, _ := item["repository_name"].(string)
 		if strings.TrimSpace(name) == "" {
 			continue
 		}
-		suggested = append(suggested, name)
+		score, _ := item["score"].(float64)
+		tier, _ := item["agent_tier"].(string)
+		tier = strings.ToLower(strings.TrimSpace(tier))
+		// agent 没给档位时按分档阈值回退出一个标签（与③同一套阈值），
+		// 免得门上出现一档空白的建议行。
+		if tier != "required" && tier != "maybe" && tier != "excluded" {
+			switch {
+			case score >= requiredBar:
+				tier = "required"
+			case score >= maybeBar:
+				tier = "maybe"
+			default:
+				tier = "excluded"
+			}
+		}
+		if tier == "excluded" {
+			continue
+		}
+		reason, _ := item["rationale"].(string)
+		suggestions = append(suggestions, GateSuggestion{Repository: name, Score: score, Tier: tier, Reason: reason})
 	}
-	return fillGateSuggestedInTx(ctx, tx, st.IssueID, suggested)
+	sort.SliceStable(suggestions, func(i, j int) bool { return suggestions[i].Score > suggestions[j].Score })
+	return fillGateSuggestedInTx(ctx, tx, st.IssueID, suggestions)
 }
 
 // RepositoryIDsForNamesInTx 把 owner/name 建议名映射到**本项目内**的仓库 id:
@@ -434,7 +524,7 @@ func resolveGateBySuggestion(ctx context.Context, db beginner, issueID, decidedB
 		return GateTimeoutReceipt{Status: "noop"}, nil, nil
 	}
 	// 建议集合(owner/name)→ 本项目内的仓库 id;忽略大小写,不在项目内的建议跳过。
-	repositories, err := RepositoryIDsForNamesInTx(ctx, tx, projectID, payload.Suggested)
+	repositories, err := RepositoryIDsForNamesInTx(ctx, tx, projectID, payload.Suggested.names())
 	if err != nil {
 		return GateTimeoutReceipt{}, nil, err
 	}
