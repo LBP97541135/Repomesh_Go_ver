@@ -34,23 +34,7 @@ ALTER TABLE repomesh_issues.issues
     ADD COLUMN IF NOT EXISTS execution_mode text NOT NULL DEFAULT 'auto',
     ADD COLUMN IF NOT EXISTS required_checkpoints jsonb NOT NULL DEFAULT '[]'::jsonb;
 
--- 回填：存量行按新的形状约束补齐卡点，否则下面那条 CHECK 加不上去
--- （manual_controlled 要求正好六个，而列的默认值是空数组）。
---
--- 回填方向按**各自的 hitl_mode** 走，不是一律填满：
---   · hitl_mode='hitl'（门等真人）→ manual_controlled + 六个卡点，语义与今天一致；
---   · hitl_mode='ai'（自动托管）  → auto + 空卡点，语义与今天一致。
--- 这样迁移**不改变任何一条既有需求的实际行为** —— 只是把"它本来就是哪一档"
--- 从 hitl_mode 里如实翻译过来。
-UPDATE repomesh_issues.issues
-SET execution_mode = CASE WHEN COALESCE(hitl_mode, 'hitl') = 'ai' THEN 'auto' ELSE 'manual_controlled' END,
-    required_checkpoints = CASE
-        WHEN COALESCE(hitl_mode, 'hitl') = 'ai' THEN '[]'::jsonb
-        ELSE '["repository_scope","specification","execution","validation","delivery","exception_escalation"]'::jsonb
-    END
-WHERE required_checkpoints = '[]'::jsonb
-  AND COALESCE(hitl_mode, 'hitl') <> 'ai';
-
+-- ⚠️ 回填 UPDATE 刻意放在**本文件最后**，见文末的说明 —— 顺序反了部署会失败。
 ALTER TABLE repomesh_issues.issues
     DROP CONSTRAINT IF EXISTS issues_execution_mode_check;
 ALTER TABLE repomesh_issues.issues
@@ -68,3 +52,28 @@ ALTER TABLE repomesh_issues.issues
         AND (execution_mode <> 'supervised' OR jsonb_array_length(required_checkpoints) >= 1)
         AND (execution_mode <> 'manual_controlled' OR jsonb_array_length(required_checkpoints) = 6)
     );
+
+-- 回填：存量行按各自的 hitl_mode 如实翻译成对应档位，**不改变任何一条既有需求的
+-- 实际行为**：
+--   · hitl_mode='ai'（自动托管）  → auto + 空卡点，语义与今天一致；
+--   · hitl_mode='hitl'（门等真人）→ manual_controlled + 六个卡点，语义与今天一致。
+--
+-- ⚠️ 这一段必须放在**所有 ALTER TABLE 之后**，否则线上会直接部署失败。
+--
+-- 2026-09-21 实测踩到（部署 job 在 0.038 秒内失败）：
+--     ERROR: cannot ALTER TABLE "issues" because it has pending trigger events   (SQLSTATE 55006)
+-- 原因是迁移跑在**一个事务**里：先 UPDATE 了 issues，该表上有延迟约束触发器，
+-- 于是这个事务里留下了"待处理的触发器事件"；紧接着再对同一张表 ALTER，
+-- Postgres 直接拒绝（55006）。把 UPDATE 挪到末尾就没有这个问题 ——
+-- 事务提交时事件自然处理掉，后面不再有 ALTER。
+--
+-- 别把这段"挪回上面"图整齐：整齐的代价是每次部署都失败，而且失败发生在
+-- **迁移步**（服务照常跑旧版本、回滚也救不了这一条），排查起来要翻 PG 日志才看得到真因。
+UPDATE repomesh_issues.issues
+SET execution_mode = CASE WHEN COALESCE(hitl_mode, 'hitl') = 'ai' THEN 'auto' ELSE 'manual_controlled' END,
+    required_checkpoints = CASE
+        WHEN COALESCE(hitl_mode, 'hitl') = 'ai' THEN '[]'::jsonb
+        ELSE '["repository_scope","specification","execution","validation","delivery","exception_escalation"]'::jsonb
+    END
+WHERE required_checkpoints = '[]'::jsonb
+  AND COALESCE(hitl_mode, 'hitl') <> 'ai';
