@@ -402,7 +402,10 @@ export type AgentRuntimeHosting = "container" | "external";
 export interface AgentRuntimeFields {
   kind: AgentRuntimeHosting | null;
   phase: string | null;
-  runtime_kind: RuntimeKind | null;
+  /** 2026-09-20 类型修正：Controller 实测会回报**空字符串**（不是 null）——
+   *  「有观测值、但上游没给种类」。把它如实并进联合,消费方按 SettingsPage 的
+   *  口径滤掉,别再让类型系统否认这个值存在(此前这里写窄了,tsc 直接报无重叠)。 */
+  runtime_kind: RuntimeKind | "" | null;
   matrix_user_id: string | null;
   room_id: string | null;
   message: string | null;
@@ -1285,6 +1288,22 @@ export interface DiscoveryMaterializationReceipt {
   plan_id: string | null;
 }
 
+/** 选仓门（2026-09-20「建项不选仓」）：① 需求分析后、仓库范围确认前的门。
+ *
+ *  建议与截止都由**服务端**产出（`suggested` 随 PlanningCandidates 开门落库；
+ *  `deadline_at` 只在 ai 模式有 = 开门时刻 + 10 分钟，hitl 模式无截止、门无限
+ *  等待）。**字段缺席 = 老 issue，视为 resolved、跳过门**——前端不得拿缺席
+ *  编造状态，也不得自行倒数（超时代选是协调器的事，读面下一拍自然反映）。 */
+export interface DiscoveryScopeGateView {
+  state: "pending" | "resolved";
+  /** 关门时刻由谁拍板：人勾（manual）/ AI 定（ai）/ 超时代选（timeout）。 */
+  decided_by?: "manual" | "ai" | "timeout";
+  /** AI 建议的仓库与理由（开门时随建议落库；resolved 后仍可回看）。 */
+  suggested?: Array<{ repository: string; reason: string }>;
+  /** ISO 8601。ai 模式 = 开门 + 10 分钟；hitl 恒缺省。 */
+  deadline_at?: string;
+}
+
 /** §3.1 `GET /issues/{issue_id}/discovery` 全体。
  *
  *  **issue 存在但从未发起发现 → HTTP 200** 且三块全 null、`step: 1`、
@@ -1325,6 +1344,9 @@ export interface DiscoveryView {
   /** 从未物化过 → **null**（同 `integration` 的缺席口径：键在、值为 null）。
    *  收据先于轮次存在：失败的那次没有轮次，却正是最需要被看见的那次。 */
   materialization: DiscoveryMaterializationReceipt | null;
+  /** 选仓门（2026-09-20 起建项不选仓）。**缺省 = 老 issue**（范围在建项时已定，
+   *  视为 resolved、跳过门）——只判 `state === "pending"`，不拿缺席当 pending。 */
+  scope_gate?: DiscoveryScopeGateView;
 }
 
 /** §4.5 轮询视图。**进程内记录、重启即丢**（沿 A-2 的诚实注记）：404 不是坏 id。

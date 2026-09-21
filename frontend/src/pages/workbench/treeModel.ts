@@ -24,8 +24,16 @@ export type StepState = "done" | "run" | "gate" | "wait" | "failed" | "choose" |
 export const STEP_LABELS = ["需求分析", "候选评分", "分档审批", "生成计划", "物化确认"] as const;
 
 /** 规划步骤态：①②④跟 artifact 走（analysis/candidates/plan），③⑤是人工门
- *  （approval.state / materialization.status）。 */
-export function deriveStepStates(d: DiscoveryView | null, hitl = false): StepState[] {
+ *  （approval.state / materialization.status）。
+ *
+ *  `scopeRepoCount`：本次 issue **已确认**的仓库数（issue 详情的 repositories）。
+ *  没有详情的调用方（如左树）传 null——② 的选仓门判定会退回发现投影里的
+ *  scope_gate，再没有就沿用旧 hitl 口径（见 ② 处注释）。 */
+export function deriveStepStates(
+  d: DiscoveryView | null,
+  hitl = false,
+  scopeRepoCount: number | null = null,
+): StepState[] {
   const states: StepState[] = ["wait", "wait", "wait", "wait", "wait"];
   if (!d) return states;
   const failed = d.step_state === "failed";
@@ -69,16 +77,30 @@ export function deriveStepStates(d: DiscoveryView | null, hitl = false): StepSta
             ? "failed"
             : "wait"
         : "wait";
-  // ② 候选评分（分流步，2026-09-18 用户裁定）：人工参与且分析已过 → 停在
-  // 「待人选」，等聊天室里的选择；自动托管 → 照常自动推进。
+  // ② 选仓门（2026-09-20「建项不选仓」）：分析已出、范围还没确认（空）、候选块
+  //    还没落到读面、也没物化过 → 停在「待确认」门，人勾（「我自己勾」）或按
+  //    AI 建议定（「让 AI 定」）。**与 hitl 无关**：ai 模式门也出现（超时由协调器
+  //    代选）；老 issue（建项时已定范围，或已物化）自动跳过门。
+  //    范围是否为空以 issue 详情为准；没有详情的调用方退回 scope_gate 投影
+  //    （pending=未确认，缺省=老 issue 跳过）；两者都没有（旧后端）沿用旧 hitl
+  //    口径，树上那枚「待人选」标签不至于无声消失。
   const cand = d.candidates;
+  const gateWaiting =
+    d.analysis !== null &&
+    cand === null &&
+    d.materialization === null &&
+    (scopeRepoCount !== null
+      ? scopeRepoCount === 0
+      : d.scope_gate !== undefined
+        ? d.scope_gate.state === "pending"
+        : hitl);
   states[1] =
     cand !== null
       ? cand.error
         ? "failed"
         : "done"
       : states[0] === "done"
-        ? hitl
+        ? gateWaiting
           ? "choose"
           : runningAt(2)
             ? "run"

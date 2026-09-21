@@ -7,6 +7,7 @@ import type { IssueListResponse, ParsedDocumentView } from "./contract";
 import { defaultClient } from "./client";
 import { createIssueCreation } from "./projectIssues";
 import { readActiveProject } from "./activeProject";
+import { apiRequest } from "./http";
 
 /** 需求正文里「用户手打的话」与「附件文档解析全文」的分界（U+2063 不可见分隔符）。
  *  契约里文档解析文本只能随 requirement_text 交给规划，但不进聊天气泡——
@@ -102,7 +103,9 @@ export function issuesSourceMode(): DataSourceMode {
 export interface CreateIssueRequest {
   projectId: string;
   requirementText: string;
-  repositoryIds: string[];
+  /** 2026-09-20 起建项不选仓：缺省不发送（解析层仍收老客户端的值但忽略其内容，
+   *  指纹算法不变）。留作可选只是让旧调用方/兼容路径不必改签名。 */
+  repositoryIds?: string[];
   expectedCreationContextRevision: string;
   /** 人审门模式：ai = 自动托管，hitl = 门等真人（缺省 hitl，最保守）。 */
   hitlMode?: "ai" | "hitl";
@@ -119,12 +122,48 @@ export async function createIssue(input: CreateIssueRequest, idempotencyKey: str
   const receipt = await createIssueCreation(input.projectId, {
     expectedCreationContextRevision: input.expectedCreationContextRevision,
     conversation: { mode: "new" },
-    repositoryIds: [...input.repositoryIds],
+    // 建项不选仓（2026-09-20）：没点名仓库就**不发这个键**——范围交给①之后的
+    // 「选仓门」确认（submitScopeSelection）。老调用方传了仍照发（值后端只留痕）。
+    ...(input.repositoryIds && input.repositoryIds.length > 0
+      ? { repositoryIds: [...input.repositoryIds].sort() }
+      : {}),
     title: firstLine(input.requirementText),
     description: input.requirementText,
     hitlMode: input.hitlMode ?? "hitl",
   }, idempotencyKey);
   return { issue_id: receipt.issue.id };
+}
+
+/** 选仓门批量确认（plan Task A3 契约，前端先行、后端并行实现）：
+ *  `POST /api/projects/{pid}/issues/{iid}/scope/selection`。
+ *
+ *  门上的两条路——「我自己勾」（decidedBy=manual）与「让 AI 定」（decidedBy=ai）
+ *  ——都走这一条：一次事务把确认的集合写成 issue 的仓库范围（repository_scope
+ *  与 content_scope 双表 + 同一把 scope_revision）并关门。422 空/越界（1..100）、
+ *  409 revision 不匹配或仓不在项目内，detail 原样上抛由调用方呈现。 */
+export interface ScopeSelectionInput {
+  /** 1..100、非空、去重（这里发出去前会再排一次序）。 */
+  repositoryIds: string[];
+  decidedBy: "manual" | "ai" | "timeout";
+  idempotencyKey: string;
+  expectedCreationContextRevision: string;
+}
+
+export interface ScopeSelectionReceipt {
+  status: string;
+  repositoryCount: number;
+}
+
+export function submitScopeSelection(
+  projectId: string,
+  issueId: string,
+  input: ScopeSelectionInput,
+): Promise<ScopeSelectionReceipt> {
+  return apiRequest<ScopeSelectionReceipt>(
+    "POST",
+    `/projects/${encodeURIComponent(projectId)}/issues/${encodeURIComponent(issueId)}/scope/selection`,
+    input,
+  );
 }
 
 /** createIssue 的返回契约：只承诺 id（其余读模型字段由列表刷新提供）。 */

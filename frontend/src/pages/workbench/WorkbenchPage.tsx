@@ -12,6 +12,7 @@ import {
   composeRequirementText,
   parseRequirementDocument,
   resolveProjectId,
+  submitScopeSelection,
   type CreateIssueRequest,
 } from "../../api/issues";
 import { fetchIssueDetail, fetchMainRoomConversation } from "../../api/rooms";
@@ -41,7 +42,7 @@ import { listChangeSets, mergeChangeSet } from "../../api/scm";
 import { resolveDataSourceMode } from "../../api/source";
 import { allProjectRepositories } from "../../api/projects";
 import { allCreationOptions, type CreationOptions } from "../../api/projectIssues";
-import { selectCandidates, supplementCheck, confirmSupplements } from "../../api/discoverySelection";
+import { confirmSupplements } from "../../api/discoverySelection";
 import { Modal } from "../../components/Modal";
 import { subscribeEvents } from "../../api/events";
 import { autoTrigger } from "./autoTrigger";
@@ -436,8 +437,11 @@ export function WorkbenchPage({
     if (discovery.step_state !== "idle" || discovery.running_task_id !== null) return;
     // ④ 的 idle 有两义：分档未过（等人）或分档已过（该跑计划）——只有后者开火
     if (discovery.step === 4 && discovery.approval?.state !== "approved") return;
-    // 人工参与：② 是「待人选择」的门，驱动器不越门（人选完自己会触发链路）
-    if (discovery.step === 2 && issueHitl !== "ai") return;
+    // ② 候选评分（2026-09-20 起无条件不抢跑）：建项不选仓后，②连着「选仓门」
+    // 一起归后端——ai 模式由协调器按门的 deadline 定超时代选，前端这里开火会
+    // 与它抢跑；hitl 模式的建议产出同样由服务端在①完成后接手。人侧入口是右栏
+    // 选仓门卡的「我自己勾 / 让 AI 定」（走 scope/selection 端点），不再是触发②。
+    if (discovery.step === 2) return;
     // 人工参与：④ 生成计划也是门（2026-09-20）。此前这里不挡 —— 自动托管照旧
     // 替人把计划生成了，"生成计划"这一步在人工参与模式下根本没有确认项。
     // 现在等人点右栏/聊天里的「生成计划」按钮，与 ③⑤ 同一套写回路。
@@ -456,14 +460,14 @@ export function WorkbenchPage({
       created_by_agent_id: principal.agentId,
       idempotency_key: autoTrigger.get(key)!,
     };
+    // ② 已在上面无条件 return(选仓门归后端),这里的分支只剩 ①③④——
+    // TS 据此把 discovery.step 收窄,不用再列 2 的死分支。
     const fire =
       discovery.step === 1
         ? triggerAnalysis(detail.issue_id, payload)
-        : discovery.step === 2
-          ? triggerCandidates(detail.issue_id, payload)
-          : discovery.step === 3
-            ? triggerClassification(detail.issue_id, payload)
-            : triggerPlan(detail.issue_id, payload);
+        : discovery.step === 3
+          ? triggerClassification(detail.issue_id, payload)
+          : triggerPlan(detail.issue_id, payload);
     fire
       .then(() => {
         driverFailures.current.delete(key);
@@ -817,49 +821,63 @@ export function WorkbenchPage({
 
   // ── HITL 模式(既有会话):读建项入口存的选择;没存过默认「人工参与」——
   //    门等真人是最保守的缺省,不会替任何人做主。 ──
-  // ── 候选分流写回路 ──
+  // ── 选仓门写回路(2026-09-20 建项不选仓):② 之后的范围确认从「建项时圈定」
+  //    挪到这道门。两条路——人勾(「我自己勾」,复用既有勾选弹层)与按 AI 建议
+  //    定(「让 AI 定」)——都走同一条批量确认端点(双表写+scope_revision+关门),
+  //    不再复用旧的候选分流端点(单仓追加不原子、revision 碎裂)。 ──
+  /** 门确认的公共落点:revision 现取现用(创建条件读面),幂等键随动作生成;
+   *  仓库集合去重排序后上送(端点契约 1..100、非空)。 */
+  const commitScopeSelection = async (
+    issueId: string,
+    repositoryIds: string[],
+    decidedBy: "manual" | "ai",
+  ) => {
+    if (resolveDataSourceMode() === "replay") {
+      throw new Error("回放模式不写后端：选仓门需要 ?source=live 才能真实执行");
+    }
+    const ids = [...new Set(repositoryIds)].filter((id) => id.length > 0).sort();
+    if (ids.length === 0) throw new Error("至少要确认一个仓库");
+    const opts = await allCreationOptions(projectId);
+    return submitScopeSelection(projectId, issueId, {
+      repositoryIds: ids,
+      decidedBy,
+      idempotencyKey: newIdempotencyKey("selection"),
+      expectedCreationContextRevision: opts.creationContextRevision,
+    });
+  };
   const handleChooseManual = () => setSelectionOpen(true);
   const handleChooseAI = () => {
-    if (!detail || !principal || selectionBusy) return;
+    if (!detail || selectionBusy) return;
+    const suggested = (discovery?.scope_gate?.suggested ?? [])
+      .map((s) => s.repository)
+      .filter((repo) => repo.length > 0);
+    if (suggested.length === 0) {
+      onToast("AI 建议还没生成——稍候片刻,或先「我自己勾」");
+      return;
+    }
     setSelectionBusy(true);
-    triggerCandidates(detail.issue_id, {
-      created_by_agent_id: principal.agentId,
-      idempotency_key: newIdempotencyKey("candidates"),
-    })
-      .then(() => {
-        onToast("AI 已推断候选，下一步人来审批分档");
+    commitScopeSelection(detail.issue_id, suggested, "ai")
+      .then((receipt) => {
+        onToast(`已按 AI 建议确认 ${receipt.repositoryCount} 个仓库,分档继续`);
         setReload((n) => n + 1);
       })
-      .catch((err: unknown) => onToast(`AI 推断失败：${errText(err)}`))
+      .catch((err: unknown) => onToast(`AI 代选失败：${errText(err)}`))
       .finally(() => setSelectionBusy(false));
   };
   const handleSelectionSubmit = () => {
-    if (!detail || !principal || selectionBusy) return;
+    if (!detail || selectionBusy) return;
     const repositoryIds = Object.keys(repoNameById).filter((id) => pickedRepos[id]);
     if (repositoryIds.length === 0) {
       onToast("至少勾选一个仓库");
       return;
     }
     setSelectionBusy(true);
-    selectCandidates(detail.issue_id, {
-      created_by_agent_id: principal.agentId,
-      idempotency_key: newIdempotencyKey("selection"),
-      repositoryIds,
-    })
-      .then((receipt) =>
-        supplementCheck(detail.issue_id, {
-          created_by_agent_id: principal.agentId,
-          idempotency_key: newIdempotencyKey("supplement"),
-        }).then((check) => ({ receipt, check })),
-      )
-      .then(({ check }) => {
+    commitScopeSelection(detail.issue_id, repositoryIds, "manual")
+      .then((receipt) => {
         setSelectionOpen(false);
+        setPickedRepos({});
         setReload((n) => n + 1);
-        onToast(
-          check.supplement_state === "pending"
-            ? `已按你的勾选定候选；依赖图查出 ${check.supplements.length} 个漏选，待确认`
-            : "已按你的勾选定候选，依赖图核对无漏选",
-        );
+        onToast(`已确认 ${receipt.repositoryCount} 个仓库;若 AI 查出漏选会再来问`);
       })
       .catch((err: unknown) => onToast(`勾选提交失败：${errText(err)}`))
       .finally(() => setSelectionBusy(false));
@@ -1102,11 +1120,10 @@ export function WorkbenchPage({
   const [options, setOptions] = useState<CreationOptions | null>(null);
   const [optionsError, setOptionsError] = useState<string | null>(null);
   const [optionsReload, setOptionsReload] = useState(0);
-  const [selectedRepos, setSelectedRepos] = useState<string[]>([]);
   useEffect(() => {
     if (!isNew || resolveDataSourceMode() === "replay") return;
     let cancelled = false;
-    setOptions(null); setOptionsError(null); setSelectedRepos([]);
+    setOptions(null); setOptionsError(null);
     allCreationOptions(projectId).then(value => { if (!cancelled) setOptions(value); }).catch(e => { if (!cancelled) setOptionsError(errText(e)); });
     return () => { cancelled = true; };
   }, [projectId, isNew, optionsReload]);
@@ -1119,12 +1136,14 @@ export function WorkbenchPage({
   };
 
   const handleCreateSend = () => {
+    // 2026-09-20「建项不选仓」:不再要求勾仓库——只看创建条件(canSubmit=配置
+    // 与 App 就绪)。仓库范围在①需求分析后的「选仓门」确认(右栏选仓门卡)。
     const typed = draft.trim();
-    if (creating || parsingDocument || !options?.canSubmit || !selectedRepos.length || selectedRepos.length > 100) return;
+    if (creating || parsingDocument || !options?.canSubmit) return;
     if (!typed && !attachment) return;
     const text = attachment ? composeRequirementText(typed, attachment.text) : typed;
     setCreating(true);
-    attempt.current ??= { key: crypto.randomUUID(), input: { projectId, requirementText: text, repositoryIds: [...selectedRepos].sort(), expectedCreationContextRevision: options.creationContextRevision, hitlMode } };
+    attempt.current ??= { key: crypto.randomUUID(), input: { projectId, requirementText: text, expectedCreationContextRevision: options.creationContextRevision, hitlMode } };
     onCreateIssue(attempt.current.input, attempt.current.key)
       .then(() => {
         setDraft("");
@@ -1163,7 +1182,14 @@ export function WorkbenchPage({
 
   // ── 四点链路条（唯一进度条，数据驱动）+ DAG 胶囊/执行面板的数据 ──
   const flow = useIssueFlowState(projectId, issueId ?? "", planId, detail, reload);
-  const stepStates = deriveStepStates(discovery, issueHitl === "hitl");
+  // 第三个参数是「已确认的仓库数」(issue 详情):② 选仓门以范围是否已确认为准,
+  // 不再绑 hitl——ai 模式门也出现(超时协调器代选)。detail 还没到时传 null,
+  // treeModel 会退回 scope_gate 投影判断,不会误开门。
+  const stepStates = deriveStepStates(
+    discovery,
+    issueHitl === "hitl",
+    detail ? detail.repositories.length : null,
+  );
   const doneSteps = stepStates.filter((s) => s === "done").length;
   /** 规划五步链条（喂给 DAG 计划板）。标签用 treeModel 的唯一那份，不在这里另抄一遍。 */
   const stepChain = STEP_LABELS.map((label, i) => ({ label, state: stepStates[i] as string }));
@@ -1339,7 +1365,7 @@ export function WorkbenchPage({
         )}
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="text-[19px] font-medium text-cream">{greeting}，要规划什么需求？</h1>
-          <p className="text-[12px] text-tx2">项目：{projectName} · 选择本次 Issue 的工作仓库后提交</p>
+          <p className="text-[12px] text-tx2">项目：{projectName} · 发送需求即建 Issue，仓库范围稍后在「选仓门」确认</p>
           {/* 需求模板下载（2026-09-20 移植主线 13abb29c）：模板按发现链真正校验的
               四个维度（业务场景/行为描述/变更类型/技术约束）排版，词面命中覆盖标记，
               照它填就能一次过分析、少走追问轮次。 */}
@@ -1380,8 +1406,10 @@ export function WorkbenchPage({
             下载需求模板
           </button>
         </div>
+        {/* 创建条件（2026-09-20 建项不选仓:选仓 UI 整段撤掉,这里只报「能不能建、
+            缺什么」——仓库范围确认挪到①之后的选仓门,不再在建项时圈定)。 */}
         <section className="w-full max-w-[720px] rounded-hard border border-line bg-panel p-4 text-sm">
-          <h2>本次 Issue 的仓库范围（已选 {selectedRepos.length} 个）</h2>
+          <h2>创建条件</h2>
           {optionsError && <p role="alert" className="text-salmon-hi">{optionsError} <button onClick={() => setOptionsReload(n => n + 1)}>重试</button></p>}
           {!options && !optionsError && <p className="mt-2 text-tx2">{resolveDataSourceMode() === "replay" ? "回放模式不能创建 Issue" : "正在读取创建条件…"}</p>}
           {/* 阻断原因：机器 code 映射成人话，App 相关时补一个「去哪补」的入口。
@@ -1393,7 +1421,7 @@ export function WorkbenchPage({
                 {options.blockingReasons?.length
                   ? options.blockingReasons.map((code) => BLOCKING_LABEL[code] ?? code).join("；")
                   : "创建条件未就绪"}
-                。请先完成项目仓库接入、工作授权和执行配置。
+                。请先完成工作授权和执行配置。
               </p>
               {options.blockingReasons?.some((code) => APP_RELATED_BLOCKERS.has(code)) && (
                 <a
@@ -1405,8 +1433,11 @@ export function WorkbenchPage({
               )}
             </div>
           )}
-          <div className="mt-3 max-h-48 space-y-2 overflow-auto">{options?.repositories.map(r => <label key={r.repositoryId} className="flex items-center gap-2"><input type="checkbox" disabled={!r.selectable || creating || attempt.current !== null} checked={selectedRepos.includes(r.repositoryId)} onChange={e => setSelectedRepos(prev => e.target.checked ? [...prev, r.repositoryId] : prev.filter(id => id !== r.repositoryId))} />{r.displayName}<span className="text-xs text-tx3">{r.reasons.join("、")}</span></label>)}</div>
-          <a className="mt-3 inline-block text-xs text-amber-hi" href="#/repositories">管理当前项目仓库</a>
+          {options?.canSubmit && (
+            <p className="mt-2 text-tx2">
+              条件就绪——发送需求即建 Issue；需求分析后会弹出「选仓门」，在那里确认本次要动的仓库。
+            </p>
+          )}
           {attempt.current && <p className="mt-2 text-xs text-tx2">提交内容已固定，重试会查询或完成同一次创建。</p>}
         </section>
         {/* HITL 入口选择（2026-09-17 用户裁定:从建项处选,不再等物化）:
@@ -1448,10 +1479,9 @@ export function WorkbenchPage({
             onAttach={() => fileInputRef.current?.click()}
             attachTitle="上传需求文档 · 支持 .txt / .md / .docx / .pdf / .odt / .rtf"
             attachDisabled={creating || parsingDocument || attempt.current !== null}
-            // 2026-09-20（用户："需求不写仓库为什么就不行？"）：**不选仓库也能发**。
-            // 没点名仓库时，候选评分那一步会退到本项目全部仓库目录，由 Manager
-            // （总领导）自己发现该改哪些仓。
-            sendDisabled={parsingDocument || selectedRepos.length > 100 || !options?.canSubmit || (draft.trim() === "" && attachment === null)}
+            // 2026-09-20「建项不选仓」：仓库范围不在建项时圈定——需求分析后由
+            // 「选仓门」确认（右栏选仓门卡：我自己勾 / 让 AI 定），这里只看创建条件。
+            sendDisabled={parsingDocument || !options?.canSubmit || (draft.trim() === "" && attachment === null)}
             attachment={
               attachment ? (
                 <div className="flex items-center gap-2 border-t border-line px-3 py-1.5">
@@ -1544,7 +1574,7 @@ export function WorkbenchPage({
       >
         <div className="border-b border-line px-4 py-2.5">
           <p className="text-[12.5px] font-semibold text-tx">勾选需求涉及的仓库</p>
-          <p className="mt-0.5 text-[11px] text-tx2">从项目目录里选；漏了的之后还有依赖图兜底查漏</p>
+          <p className="mt-0.5 text-[11px] text-tx2">从项目目录里选；确认后若 AI 查漏发现缺仓，会再来问你补不补</p>
         </div>
         <div className="flex max-h-[50vh] flex-col gap-1 overflow-y-auto px-4 py-3">
           {Object.entries(repoNameById).map(([id, name]) => (
