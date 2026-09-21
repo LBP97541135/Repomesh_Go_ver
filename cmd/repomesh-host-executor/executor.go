@@ -48,6 +48,24 @@ func openExecution(ctx context.Context, databaseURL, workerID string) (*executor
 
 func (e *executor) Close() { e.pool.Close() }
 
+// ReconcileLostRuns 收尾"进程已经不在、台账还停在 running"的 run。
+//
+// 为什么必须在启动时跑一次：本 executor 监督子进程靠的是**本进程里等 `cmd.Wait()`**，
+// 一旦自己被重启（部署 / systemd restart / OOM），那个等待就随进程消失，
+// 而库里那条 run 会永远停在 running —— 任务也就永远交不回经理门（线上实测：
+// saleor-app-template 那条开发 run 挂了 2 小时，任务一直"执行不完"）。
+// 启动时先扫一遍，等于把上一次生命周期里丢掉的结局补记上。
+func (e *executor) ReconcileLostRuns(ctx context.Context) {
+	closed, err := e.execution.ReconcileLostRuns(ctx, e.workerID, processAlive)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "host-executor: 孤儿 run 收尾失败: %v\n", err)
+		return
+	}
+	if closed > 0 {
+		fmt.Fprintf(os.Stderr, "host-executor: 已按「结局未知」收尾 %d 条孤儿 run\n", closed)
+	}
+}
+
 // RunOne performs at most one bounded step: heartbeat, then launch one
 // pending agent run, then handle any stop_requested attempt by revoking
 // writes, releasing resources and letting the coordinator's ConfirmStopped

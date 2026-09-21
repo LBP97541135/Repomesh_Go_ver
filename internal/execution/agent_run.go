@@ -189,7 +189,17 @@ func (s *Service) MarkAgentExited(ctx context.Context, runID string, exitCode in
 	// 没有任何调用方** —— 台账从此不再反映现实，worker 的 active_attempts 也只会
 	// 加不会减（并发额度被永久占住，后续派发只能一直 defer）。
 	// 取消/中止仍走 RequestStop→ConfirmStopped；这里补的是**正常结束**的收尾。
-	tag, err = s.pool.Exec(ctx, `UPDATE repomesh_execution.attempts a
+	return s.closeAttempt(ctx, runID)
+}
+
+// closeAttempt 是"这条 attempt 结束了"的**唯一**收尾点：把 attempt 置 stopped，
+// 并把 worker 的并发计数还回去。
+//
+// 抽出来的理由：agent 退出（MarkAgentExited）和"进程丢了"（MarkAgentLost）都要走
+// 这一步，两处各写一遍迟早只改一处 —— 而漏改的后果是 worker 的 active_attempts
+// 只加不减，并发额度被永久占住，后续派发只能一直 defer（这个故障线上真实发生过）。
+func (s *Service) closeAttempt(ctx context.Context, runID string) error {
+	tag, err := s.pool.Exec(ctx, `UPDATE repomesh_execution.attempts a
 		SET state='stopped', stopped_at=clock_timestamp()
 		WHERE a.state='running'
 		  AND a.id = (SELECT r.attempt_id FROM repomesh_execution.agent_runs r WHERE r.id=$1)`, runID)
