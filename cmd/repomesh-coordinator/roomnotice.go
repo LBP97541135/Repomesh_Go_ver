@@ -30,6 +30,13 @@ func gateTimeoutNotice(repositoryCount int) string {
 	return fmt.Sprintf("【RepoMesh】选仓门 10 分钟未确认,已按 AI 建议代选 %d 个仓库(可回 issue 页调整范围)。", repositoryCount)
 }
 
+// gateAIAdoptedNotice 人点「让 AI 定」后建议生成完、后端自动采纳为范围的房间文案
+// (spec 2026-09-20 修订:点「让 AI 定」→ 生成建议 → 自动采纳)。幂等键由调用方给
+// gate:{issue}:adopted:ai。
+func gateAIAdoptedNotice(repositoryCount int) string {
+	return fmt.Sprintf("【RepoMesh】已按「让 AI 定」的建议确认 %d 个仓库进入本次范围(可回 issue 页调整范围)。", repositoryCount)
+}
+
 func truncateRunes(text string, limit int) string {
 	runes := []rune(text)
 	if len(runes) <= limit {
