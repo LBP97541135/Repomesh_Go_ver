@@ -42,6 +42,20 @@ type IssueListItem struct {
 	RequirementText string `json:"requirementText"`
 	IssueKey        string `json:"issueKey"`
 	OrganizationID  string `json:"organizationId"`
+	// —— v0.5 归档墓碑（2026-09-21 补）——
+	//
+	// 前端 IssueListItemView 早就声明了 archived / archived_at
+	// （contract.ts:88-91），列表行也早就会渲染「已归档」徽标、并对这类行收起
+	// 归档入口 —— 但后端**从来没有供给过**这两列，于是 item.archived 恒为
+	// undefined，那段渲染永远走不到；列表右上角那个「已归档」开关
+	// （include_archived=true）同样一直被后端忽略，按下去没有任何变化。
+	//
+	// 两个概念必须分清（这一处最容易混）：
+	//   archived_at  = 「已关闭」——逐行 state 由它派生
+	//   removed_at   = 「墓碑」——purge 打的，各读面默认不显示
+	// 那个开关管的是**后者**。
+	Archived   bool       `json:"archived"`
+	ArchivedAt *time.Time `json:"archivedAt"`
 }
 
 // IssueSource carries the origin reference; conversationId is an identity
@@ -71,13 +85,19 @@ type IssueListQuery struct {
 	// 口径与逐行 state 同源：归档即 closed（`archived_at`）。
 	// 空值收敛成 all（= 修复前的行为），所以老脚本/老调用方不会静默少行。
 	State  string
-	Cursor       string
-	Limit        int
+	// IncludeArchived 打开时把**墓碑行**（removed_at 非空）也带回来。
+	//
+	// 2026-09-21：这是列表右上角「已归档」开关的语义，而它此前一直被后端忽略
+	// （参数收了不认），按下去没有任何变化。注意它管的是 removed_at（purge 墓碑），
+	// 不是 archived_at —— 后者才是逐行 state=closed 的依据，两件事别混。
+	IncludeArchived bool
+	Cursor          string
+	Limit           int
 }
 
 // ParseIssueListQuery applies the documented limits: limit 1..100 default 50,
 // q at most 200 Unicode scalars.
-func ParseIssueListQuery(text, repositoryID, state, cursor string, limit int) (IssueListQuery, error) {
+func ParseIssueListQuery(text, repositoryID, state string, includeArchived bool, cursor string, limit int) (IssueListQuery, error) {
 	if limit == 0 {
 		limit = 50
 	}
@@ -96,7 +116,10 @@ func ParseIssueListQuery(text, repositoryID, state, cursor string, limit int) (I
 	default:
 		return IssueListQuery{}, failure(422, "VALIDATION_FAILED")
 	}
-	return IssueListQuery{Text: text, RepositoryID: repositoryID, State: state, Cursor: cursor, Limit: limit}, nil
+	return IssueListQuery{
+		Text: text, RepositoryID: repositoryID, State: state,
+		IncludeArchived: includeArchived, Cursor: cursor, Limit: limit,
+	}, nil
 }
 
 // ListIssues returns the readable issue list for one project. Only issues whose
@@ -118,7 +141,7 @@ func (s *Service) ListIssues(ctx context.Context, principal access.ProjectPrinci
 		actor:     principal.ActorID(),
 		kind:      "issues",
 		projectID: projectID,
-		query:     cursorScopeFingerprint(principal.ActorID(), "issues", projectID, query.Text, query.RepositoryID, query.State, query.Limit),
+		query:     cursorScopeFingerprint(principal.ActorID(), "issues", projectID, query),
 		limit:     query.Limit,
 	}
 	after := ""
@@ -129,7 +152,15 @@ func (s *Service) ListIssues(ctx context.Context, principal access.ProjectPrinci
 		}
 		after = cursor.afterID
 	}
-	where := `WHERE i.project_id=$1 AND i.removed_at IS NULL AND i.id>$2`
+	// 墓碑（removed_at）默认不显示 —— 那是 purge 打的。列表右上角「已归档」开关
+	// （include_archived=true）把这类行带回来，让它们以「已归档」徽标出现、且不再
+	// 提供归档入口（前端那一段早已写好，此前只是永远收不到数据）。
+	// 注意：这跟 state=closed（archived_at）是两件事，别混。
+	archivedFilter := ` AND i.removed_at IS NULL`
+	if query.IncludeArchived {
+		archivedFilter = ""
+	}
+	where := `WHERE i.project_id=$1` + archivedFilter + ` AND i.id>$2`
 	args := []any{projectID, after}
 	// 占位符改成动态序号。此前是写死的 $3 / $4：只要"只按仓库过滤、不传 q"，
 	// 参数就只有 3 个却引用了 $4，PostgreSQL 直接报参数不存在 → 503。
@@ -169,10 +200,13 @@ func (s *Service) ListIssues(ctx context.Context, principal access.ProjectPrinci
 		         WHEN d.materialization IS NOT NULL AND d.materialization <> 'null'::jsonb THEN 'execute'
 		         WHEN d.plan IS NOT NULL AND d.plan <> 'null'::jsonb THEN 'plan'
 		         WHEN d.approval->>'state' = 'approved' THEN 'plan'
-		         WHEN d.classification IS NOT NULL AND d.classification <> 'null'::jsonb THEN 'validate'
-		         ELSE 'contract'
-		       END
-		FROM repomesh_issues.issues i
+	         WHEN d.classification IS NOT NULL AND d.classification <> 'null'::jsonb THEN 'validate'
+	         ELSE 'contract'
+	       END,
+	       -- 墓碑事实（v0.5）：前端 IssueListItemView 的 archived / archived_at
+	       -- 早就声明了、列表行也早就会渲染，此前只是后端一直没供给。
+	       i.removed_at IS NOT NULL, i.removed_at
+	FROM repomesh_issues.issues i
 		LEFT JOIN repomesh_issues.issue_discoveries d ON d.issue_id = i.id
 		LEFT JOIN repomesh_projects.projects pj ON pj.id = i.project_id
 		`+where+` ORDER BY i.id LIMIT $`+itoa(len(args)), args...)
@@ -194,7 +228,8 @@ func (s *Service) ListIssues(ctx context.Context, principal access.ProjectPrinci
 		if rows.Scan(&item.ID, &item.Number, &item.Title, &item.MainChangeSetID, &meta.revision, &meta.createdAt, &conversationID,
 			&item.State, &item.RequirementText, &item.OrganizationID,
 			&item.RepositoryCount, &item.RoundCount, &item.PlanVersion,
-			&item.PendingPlanning, &item.Phase) != nil {
+			&item.PendingPlanning, &item.Phase,
+			&item.Archived, &item.ArchivedAt) != nil {
 			return IssuePage{}, unavailable()
 		}
 		// team_count 与 repository_count 同源：团队按 project×repository 建（一仓一队），
@@ -319,11 +354,16 @@ type queryCursorScope struct {
 //
 // 换成 sha256 十六进制：不含 NUL，也不把用户输入原样落库；分隔符用 \x1f（US）
 // 而不是 \x00，同样只是为了拼接不产生歧义，它不会进数据库。
-// 指纹必须把 state 算进去：否则「open 标签页第一页」的游标能在「closed 标签页」
-// 上重放，翻页会翻到另一个集合里去（而且不报错，静默错行）。
-func cursorScopeFingerprint(actor, kind, projectID, text, repositoryID, state string, limit int) string {
+// 指纹必须把**每一个会改变结果集的条件**都算进去：state（否则「open 第一页」的
+// 游标能在「closed 标签页」上重放）与 include_archived（否则墓碑开关切换后，
+// 旧游标会从另一个集合里接着翻）。两者都是**不报错的**静默错行，比报错更难发现。
+//
+// 参数收整个 IssueListQuery 而不是逐个透传：加条件时漏改指纹正是这类 bug 的成因，
+// 收结构体之后，新增字段只要出现在下面这行里就不会被忘掉。
+func cursorScopeFingerprint(actor, kind, projectID string, query IssueListQuery) string {
 	sum := sha256.Sum256([]byte(strings.Join(
-		[]string{actor, kind, projectID, text, repositoryID, state, strconv.Itoa(limit)}, "\x1f")))
+		[]string{actor, kind, projectID, query.Text, query.RepositoryID, query.State,
+			strconv.FormatBool(query.IncludeArchived), strconv.Itoa(query.Limit)}, "\x1f")))
 	return hex.EncodeToString(sum[:])
 }
 

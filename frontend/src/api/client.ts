@@ -204,6 +204,12 @@ function toIssueListItemView(row: Record<string, unknown>): IssueListResponse["i
     // 此前没映射 → 界面显示「更新于 —」。有 updatedAt 就用它，否则退回 createdAt，
     // 都是真实时间戳，不编造。
     updated_at: String(row.updatedAt ?? row.createdAt ?? ""),
+    // v0.5 墓碑（2026-09-21）：后端此前**不供给**这两列，于是 IssueListItemView 的
+    // archived/archived_at 恒为 undefined —— 列表行那段「已归档徽标 + 收起归档入口」
+    // 的渲染永远走不到，右上角「已归档」开关也永远看不出效果。现在后端供给了，这里
+    // 按同一套 camelCase→snake_case 惯例映射过去（缺省 false/null = 不是墓碑）。
+    archived: Boolean(row.archived ?? false),
+    archived_at: (row.archivedAt as string | null) ?? null,
   } as unknown as IssueListResponse["issues"][number];
 }
 

@@ -175,7 +175,14 @@ func listIssues(w http.ResponseWriter, r *http.Request, service *issues.Service,
 	projectID := r.PathValue("projectId")
 	// state 是 issue 列表两个标签页的过滤（open / closed / all）。此前这里**根本没读它**，
 	// 前端传了也被丢掉 → 两个标签页返回同一份全量列表（用户报的"没有过滤"）。
-	query, err := issues.ParseIssueListQuery(r.URL.Query().Get("q"), r.URL.Query().Get("repositoryId"), r.URL.Query().Get("state"), r.URL.Query().Get("cursor"), atoiDefault(r.URL.Query().Get("limit"), 50))
+	// include_archived 同理：它此前也被忽略，列表右上角那个「已归档」开关因此是个哑开关。
+	query, err := issues.ParseIssueListQuery(
+		r.URL.Query().Get("q"),
+		r.URL.Query().Get("repositoryId"),
+		r.URL.Query().Get("state"),
+		r.URL.Query().Get("include_archived") == "true",
+		r.URL.Query().Get("cursor"),
+		atoiDefault(r.URL.Query().Get("limit"), 50))
 	if err != nil {
 		return err
 	}
