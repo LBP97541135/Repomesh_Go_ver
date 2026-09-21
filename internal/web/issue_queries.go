@@ -34,6 +34,10 @@ func registerIssueRoutes(mux *http.ServeMux, auth Auth, issueAPI Issues) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "appended"})
 		return nil
 	})
+	// 选仓门批量确认(spec 2026-09-20 §3.2):一个事务里双表写 + 门 CAS 置 resolved。
+	registerProjectRoute(mux, "POST /api/projects/{projectId}/issues/{issueId}/scope/selection", auth, func(w http.ResponseWriter, r *http.Request, claims access.ProjectPrincipal) error {
+		return confirmScopeSelection(w, r, issueAPI.Service, claims)
+	})
 	mux.HandleFunc("GET /api/issues/{issueId}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Referrer-Policy", "no-referrer")
