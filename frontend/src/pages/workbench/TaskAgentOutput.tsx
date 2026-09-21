@@ -15,6 +15,12 @@ import { fetchTaskAgentOutput, type TaskAgentOutputView, type TaskRunOutputView 
 
 function RunCard({ run }: { run: TaskRunOutputView }) {
   const [showStderr, setShowStderr] = useState(false);
+  /** agent 输出**默认收起**（2026-09-21 用户要求「这些也都默认折叠」）。
+   *
+   *  它是一整段 agent 的 stdout（几 KB 到几十 KB），展开着就把整屏吃掉 —— 而这一屏
+   *  里真正要人看的通常是头部那行状态（agent 种类 · state · exit · 时间）与下面的
+   *  「标准错误」。标准错误本来就是默认收起，输出这边却一直是展开的，不对称。 */
+  const [showStdout, setShowStdout] = useState(false);
   const failed = run.exitCode !== null && run.exitCode !== 0;
   // 防御性默认值：读面字段名一旦与前端接口错配（本次就踩过 —— Go 用 snake_case
   // tag、TS 写 camelCase，`logsMissing` 拿到 undefined，`.length` 直接把整页搞崩），
@@ -45,14 +51,21 @@ function RunCard({ run }: { run: TaskRunOutputView }) {
       )}
 
       {stdout !== "" && (
-        <div className="px-2.5 pt-1.5">
-          <div className="flex items-center gap-1.5">
+        <div className="px-2.5 py-1.5">
+          <button
+            type="button"
+            className="flex items-center gap-1.5 text-[10.5px] text-[var(--tree-sub)] hover:text-[var(--tree-ink)]"
+            onClick={() => setShowStdout((v) => !v)}
+          >
+            <span>{showStdout ? "▾" : "▸"}</span>
             <span className="microlabel">agent 输出</span>
             {run.stdoutTruncated && <span className="text-[10px] text-[var(--tree-faint)]">（只看尾部）</span>}
-          </div>
-          <pre className="mt-1 max-h-[360px] overflow-auto whitespace-pre-wrap break-words rounded-[7px] bg-[var(--tree-zone)] px-2 py-1.5 font-mono text-[10.5px] leading-[1.65] text-[var(--tree-ink)]">
-            {stdout}
-          </pre>
+          </button>
+          {showStdout && (
+            <pre className="mt-1 max-h-[360px] overflow-auto whitespace-pre-wrap break-words rounded-[7px] bg-[var(--tree-zone)] px-2 py-1.5 font-mono text-[10.5px] leading-[1.65] text-[var(--tree-ink)]">
+              {stdout}
+            </pre>
+          )}
         </div>
       )}
 
@@ -86,6 +99,13 @@ export function TaskAgentOutput({ projectId, taskId }: { projectId: string | nul
   const [view, setView] = useState<TaskAgentOutputView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  /** 整块**默认收起**（2026-09-21 用户要求「这些也都默认折叠」）。
+   *
+   *  ⚠️ 必须声明在下面 `if (!projectId) return null` **之前** —— 我第一次把它写在
+   *  早返回之后，那是 hooks 违规：projectId 从 null 变成有值时 hook 数量会变，
+   *  React 直接报 "Rendered more hooks than during the previous render"。
+   *  这个面板的 projectId 恰好会从 null 变成有值（先渲染再拿到项目），所以必炸。 */
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     if (!projectId || !taskId) return;
@@ -110,7 +130,15 @@ export function TaskAgentOutput({ projectId, taskId }: { projectId: string | nul
   return (
     <div className="border-t border-dashed border-[var(--tree-hairline)] px-4 py-3">
       <div className="flex items-center gap-2">
-        <span className="microlabel">worker 工作内容</span>
+        <button
+          type="button"
+          className="flex items-center gap-1.5"
+          title={open ? "收起这一段" : "展开这一段"}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <span className="text-[9px] text-[var(--tree-sub)]">{open ? "▾" : "▸"}</span>
+          <span className="microlabel">worker 工作内容</span>
+        </button>
         <button
           type="button"
           className="ml-auto text-[10.5px] text-[var(--tree-sub)] hover:text-[var(--tree-ink)]"
@@ -119,6 +147,8 @@ export function TaskAgentOutput({ projectId, taskId }: { projectId: string | nul
           刷新
         </button>
       </div>
+      {open && (
+        <>
       {error !== null ? (
         <p className="mt-1.5 rounded-[7px] border border-salmon/40 bg-salmon-well px-2.5 py-1.5 text-[11px] text-salmon">
           读不到 agent 输出：{error}
@@ -135,6 +165,8 @@ export function TaskAgentOutput({ projectId, taskId }: { projectId: string | nul
             <RunCard key={run.runId} run={run} />
           ))}
         </div>
+      )}
+        </>
       )}
     </div>
   );
