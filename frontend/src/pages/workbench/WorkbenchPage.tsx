@@ -757,16 +757,24 @@ export function WorkbenchPage({
    *  行（后端 `Approval(..., adjustments []Adjustment, ...)` 早已收），**不新造接口**；
    *  「补仓库」走另一个既有端点，不经过这里。*/
   const commitTierApproval = (adjustments: Array<{ repository: string; tier: DiscoveryTier }>) => {
-    if (!detail || !discovery) return;
+    // 每个早退都要 clear busy：自动托管的驱动 effect 开头就是 `|| gateBusy` 直接
+    // return，留下一个非空 busy 等于把自动托管永久停在这一步（线上那类「卡住」）。
+    if (!detail || !discovery) {
+      setGateBusy(null);
+      return;
+    }
     if (resolveDataSourceMode() === "replay") {
+      setGateBusy(null);
       onToast("回放模式不写后端：人工门需要 ?source=live 才能真实执行。");
       return;
     }
     if (!principal) {
+      setGateBusy(null);
       setGateError("决策主体未接入（花名册无活跃 Org Leader），无法提交。");
       return;
     }
     if (discovery.classification_evidence_version === null) {
+      setGateBusy(null);
       setGateError("分档证据尚未生成，无法批准。");
       return;
     }

@@ -2167,16 +2167,13 @@ function StepDetail({
               <span className="text-[var(--tree-ink)]">{cls[tier].length > 0 ? cls[tier].map((r) => r.repository).join("、") : "无"}</span>
             </div>
           ))}
+          {/* 这里只有只读的档位清单——批准/改档/补仓都归 Manager 房间那条消息
+              （2026-09-21 用户裁定：③ 不是一张单独的可点卡片）。与 ② 选仓门
+              在 StepDetail 里的写法一致：本面板只指路，不设第二个审批面。 */}
           {!approved && (
-            <div className="mt-2.5 flex gap-2">
-              <button
-                className="rounded-[7px] border border-amber/40 bg-amber-well px-3.5 py-1.5 text-[12px] font-semibold text-amber hover:bg-amber-well disabled:opacity-50"
-                disabled={gateBusy === "approveTiers"}
-                onClick={() => onGate("approveTiers")}
-              >
-                {gateBusy === "approveTiers" ? "提交中…" : "批准分档"}
-              </button>
-            </div>
+            <p className="mt-1.5 text-[11px] text-[var(--tree-sub)]">
+              分档待人审——到 Manager 房间的对话里调整档位并批准；要补仓库也在那一条消息里。
+            </p>
           )}
         </CardShell>
       ) : (
