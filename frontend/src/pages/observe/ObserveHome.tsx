@@ -22,6 +22,12 @@ export function ObserveHome({ section = null }: { section?: ObserveSection | nul
   } catch (reason) {
     error = reason instanceof Error ? reason.message : "本地工作台地址无效";
   }
+  // 两种运行形态的文案必须分清（2026-09-21）：
+  //   同源路径 = 工作台跑在**服务器回环**上，控制台在 /observe/ 下反代过去；
+  //   回环绝对地址 = 本地开发直接开工作台，进程在**操作者自己机器上**。
+  // 旧文案只写了后者，而线上早已是前者 —— 说错"它是你自己机器上的进程"，
+  // 会把用户支到错误的方向去排查。
+  const sameOrigin = url.startsWith(`${window.location.origin}/`);
   const [unreachable, setUnreachable] = useState(false);
   const [probing, setProbing] = useState(true);
   useEffect(() => {
@@ -47,20 +53,22 @@ export function ObserveHome({ section = null }: { section?: ObserveSection | nul
   }, [url]);
   return (
     <section className="max-w-[720px] rounded-hard border border-line bg-panel p-6">
-      <h1 className="text-[16px] font-semibold text-cream">本地观测工作台</h1>
+      <h1 className="text-[16px] font-semibold text-cream">观测工作台</h1>
       {error ? (
         <p role="alert" className="mt-3 text-[12px] text-salmon">{error}</p>
       ) : unreachable ? (
         <>
           <p className="mt-3 text-[12px] leading-[1.8] text-tx2">
-            本机观测工作台**没有应答**，所以没有跳过去 —— 跳过去只会看到浏览器的
-            "无法访问此站点"。它是**操作者自己机器上的另一个进程**（默认监听
-            <span className="font-mono"> {url.replace(/#.*$/, "")}</span>），
-            没启动时这个地址上什么都没有。
+            观测工作台**没有应答**，所以没有跳过去 —— 跳过去只会看到浏览器的
+            "无法访问此站点"。地址是
+            <span className="font-mono"> {url.replace(/#.*$/, "")}</span>
+            {sameOrigin
+              ? "：它跑在**服务器回环**上，由控制台在同源 /observe/ 下反代过来；没有应答说明服务端那个进程没起来。"
+              : "：那是**操作者自己机器上的**进程，没启动时这个地址上什么都没有。"}
           </p>
           <p className="mt-2 text-[12px] leading-[1.8] text-tx3">
             控制台的其余部分**不受影响**：项目、issue、交付、决策链、技能这些都在服务端，
-            照常可用。要在这里看 Trace / 证据 / 评测，需要先把本机工作台起起来。
+            照常可用。
           </p>
           <a className="mt-4 inline-block text-[12px] text-amber hover:text-amber-hi" href={url}>
             我确定它已经在跑，直接打开 →
@@ -69,7 +77,11 @@ export function ObserveHome({ section = null }: { section?: ObserveSection | nul
       ) : (
         <>
           <p className="mt-3 text-[12px] text-tx2">
-            {probing ? "正在探测本机工作台…" : "正在打开本机的 Trace、证据与评测工作台…"}
+            {probing
+              ? "正在探测观测工作台…"
+              : sameOrigin
+                ? "正在打开服务端的 Trace、证据与评测工作台…"
+                : "正在打开本机的 Trace、证据与评测工作台…"}
           </p>
           <a className="mt-4 inline-block text-[12px] text-amber hover:text-amber-hi" href={url}>
             直接打开工作台 →

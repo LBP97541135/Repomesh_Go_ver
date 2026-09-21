@@ -200,6 +200,10 @@ func handlerConfigured(assets fs.FS, auth Auth, projectAPI Projects, modelAPI Mo
 	registerAccountDirectory(mux, auth)
 	registerAppInstallation(mux, auth) // App 安装状态读面（只读，2026-09-20）
 	registerObserveV1(mux, auth, observeV1)
+	// 观测工作台的同源反代（2026-09-21）：工作台跑在**服务器回环** 18090，
+	// 控制台在 /observe/ 下转过去 —— 浏览器不再需要任何本机进程。
+	// 目标地址只认回环 origin（ADR 0024 的约束原样保留，见 observe_proxy.go）。
+	registerObserveProxy(mux, auth)
 	registerDiscoveryRoutes(mux, auth, discoveryAPI)
 	registerEventsRoutes(mux, auth, discoveryAPI)
 	registerConsoleRoutes(mux, auth, consoleAPI)

@@ -1,0 +1,17 @@
+[Unit]
+Description=RepoMesh Observation Workbench (server loopback only)
+Documentation=file:/opt/repomesh/dist/README.md
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+# 只监听**服务器回环** 18090：工作台本身拒绝绑定非回环地址
+# （internal/observeui 的 ListenAddress 会直接拒绝），这里写回环是双保险。
+# 外部要访问一律走 repomesh-web 的同源反代 /observe/*（管理员门）。
+EnvironmentFile=/etc/repomesh/env
+ExecStart=/opt/repomesh/bin/repomesh-observe serve --archive /opt/repomesh/observe-archive --addr 127.0.0.1:18090
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

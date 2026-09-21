@@ -17,7 +17,7 @@ async function api(path,body,method='POST') {
   const value = await response.json(); if(!response.ok) throw new Error(value.error||`HTTP ${response.status}`); return value;
 }
 async function refresh() {
-  try {const [c,s]=await Promise.all([api('/api/catalog'),api('/api/settings')]);catalog=c;settings=s;await refreshExtended(api);render();$('#updated').textContent=`更新于 ${new Date(c.updated_at).toLocaleTimeString('zh-CN')}`;}
+  try {const [c,s]=await Promise.all([api('api/catalog'),api('api/settings')]);catalog=c;settings=s;await refreshExtended(api);render();$('#updated').textContent=`更新于 ${new Date(c.updated_at).toLocaleTimeString('zh-CN')}`;}
   catch(e){notice(`读取失败：${e.message}`,true);}
 }
 const empty = text => `<div class="empty">${text}</div>`;
@@ -50,7 +50,7 @@ function render() {
   } else if(view==='traces') {
     html=`<div class="toolbar"><button data-action="traceKind" data-id="events" class="${traceKind==='events'?'primary':'secondary'}">业务与验收事件 (${events.length})</button><button data-action="traceKind" data-id="spans" class="${traceKind==='spans'?'primary':'secondary'}">OTLP Trace (${new Set(spans.map(s=>s.trace_id)).size})</button><input type="search" id="filter" value="${esc(filter)}" placeholder="搜索名称、项目、Issue、Trace ID…" aria-label="筛选事件或 Trace"></div><section class="panel" id="trace-list"></section><p class="help">已归档的业务事实为时点事件，不据此推算运行耗时。OTLP Span 展示上游实际提供的起止时间；精确身份之外不做时间近似归因。</p>`;
   } else if(view==='datasets') {
-    html=`<section class="hero"><div><h2>本地证据数据集</h2><p>每条记录保留 Trial、固定版本、验收报告和证据引用。CSV 可在本机分析，下载不会上传数据。</p></div></section>${catalog.archives.filter(a=>!a.error).map(a=>`<section class="panel"><div class="panel-head"><div><h2>${esc(a.name)}</h2><p class="help">${a.writable?'当前工作档案':'已有档案 · 只读'} · ${(a.trials||[]).length} 条 Trial · ${(a.events||[]).length} 条事件</p></div><a class="button" href="/api/dataset.csv?archive=${a.id}">下载 CSV</a></div>${trialTable((a.trials||[]).map(t=>({...t,archive:a.id})),true)}</section>`).join('')}`;
+    html=`<section class="hero"><div><h2>本地证据数据集</h2><p>每条记录保留 Trial、固定版本、验收报告和证据引用。CSV 可在本机分析，下载不会上传数据。</p></div></section>${catalog.archives.filter(a=>!a.error).map(a=>`<section class="panel"><div class="panel-head"><div><h2>${esc(a.name)}</h2><p class="help">${a.writable?'当前工作档案':'已有档案 · 只读'} · ${(a.trials||[]).length} 条 Trial · ${(a.events||[]).length} 条事件</p></div><a class="button" href="api/dataset.csv?archive=${a.id}">下载 CSV</a></div>${trialTable((a.trials||[]).map(t=>({...t,archive:a.id})),true)}</section>`).join('')}`;
   } else if(['metrics','platform','evaluations','samples'].includes(view)) {
     html=renderExtended(view);
   } else if(view==='settings') {
@@ -85,7 +85,7 @@ function showEvent(id,archive) {
   show(e.event_name,`<div class="row">${badge(e.outcome_verdict)} ${badge(e.collection_status)} <span class="badge">时点事实</span></div><dl class="kv"><dt>Trace ID</dt><dd><code>${esc(e.trace_id)}</code></dd><dt>项目 / Issue</dt><dd>${esc(e.project_id||'—')} / ${esc(e.issue_id||'—')}</dd><dt>Trial</dt><dd>${e.trial_id?btn('trial',e.trial_id,e.archive,esc(e.trial_id)):'—'}</dd><dt>缺失说明</dt><dd>${esc(e.missing_reason||'无')}</dd></dl><h3>上下文与证据</h3>${refs(archive,[e.context_manifest_ref,...e.evidence_refs,...e.input_artifact_refs])}<h3>因果前序</h3>${e.caused_by_event_ids.map(id=>`<p>${btn('event',id,archive,short(id))}</p>`).join('')||'<p class="help">未记录前序事件。</p>'}<details><summary>完整事件</summary>${json(e)}</details>`);
 }
 async function showTrace(id,archive) {
-  const detail=await api(`/api/trace?archive=${encodeURIComponent(archive)}&id=${encodeURIComponent(id)}`);
+  const detail=await api(`api/trace?archive=${encodeURIComponent(archive)}&id=${encodeURIComponent(id)}`);
   const spans=all('spans').filter(s=>s.trace_id===id&&s.archive===archive);const seen=new Set(),ordered=[];
   function walk(s,depth) {if(seen.has(s.span_id))return;seen.add(s.span_id);ordered.push([s,Math.min(depth,4)]);spans.filter(x=>x.parent_span_id===s.span_id).forEach(x=>walk(x,depth+1));}
   spans.filter(s=>!spans.some(p=>p.span_id===s.parent_span_id)).forEach(s=>walk(s,0));spans.forEach(s=>walk(s,0));
@@ -98,17 +98,17 @@ async function perform(button) {
     if(action==='event') return showEvent(id,archive);
     if(action==='trace') return showTrace(id,archive);
     if(action==='traceKind') {traceKind=id;render();return;}
-    if(action==='evidence') {const token=++detailToken;const data=await api(`/api/evidence?archive=${encodeURIComponent(archive)}&ref=${encodeURIComponent(id)}`);if(token===detailToken)show('原始证据',json(data));return;}
+    if(action==='evidence') {const token=++detailToken;const data=await api(`api/evidence?archive=${encodeURIComponent(archive)}&ref=${encodeURIComponent(id)}`);if(token===detailToken)show('原始证据',json(data));return;}
     if(busy)return;busy=true;button.disabled=true;
     if(action==='run'||action==='runSelected') {
       notice('正在本机运行 HTTP 验收并保存证据…');
-      const result=await api('/api/trials',{variant:action==='runSelected'?$('#variant').value:id});
+      const result=await api('api/trials',{variant:action==='runSelected'?$('#variant').value:id});
       notice(`已完成 ${result.trials.length} 次验收，结果已保存在本机。`);await refresh();
     } else if(action==='testModel') {
-      notice('正在检查评分供应商连接与模型列表…');const form=document.querySelector('#model-form');if(form.querySelector('[name=api_key]').value||form.querySelector('[name=model]').value!==settings.model)throw new Error('请先保存模型和 Key，再测试连接。');const result=await api('/api/model/test',{});document.querySelector('#jev-models').innerHTML=result.models.map(m=>`<option value="${esc(m)}"></option>`).join('');
+      notice('正在检查评分供应商连接与模型列表…');const form=document.querySelector('#model-form');if(form.querySelector('[name=api_key]').value||form.querySelector('[name=model]').value!==settings.model)throw new Error('请先保存模型和 Key，再测试连接。');const result=await api('api/model/test',{});document.querySelector('#jev-models').innerHTML=result.models.map(m=>`<option value="${esc(m)}"></option>`).join('');
       notice(result.ok?(result.message||`连接成功，${settings.model} 可用。`):`凭据有效，但所选模型不在列表中。可用模型：${result.models.join('、')}`,!result.ok);
     } else if(action==='judge') {
-      notice('正在按 rubric 评审固定证据…');const result=await api('/api/judge',{archive,trial_id:id});
+      notice('正在按 rubric 评审固定证据…');const result=await api('api/judge',{archive,trial_id:id});
       notice(result.status==='complete'?`AI 评审已保存：${labels[result.verdict]}。业务验收结果保持原值。`:`评审未完成，已保存 unknown：${result.explanation}`,result.status!=='complete');await refresh();showTrial(id,archive);
     }
   } catch(e){notice(e.message,true);} finally{busy=false;button.disabled=false;document.querySelectorAll('button[data-action^="run"]:disabled,button[data-action="judge"]:disabled,#model-form button:disabled').forEach(b=>b.disabled=false);}
@@ -118,7 +118,7 @@ document.addEventListener('input',e=>{if(e.target.id==='filter'){filter=e.target
 document.addEventListener('submit',async e=>{
   if(e.target.id!=='model-form')return;e.preventDefault();if(busy)return;busy=true;
   const values=new FormData(e.target);const key=e.target.querySelector('[name=api_key]');
-  try{await api('/api/model',{provider:values.get('provider'),model:values.get('model'),api_key:values.get('api_key')},'PUT');key.value='';notice('评分配置已保存到本机私有文件。');await refresh();}
+  try{await api('api/model',{provider:values.get('provider'),model:values.get('model'),api_key:values.get('api_key')},'PUT');key.value='';notice('评分配置已保存到本机私有文件。');await refresh();}
   catch(err){notice(err.message,true);}finally{key.value='';busy=false;document.querySelectorAll('button[data-action^="run"]:disabled,button[data-action="judge"]:disabled,#model-form button:disabled').forEach(b=>b.disabled=false);}
 });
 $('#close-detail').onclick=()=>{detailToken++;$('#detail').close();};

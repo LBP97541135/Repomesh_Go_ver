@@ -42,7 +42,7 @@ jobs:
           # 只保留最近 10 份
           ls -dt /opt/repomesh/backups/* | tail -n +11 | xargs -r rm -rf
 
-      - name: 构建三个二进制
+      - name: 构建四个二进制
         run: |
           set -euo pipefail
           export PATH=/usr/local/go/bin:$PATH
@@ -60,7 +60,10 @@ jobs:
           go build -ldflags "$LDFLAGS" -o bin/repomesh-web ./cmd/repomesh-web
           go build -ldflags "$LDFLAGS" -o bin/repomesh-coordinator ./cmd/repomesh-coordinator
           go build -ldflags "$LDFLAGS" -o bin/repomesh-host-executor ./cmd/repomesh-host-executor
-          echo "三件套构建完成，版本号 = ${GITHUB_SHA}"
+          # 观测工作台（2026-09-21）：从"操作者自己机器上的进程"改成服务器上的服务，
+          # 由 repomesh-web 在同源 /observe/* 下反代。它仍然**只监听回环**。
+          go build -ldflags "$LDFLAGS" -o bin/repomesh-observe ./cmd/repomesh-observe
+          echo "四件套构建完成，版本号 = ${GITHUB_SHA}"
 
       - name: 构建前端（交付控制台）
         run: |
@@ -91,9 +94,17 @@ jobs:
           #    这是本仓迁移一直遵守的约定；真要破坏兼容时，得改成两步发布。
           ./bin/repomesh-web db migrate --timeout 60s
           # ② 装文件（Linux 上覆盖正在运行的二进制是安全的：进程持有旧 inode）。
-          for b in repomesh-web repomesh-coordinator repomesh-host-executor; do
+          for b in repomesh-web repomesh-coordinator repomesh-host-executor repomesh-observe; do
             install -m 0755 "bin/$b" "/opt/repomesh/bin/$b"
           done
+          # 观测工作台的私有证据目录必须是 0700 —— repomesh-observe 自己会核这个
+          # 模式并拒绝启动（observepipe/journal.go），所以这里建的时候就把模式定死，
+          # 别指望 umask 给对。已存在时不改模式（幂等）。
+          install -d -m 0700 /opt/repomesh/observe-archive
+          # 单元文件跟仓库走：改配置就是改代码，不再靠手工在服务器上编辑。
+          install -m 0644 configs/repomesh-observe.service /etc/systemd/system/repomesh-observe.service
+          systemctl daemon-reload
+          systemctl enable repomesh-observe >/dev/null 2>&1 || true
           # 前端只覆盖 index.html 与 assets/，保留服务器本地的 runtime-config.js
           cp -a frontend/dist/index.html /opt/repomesh/dist/index.html
           rm -rf /opt/repomesh/dist/assets
@@ -101,16 +112,26 @@ jobs:
           # ③ 最后才重启 —— 停机窗口只剩这一段（实测约 5 秒，其中大部分是
           #    web 的 graceful shutdown 等待）。这段时间里前端的网关错误提示
           #    会明确说"通常是正在部署/重启，稍后重试"，不再甩一坨 nginx HTML。
-          systemctl restart repomesh-web repomesh-coordinator repomesh-host-executor
-          echo "三件套已安装并启动"
+          systemctl restart repomesh-web repomesh-coordinator repomesh-host-executor repomesh-observe
+          echo "四件套已安装并启动"
 
       - name: 验活
         run: |
           set -euo pipefail
           sleep 5
-          systemctl is-active repomesh-web repomesh-coordinator repomesh-host-executor
+          systemctl is-active repomesh-web repomesh-coordinator repomesh-host-executor repomesh-observe
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/healthz)" = "200"
           test "$(curl -s -o /dev/null -w '%{http_code}' https://crazykitties.cn/healthz)" = "200"
+          # 观测工作台只认回环：这条探的是**服务器自己的** 127.0.0.1:18090。
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18090/api/health)" = "200"
+          # 同源反代：/observe/ 未登录应当 401/403（而不是 404 落进 SPA 兜底）。
+          # 404 说明代理没挂上，那才是真问题。
+          OBSERVE_PROXY_CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/observe/)
+          if [ "$OBSERVE_PROXY_CODE" = "404" ]; then
+            echo "::error::/observe/ 反代没有挂上（返回 404）"
+            exit 1
+          fi
+          echo "/observe/ 未登录返回 $OBSERVE_PROXY_CODE（401/403 属预期）"
           echo "线上自报版本：$(curl -s http://127.0.0.1:8080/healthz)"
           /opt/repomesh/bin/repomesh-web -version
           echo "验活通过"
@@ -137,7 +158,7 @@ jobs:
             exit 1
           fi
           echo "::warning::部署失败，回滚到 $BK"
-          systemctl stop repomesh-host-executor repomesh-coordinator repomesh-web || true
+          systemctl stop repomesh-host-executor repomesh-coordinator repomesh-web repomesh-observe || true
           cp -a "$BK/bin/." /opt/repomesh/bin/
           rm -rf /opt/repomesh/dist/assets
           cp -a "$BK/dist/." /opt/repomesh/dist/
@@ -147,7 +168,7 @@ jobs:
             cp -a "$BK/secrets/." /etc/repomesh/
             echo "::warning::已恢复 /etc/repomesh 下的主密钥与认证配置"
           fi
-          systemctl start repomesh-web repomesh-coordinator repomesh-host-executor || true
+          systemctl start repomesh-web repomesh-coordinator repomesh-host-executor repomesh-observe || true
           sleep 5
-          systemctl is-active repomesh-web repomesh-coordinator repomesh-host-executor || true
+          systemctl is-active repomesh-web repomesh-coordinator repomesh-host-executor repomesh-observe || true
           echo "::error::已回滚到上一版本，请检查失败原因后重新推送"
