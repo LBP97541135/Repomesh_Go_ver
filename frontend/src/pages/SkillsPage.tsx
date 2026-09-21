@@ -581,32 +581,71 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
                 ))}
               </div>
 
-              {/* 刚跑完的 A/B 结论。**判定方式写在脸上**：本地覆盖度检查，
-                  不是 LLM 质量评判 —— 别让人把这一屏读成"技能质量已达标"。 */}
+              {/* 刚跑完的 A/B 结论（真盲评）。**判定方式写在脸上**：
+                  两臂同模型作答 → 随机盲标交裁判 → 判完才反盲归位。
+                  别让人把这一屏读成"技能质量已达标"—— 它是主观序，不是正确率。 */}
               {abSummary && (
                 <div className="mt-3 rounded-hard border border-line bg-panel px-4 py-3">
                   <div className="flex items-center gap-2">
                     <span className="text-[12px] font-medium text-cream">A/B 结论</span>
                     <span className={abSummary.verdict === "win" ? "pill pill-done" : abSummary.verdict === "lose" ? "pill pill-fail" : "pill pill-gate"}>
-                      {abSummary.verdict}
+                      {abSummary.verdict === "win" ? "带技能更优" : abSummary.verdict === "lose" ? "带技能更差" : "分不开"}
                     </span>
                     <span className="ml-auto font-mono text-[10.5px] text-tx3">{abSummary.judge}</span>
                   </div>
                   <p className="mt-1 text-[10.5px] leading-[1.7] text-tx3">
-                    带技能 {abSummary.with_pass}/{abSummary.questions.length} 通过 · 不带技能 {abSummary.without_pass}/{abSummary.questions.length}。
-                    判定方式是**本地覆盖度检查**（技能正文是否覆盖了测试题要求的要点），
-                    不是 LLM 质量评判 —— 它能挡住"内容空洞却想过审"，挡不住"写得对但写得差"。
+                    带技能均分 {abSummary.with_mean_score.toFixed(2)} · 不带技能均分{" "}
+                    {abSummary.without_mean_score.toFixed(2)} · 分差{" "}
+                    {abSummary.win_margin >= 0 ? "+" : ""}
+                    {abSummary.win_margin.toFixed(2)}（满分 10）。
+                    两臂由**同一个模型、同一套系统提示**作答，唯一差别是用户消息里有没有技能正文；
+                    两份答案按随机盲标（甲/乙）交给裁判，**裁判不知道哪份用了技能**，判完才反盲归位。
+                    它是主观序，不是客观正确率 —— 能证明"这个技能带来了增量"，不能证明"这个技能写得好"。
                   </p>
-                  <div className="mt-1.5 flex flex-col gap-0.5">
+                  <div className="mt-2 flex flex-col gap-1.5">
                     {abSummary.questions.map((q) => (
-                      <div key={q.question_id} className="text-[10.5px] leading-[1.7]">
-                        <span className={q.with_result === "pass" ? "text-olive" : "text-salmon"}>
-                          {q.with_result === "pass" ? "✓" : "✗"}
-                        </span>{" "}
-                        <span className="text-[var(--tree-sub)]">{q.question}</span>
-                        <span className="ml-1 font-mono text-[10px] text-tx3">
-                          覆盖 {q.with_score.toFixed(2)}
-                        </span>
+                      <div key={q.question_id} className="rounded border border-line/60 px-2 py-1.5">
+                        <div className="flex items-center gap-2 text-[10.5px]">
+                          <span
+                            className={
+                              q.winner === "with"
+                                ? "pill pill-done"
+                                : q.winner === "without"
+                                  ? "pill pill-fail"
+                                  : "pill pill-gate"
+                            }
+                          >
+                            {q.winner === "with" ? "带技能胜" : q.winner === "without" ? "对照胜" : "平"}
+                          </span>
+                          <span className="font-mono text-[10px] text-tx3">
+                            {q.with_score.toFixed(1)} vs {q.without_score.toFixed(1)}
+                          </span>
+                          <span className="truncate text-[var(--tree-sub)]">{q.question}</span>
+                        </div>
+                        {q.rationale && (
+                          <div className="mt-0.5 text-[10.5px] leading-[1.7] text-tx3">
+                            裁判：{q.rationale}
+                          </div>
+                        )}
+                        <details className="mt-1">
+                          <summary className="cursor-pointer text-[10.5px] text-tx3">
+                            两臂答案（{q.with_label} / {q.without_label}）
+                          </summary>
+                          <div className="mt-1 grid grid-cols-2 gap-2">
+                            <div>
+                              <div className="text-[10px] text-tx3">带技能 · {q.with_score.toFixed(1)}</div>
+                              <pre className="mt-0.5 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded border border-line/60 p-1.5 text-[10px] leading-[1.6] text-tx2">
+                                {q.with_answer}
+                              </pre>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-tx3">不带技能 · {q.without_score.toFixed(1)}</div>
+                              <pre className="mt-0.5 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded border border-line/60 p-1.5 text-[10px] leading-[1.6] text-tx2">
+                                {q.without_answer}
+                              </pre>
+                            </div>
+                          </div>
+                        </details>
                       </div>
                     ))}
                   </div>
@@ -627,8 +666,18 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
                             {run.result === "pass" ? "PASS" : "FAIL"}
                           </span>
                           <span className="text-tx2">{run.arm === "with" ? "有技能" : "无技能"}</span>
+                          {/* 分数与裁判身份：**一条记录是谁判的**必须一眼看到，
+                              否则"本地覆盖度检查"和"模型盲评"在列表里长得一样。 */}
+                          {typeof run.answer?.score === "number" && (
+                            <span className="font-mono text-tx3">
+                              {(run.answer.score as number).toFixed(1)}
+                            </span>
+                          )}
                           <span className="font-mono text-tx3">{run.blinded_label}</span>
-                          <span className="ml-auto text-tx3">{new Date(run.run_at).toLocaleString()}</span>
+                          <span className="truncate font-mono text-[10px] text-tx3">{run.judged_by ?? "—"}</span>
+                          <span className="ml-auto shrink-0 text-tx3">
+                            {new Date(run.run_at).toLocaleString()}
+                          </span>
                         </div>
                       ))}
                     </div>

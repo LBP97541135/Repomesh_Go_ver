@@ -154,21 +154,33 @@ export interface ABQuestionResult {
   question: string;
   with_label: string;
   without_label: string;
+  /** 两臂各自的答案原文（已反盲归位）。 */
+  with_answer: string;
+  without_answer: string;
   with_score: number;
   without_score: number;
   with_result: string;
   without_result: string;
+  /** 反盲后的胜方臂：with | without | tie。 */
+  winner: string;
+  /** 裁判给的一句话理由。 */
+  rationale: string;
 }
 
 export interface ABEvaluationSummary {
   version_id: string;
   skill_id: string;
-  /** 判定方式。当前是 `local_coverage_check` —— **本地覆盖度检查，不是 LLM 质量评判**。 */
+  /** 判定者身份。真盲评形如 `blind_llm_judge:tokendance.space:deepseek-v4.1-flash`；
+   *  历史遗留的 `local_coverage_check` 是旧的本地覆盖度检查，**不是**盲评。 */
   judge: string;
   questions: ABQuestionResult[];
   with_pass: number;
   without_pass: number;
-  /** win / lose / inconclusive —— 按事实给，不硬凑"通过"。 */
+  /** 两臂的平均分（10 分制）与带技能臂的优势分差。 */
+  with_mean_score: number;
+  without_mean_score: number;
+  win_margin: number;
+  /** win / lose / tie —— 按事实给，不硬凑"通过"。 */
   verdict: string;
 }
 

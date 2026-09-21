@@ -137,12 +137,30 @@ func (s *Store) BuildArms(ctx context.Context, questionID string) (string, strin
 		return "", "", "", "", err
 	}
 	// Randomly decide which label covers the "with skill" arm.
+	flip, err := randomBit()
+	if err != nil {
+		return "", "", "", "", err
+	}
 	withLabel, withoutLabel := labelA, labelB
-	if labelA[0] == 'B' {
+	if flip {
 		withLabel, withoutLabel = labelB, labelA
 	}
 	_ = q
 	return withLabel, withoutLabel, labelA, labelB, nil
+}
+
+// randomBit 取一个真随机的比特。
+//
+// 为什么单独写：上一版用 `labelA[0] == 'B'` 决定哪条臂落哪个槽位 —— 而
+// randomLabel 生成的永远是 `blind-<小写hex>`，首字符恒为 'b'，**永远不等于 'B'**。
+// 于是"随机"从未发生：with 臂恒在 labelA 上，槽位分配对裁判是可预测的，
+// 盲评的盲字只写在注释里。这种 bug 不会报错，只会让结论悄悄失去意义。
+func randomBit() (bool, error) {
+	buf := make([]byte, 1)
+	if _, err := rand.Read(buf); err != nil {
+		return false, err
+	}
+	return buf[0]&1 == 1, nil
 }
 
 func randomLabel() (string, error) {

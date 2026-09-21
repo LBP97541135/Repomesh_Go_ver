@@ -369,6 +369,37 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			}
 			return ""
 		}
+
+		// A/B 评估的模型裁判（2026-09-21 改成真盲评）。
+		//
+		// 为什么在启动时就装配：判定要真调模型（两臂各答一次 + 盲裁判一次），
+		// 密钥得现场解封，而解封能力只在认证运行时里。装配失败时**不注入** ——
+		// RunABEvaluation 会如实拒绝，绝不退回"拿正文比对关键词"的假判定。
+		var judgeOpener skills.SecretOpener
+		if secretStore != nil {
+			judgeOpener = func(c context.Context, secretVersionID, providerID string) (string, error) {
+				key, err := secretStore.Open(c, secrets.VersionID(secretVersionID),
+					secrets.Owner{Kind: "model-provider", ID: providerID}, secrets.ModelProviderKey)
+				if err != nil {
+					return "", err
+				}
+				return string(key), nil
+			}
+		}
+		judge, judgeNote, judgeErr := skills.OpenABJudge(ctx, skillStore, judgeOpener, skills.ABJudgeOptions{
+			BaseURL:     os.Getenv("REPOMESH_AB_BASE_URL"),
+			APIKey:      os.Getenv("REPOMESH_AB_API_KEY"),
+			Model:       os.Getenv("REPOMESH_AB_MODEL"),
+			JudgeModel:  os.Getenv("REPOMESH_AB_JUDGE_MODEL"),
+			PreferModel: os.Getenv("REPOMESH_AB_PREFER_MODEL"),
+			Label:       os.Getenv("REPOMESH_AB_LABEL"),
+		})
+		if judgeErr != nil {
+			fmt.Fprintf(stderr, "skill A/B judge unavailable (评估端点将如实拒绝): %v\n", judgeErr)
+		} else {
+			skillService.Judge = judge
+			fmt.Fprintf(stderr, "skill A/B judge ready: %s\n", judgeNote)
+		}
 		skillsAPI = web.Skills{API: skillService}
 
 		fetcher := &reposcan.Router{

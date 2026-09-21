@@ -21,6 +21,13 @@ type Service struct {
 	// 别人的技能。未注入该 seam 时返回空串 —— 那时只认「全局种子技能」，
 	// 宁可少给，也不越权多给。
 	ActorOrganization func(r *http.Request) string
+
+	// Judge 是 A/B 评估的模型侧（两臂作答 + 盲裁判）。
+	//
+	// 2026-09-21：此前 A/B 判定是"拿技能正文去比对测试题关键词"—— 对照组恒为
+	// 空串，结论恒为 win，等于没有判定。现在换成真盲评。**未注入时为 nil，
+	// 此时 RunABEvaluation 直接拒绝并如实说明**，绝不退回假判定。
+	Judge ABJudge
 }
 
 func NewService(store *Store) *Service { return &Service{Store: store} }

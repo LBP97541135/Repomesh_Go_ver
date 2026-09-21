@@ -356,7 +356,9 @@ func (s *Store) RecordRun(ctx context.Context, versionID, questionID, arm, blind
 	}
 	run.Answer = parseJSON(answerText)
 
-	if status == StatusCanary && result == ResultFail {
+	// 只有**带技能臂**失败才回滚。对照组（without）本来就是"不给技能"，
+	// 它失败是预期结果，不是技能不合格的证据 —— 拿它触发回滚等于自伤。
+	if status == StatusCanary && result == ResultFail && arm == ArmWith {
 		if _, err := s.Transition(ctx, versionID, StatusRolledBack); err != nil {
 			return nil, err
 		}
@@ -387,6 +389,11 @@ func (s *Store) ListRuns(ctx context.Context, versionID string) ([]EvalRun, erro
 
 // CleanGate mirrors Python's _require_clean_gate: across the whole history of the
 // skill there must be at least one pass and zero fails.
+//
+// 2026-09-21 修正作用域：只统计 **arm='with'** 的 run。
+// 真 A/B 会为每道题同时写入"带技能"和"不带技能"两条记录，而对照组的 fail 是
+// **必然**的（没给技能，模型答不好很正常）。若把它计入闸门，任何跑过一次真 A/B 的
+// 技能都会永远满足不了"零 fail"，闸门被自己的证据锁死 —— 上一版就是这么锁死的。
 func (s *Store) CleanGateOK(ctx context.Context, skillID string) (bool, error) {
 	var pass, fail int
 	err := s.Pool.QueryRow(ctx, `
@@ -395,7 +402,7 @@ func (s *Store) CleanGateOK(ctx context.Context, skillID string) (bool, error) {
 			COALESCE(SUM(CASE WHEN r.result = 'fail' THEN 1 ELSE 0 END), 0)
 		FROM public.skill_evaluation_runs r
 		JOIN public.skill_versions v ON v.id = r.version_id
-		WHERE v.skill_id = $1`, skillID).Scan(&pass, &fail)
+		WHERE v.skill_id = $1 AND r.arm = $2`, skillID, ArmWith).Scan(&pass, &fail)
 	if err != nil {
 		return false, err
 	}
@@ -404,6 +411,7 @@ func (s *Store) CleanGateOK(ctx context.Context, skillID string) (bool, error) {
 
 // CanaryWindowOK mirrors Python's _require_canary_window_pass: runs recorded after
 // the version entered canary need at least one pass and zero fails.
+// 作用域同 CleanGateOK：只看带技能臂（理由见上）。
 func (s *Store) CanaryWindowOK(ctx context.Context, versionID string) (bool, error) {
 	var pass, fail int
 	err := s.Pool.QueryRow(ctx, `
@@ -411,8 +419,9 @@ func (s *Store) CanaryWindowOK(ctx context.Context, versionID string) (bool, err
 			COALESCE(SUM(CASE WHEN r.result = 'pass' THEN 1 ELSE 0 END), 0),
 			COALESCE(SUM(CASE WHEN r.result = 'fail' THEN 1 ELSE 0 END), 0)
 		FROM public.skill_evaluation_runs r
-		WHERE r.version_id = $1 AND r.run_at >= (SELECT updated_at FROM public.skill_versions WHERE id = $1)`,
-		versionID).Scan(&pass, &fail)
+		WHERE r.version_id = $1 AND r.arm = $2
+		  AND r.run_at >= (SELECT updated_at FROM public.skill_versions WHERE id = $1)`,
+		versionID, ArmWith).Scan(&pass, &fail)
 	if err != nil {
 		return false, err
 	}
