@@ -273,11 +273,20 @@ func (a *discoveryAutomator) pendingIssues(ctx context.Context) ([]discoveryProg
 		       (d.plan IS NOT NULL AND d.plan <> 'null'::jsonb)                            AS has_plan,
 		       (d.materialization IS NOT NULL AND d.materialization <> 'null'::jsonb)      AS has_materialization,
 		       COALESCE(i.hitl_mode, 'hitl')                                               AS hitl_mode,
-		       (d.scope_gate->>'state' = 'pending'
-		          AND d.scope_gate->>'deadline_at' IS NULL)                           AS gate_pending,
-		       (d.scope_gate->>'state' = 'pending'
+		       -- ⚠️ 必须 COALESCE：scope_gate 为 NULL（或没有 state）时，
+		       -- d.scope_gate->>'state' = 'pending' 在 SQL 三值逻辑里求值为 **NULL 而不是
+		       -- false**，整条表达式因此是 NULL —— 扫进 Go 的 bool 直接失败：
+		       --   can't scan into dest[11] (col: gate_pending): cannot scan NULL into *bool
+		       --
+		       -- 2026-09-21 线上实测：这一处漏包 COALESCE，让**整个自动托管循环每秒报错**
+		       -- （"autohost: no pending discovery"），一条 issue 都取不到 —— 自动托管全停，
+		       -- 用户那条 ai 模式的 issue 永远停在规划 step 1。同段的 gate_manual /
+		       -- gap_audit_recorded 本来就有 COALESCE，只有这两个漏了。
+		       COALESCE(d.scope_gate->>'state' = 'pending'
+		          AND d.scope_gate->>'deadline_at' IS NULL, false)                     AS gate_pending,
+		       COALESCE(d.scope_gate->>'state' = 'pending'
 		          AND d.scope_gate->>'deadline_at' IS NOT NULL
-		          AND now() >= (d.scope_gate->>'deadline_at')::timestamptz)              AS gate_expired,
+		          AND now() >= (d.scope_gate->>'deadline_at')::timestamptz, false)     AS gate_expired,
 		       COALESCE(d.scope_gate->>'state' = 'resolved'
 		          AND d.scope_gate->>'decided_by' = 'manual', false)                   AS gate_manual,
 		       COALESCE(d.scope_gate->'audit' ? 'missing', false)                       AS gap_audit_recorded
