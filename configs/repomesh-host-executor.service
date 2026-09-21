@@ -23,5 +23,17 @@ IOSchedulingPriority=7
 Nice=10
 CPUWeight=50
 
+# 2026-09-22：内存兜底。这台机 15GB **无 swap**，AgentTeams 那套占 ~7.7GB ——
+# 一旦 agent 把剩下的吃光，OOM killer 会**随机挑**牺牲品：可能杀到 AT 或 postgres，
+# 那种故障比 I/O 打满更难查（服务莫名其妙重启，日志里只有一行 oom-kill）。
+# 这两条把账算在 executor 自己头上 —— agent 跑在 executor 的 cgroup 里（实测
+# codex 的 cgroup 就是 /system.slice/repomesh-host-executor.service），所以：
+#   MemoryHigh 软限：超了先回收/限流，**不杀**进程 —— 构建会变慢，但不会失败；
+#   MemoryMax 硬限：真超了只杀**这个 cgroup 内**的进程（也就是 agent），
+#                   AT 与数据库不受影响。
+# 4G/5G 是按"给 AT 留 8G、系统 2G"倒推的。
+MemoryHigh=4G
+MemoryMax=5G
+
 [Install]
 WantedBy=multi-user.target
