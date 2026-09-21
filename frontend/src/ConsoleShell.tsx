@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Toast } from "./components/Toast";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { AppInstallGuide } from "./components/AppInstallGuide";
 import { AuthError, authApi, type Account } from "./api/auth";
 import { LoginPage } from "./components/LoginPage";
@@ -455,6 +456,9 @@ export default function ConsoleShell() {
             : "min-w-0 flex-1 overflow-y-auto px-8 pt-5 pb-10"
         }
       >
+        {/* 内容区兜底（2026-09-22）：页面渲染崩了就**只废这一块**，侧栏照常可用，
+            错误原文照呈现。key 随路由变 —— 换页即重置，出过的错不会粘住下一个页面。 */}
+        <AppErrorBoundary key={`${route.nav}:${route.issueId ?? ""}:${route.settingsSection ?? ""}:${route.observeSection ?? ""}`} label="这个页面">
         {/* GitHub App 安装引导（2026-09-20）：在**动手之前**把「要装 App、点哪个链接」
             说清，而不是等人建 issue 时撞上 NO_AVAILABLE_REPOSITORIES 再回头猜。
             组件自己会在 uncoveredCount === 0、探测不可用之外的「已就绪」、
@@ -578,6 +582,7 @@ export default function ConsoleShell() {
             onOpenIssue={openIssue}
           />
         )}
+        </AppErrorBoundary>
       </main>
 
       {toast && <Toast text={toast} />}
