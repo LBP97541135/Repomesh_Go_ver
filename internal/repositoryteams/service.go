@@ -266,6 +266,10 @@ const RepoTeamResolutionQuery = `
 	FROM repomesh_projects.project_repositories pr
 	JOIN repomesh_projects.repositories r ON r.id = pr.repository_id
 	JOIN repomesh_projects.projects p ON p.id = pr.project_id
+	-- 2026-09-21：**已归档项目不参与**。归档即退出在役，而这条片段此前没有这个过滤 ——
+	-- 线上实测：把测试项目归档之后，扫掠照样会给它名下 48 个仓库建队，白建 48 支队 +
+	-- 48 个 worker 资源。归档的语义对**所有**读面都成立，所以过滤加在这一处（唯一来源）。
+	AND p.removed_at IS NULL
 	JOIN repomesh_access.accounts a ON a.id = p.owner
 	LEFT JOIN LATERAL (
 	  SELECT scan.id FROM repomesh_scan.repositories scan
