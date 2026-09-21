@@ -200,7 +200,8 @@ func (d *planningDispatcher) dispatch(ctx context.Context, row planningRow) (boo
 	// ② 候选评分与 ④ 生成计划必须看到仓库名片（扫描产出的目录/依赖/近期提交），
 	// 否则 agent 只能凭仓库名猜相关性 —— 那正是"找仓库不准"的老问题。
 	summaries := []byte(nil)
-	if row.step == discovery.PlanningCandidates || row.step == discovery.PlanningPlan || row.step == discovery.PlanningReplan {
+	if row.step == discovery.PlanningCandidates || row.step == discovery.PlanningGapAudit ||
+		row.step == discovery.PlanningPlan || row.step == discovery.PlanningReplan {
 		if encoded, err := d.service.RepoSummaries(ctx, projectID); err == nil {
 			summaries = encoded
 		}

@@ -125,6 +125,91 @@ func TestAutomatorGateWaitDoesNotCount(t *testing.T) {
 	}
 }
 
+// 查漏派发(Task B3,spec §3.2):门被**人工**确认(decided_by=manual)后、③ 分档前,
+// automator 先派一次 PlanningGapAudit;查漏结论落 gate.audit.missing 后不再派。
+// ai/timeout 确认的门不跑查漏(直接进 ③)——这里的门是 ai 模式 issue 上被人在
+// 超时前手动确认的情形,所以仍由自动托管循环推进。
+func TestAutomatorDispatchesGapAuditAfterManualGate(t *testing.T) {
+	pool := testdb.Open(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	const issueID = "iss_gap_audit_dispatch"
+	fixture := testdb.SeedProject(t, pool, "", "", "acme/checkout", "acme/shared-lib")
+	testdb.SeedIssue(t, pool, fixture, issueID, "acme/checkout")
+	if _, err := pool.Exec(ctx, `UPDATE repomesh_issues.issues SET hitl_mode='ai' WHERE id=$1`, issueID); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+	// ①② 已完成(分析足够 + 候选在库),门被人工确认 → 下一拍应派查漏而非直接分档。
+	if _, err := pool.Exec(ctx, `INSERT INTO repomesh_issues.issue_discoveries
+		(issue_id, project_id, requirement_text, analysis, candidates, idempotency_ledger)
+		VALUES ($1, $2, '改结算', '{"sufficient":true,"analyzed_requirement":"改结算"}'::jsonb,
+		'{"items":[{"repository_name":"acme/checkout","score":0.9,"agent_tier":"required","rationale":"点名"}],"llm_used":true}'::jsonb,
+		'{}'::jsonb)`, issueID, fixture.ID); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+	service := discovery.New(pool)
+	if err := service.OpenGate(ctx, issueID, []string{"acme/checkout"}, nil); err != nil {
+		t.Fatalf("open gate: %v", err)
+	}
+	if _, err := service.ResolveGate(ctx, issueID, "manual"); err != nil {
+		t.Fatalf("resolve gate: %v", err)
+	}
+
+	automator := newDiscoveryAutomator(service, pool, nil)
+	pending, err := automator.pendingIssues(ctx)
+	if err != nil {
+		t.Fatalf("pendingIssues: %v", err)
+	}
+	var progress discoveryProgress
+	found := false
+	for _, p := range pending {
+		if p.issueID == issueID {
+			progress, found = p, true
+		}
+	}
+	if !found {
+		t.Fatal("人工确认的门 issue 应入选自动托管")
+	}
+	if !progress.gateManual || progress.gapAuditRecorded {
+		t.Fatalf("人工确认且未查漏: gateManual=%v gapAuditRecorded=%v", progress.gateManual, progress.gapAuditRecorded)
+	}
+	if !automator.step(ctx) {
+		t.Fatal("人工确认的门应派一次查漏")
+	}
+	var step int
+	if err := pool.QueryRow(ctx, `SELECT step FROM repomesh_issues.planning_runs
+		WHERE issue_id=$1 ORDER BY created_at DESC LIMIT 1`, issueID).Scan(&step); err != nil {
+		t.Fatalf("读 planning_runs: %v", err)
+	}
+	if step != discovery.PlanningGapAudit {
+		t.Fatalf("应派 PlanningGapAudit(步 %d),得到 %d", discovery.PlanningGapAudit, step)
+	}
+
+	// 查漏结论落 gate.audit.missing 后,不再重复派查漏。
+	if _, err := pool.Exec(ctx, `UPDATE repomesh_issues.issue_discoveries
+		SET scope_gate = jsonb_set(scope_gate, '{audit}',
+		       jsonb_set(COALESCE(scope_gate->'audit', '{}'::jsonb), '{missing}', '[]'::jsonb, true), true)
+		WHERE issue_id=$1`, issueID); err != nil {
+		t.Fatalf("fixture 写查漏结论: %v", err)
+	}
+	pending, err = newDiscoveryAutomator(service, pool, nil).pendingIssues(ctx)
+	if err != nil {
+		t.Fatalf("pendingIssues: %v", err)
+	}
+	found = false
+	for _, p := range pending {
+		if p.issueID == issueID {
+			progress, found = p, true
+		}
+	}
+	if !found || !progress.gapAuditRecorded {
+		t.Fatalf("查漏结论落库后应标记已查漏: found=%v %+v", found, progress)
+	}
+	if got := autohostStep(progress); got != 7 {
+		t.Fatalf("已查漏后应进 ③ 分档(步 7),得到 %d", got)
+	}
+}
+
 // automator 的门超时分支(Task B2):到期 → CAS 置 timeout + 按建议代选落范围
 // (A3 服务层等价物:双表、整组同一把 scope_revision)+ roomnotice 通知。
 func TestAutomatorGateExpiredSelectsBySuggestion(t *testing.T) {

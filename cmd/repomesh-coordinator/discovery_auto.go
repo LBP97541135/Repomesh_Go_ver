@@ -68,6 +68,11 @@ type discoveryProgress struct {
 	// 两个谓词互斥,switch 先判谁都不会吞掉另一支。
 	gatePending bool
 	gateExpired bool
+	// gateManual / gapAuditRecorded 是查漏步(Task B3,spec §3.2)的判据:门被
+	// **人工**确认(decided_by=manual)后、③ 分档前先派一次查漏;结论落进
+	// gate.audit.missing(键存在)后就不再派。ai/timeout 确认的门不跑查漏。
+	gateManual       bool
+	gapAuditRecorded bool
 }
 
 // Several discovery columns (created_by_agent_id, decided_by_agent_id) are
@@ -180,6 +185,13 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 		// 2026-09-20：② 候选评分也交给 Organization Leader agent（带仓库名片）。
 		slog.Info("autohost: enqueue planning candidates", "issue", p.issueID)
 		return done(a.service.EnqueuePlanningRun(ctx, p.issueID, discovery.PlanningCandidates))
+	case p.gateManual && !p.hasClassification && !p.gapAuditRecorded:
+		// 查漏(③ 前置,仅人工确认的门,Task B3/spec §3.2):门由人确认后,③ 分档前
+		// 先派一次 PlanningGapAudit —— Manager 拿着需求 + 已确认范围 + 建议集合找漏。
+		// 产物落 gate.audit.missing:有 missing → ③ 停等人(补上/就这样);空 → 自动过门。
+		// ai/timeout 确认的门不跑查漏,直接进 ③。
+		slog.Info("autohost: enqueue planning gap audit", "issue", p.issueID)
+		return done(a.service.EnqueuePlanningRun(ctx, p.issueID, discovery.PlanningGapAudit))
 	case !p.hasClassification:
 		slog.Info("autohost: classifying tiers", "issue", p.issueID)
 		_, err = a.service.Classification(ctx, p.issueID, autohostAgent, idem+":classification")
@@ -232,14 +244,16 @@ func autohostStep(p discoveryProgress) int {
 		return 4 // 选仓门超时 → 代选
 	case !p.hasCandidates:
 		return 5 // ② 候选评分
+	case p.gateManual && !p.hasClassification && !p.gapAuditRecorded:
+		return 6 // ③ 前的查漏(人工确认的门)
 	case !p.hasClassification:
-		return 6 // ③ 分档
+		return 7 // ③ 分档
 	case p.approvalState != "approved":
-		return 7 // ③ 审批
+		return 8 // ③ 审批
 	case !p.hasPlan:
-		return 8 // ④ 生成计划
+		return 9 // ④ 生成计划
 	case !p.hasMaterialization:
-		return 9 // ⑤ 物化
+		return 10 // ⑤ 物化
 	}
 	return 0
 }
@@ -263,7 +277,10 @@ func (a *discoveryAutomator) pendingIssues(ctx context.Context) ([]discoveryProg
 		          AND d.scope_gate->>'deadline_at' IS NULL)                           AS gate_pending,
 		       (d.scope_gate->>'state' = 'pending'
 		          AND d.scope_gate->>'deadline_at' IS NOT NULL
-		          AND now() >= (d.scope_gate->>'deadline_at')::timestamptz)              AS gate_expired
+		          AND now() >= (d.scope_gate->>'deadline_at')::timestamptz)              AS gate_expired,
+		       COALESCE(d.scope_gate->>'state' = 'resolved'
+		          AND d.scope_gate->>'decided_by' = 'manual', false)                   AS gate_manual,
+		       COALESCE(d.scope_gate->'audit' ? 'missing', false)                       AS gap_audit_recorded
 		FROM repomesh_issues.issue_discoveries d
 		JOIN repomesh_issues.issues i ON i.id = d.issue_id
 		WHERE i.removed_at IS NULL
@@ -294,7 +311,7 @@ func (a *discoveryAutomator) pendingIssues(ctx context.Context) ([]discoveryProg
 		if err := rows.Scan(
 			&p.issueID, &p.hasAnalysis, &p.sufficient, &p.forced, &p.hasCandidates,
 			&p.hasClassification, &p.approvalState, &p.evidenceVersion, &p.hasPlan, &p.hasMaterialization,
-			&p.hitlMode, &p.gatePending, &p.gateExpired); err != nil {
+			&p.hitlMode, &p.gatePending, &p.gateExpired, &p.gateManual, &p.gapAuditRecorded); err != nil {
 			return nil, err
 		}
 		pending = append(pending, p)

@@ -169,6 +169,62 @@ func (s *Service) Gate(ctx context.Context, issueID string) (*Gate, error) {
 	return gate, nil
 }
 
+// writeGateAuditValue 只动 scope_gate 的 audit 子树(单列 jsonb_set,不走 save())：
+// 查漏结论落 audit.missing(Task B3 的 PlanningGapAudit),③ 分档的越范围提示落
+// audit.gap。整行写会与发现链互相丢更新,所以这里绝不走 discovery.save()。
+// scope_gate 为空(老 issue 或尚未开门)时按 {} 起步,只长出 audit 子树。
+func writeGateAuditValue(ctx context.Context, tx pgx.Tx, issueID, key string, value any) error {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("discovery: encode gate audit %s: %w", key, err)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE repomesh_issues.issue_discoveries
+		SET scope_gate = jsonb_set(COALESCE(scope_gate, '{}'::jsonb), '{audit}',
+		       jsonb_set(COALESCE(scope_gate->'audit', '{}'::jsonb), ARRAY[$2::text], $3::jsonb, true), true),
+		    updated_at = now()
+		WHERE issue_id = $1`, issueID, key, string(payload)); err != nil {
+		return fmt.Errorf("discovery: write gate audit %s: %w", key, err)
+	}
+	return nil
+}
+
+// PassGateAudit 是「就这样,不补」的处置(spec §3.2):单列 CAS 记
+// audit.audit_passed=true,③ 于是放行。只在确实有**未处置的非空 missing**
+// 且尚未通过时翻转,重复调用返回 false(不重写、不报错)。
+func (s *Service) PassGateAudit(ctx context.Context, issueID string) (bool, error) {
+	command, err := s.pool.Exec(ctx, `UPDATE repomesh_issues.issue_discoveries
+		SET scope_gate = jsonb_set(scope_gate, '{audit}',
+		       jsonb_set(scope_gate->'audit', ARRAY['audit_passed'], 'true'::jsonb, true), true),
+		    updated_at = now()
+		WHERE issue_id = $1
+		  AND jsonb_typeof(scope_gate->'audit'->'missing') = 'array'
+		  AND jsonb_array_length(scope_gate->'audit'->'missing') > 0
+		  AND NOT COALESCE((scope_gate->'audit'->>'audit_passed')::bool, false)`, issueID)
+	if err != nil {
+		return false, err
+	}
+	return command.RowsAffected() == 1, nil
+}
+
+// gateAuditBlocks 读门的 audit 桶:有未处置的 missing(非空数组且未
+// audit_passed)时为真 —— ③ 分档停在这里等人(补上并继续 / 就这样)。
+func gateAuditBlocks(ctx context.Context, tx pgx.Tx, issueID string) (bool, error) {
+	var blocked bool
+	err := tx.QueryRow(ctx, `SELECT
+		CASE WHEN jsonb_typeof(scope_gate->'audit'->'missing') = 'array'
+		     THEN jsonb_array_length(scope_gate->'audit'->'missing') > 0
+		     ELSE false END
+		AND NOT COALESCE((scope_gate->'audit'->>'audit_passed')::bool, false)
+		FROM repomesh_issues.issue_discoveries WHERE issue_id=$1`, issueID).Scan(&blocked)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return blocked, nil
+}
+
 // openGateForCandidates 在②候选产物落库的事务里开选仓门:模式读 issues.hitl_mode
 // (0053),ai = 自动托管 → 截止 now+10 分钟;hitl = 人审 → 无截止,门无限等待。
 // 建议集合取候选块的 repository_name(全名),过滤空名。
