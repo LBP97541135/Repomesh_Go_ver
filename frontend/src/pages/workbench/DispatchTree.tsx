@@ -140,7 +140,12 @@ export function DispatchTree({
   const scheduleRows = useMemo(() => deriveTestSchedule(tasks, testEvidence), [tasks, testEvidence]);
   const scheduleDone = scheduleRows?.filter((r) => r.state === "done").length ?? 0;
   const scheduleFailed = scheduleRows?.filter((r) => r.state === "failed").length ?? 0;
-  const [openTests, setOpenTests] = useState(false);
+  // 测试组**默认展开**（2026-09-21 用户要求："测试组默认打开，不折叠"）。
+  //
+  // 此前是 false —— 那是上一轮"几个折叠窗默认关闭"的批量处理，把这一块也一起收了。
+  // 但测试组不是可选的细节面板：它是**验收证据的入口**，用户报过"测试组全程不展示
+  // 任何规划和测试排期"，默认收起来等于把刚补上的排期又藏回去。
+  const [openTests, setOpenTests] = useState(true);
 
   const hl = "bg-[rgba(94,106,210,.055)] shadow-[inset_0_0_0_1px_rgba(94,106,210,.22)]";
 
