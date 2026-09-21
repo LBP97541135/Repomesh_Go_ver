@@ -9,9 +9,13 @@
  *  相关页面（SetupWizard/LocalAccountsPanel）由页面改造批次替换为 GitHub 登录。
  *
  *  写操作（含 logout）要求 `X-CSRF-Token`，令牌来自 `GET /api/session` 的
- *  `csrfToken`，`session()` 会顺手注入 `api/http.ts` 的令牌槽。 */
+ *  `csrfToken`，`session()` 会顺手注入 `api/http.ts` 的令牌槽。
+ *
+ *  **写请求一律先等令牌**（2026-09-21）：`goRequest` 与 `apiRequest` 现在走同一条
+ *  规矩（`waitForCsrfToken`）。此前 `goRequest` 既不注入也不等，页面加载瞬间的
+ *  并发写会集体撞 403 CSRF_REJECTED。 */
 
-import { getCsrfToken, setCsrfToken } from "./http";
+import { getCsrfToken, setCsrfToken, waitForCsrfToken } from "./http";
 
 export interface Account {
   id: string;
@@ -42,12 +46,30 @@ const BASE = import.meta.env.VITE_API_BASE ?? "";
 /** 会话通道：同源 cookie，不带任何 Authorization 头。 */
 async function goRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${BASE}${path}`;
+  const method = (init?.method ?? "GET").toUpperCase();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+  // 写请求与 apiRequest **同一条规矩**（2026-09-21）：先等令牌就绪再发。
+  //
+  // 此前这里既不注入、也不等：switch / reconnect 靠调用方手工塞一个
+  // `getCsrfToken()`，而那个值在 `GET /api/session` 返回之前是**空串**；
+  // `logout` 更是完全裸发。于是页面加载瞬间的并发写会集体撞
+  // 403 CSRF_REJECTED —— 用户报的"403 成簇"里就有这一路。
+  //
+  // 等不到（超时）仍照旧发：没登录时本来也该被拒，这条只是不再把
+  // "登录引导竞态"混进同一堆 403 里，不改变那种情形的结论。
+  if (method !== "GET" && method !== "HEAD") {
+    const token = await waitForCsrfToken();
+    if (token && !headers["X-CSRF-Token"]) headers["X-CSRF-Token"] = token;
+  }
   let res: Response;
   try {
     res = await fetch(url, {
       credentials: "include",
       ...init,
-      headers: { "Content-Type": "application/json", ...init?.headers },
+      headers,
     });
   } catch (cause) {
     throw new AuthError(0, `无法连接身份服务：${cause instanceof Error ? cause.message : String(cause)}`);
