@@ -225,7 +225,7 @@ func (d *integrationDispatcher) dispatch(ctx context.Context, planID, issueID, p
 	if _, err := tx.Exec(ctx, `INSERT INTO repomesh_execution.agent_runs
 		(id, attempt_id, agent_kind, command, workspace, task_package_ref, state, repo_full_name)
 		VALUES ($1,$2,'test_agent',$3,$4,$5,'pending',$6)`,
-		runID, attemptID, buildIntegrationCommand(agentKind, model, repository), workspace, ref, repository); err != nil {
+		runID, attemptID, buildIntegrationCommand(agentKind, model, repository, allRepos), workspace, ref, repository); err != nil {
 		return false
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -245,11 +245,13 @@ func integrationPrompt(kind, repository string, allRepos []string) string {
 		scope = "本次计划涉及的全部仓库：" + strings.Join(allRepos, "、") + "（你手上检出的是 " + repository + "）"
 		work = "做跨仓库联调与回归：结合上面列出的其它仓库，确认本次改动在 " + repository +
 			" 这一侧仍然成立、仓库之间的接口约定没有被破坏，并跑一遍该仓库既有的测试。" +
-			"你只能看到自己检出的那个仓库 —— 对看不到的仓库不要臆测，直接说清哪些结论无法在本仓库内验证。"
+			"本次计划的**其它仓库也已经只读检出在你的工作区里**（见下面的 _deps 路径），" +
+			"可以对照它们的真实内容，不要凭记忆臆测别的仓库长什么样。"
 	}
 	return "你是 RepoMesh 的测试 agent，负责**集成验证**，不要修改任何业务代码。\n\n" +
 		"范围：" + scope + "。\n\n" +
 		work + "\n\n" +
+		dependencyPromptSection(repository, allRepos) +
 		"然后把结论写进当前目录下的 " + execution.TestEvidenceFile + "，只写这个 JSON：\n" +
 		"{\"script\":\"<你写的验证脚本路径，没写脚本就填空串>\",\"command\":\"<你实际跑的命令>\"," +
 		"\"exit_code\":<整数>,\"passed\":<true|false>,\"summary\":\"<一行，你实际观察到了什么>\"}\n\n" +
@@ -262,7 +264,7 @@ func integrationPrompt(kind, repository string, allRepos []string) string {
 // 2026-09-20：第一版没克隆、也没给 repo_full_name，集成 agent 的工作区是空的 ——
 // 它手上没有仓库，所谓"集成验证"只能靠猜。这里补上克隆，executor 据 repo_full_name
 // 现场铸该仓库的 installation token（同交付 run）。
-func buildIntegrationCommand(agentKind, model, repository string) string {
+func buildIntegrationCommand(agentKind, model, repository string, depRepos []string) string {
 	agent := "codex exec -c model_provider=minimax -c model=" + model +
 		" --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox \"$(cat \"$PROMPT\")\""
 	if agentKind == "claude_cli" {
@@ -287,6 +289,9 @@ func buildIntegrationCommand(agentKind, model, repository string) string {
 		"  rm -rf \"$WORK\"\n" +
 		"  git -C \"$BASE\" worktree add --detach --force \"$WORK\" FETCH_HEAD\n" +
 		") 9>\"$(dirname \"$BASE\")/.lock-$SLUG\"\n" +
+		// 与交付 run 同一件事：本次计划的其它仓库只读检出到 $PWD/_deps/，
+		// 让"跨仓库联调"真的能对照到对方仓库的内容，而不是靠记忆臆测。
+		depCheckoutScript(repository, depRepos) +
 		"cd \"$WORK\"\n" +
 		typesafe.PrepareScript +
 		agent + "\n" +

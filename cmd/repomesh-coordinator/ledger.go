@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"repomesh.local/repomesh/internal/execution"
@@ -50,7 +51,110 @@ func sanitizeSingleQuoted(text string) string {
 // the real requirement, commit, push a delivery branch and open the pull
 // request. The App installation token is read from the cache file refreshed
 // by repomesh-gh-token.timer — never embedded into the stored command.
-func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, issueTitle, issueID, skillContent string) (string, error) {
+//
+// 依赖仓（depRepos）是同一计划里**其它仓库**的 owner/name：它们会被只读检出到本次
+// 工作区的 _deps/ 下，并把路径写进 prompt。见 dependencyPromptSection 的说明。
+// depSlug 是依赖仓在工作区里的目录名，必须与脚本里的 `tr / _` 逐字一致 ——
+// 两处不一致时 prompt 会把 agent 指到一个不存在的目录，比没有这段还糟。
+func depSlug(repoFullName string) string {
+	return strings.ReplaceAll(repoFullName, "/", "_")
+}
+
+// safeRepoFullName 只放行 owner/name 这种形状。
+//
+// 为什么必须挡：这些名字会**拼进 shell 脚本**（`for DR in a/b c/d`）和
+// `git clone .../$DR.git`。一个带空格或 $ 的名字不只是"显示难看"，而是把脚本拆成
+// 别的命令。名字来自数据库里别人装 App 时登记的仓库，不是我们写的常量 —— 所以
+// 形状不对就整个跳过（宁可少一个依赖仓，也不让脚本变形）。
+func safeRepoFullName(repoFullName string) bool {
+	if repoFullName == "" || strings.ContainsAny(repoFullName, " \t\r\n'\"`$\\;&|<>()*?[]{}") {
+		return false
+	}
+	owner, name, found := strings.Cut(repoFullName, "/")
+	return found && owner != "" && name != "" && !strings.Contains(name, "/")
+}
+
+// filteredDependencies 剔除形状不合法的仓库名并去重，保持调用方给的顺序。
+func filteredDependencies(repoFullName string, depRepos []string) []string {
+	out := make([]string, 0, len(depRepos))
+	seen := map[string]bool{repoFullName: true}
+	for _, repo := range depRepos {
+		if !safeRepoFullName(repo) || seen[repo] {
+			continue
+		}
+		seen[repo] = true
+		out = append(out, repo)
+	}
+	return out
+}
+
+// dependencyPromptSection 把"你的输入不止本仓"这件事写进 prompt。
+//
+// 背景（2026-09-22 线上实测）：跨仓任务的 prompt 只说了 *Work only in this
+// directory*，而依赖仓的约定文件根本不在这个目录里 —— agent 找不到，就退化成
+// `grep -rl ... /` 和 `find / -name ...` **全盘搜索**：既慢（扫 400+ 目录），
+// 又可能把**别的 attempt 未提交的中间产物**当成契约原文读进来（比找不到更糟）。
+//
+// 所以这里同时说清两件事：依赖仓**已经在你手上**（路径逐条列出），以及
+// **不要全盘搜索**（工作区就是全部输入；真缺东西就如实说缺，不要猜）。
+// 没有依赖仓时也保留"不要全盘搜索"这一句 —— 单仓任务同样不该去翻文件系统。
+func dependencyPromptSection(repoFullName string, depRepos []string) string {
+	deps := filteredDependencies(repoFullName, depRepos)
+	var body strings.Builder
+	if len(deps) > 0 {
+		body.WriteString("## 依赖仓库（只读检出，已经在你手上）\n\n")
+		body.WriteString("本次计划还涉及以下仓库，它们的当前 main 已经检出在你的工作区里：\n\n")
+		for _, repo := range deps {
+			body.WriteString("- " + repo + " -> ../_deps/" + depSlug(repo) + "\n")
+		}
+		body.WriteString("\n它们只是**只读参考**：可以读、可以对照，但不要修改、不要提交 —— 交付只针对 " +
+			repoFullName + " 这一个仓库。\n")
+		body.WriteString("若某个仓库没出现（检出失败），工作区里的 _deps/UNAVAILABLE.txt 会写明是哪一个。\n\n")
+	}
+	body.WriteString("## 不要全盘搜索\n\n")
+	if len(deps) > 0 {
+		body.WriteString("你的工作区（当前目录，以及上面列出的 ../_deps/ 目录）就是你的**全部输入**。\n")
+	} else {
+		body.WriteString("你的工作区（当前目录）就是你的**全部输入**。\n")
+	}
+	body.WriteString("不要用 find /、grep -r / 或任何以根目录为起点的搜索去找文件：那既慢，" +
+		"又可能把别的任务未提交的中间产物当成约定原文读进来。\n")
+	body.WriteString("确实需要的东西不在工作区里时，就在交付说明里写清**缺什么、你在哪里找不到**，不要猜。\n\n")
+	return body.String()
+}
+
+// depCheckoutScript 生成"把依赖仓只读检出到 $PWD/_deps/<slug>"的那段 shell。
+//
+// 三条约束（都在这个文件别处踩过）：
+//   - 整段脚本被 bash -c '...' 包着 —— 脚本内**不能出现单引号**；
+//   - clone / fetch / worktree add 必须在 **per-repo 的 flock 里**：同一个依赖仓
+//     会被多个并发 attempt 同时检出，两个 clone 撞在同一个目录上必然坏一个；
+//   - 检出失败**不能杀掉整条交付**（那只是少了一份参考），但必须**留下名字**，
+//     否则 prompt 里列了路径、目录却不存在，agent 又会退回去全盘搜索。
+func depCheckoutScript(repoFullName string, depRepos []string) string {
+	deps := filteredDependencies(repoFullName, depRepos)
+	if len(deps) == 0 {
+		return ""
+	}
+	var script strings.Builder
+	script.WriteString("DEPS=\"$PWD/_deps\"\n")
+	script.WriteString("mkdir -p \"$DEPS\"\n")
+	script.WriteString("for DR in " + strings.Join(deps, " ") + "; do\n")
+	script.WriteString("  DS=$(printf %s \"$DR\" | tr / _)\n")
+	script.WriteString("  DB=$(dirname \"$PWD\")/_bases/$DS\n")
+	script.WriteString("  ( flock 9\n")
+	script.WriteString("    if [ ! -d \"$DB/.git\" ]; then git clone --depth 5 \"https://x-access-token:$T@github.com/$DR.git\" \"$DB\"; fi\n")
+	script.WriteString("    git -C \"$DB\" remote set-url origin \"https://x-access-token:$T@github.com/$DR.git\"\n")
+	script.WriteString("    git -C \"$DB\" fetch --depth 5 origin main\n")
+	script.WriteString("    git -C \"$DB\" worktree prune\n")
+	script.WriteString("    rm -rf \"$DEPS/$DS\"\n")
+	script.WriteString("    git -C \"$DB\" worktree add --detach --force \"$DEPS/$DS\" FETCH_HEAD\n")
+	script.WriteString("  ) 9>\"$(dirname \"$PWD\")/.lock-$DS\" || echo \"$DR checkout failed\" >> \"$DEPS/UNAVAILABLE.txt\"\n")
+	script.WriteString("done\n")
+	return script.String()
+}
+
+func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, issueTitle, issueID, skillContent string, depRepos []string) (string, error) {
 	requirement := strings.TrimSpace(instruction)
 	if requirement == "" {
 		requirement = "Complete the assigned task in this repository. Implement the requirement and run the existing checks."
@@ -59,6 +163,7 @@ func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, i
 		"Repository: " + repoFullName + "\n" +
 		"The current directory is the prepared git worktree for this repository. Work only in this directory.\n" +
 		"Do not run git clone, git init, git commit, git push, gh pr create, or create pull requests. The platform owns delivery and will commit, push, and open the PR after you finish.\n\n" +
+		dependencyPromptSection(repoFullName, depRepos) +
 		"## Requirement\n\n" + requirement
 	if strings.TrimSpace(skillContent) != "" {
 		prompt = "## 你的技能（技能库原文）\n\n" + skillContent + "\n\n---\n\n" + prompt
@@ -142,6 +247,10 @@ func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, i
 		"  rm -rf \"$WORK\"\n" +
 		"  git -C \"$BASE\" worktree add --detach --force \"$WORK\" FETCH_HEAD\n" +
 		") 9>\"$(dirname \"$BASE\")/.lock-$SLUG\"\n" +
+		// 依赖仓的只读检出放在**本次 attempt 的工作区**里（$PWD/_deps），
+		// 不在 $WORK 里面 —— 交付的 `git add -A -- .` 只覆盖 repo/，
+		// 所以参考树不会被误提交进交付分支。
+		depCheckoutScript(repoFullName, depRepos) +
 		"cd \"$WORK\"\n" +
 		"git config user.name \"repomesh-bot[bot]\"\n" +
 		"git config user.email \"repomesh-bot@users.noreply.github.com\"\n" +
@@ -232,6 +341,11 @@ func buildTestCommand(agentKind, model, instruction, repoFullName, attemptID, is
 	testPrompt := "You are the test agent for this repository. " +
 		"Requirement: " + requirement + ". " +
 		"Inspect the uncommitted change the development agent just delivered (git status --short and git diff). " +
+		// 与开发 run 同一份工作区：依赖仓的只读检出（../_deps/）还在原地，测试可以
+		// 拿它对照跨仓约定。但**不要**去全盘搜索 —— 理由同 dependencyPromptSection。
+		"The workspace may also contain ../_deps/ with read-only checkouts of the other repositories in this plan; " +
+		"read them for reference, never modify them. " +
+		"Do not search the whole filesystem (no find / or grep -r /). " +
 		"Write a test script that verifies the requirement and run it. " +
 		"Then write the result to a file named " + execution.TestEvidenceFile + " in the current directory, " +
 		"as this exact JSON shape and nothing else: " +
@@ -276,6 +390,45 @@ func buildTestCommand(agentKind, model, instruction, repoFullName, attemptID, is
 		agentLine + "\n" +
 		"echo REPO_TESTS_DONE=" + repoFullName + ":" + attemptID
 	return "bash -c '" + script + "'", nil
+}
+
+// planSiblingRepositories 列出**同一计划里其它仓库**的 owner/name（排除本次交付的
+// 那一个），按名字排序保证同一条任务每次生成的脚本逐字相同。
+//
+// 返回空列表的三种情形都是"本来就没有跨仓输入"，不是错误：
+//
+//	· 任务不属于任何计划（plan_id 为空）—— 子查询给 NULL，条件不成立；
+//	· 计划只有一个仓库 —— 排除掉自己就空了；
+//	· 计划的其它任务没有仓库绑定 —— JOIN 不上。
+//
+// 刻意**不走** public.tasks.repository_id：那个字段是 text，而权威绑定在
+// task_repository_scopes（ReserveForTask 的主查询也走它）。同一件事两个来源，
+// 迟早有一个是过期的 —— 这里跟权威那一个走。
+func planSiblingRepositories(ctx context.Context, tx pgx.Tx, taskID, selfRepoFullName string) ([]string, error) {
+	rows, err := tx.Query(ctx, `SELECT DISTINCT ro.owner || '/' || ro.name
+		FROM public.tasks t2
+		JOIN public.task_repository_scopes s2 ON s2.task_id = t2.id
+		JOIN repomesh_projects.repositories ro ON ro.id = s2.repository_id
+		WHERE t2.plan_id = (SELECT plan_id FROM public.tasks WHERE id = $1::uuid)
+		  AND t2.id <> $1::uuid
+		  AND ro.owner || '/' || ro.name <> $2
+		ORDER BY 1`, taskID, selfRepoFullName)
+	if err != nil {
+		return nil, fmt.Errorf("coordinator: dependency repositories for task %s: %w", taskID, err)
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var repo string
+		if err := rows.Scan(&repo); err != nil {
+			return nil, fmt.Errorf("coordinator: dependency repositories for task %s: %w", taskID, err)
+		}
+		out = append(out, repo)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("coordinator: dependency repositories for task %s: %w", taskID, err)
+	}
+	return out, nil
 }
 
 // ReserveForTask registers the worker, one launch-verified attempt bound to
@@ -330,7 +483,16 @@ func (l *coordinatorLedger) ReserveForTask(ctx context.Context, workerID, taskID
 	sb := newSkillBridge(l.pool)
 	workerSkill, _ := sb.ForRole(ctx, "worker")
 
-	command, err := buildAgentCommand(agentKind, configuredModel, instruction, repoFullName, attemptID, issueTitle, issueID, workerSkill.Content)
+	// 依赖仓：同一计划里**其它仓库**。跨仓任务要引用别的仓的约定原文，而 agent 手上
+	// 只有本仓 —— 2026-09-22 线上实测它因此退化成全盘搜索。这里把兄弟仓列出来，
+	// 由交付脚本只读检出到本次工作区的 _deps/ 下（见 depCheckoutScript）。
+	// 查不到（单仓计划 / 任务没有计划）就是空列表：没有跨仓输入，工作区里也不该多目录。
+	depRepos, depErr := planSiblingRepositories(ctx, tx, taskID, repoFullName)
+	if depErr != nil {
+		return "", depErr
+	}
+
+	command, err := buildAgentCommand(agentKind, configuredModel, instruction, repoFullName, attemptID, issueTitle, issueID, workerSkill.Content, depRepos)
 	if err != nil {
 		return "", err
 	}

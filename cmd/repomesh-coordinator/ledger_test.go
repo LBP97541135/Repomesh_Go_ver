@@ -28,7 +28,7 @@ func TestScriptSyntaxIsValidBash(t *testing.T) {
 		t.Skipf("这台机器的 bash 不可用（%v：%s），跳过语法自检", err, strings.TrimSpace(string(out)))
 	}
 	delivery, err := buildAgentCommand("codex_cli", "MiniMax-M2",
-		"把运费改成满 900 免运费", "owner/name", "att_1", "标题", "iss_1", "技能原文")
+		"把运费改成满 900 免运费", "owner/name", "att_1", "标题", "iss_1", "技能原文", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestScriptSyntaxIsValidBash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	integration := buildIntegrationCommand("codex_cli", "MiniMax-M2", "owner/name")
+	integration := buildIntegrationCommand("codex_cli", "MiniMax-M2", "owner/name", nil)
 	for name, command := range map[string]string{
 		"delivery":    delivery,
 		"test":        testCmd,
@@ -62,7 +62,7 @@ func TestScriptSyntaxIsValidBash(t *testing.T) {
 //  4. 交付前要清掉 __pycache__/*.pyc，并且**真的没有改动时明确失败**，不许开空 PR。
 func TestBuildAgentCommandKeepsScriptQuotableAndUsesWorktree(t *testing.T) {
 	command, err := buildAgentCommand("codex_cli", "MiniMax-M2",
-		"把运费改成满 900 免运费", "owner/name", "att_1", "满900免运费", "iss_1", "")
+		"把运费改成满 900 免运费", "owner/name", "att_1", "满900免运费", "iss_1", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestBuildAgentCommandKeepsScriptQuotableAndUsesWorktree(t *testing.T) {
 func TestBuildAgentCommandIncludesSkillContent(t *testing.T) {
 	skillDoc := "You are a task execution worker. Follow the acceptance criteria."
 	command, err := buildAgentCommand("codex_cli", "MiniMax-M2",
-		"do the thing", "owner/name", "att_1", "title", "iss_1", skillDoc)
+		"do the thing", "owner/name", "att_1", "title", "iss_1", skillDoc, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestBuildAgentCommandIncludesSkillContent(t *testing.T) {
 }
 
 func TestBuildIntegrationCommandUsesWorktree(t *testing.T) {
-	command := buildIntegrationCommand("codex_cli", "MiniMax-M2", "owner/name")
+	command := buildIntegrationCommand("codex_cli", "MiniMax-M2", "owner/name", nil)
 	if !strings.HasPrefix(command, "bash -c '") || !strings.HasSuffix(command, "'") {
 		t.Fatalf("命令必须整段被单引号包住：%s", command)
 	}
@@ -157,5 +157,126 @@ func TestBuildTestCommandUsesAttemptWorktree(t *testing.T) {
 	}
 	if strings.Contains(inner, "\ncd repo\n") {
 		t.Fatalf("测试脚本仍使用旧工作区路径：%s", inner)
+	}
+}
+
+// 依赖仓进工作区（2026-09-22 用户裁定：跨仓任务不该让 agent 去全盘搜索）。
+//
+// 线上实测的病灶：需求要 agent 引用**另一个仓库**的约定文件，而 prompt 只说了
+// "Work only in this directory" —— 文件不在这个目录里，agent 于是退化成
+// `grep -rl ... /` 与 `find / -name ...`：扫 400+ 目录，还可能把别的 attempt
+// 未提交的中间产物当成契约原文读进来。
+//
+// 修法是把同计划其它仓库**只读检出到本次工作区的 _deps/ 下**，并把路径写进 prompt。
+// 这里锁住四件事：路径出现在 prompt、检出脚本真的建了它、**交付只针对本仓**、
+// 以及形状不合法的仓库名不会把脚本拆坏。
+func TestBuildAgentCommandMaterializesDependencyRepositories(t *testing.T) {
+	deps := []string{"LBP97541135/saleor-sdk", "LBP97541135/saleor-dashboard"}
+	command, err := buildAgentCommand("codex_cli", "MiniMax-M2",
+		"把 sdk 的契约复制过来", "LBP97541135/saleor-app-template",
+		"att_1", "跨仓契约", "iss_1", "", deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner := strings.TrimSuffix(strings.TrimPrefix(command, "bash -c '"), "'")
+	if strings.Contains(inner, "'") {
+		t.Fatal("脚本内出现单引号：外层引号会提前闭合")
+	}
+	// 1) 检出段：两个依赖仓都被 clone/fetch/worktree add 到 $PWD/_deps/<slug>。
+	for _, want := range []string{
+		"DEPS=\"$PWD/_deps\"",
+		"for DR in LBP97541135/saleor-sdk LBP97541135/saleor-dashboard; do",
+		"git -C \"$DB\" worktree add --detach --force \"$DEPS/$DS\" FETCH_HEAD",
+		"9>\"$(dirname \"$PWD\")/.lock-$DS\"",
+		"UNAVAILABLE.txt",
+	} {
+		if !strings.Contains(inner, want) {
+			t.Fatalf("交付脚本缺少依赖检出片段 %q：\n%s", want, inner)
+		}
+	}
+	// 2) 检出必须发生在**进 $WORK 之前**（那时 $PWD 还是本次 attempt 的工作区）。
+	//    反了就会把 _deps 建进交付树里，参考仓会被当成交付物提交上去。
+	if strings.Index(inner, "DEPS=\"$PWD/_deps\"") > strings.Index(inner, "cd \"$WORK\"") {
+		t.Fatal("依赖检出排在 cd $WORK 之后：_deps 会被建进交付树里")
+	}
+	// 3) prompt 里逐条给出路径，并明说只读、只交付本仓。
+	if !strings.Contains(inner, "../_deps/LBP97541135_saleor-sdk") {
+		t.Fatalf("prompt 没有给出依赖仓路径：\n%s", inner)
+	}
+	if !strings.Contains(inner, "只读参考") {
+		t.Fatalf("prompt 没有说明依赖仓是只读的：\n%s", inner)
+	}
+	// 4) 反全盘搜索那一句必须在 —— 这才是这条链要治的病。
+	if !strings.Contains(inner, "不要全盘搜索") {
+		t.Fatalf("prompt 缺少禁止全盘搜索的约束：\n%s", inner)
+	}
+}
+
+// 没有依赖仓时：不该凭空多出 _deps 目录，但"不要全盘搜索"仍然要说 —— 单仓任务
+// 同样不该去翻文件系统找输入。
+func TestBuildAgentCommandWithoutDependenciesStillForbidsWholeFilesystemSearch(t *testing.T) {
+	command, err := buildAgentCommand("codex_cli", "MiniMax-M2",
+		"单仓任务", "owner/name", "att_1", "title", "iss_1", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner := strings.TrimSuffix(strings.TrimPrefix(command, "bash -c '"), "'")
+	if strings.Contains(inner, "_deps") {
+		t.Fatalf("没有依赖仓却生成了 _deps 片段：\n%s", inner)
+	}
+	if !strings.Contains(inner, "不要全盘搜索") {
+		t.Fatalf("prompt 缺少禁止全盘搜索的约束：\n%s", inner)
+	}
+}
+
+// 形状不合法的仓库名**不能进脚本**：它会被拼进 `for DR in ...` 与 git clone 的 URL。
+// 名字来自别人装 App 时登记的仓库，不是我们写的常量 —— 一个空格就能把脚本拆成
+// 别的命令，一个 $ 就能让 shell 展开成别的东西。宁可少一个依赖仓。
+func TestDependencyRepositoriesRejectUnsafeNames(t *testing.T) {
+	got := filteredDependencies("owner/self", []string{
+		"owner/ok",
+		"owner/self",          // 自己：交付仓不该出现在依赖里
+		"owner/ok",            // 重复
+		"",                    // 空
+		"noslash",             // 没有 owner
+		"own er/name",         // 空格会把 for 列表拆开
+		"owner/na$me",         // $ 会被 shell 展开
+		"owner/na;me",         // ; 会另起一条命令
+		"owner/a/b",           // 多一段路径
+		"owner/back`tick",     // 反引号是命令替换
+		"owner/quote'name",    // 单引号会闭合外层 bash -c
+		"LBP97541135/another", // 合法，保留
+	})
+	want := []string{"owner/ok", "LBP97541135/another"}
+	if len(got) != len(want) {
+		t.Fatalf("过滤结果不对：得到 %v，期望 %v", got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("过滤结果不对：得到 %v，期望 %v", got, want)
+		}
+	}
+}
+
+// 集成 run 也要拿得到依赖仓：它的活是"跨仓库联调"，而此前 prompt 明说
+// "你只能看到自己检出的那个仓库" —— 那等于让它靠记忆臆测对方仓库长什么样。
+func TestBuildIntegrationCommandMaterializesDependencyRepositories(t *testing.T) {
+	all := []string{"owner/api", "owner/client"}
+	command := buildIntegrationCommand("codex_cli", "MiniMax-M2", "owner/api", all)
+	inner := strings.TrimSuffix(strings.TrimPrefix(command, "bash -c '"), "'")
+	if strings.Contains(inner, "'") {
+		t.Fatal("脚本内出现单引号：外层引号会提前闭合")
+	}
+	if !strings.Contains(inner, "for DR in owner/client; do") {
+		t.Fatalf("集成脚本没有检出计划里的其它仓库：\n%s", inner)
+	}
+	// 集成 prompt 走的是**工作区里的 prompt.txt**（$(cat "$PROMPT")），不在命令串里 ——
+	// 所以要断言 prompt 本体，而不是命令。断言错了对象会得出"没给路径"的假失败。
+	prompt := integrationPrompt("cross_repo_regression", "owner/api", all)
+	if !strings.Contains(prompt, "../_deps/owner_client") {
+		t.Fatalf("集成 prompt 没有给出依赖仓路径：\n%s", prompt)
+	}
+	if strings.Contains(prompt, "../_deps/owner_api") {
+		t.Fatalf("集成 prompt 把**自己**也列成依赖仓了：\n%s", prompt)
 	}
 }
