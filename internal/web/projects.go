@@ -184,6 +184,38 @@ func registerProjects(mux *http.ServeMux, auth Auth, projectAPI Projects) {
 		}
 		return err
 	})
+	// 建一条**执行档案**（2026-09-22 补的能力）。
+	//
+	// 在此之前执行档案只能由导入路径（sources/import_v2.go）写入 —— 线上实测
+	// catmem **一个执行档案都没有**，于是他的项目 inherit 解析不到执行侧、
+	// 建 issue 被「执行配置未完成」永久阻断，且他自己解不开。
+	//
+	// 政策（预算/时限）是**全局**的，服务端直接引用现成版本，调用方不用传。
+	// 政策缺失时服务端回 409 POLICY_NOT_CONFIGURED —— 如实说"没配政策"，
+	// 而不是建一个没有约束的空壳档案。
+	registerProjectRoute(mux, "POST /api/configuration-profiles/execution", auth, func(w http.ResponseWriter, r *http.Request, principal access.ProjectPrincipal) error {
+		if projectAPI.Service == nil {
+			return &projects.Failure{Status: 503, Code: "RESULT_UNCONFIRMED", FieldErrors: []projects.FieldError{}}
+		}
+		var body struct {
+			Name              string `json:"name"`
+			WorkerConcurrency int    `json:"workerConcurrency"`
+		}
+		if err := decodeBody(w, r, &body); err != nil {
+			return err
+		}
+		profileID, err := projectAPI.Service.RegisterExecutionProfile(
+			r.Context(), principal, body.Name, body.WorkerConcurrency)
+		if err != nil {
+			return err
+		}
+		writeJSON(w, http.StatusCreated, map[string]string{
+			"kind":      "execution",
+			"profileId": profileID,
+			"version":   "v1",
+		})
+		return nil
+	})
 	// 把某个档案设成**默认**（2026-09-21 补的能力）。
 	//
 	// 此前 `repomesh_projects.defaults` 只有导入路径能写、没有任何 HTTP 入口，
