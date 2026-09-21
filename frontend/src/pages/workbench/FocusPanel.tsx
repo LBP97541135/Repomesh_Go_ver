@@ -15,7 +15,7 @@ import { ArrowLeft as IconBack } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { IconCheck, IconClock, IconHouse, IconRun, IconSend } from "./treeIcons";
 import { WorkerHealthGate } from "./WorkerHealthGate";
-import type { DiscoveryProducer, DiscoveryView } from "../../api/contract";
+import type { DiscoveryProducer, DiscoveryView, DiscoveryTier } from "../../api/contract";
 import type { PlanTaskItem } from "../../api/taskTree";
 import type { ConversationMessage } from "../../api/conversations";
 import { STEP_LABELS, type FocusEntry, type StepState } from "./treeModel";
@@ -28,7 +28,7 @@ import { SupervisionPolicyCard, type PolicyDraftState } from "../../components/S
 import { TaskAgentOutput } from "./TaskAgentOutput";
 import { ResponsibilityCaseCard } from "../../components/ResponsibilityCaseCard";
 import { BranchValidationCard } from "../../components/BranchValidationCard";
-import { scopeGateSuggestions } from "../../display";
+import { scopeGateSuggestions, TIER_LABEL, TIER_SKIN } from "../../display";
 
 /** 消息作者 → 角色显示。先看 authorKind（user 是人），服务侧 agent 再按
  *  roster 命名约定（agent_<role>[_<name>]）推导；都推不出按系统条目样式。 */
@@ -834,6 +834,9 @@ export interface FocusPanelProps {
   /** 候选分流(2026-09-18 用户裁定):第 2 步聊天室里选——人勾选 / AI 推断 */
   onChooseManual?: () => void;
   onChooseAI?: () => void;
+  /** ③ 分档审批（消息化后）提交：带上档位调整与「批准」一次提交（契约 §5.2）。
+   *  不传时回落到 `onGate("approveTiers")`（不带调整）。 */
+  onApproveTiers?: (adjustments: Array<{ repository: string; tier: DiscoveryTier }>) => void;
   /** 漏选清单确认(勾中的仓库名) */
   onConfirmSupplements?: (repositories: string[]) => void;
   /** 分流动作进行中(选择卡按钮置灰) */
@@ -909,6 +912,7 @@ export function FocusPanel({
   onAppendRepository,
   onChooseManual,
   onChooseAI,
+  onApproveTiers,
   onConfirmSupplements,
   selectionBusy = false,
   planState,
@@ -1046,9 +1050,13 @@ export function FocusPanel({
           discovery={discovery}
           onChooseManual={onChooseManual}
           onChooseAI={onChooseAI}
+          onApproveTiers={onApproveTiers}
           onConfirmSupplements={onConfirmSupplements}
           onRetryStep={onRetryStep}
           selectionBusy={selectionBusy}
+          repoOptions={repoOptions}
+          scopeRepoIds={scopeRepoIds}
+          onAppendRepository={onAppendRepository}
         />
       </div>
     );
@@ -1308,9 +1316,13 @@ function StepStream({
     </>), "s2"));
   }
   // ③ 分档审批
+  //
+  //  2026-09-21 用户裁定：③ 待人审时**可操作的那条消息**由 GateStack 的
+  //  <TierGateMessage> 出（房间流里的一条消息，能改档、能补仓、提交即批准）。
+  //  这里只在**已确认**之后留一条静态记录，同一道门因此不会在流里出现两条消息。
   const cls = discovery.classification;
-  if (cls) {
-    const pending = discovery.approval?.state !== "approved" && stepStates[2] === "gate";
+  const tiersPending = discovery.approval?.state !== "approved" && stepStates[2] === "gate";
+  if (cls && !tiersPending) {
     // ponytail: 超过 3 个仓库只展示前 3 + "等 N 个"，不平铺 20 个（2026-09-18 用户反馈太密）
     const tierLine = (t: string, arr: Array<{ repository: string }>) => {
       if (!arr.length) return `${t}：无`;
@@ -1323,14 +1335,7 @@ function StepStream({
         <p>{tierLine("必需", cls.required)}</p>
         <p>{tierLine("可能", cls.maybe)}</p>
         <p className="text-[var(--tree-faint)]">{tierLine("排除", cls.excluded)}</p>
-        {cls.required.length + cls.maybe.length === 0 && <p>必需+可能均为空——评分器无信号,请回树上「分档审批」把仓库调进必需档。</p>}
       </div>
-      {pending && cls.required.length + cls.maybe.length > 0 && (
-        <button type="button" disabled={gateBusy === "approveTiers"} onClick={() => onGate("approveTiers")}
-          className="mt-1.5 rounded-[7px] border border-amber/40 bg-amber-well px-3 py-1 text-[11.5px] font-semibold text-amber hover:bg-amber-well/80 disabled:opacity-50">
-          {gateBusy === "approveTiers" ? "提交中…" : "批准分档"}
-        </button>
-      )}
     </>), "s3"));
   }
   // ④ 生成计划
@@ -1393,6 +1398,225 @@ function gateDeadlineText(deadlineAt: string): string {
     : at.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
 }
 
+/** 选仓门建议列表（2026-09-21 用户裁定）：每行 = 仓名 + 置信度分数（两位小数）+
+ *  档位标签（必需/可能）+ 理由**默认折叠**，点仓名才展开理由。
+ *
+ *  理由为空时**不给展开手势**：一个点开只见到占位字样的控件是假控件——比「藏起来
+ *  再点出来」更诚实的做法是**行内直接写「无判断依据」**，人一眼就知道这仓没有
+ *  可依据的判断，不浪费一次点击。 */
+function ScopeSuggestionList({ gate }: { gate: DiscoveryView["scope_gate"] }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const suggested = scopeGateSuggestions(gate);
+  if (suggested.length === 0) {
+    return (
+      <p className="mt-1.5 text-[10.5px] text-[var(--tree-faint)]">
+        点「让 AI 定」生成仓库建议，或「我自己勾」。
+      </p>
+    );
+  }
+  return (
+    <ul className="mt-1.5 space-y-1">
+      {suggested.map((s) => {
+        const expandable = s.reason !== "";
+        const expanded = expandable && open === s.repository;
+        return (
+          <li key={s.repository} className="text-[11px] leading-[1.5]">
+            <div className="flex items-baseline gap-1.5">
+              <button
+                type="button"
+                disabled={!expandable}
+                onClick={() => expandable && setOpen(expanded ? null : s.repository)}
+                title={expandable ? (expanded ? "收起理由" : "展开理由") : undefined}
+                className={`flex-none rounded-[5px] border border-[var(--tree-acc)] bg-[var(--tree-acc)]/10 px-1.5 py-px font-mono text-[10px] text-[var(--tree-acc)] ${
+                  expandable ? "cursor-pointer hover:bg-[var(--tree-acc)]/20" : "cursor-default"
+                }`}
+              >
+                {s.repository}
+                {expandable && <span className="ml-1 text-[9px]">{expanded ? "▾" : "▸"}</span>}
+              </button>
+              {s.score !== null && (
+                <span
+                  className="flex-none font-mono text-[10px] text-[var(--tree-sub)]"
+                  title="置信度分数（0.00~1.00）"
+                >
+                  {s.score.toFixed(2)}
+                </span>
+              )}
+              {s.tier !== null && (
+                <span className={`flex-none rounded-[5px] border px-1.5 py-px text-[9.5px] ${TIER_SKIN[s.tier]}`}>
+                  {TIER_LABEL[s.tier]}
+                </span>
+              )}
+              {!expandable && (
+                <span className="min-w-0 truncate text-[10.5px] text-[var(--tree-faint)]">无判断依据</span>
+              )}
+            </div>
+            {expanded && (
+              <p className="mt-0.5 pl-1 break-words text-[10.5px] leading-[1.6] text-[var(--tree-sub)]">
+                {s.reason}
+              </p>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** ③ 分档审批 = Manager 在房间流里的一条消息（2026-09-21 用户裁定：不再是独立卡片）。
+ *
+ *  这条消息**能改**（用户裁定第 4 条）：
+ *   - 逐仓改档（必需/可能/排除）——写成 `adjustments` 与批准**一次提交**
+ *     （契约 §5.2：拆两个写会造出「改了但没批」的中间态）；
+ *   - 补仓库——把项目里别的仓加进本次范围，走**既有**追加端点
+ *     `POST /api/projects/{pid}/issues/{iid}/scope/repositories`（新仓库必须人工
+ *     确认才生效，agent 不能自己改范围）。
+ *
+ *  两条回路都复用既有写面，不新造接口。行集合取**生效分档**（读模型的
+ *  `effective_tiers`，唯一权威），再并上**已在范围但还没分档**的仓（刚补进来的那种）
+ *  ——否则「补仓库」在这条消息里看不见任何反应。 */
+function TierGateMessage({
+  discovery,
+  busy,
+  repoOptions,
+  scopeRepoIds,
+  onAppendRepository,
+  onApprove,
+}: {
+  discovery: DiscoveryView | null;
+  busy: boolean;
+  repoOptions: Array<{ id: string; name: string }>;
+  scopeRepoIds: string[];
+  onAppendRepository: (repositoryId: string) => Promise<void>;
+  onApprove: (adjustments: Array<{ repository: string; tier: DiscoveryTier }>) => void;
+}) {
+  const [edited, setEdited] = useState<Record<string, DiscoveryTier>>({});
+  const [appendPick, setAppendPick] = useState("");
+  const [appendBusy, setAppendBusy] = useState(false);
+  const [appendErr, setAppendErr] = useState<string | null>(null);
+
+  const options = repoOptions ?? [];
+  const scope = scopeRepoIds ?? [];
+  const nameOf = (id: string) => options.find((r) => r.id === id)?.name ?? null;
+
+  const rows: Array<{ repository: string; current: DiscoveryTier; untiered: boolean }> = [];
+  const seen = new Set<string>();
+  for (const t of discovery?.effective_tiers ?? []) {
+    if (seen.has(t.repository)) continue;
+    seen.add(t.repository);
+    rows.push({ repository: t.repository, current: t.tier, untiered: false });
+  }
+  for (const id of scope) {
+    const name = nameOf(id);
+    if (name === null || seen.has(name)) continue;
+    seen.add(name);
+    // 已在范围但没有生效分档：如实按「未纳入」呈现（默认等价排除），人把它调成
+    // 必需/可能即是一次 append 型 adjustment（服务端 applyAdjustment 支持新增行）。
+    rows.push({ repository: name, current: "excluded", untiered: true });
+  }
+
+  const tierOf = (row: (typeof rows)[number]) => edited[row.repository] ?? row.current;
+  const adjustments = rows
+    .filter((row) => tierOf(row) !== row.current)
+    .map((row) => ({ repository: row.repository, tier: tierOf(row) }));
+  const included = rows.filter((row) => tierOf(row) !== "excluded").length;
+  const appendCandidates = options.filter((r) => !scope.includes(r.id));
+
+  const submitAppend = () => {
+    if (appendPick === "" || appendBusy) return;
+    setAppendBusy(true);
+    setAppendErr(null);
+    onAppendRepository(appendPick)
+      .then(() => setAppendPick(""))
+      .catch((e: unknown) => setAppendErr(e instanceof Error ? e.message : String(e)))
+      .finally(() => setAppendBusy(false));
+  };
+
+  return (
+    <ChatRow who="mgr">
+      <ChatCard>
+        <span className="font-semibold">
+          {discovery?.approval?.state === "approved" ? "分档已确认" : "分档待人审"}
+        </span>
+        <p className="mt-1 text-[11px] leading-[1.6] text-[var(--tree-sub)]">
+          下面是每个仓库的档位；要改就地改，要补仓从项目目录里挑。改档会随「批准」一次提交。
+        </p>
+        {rows.length === 0 ? (
+          <p className="mt-1.5 text-[10.5px] text-[var(--tree-faint)]">
+            分档证据里还没有任何仓库——先去选仓门确认本次范围。
+          </p>
+        ) : (
+          <div className="mt-1.5 flex flex-col gap-1">
+            {rows.map((row) => {
+              const tier = tierOf(row);
+              return (
+                <div key={row.repository} className="flex items-center gap-2 text-[11px]">
+                  <span className="min-w-0 flex-1 truncate font-mono text-[10.5px] text-[var(--tree-ink)]" title={row.repository}>
+                    {row.repository}
+                  </span>
+                  {row.untiered && (
+                    <span className="flex-none text-[9.5px] text-[var(--tree-faint)]">新补，未分档</span>
+                  )}
+                  <span className={`flex-none rounded-[5px] border px-1.5 py-px text-[9.5px] ${TIER_SKIN[tier]}`}>
+                    {TIER_LABEL[tier]}
+                  </span>
+                  <select
+                    className="flex-none rounded-[6px] border border-[var(--tree-hairline)] bg-[var(--tree-bg)] px-1 py-0.5 text-[10.5px] text-[var(--tree-ink)]"
+                    value={tier}
+                    disabled={busy}
+                    onChange={(e) => setEdited((prev) => ({ ...prev, [row.repository]: e.target.value as DiscoveryTier }))}
+                  >
+                    {(["required", "maybe", "excluded"] as DiscoveryTier[]).map((t) => (
+                      <option key={t} value={t}>{TIER_LABEL[t]}</option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {appendCandidates.length > 0 && (
+          <div className="mt-2 flex items-center gap-2">
+            <select
+              className="min-w-0 flex-1 rounded-[6px] border border-[var(--tree-hairline)] bg-[var(--tree-bg)] px-1.5 py-1 text-[11px] text-[var(--tree-ink)]"
+              value={appendPick}
+              disabled={appendBusy || busy}
+              onChange={(e) => setAppendPick(e.target.value)}
+            >
+              <option value="">补一个仓库进本次范围…</option>
+              {appendCandidates.map((r) => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={appendBusy || busy || appendPick === ""}
+              onClick={submitAppend}
+              className="flex-none rounded-[7px] border border-[var(--tree-acc)] px-2 py-1 text-[11px] text-[var(--tree-acc)] disabled:opacity-50"
+            >
+              {appendBusy ? "补入中…" : "补入范围"}
+            </button>
+          </div>
+        )}
+        {appendErr !== null && <p className="mt-1 text-[10.5px] text-salmon">{appendErr}</p>}
+        {included === 0 && (
+          <p className="mt-1.5 text-[10.5px] text-amber">
+            当前没有任何仓库被纳入（全是「排除」）。至少把一个调成「必需」或「可能」再批准，否则后端会以 409 拒绝。
+          </p>
+        )}
+        <button
+          type="button"
+          disabled={busy || included === 0}
+          onClick={() => onApprove(adjustments)}
+          className="mt-1.5 rounded-[7px] border border-amber/40 bg-amber-well px-3 py-1 text-[11.5px] font-semibold text-amber hover:bg-amber-well/80 disabled:opacity-50"
+        >
+          {busy ? "提交中…" : adjustments.length > 0 ? `批准分档（改 ${adjustments.length} 个）` : "批准分档"}
+        </button>
+      </ChatCard>
+    </ChatRow>
+  );
+}
+
 function GateStack({
   stepStates,
   mergePending,
@@ -1406,6 +1630,10 @@ function GateStack({
   onConfirmSupplements,
   onRetryStep,
   selectionBusy = false,
+  onApproveTiers,
+  repoOptions = [],
+  scopeRepoIds = [],
+  onAppendRepository,
 }: {
   stepStates: StepState[];
   mergePending: boolean;
@@ -1419,6 +1647,15 @@ function GateStack({
   onConfirmSupplements?: (repositories: string[]) => void;
   onRetryStep?: (step: 1 | 2 | 3 | 4) => void;
   selectionBusy?: boolean;
+  /** ③ 分档审批（消息化）提交：带上的档位调整与「批准」一次提交。
+   *  没接这个回路时回落 `onGate("approveTiers")`（不带调整）。 */
+  onApproveTiers?: (adjustments: Array<{ repository: string; tier: DiscoveryTier }>) => void;
+  /** 项目目录里的仓（③ 消息里「补仓库」的候选只从这里来）。 */
+  repoOptions?: Array<{ id: string; name: string }>;
+  /** 本次 Issue 已确认的范围（补仓库时用来排除已在范围的仓）。 */
+  scopeRepoIds?: string[];
+  /** 人确认把一个仓库追加进本次 Issue 的范围（③ 消息里的「补入范围」）。 */
+  onAppendRepository?: (repositoryId: string) => Promise<void>;
 }) {
   const cards: Array<{ key: string; title: string; desc: string; label: string; action: () => void; busy: boolean }> = [];
   // 失败卡点卡：发现链哪步带错误，原因原文就地展示，重试换新幂等键走原触发端点
@@ -1440,16 +1677,8 @@ function GateStack({
       busy: false,
     });
   });
-  if (stepStates[2] === "gate") {
-    cards.push({
-      key: "tiers",
-      title: "分档审批 · 待人审",
-      desc: "候选仓库已定档,批准后处理员继续生成计划",
-      label: "批准分档",
-      action: () => onGate("approveTiers"),
-      busy: gateBusy === "approveTiers",
-    });
-  }
+  // ③ 分档审批已消息化（2026-09-21 用户裁定）：不再是这里的独立卡片，
+  // 见下方 <TierGateMessage>（Manager 房间流里的一条可操作消息）。
   // ④ 生成计划（人工参与模式下的第三道门，2026-09-20 补）。
   if (stepStates[3] === "gate") {
     cards.push({
@@ -1485,7 +1714,10 @@ function GateStack({
     });
   }
   const supplementPending = stepStates[2] === "confirm";
-  if (cards.length === 0 && stepStates[1] !== "choose" && !supplementPending) return null;
+  // ③ 消息化后它不再进 cards —— 早退条件要把它算进来，否则只有 ③ 待人审时
+  // 整个 GateStack 会返回 null，那条消息就永远不出现。
+  const tiersPending = stepStates[2] === "gate" && discovery?.classification != null;
+  if (cards.length === 0 && stepStates[1] !== "choose" && !supplementPending && !tiersPending) return null;
   return (
     <div className="flex flex-col gap-2.5 border-t border-dashed border-[var(--tree-hairline)] px-4 py-3">
       {/* 选仓门 = Manager 在房里发的一条消息(2026-09-21 用户裁定:不再是独立卡片)。
@@ -1498,33 +1730,13 @@ function GateStack({
               建项不再圈仓库,范围在这里定:你自己勾,或按我的建议确认。
             </p>
             {(() => {
-              // AI 建议列表(仓+理由):只渲染后端 scope_gate.suggested,前端不
-              // 自己拼候选——建议是服务端落库的事实。
+              // AI 建议列表(仓名+分数+档位+理由,理由默认折叠):只渲染后端
+              // scope_gate.suggested,前端不自己拼候选——建议是服务端落库的事实,
+              // **排除档不列**(后端已滤,前端也不反向拼回)。
               // spec 2026-09-20 修订:建议**不是开门时就有的**(门先出现,点了
               // 「让 AI 定」才去生成)。所以为空不是错误态,只是还没点/还在生成:
               // 两个按钮都可用,这里只说明下一步该干嘛。
-              const suggested = scopeGateSuggestions(discovery?.scope_gate);
-              if (suggested.length === 0) {
-                return (
-                  <p className="mt-1.5 text-[10.5px] text-[var(--tree-faint)]">
-                    点「让 AI 定」生成仓库建议，或「我自己勾」。
-                  </p>
-                );
-              }
-              return (
-                <ul className="mt-1.5 space-y-1">
-                  {suggested.map((s) => (
-                    <li key={s.repository} className="flex items-baseline gap-1.5 text-[11px] leading-[1.5]">
-                      <span className="flex-none rounded-[5px] border border-[var(--tree-acc)] bg-[var(--tree-acc)]/10 px-1.5 py-px font-mono text-[10px] text-[var(--tree-acc)]">
-                        {s.repository}
-                      </span>
-                      <span className="min-w-0 truncate text-[10.5px] text-[var(--tree-faint)]" title={s.reason}>
-                        {s.reason}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              );
+              return <ScopeSuggestionList gate={discovery?.scope_gate} />;
             })()}
             {/* 截止只渲染后端 deadline_at(零计时器):超时未点由协调器按这份建议
                 代选并留房间记录,读面下一拍自然关门。 */}
@@ -1553,6 +1765,18 @@ function GateStack({
             </div>
           </ChatCard>
         </ChatRow>
+      )}
+      {/* ③ 分档审批 = Manager 在房间里的一条可操作消息（2026-09-21 用户裁定：
+          不再是独立卡片）。改档与补仓都在这一条里做，提交复用既有写回路。 */}
+      {tiersPending && (
+        <TierGateMessage
+          discovery={discovery}
+          busy={gateBusy === "approveTiers"}
+          repoOptions={repoOptions}
+          scopeRepoIds={scopeRepoIds}
+          onAppendRepository={onAppendRepository ?? (() => Promise.resolve())}
+          onApprove={onApproveTiers ?? (() => onGate("approveTiers"))}
+        />
       )}
       {supplementPending && <SupplementConfirmCard discovery={discovery} onConfirm={onConfirmSupplements} busy={selectionBusy} />}
       {cards.map((c) => (
