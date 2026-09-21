@@ -308,7 +308,8 @@ func (s *Service) ConfirmScopeSelection(ctx context.Context, principal access.Pr
 		repositories = append(repositories, repositoryID)
 	}
 	switch {
-	case len(repositories) == 0:
+	case len(repositories) == 0 && command.DecidedBy != "ai":
+		// 「让 AI 定」允许空集合(spec 2026-09-20 修订):门先出现,点了才生成建议。
 		return ScopeSelectionReceipt{}, failure(422, "REPOSITORIES_REQUIRED")
 	case len(repositories) > 100:
 		return ScopeSelectionReceipt{}, failure(422, "REPOSITORY_IDS_TOO_MANY")
@@ -345,10 +346,50 @@ func (s *Service) ConfirmScopeSelection(ctx context.Context, principal access.Pr
 		return ScopeSelectionReceipt{}, unavailableWith(lookupErr)
 	} else if found {
 		count, _ := receipt["repository_count"].(float64)
-		return ScopeSelectionReceipt{Status: "replayed", RepositoryCount: int(count)}, nil
+		// ai_requested 的重放**返回同状态**(spec 2026-09-20 修订):前端据 status
+		// 决定提示,重放不该变成另一种说法。
+		status := "replayed"
+		if stored, _ := receipt["status"].(string); stored == "ai_requested" {
+			status = "ai_requested"
+		}
+		return ScopeSelectionReceipt{Status: status, RepositoryCount: int(count)}, nil
 	}
 	if locked.CreationContextRevision() != command.ExpectedCreationContextRevision {
 		return ScopeSelectionReceipt{}, failure(409, "CREATION_CONTEXT_CHANGED")
+	}
+	// 「让 AI 定」:请求里没有仓库集合(decidedBy=ai && repositoryIds 空)。
+	//
+	// spec 2026-09-20 修订:门在 ① 分析之后**就已出现**(那时建议为空),人在门上
+	// 点了才去生成建议。所以这里分两种情形:
+	//   · 建议已生成 → 采纳建议集合为范围,走原有双表+整组 revision+CAS 路径;
+	//   · 建议还没生成 → 只记下"请 AI 定仓"(门单列 CAS 置 ai_requested),不写范围、
+	//     不解决门,返回 status=ai_requested;协调器随后生成建议并**自动采纳**。
+	if command.DecidedBy == "ai" && len(repositories) == 0 {
+		gate, gateErr := discovery.GateInTx(ctx, tx, command.IssueID)
+		if gateErr != nil {
+			return ScopeSelectionReceipt{}, unavailableWith(gateErr)
+		}
+		if gate != nil && gate.State == discovery.GatePending && len(gate.Suggested) > 0 {
+			adopted, resolveErr := discovery.RepositoryIDsForNamesInTx(ctx, tx, command.ProjectID, gate.Suggested)
+			if resolveErr != nil {
+				return ScopeSelectionReceipt{}, unavailableWith(resolveErr)
+			}
+			repositories = adopted
+		} else {
+			if _, markErr := discovery.MarkGateAIRequestedInTx(ctx, tx, command.IssueID); markErr != nil {
+				return ScopeSelectionReceipt{}, unavailableWith(markErr)
+			}
+			receipt := ScopeSelectionReceipt{Status: "ai_requested", RepositoryCount: 0}
+			if err := discovery.RecordScopeSelectionInTx(ctx, tx, command.IssueID, command.IdempotencyKey, map[string]any{
+				"status": receipt.Status, "repository_count": 0, "decided_by": "ai",
+			}); err != nil {
+				return ScopeSelectionReceipt{}, unavailableWith(err)
+			}
+			if err := tx.Commit(ctx); err != nil {
+				return ScopeSelectionReceipt{}, unavailableWith(err)
+			}
+			return receipt, nil
+		}
 	}
 	var attached int
 	if err := tx.QueryRow(ctx, `SELECT count(*) FROM repomesh_projects.project_repositories
