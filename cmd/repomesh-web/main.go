@@ -588,21 +588,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	agentTeamsAPI := web.AgentTeams{Client: atClient}
 	if pipelinePool != nil {
 		agentTeamsAPI.RepositoryTeams = repositoryteams.New(pipelinePool, atClient)
-		// 建队**只发生在"逐仓确认接入"那一步**（2026-09-20 用户裁定 + 当天事故教训）：
-		//
-		//	"不是扫描就建队，是**确认接入**的时候才建队。"
-		//
-		// 判据：一次动作里**恰好新增 1 个仓库**（仓库页单仓「接入本项目」）。批量
-		// 「全部接入本项目」、扫描后自动挂载、新建项目一次勾几十个 —— 都不是逐仓确认，
-		// 一律不建队。线上正是它们把 embedded AgentTeams 灌到 42 队 / 124 个 worker，
-		// load 冲到 100+、登录被拖死；而每个 worker 都是**真 runtime**，不是纸面记录。
-		//
-		// 这里**没有**后台扫掠：历史积压的仓库不会自动补队 —— 需要就逐仓确认一次。
-		//
-		// 房间号收敛是这里唯一的后台循环，与上面那条裁定不冲突：它只**读**
-		//（对还没有房间号的行各发一个 GET），不建任何团队、不起任何 runtime ——
-		// 不补的话房间号恒空，"进房间看对话"永远是一间进不去的房。
+		// 建队时机 = **确认接入**:仓库页单仓「接入本项目」与批量「全部接入」
+		// 走同一条路(见下方 OnRepositoriesConfirmed 与 spec §3.3)。
 		teamService := agentTeamsAPI.RepositoryTeams
+		// 房间号收敛是唯一的后台循环,与建队不冲突:它只**读**(对还没有房间号
+		// 的行各发一个 GET),不建任何团队、不起任何 runtime —— 不补的话房间号
+		// 恒空,"进房间看对话"永远是一间进不去的房。
 		go func() {
 			timer := time.NewTimer(20 * time.Second)
 			defer timer.Stop()
@@ -620,19 +611,26 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 				timer.Reset(5 * time.Minute)
 			}
 		}()
+		// 建队时机:仓库**接入项目**即建(单仓/批量都建)——选仓门定稿
+		// (2026-09-20,spec §3.3)取代此前"只有恰好新增 1 个仓才建"的裁定。
+		//
+		// 当天事故(一次批量接入灌出 42 队 / 124 worker、load 100+)不会因此
+		// 重演,因为这次带着三道闸:
+		//   · worker 一律建成 **Sleeping**(上游建 worker 原生带 state,一步休眠,
+		//     不起真 runtime —— 每个 worker 可是一个真实实例);
+		//   · EnsureForRepositories 逐仓**串行**、每仓间隔 2s,不给控制面制造尖峰;
+		//   · 单仓失败只记 WARN,不阻断其余仓接入。
+		// 唤醒(选进 issue 范围时)走 WakeTeamsForRepositories,fire-and-forget。
 		projectAPI.OnRepositoriesConfirmed = func(ctx context.Context, projectID string, added []string) {
-			if len(added) != 1 {
-				slog.Info("repository team skipped: not a single-repository confirmation",
-					"project", projectID, "added", len(added))
-				return
-			}
-			created, err := teamService.EnsureForRepository(ctx, projectID, added[0], repositoryTeamWorkerCount())
-			if err != nil {
-				slog.Warn("repository team ensure deferred",
-					"project", projectID, "repository", added[0], "reason", err.Error())
-			}
-			if created {
-				slog.Info("repository team created", "project", projectID, "repository", added[0])
+			for _, outcome := range teamService.EnsureForRepositories(ctx, projectID, added, repositoryTeamWorkerCount()) {
+				switch {
+				case outcome.Err != nil:
+					slog.Warn("repository team ensure deferred",
+						"project", projectID, "repository", outcome.RepositoryID, "reason", outcome.Err.Error())
+				case outcome.Created:
+					slog.Info("repository team created (sleeping)",
+						"project", projectID, "repository", outcome.RepositoryID)
+				}
 			}
 		}
 	}
