@@ -1137,6 +1137,10 @@ export function WorkbenchPage({
    *  2026-09-20 起这是**服务端事实**：随建项写进 issue（0053 的 hitl_mode 列），
    *  读面返回、协调器按它停门 —— 不再只存在这台浏览器的 sessionStorage 里。 */
   const [hitlMode, setHitlMode] = useState<"ai" | "hitl">("ai");
+  // 合并方式（2026-09-21 用户裁定："pr 合并也做出可选择项目，ai 自动模式自动合并，
+  // 也可以选择人工审核"）。缺省 manual —— 合并是唯一的外部副作用（真进主分支），
+  // 没明说要自动就不替任何人合。
+  const [mergeMode, setMergeMode] = useState<"auto" | "manual">("manual");
   const [draft, setDraft] = useState("");
   const [attachment, setAttachment] = useState<{ filename: string; text: string } | null>(null);
   const [docDragging, setDocDragging] = useState(false);
@@ -1169,7 +1173,7 @@ export function WorkbenchPage({
     if (!typed && !attachment) return;
     const text = attachment ? composeRequirementText(typed, attachment.text) : typed;
     setCreating(true);
-    attempt.current ??= { key: crypto.randomUUID(), input: { projectId, requirementText: text, expectedCreationContextRevision: options.creationContextRevision, hitlMode } };
+      attempt.current ??= { key: crypto.randomUUID(), input: { projectId, requirementText: text, expectedCreationContextRevision: options.creationContextRevision, hitlMode, mergeMode } };
     onCreateIssue(attempt.current.input, attempt.current.key)
       .then(() => {
         setDraft("");
@@ -1481,6 +1485,34 @@ export function WorkbenchPage({
             {hitlMode === "ai"
               ? "处理员自动通过分档审批、生成计划与物化确认,全程不停顿"
               : "人工把守:分档审批 · 生成计划 · 物化确认 · PR 合并确认(策略卡点:范围/规格/执行/验证/交付/异常)"}
+          </p>
+        </div>
+        {/* 合并方式（2026-09-21 用户裁定）：自动化到"开 PR"为止，合不合进主分支
+            由这里选。合并是唯一真动用户仓库的动作，所以它必须是显式选择。 */}
+        <div className="flex flex-col items-center gap-1.5">
+          <div className="flex rounded-hard border border-line bg-well p-0.5">
+            {(
+              [
+                { key: "manual", label: "合并需人工审核" },
+                { key: "auto", label: "自动合并" },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                className={`rounded-hard px-3 py-1 text-[11.5px] transition-colors ${
+                  mergeMode === opt.key ? "bg-amber font-bold text-on-amber" : "text-tx2 hover:text-tx"
+                }`}
+                onClick={() => setMergeMode(opt.key)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <p className="max-w-[440px] text-center text-[10.5px] leading-[1.6] text-tx3">
+            {mergeMode === "auto"
+              ? "自动化到开 PR 为止：交付闸门四项（已推送/已开 PR/CI 通过/已评审）齐了才自动合进主分支"
+              : "自动化到开 PR 为止：合并要你在「交付序列」上逐条点，闸门没开合不动"}
           </p>
         </div>
         <div className="w-full max-w-[720px]">

@@ -366,6 +366,18 @@ func (s *Service) observeAndCheck(ctx context.Context, principal access.ProjectP
 //
 // 默认 hitl（门等真人）：最保守的缺省，不替任何人做主 —— 协调器的自动托管循环
 // 只在 ai 模式下才代行 ③ 分档审批与 ⑤ 物化确认。
+// mergeModeOrDefault 把这次的合并方式收进一个合法值。
+//
+// 默认 manual：合并是整条链上唯一的外部副作用（真动用户仓库、真进主分支），
+// 缺省必须落在最保守的一侧 —— 没明说要自动合并的，就不替任何人合。
+func mergeModeOrDefault(mode string) string {
+	switch mode {
+	case "auto", "manual":
+		return mode
+	default:
+		return "manual"
+	}
+}
 func hitlModeOrDefault(mode string) string {
 	switch mode {
 	case "ai", "hitl":
@@ -668,10 +680,11 @@ func insertIssueAndMainChangeSet(ctx context.Context, tx pgx.Tx, identity operat
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO repomesh_issues.issues
 		(id, project_id, number, title, description, criteria, revision, main_conversation_id, main_changeset_id,
-		 initial_configuration_revision, creation_operation_id, hitl_mode)
-		VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12)`,
+		 initial_configuration_revision, creation_operation_id, hitl_mode, merge_mode)
+		VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13)`,
 		issueID, identity.projectID, number, input.title, input.description, string(criteria), revision,
-		conversationID, changeSetID, configuration, operationRow, hitlModeOrDefault(input.hitlMode)); err != nil {
+		conversationID, changeSetID, configuration, operationRow,
+		hitlModeOrDefault(input.hitlMode), mergeModeOrDefault(input.mergeMode)); err != nil {
 		return committedCreation{}, unavailable()
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO repomesh_issues.changesets (id, project_id, issue_id, kind)

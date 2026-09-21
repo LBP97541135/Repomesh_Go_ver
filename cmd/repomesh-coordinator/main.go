@@ -162,6 +162,12 @@ func runWorker(args []string) int {
 	// 交付闸门记账面：自动托管代行经理门审批时要往 change set 上补一条 review
 	// （与经理端点同一条路径）。webhook secret 只用于验签，这里不验签，取空也安全。
 	scmSvc := scm.New(runtime.Pool(), os.Getenv("REPOMESH_WEBHOOK_SECRET"))
+	// 自动合并那只"手"：与 web 侧同源（GitHub App client）。取不到就保持 nil ——
+	// 自动合并会如实拒绝并报"服务端没有可用的 GitHub 凭据"，不假装合了。
+	var scmMerger scm.PullMerger
+	if client := runtime.Service.GitHubAppClient(); client != nil {
+		scmMerger = client
+	}
 	// 节点级测试派发（本仓库集成 / 跨仓库联调回归）：见 integration.go。
 	integrations := newIntegrationDispatcher(runtime.Pool())
 	// C③ 环境回收治理：分支环境的**创建/使用/清理**状态全在库里（cleanup_pending、
@@ -204,6 +210,12 @@ func runWorker(args []string) int {
 					slog.Warn("autohost gate deferred", "reason", err.Error())
 				} else if approved > 0 {
 					slog.Info("autohost gate approved", "tasks", approved)
+				}
+				// 选了「自动合并」的 issue：闸门一开就把 PR 合掉（缺省 manual 不碰）。
+				if merged, err := sweepAutoMergeDeliveredChanges(dagCtx, runtime.Pool(), scmSvc, scmMerger); err != nil {
+					slog.Warn("auto merge deferred", "reason", err.Error())
+				} else if merged > 0 {
+					slog.Info("auto merge", "changeSets", merged)
 				}
 				if reconciled, err := reclaimer.ReconcileStale(dagCtx, 30*time.Minute); err != nil {
 					slog.Warn("branch reconcile deferred", "reason", err.Error())

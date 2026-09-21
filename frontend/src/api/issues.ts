@@ -109,6 +109,8 @@ export interface CreateIssueRequest {
   expectedCreationContextRevision: string;
   /** 人审门模式：ai = 自动托管，hitl = 门等真人（缺省 hitl，最保守）。 */
   hitlMode?: "ai" | "hitl";
+  /** 合并方式：auto = 交付闸门一开就自动合进主分支，manual = 等人逐条点（缺省 manual）。 */
+  mergeMode?: "auto" | "manual";
 }
 
 /** All scope decisions belong to the caller; retries send this exact snapshot. */
@@ -130,6 +132,7 @@ export async function createIssue(input: CreateIssueRequest, idempotencyKey: str
     title: firstLine(input.requirementText),
     description: input.requirementText,
     hitlMode: input.hitlMode ?? "hitl",
+    mergeMode: input.mergeMode ?? "manual",
   }, idempotencyKey);
   return { issue_id: receipt.issue.id };
 }

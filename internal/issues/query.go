@@ -362,6 +362,9 @@ type IssueDetail struct {
 	// ⑤ 物化确认），hitl = 门等真人。它是服务端事实（0053），工作台按它渲染徽标与
 	// 门的行为 —— 此前只活在浏览器 sessionStorage 里，刷新/换浏览器就丢。
 	HitlMode string `json:"hitlMode"`
+	// MergeMode 是这次 issue 的**合并方式**：auto = 交付闸门一开就自动把 PR 合掉，
+	// manual = 等人在交付序列上逐条点合并（缺省）。见迁移 0064 与 mergeModeOrDefault。
+	MergeMode string `json:"mergeMode"`
 }
 
 // GetIssue returns the issue detail snapshot after re-checking read
@@ -382,9 +385,9 @@ func (s *Service) GetIssue(ctx context.Context, principal access.ProjectPrincipa
 	var criteria []byte
 	var conversationID string
 	err = tx.QueryRow(ctx, `SELECT id,number,revision,title,description,main_changeset_id,created_at,main_conversation_id,criteria,
-		   COALESCE(hitl_mode,'hitl')
+		   COALESCE(hitl_mode,'hitl'), COALESCE(merge_mode,'manual')
 		FROM repomesh_issues.issues WHERE project_id=$1 AND id=$2 AND removed_at IS NULL`,
-		projectID, issueID).Scan(&detail.ID, &detail.Number, &detail.Revision, &detail.Title, &detail.Description, &detail.MainChangeSetID, &detail.CreatedAt, &conversationID, &criteria, &detail.HitlMode)
+		projectID, issueID).Scan(&detail.ID, &detail.Number, &detail.Revision, &detail.Title, &detail.Description, &detail.MainChangeSetID, &detail.CreatedAt, &conversationID, &criteria, &detail.HitlMode, &detail.MergeMode)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return IssueDetail{}, failure(404, "RESOURCE_NOT_FOUND")

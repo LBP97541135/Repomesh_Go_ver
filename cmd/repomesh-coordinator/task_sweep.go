@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,6 +12,84 @@ import (
 	"repomesh.local/repomesh/internal/scm"
 	"repomesh.local/repomesh/internal/tasks"
 )
+
+// sweepAutoMergeDeliveredChanges 在**选了「自动合并」**的 issue 上，把闸门已开的 PR 合掉。
+//
+// 为什么要有它（2026-09-21 用户原话："我们能不能把 pr 合并也做出可选择项目，ai 自动
+// 模式自动合并，也可以选择人工审核"）：合并是整条链上**唯一的外部副作用**（真动用户
+// 仓库、真进主分支），所以它既不该是硬编码的"永远人工"，也不该是"永远自动"——
+// 而应该是建单时的一个显式选择（迁移 0064 的 issues.merge_mode）。
+//
+// 这个巡检只处理 **merge_mode='auto'** 的行；缺省 manual 的一律不碰。
+//
+// 三道门一道都不省（全部由 scm.Merge 自己再校验一遍，这里只是先筛掉明显不满足的）：
+//
+//	· 必须有 PR；
+//	· **交付闸门必须开着**（pushed / pr / ci / reviewed 四项）—— 闸门没开就等，不硬合；
+//	· GitHub App 凭据必须可用（merger 为 nil 时如实报错，不假装合了）。
+//
+// 单条失败不拖累其它：一条合不动（比如 GitHub 拒绝）只记日志，继续下一条。
+func sweepAutoMergeDeliveredChanges(ctx context.Context, pool *pgxpool.Pool, scmSvc *scm.Service, merger scm.PullMerger) (int, error) {
+	if scmSvc == nil {
+		return 0, nil
+	}
+	rows, err := pool.Query(ctx, `
+		SELECT cs.id::text, t.project_id::text, COALESCE(cs.pr_url,'')
+		FROM public.change_sets cs
+		JOIN public.tasks t ON t.id = cs.task_id
+		JOIN public.plans p ON p.id = t.plan_id
+		JOIN repomesh_issues.issues i ON i.id = p.issue_id AND i.project_id = p.project_id::text
+		WHERE i.merge_mode = 'auto'
+		  AND cs.status <> 'merged'
+		  AND COALESCE(cs.pr_url,'') <> ''`)
+	if err != nil {
+		return 0, fmt.Errorf("auto merge: 巡检查询失败: %w", err)
+	}
+	type deliverable struct {
+		changeSetID string
+		projectID   string
+		prURL       string
+	}
+	var candidates []deliverable
+	for rows.Next() {
+		item := deliverable{}
+		if err := rows.Scan(&item.changeSetID, &item.projectID, &item.prURL); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("auto merge: 巡检读取失败: %w", err)
+		}
+		candidates = append(candidates, item)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	merged := 0
+	for _, item := range candidates {
+		gate, err := scmSvc.Gate(ctx, item.changeSetID)
+		if err != nil {
+			slog.Warn("auto merge: 读闸门失败", "changeSet", item.changeSetID, "reason", err.Error())
+			continue
+		}
+		if !gate.Open {
+			// 闸门没开就等 —— 缺的那几项要由流水线真实事件补齐，不硬合。
+			slog.Info("auto merge: 闸门未开，等待",
+				"changeSet", item.changeSetID, "push", gate.Pushed, "pr", gate.PR,
+				"ci", gate.CIPassed, "reviewed", gate.Reviewed)
+			continue
+		}
+		outcome, err := scmSvc.Merge(ctx, item.projectID, item.changeSetID, autohostAgent, merger)
+		if err != nil {
+			slog.Warn("auto merge: 合并失败", "changeSet", item.changeSetID, "pr", item.prURL, "reason", err.Error())
+			continue
+		}
+		if outcome.Merged {
+			merged++
+			slog.Info("auto merge: 已合并", "changeSet", item.changeSetID, "pr", item.prURL)
+		}
+	}
+	return merged, nil
+}
 
 // sweepAutoApproveManagerGate 在「自动托管」的 issue 上**由 Leader 代行经理门审批**。
 //

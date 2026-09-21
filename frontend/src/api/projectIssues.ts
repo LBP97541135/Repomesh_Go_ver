@@ -24,6 +24,10 @@ export interface IssueCreationInput {
 	/** 人审门模式：ai = 自动托管（处理员代行 ③ 分档审批与 ⑤ 物化确认），
 	 *  hitl = 门等真人。服务端事实（0053 迁移落列），协调器按它停门。 */
 	hitlMode?: "ai" | "hitl";
+	/** 合并方式：auto = 交付闸门一开就自动合进主分支，manual = 等人逐条点。
+	 *  服务端事实（0064 迁移落列 issues.merge_mode），协调器的自动合并巡检按它办事。
+	 *  缺省 manual —— 合并是唯一真动用户仓库的动作，必须显式选择。 */
+	mergeMode?: "auto" | "manual";
 	[key: string]: unknown;
 }
 

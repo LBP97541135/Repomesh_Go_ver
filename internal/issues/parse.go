@@ -31,6 +31,7 @@ func parseNewInput(body []byte) (pageInput, error) {
 	known["conversation"] = true
 	known["repositoryAnalysisId"] = true
 	known["hitlMode"] = true
+	known["mergeMode"] = true
 	for key := range raw {
 		if !known[key] {
 			return pageInput{}, failure(422, "VALIDATION_FAILED")
@@ -98,6 +99,22 @@ func parseNewInput(body []byte) (pageInput, error) {
 	} else {
 		// 缺省最保守：门等真人，不替任何人做主。
 		input.hitlMode = "hitl"
+	}
+	// 合并方式：同样落成服务端事实。缺省 manual —— 合并是唯一的外部副作用
+	// （真动用户仓库、真进主分支），没有明说要自动合并的就不替任何人合。
+	mergeMode, mergePresent, err := optionalString(raw, "mergeMode", 8)
+	if err != nil {
+		return pageInput{}, err
+	}
+	if mergePresent {
+		switch mergeMode {
+		case "auto", "manual":
+			input.mergeMode = mergeMode
+		default:
+			return pageInput{}, fieldFailure("mergeMode", "INVALID_VALUE")
+		}
+	} else {
+		input.mergeMode = "manual"
 	}
 	return input, nil
 }
