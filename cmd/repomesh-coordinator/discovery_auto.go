@@ -121,9 +121,31 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 	delete(a.backoff, p.issueID)
 
 	step := autohostStep(p)
+	// deferBackoff 把「同一步反复被拒」从 10 秒一次升到 5 分钟一次。
+	//
+	// 2026-09-21 线上实测（用户报「issues 又卡住了」）：一条 issue 的分档把全部仓库判成
+	// 「排除」，发现链如实拒绝（no repositories selected），而**错误分支此前只有固定
+	// 10 秒退避 —— 没有计数、也没有升级**，于是它每 10 秒撞一次墙、永远不停：既没有终态，
+	// 还一直占着自动托管的轮次。成功分支早就有「连续 3 次没换步 → 退到 5 分钟」的熔断，
+	// 错误分支漏了同一件事。
+	//
+	// 现在两边对称：前 2 次仍是 10 秒（给瞬时错误留重试机会），第 3 次起退到 5 分钟，
+	// 并且**说一次**是哪条 issue 卡在第几步、需要人工处理 —— 不再无声刷屏。
+	deferBackoff := func() time.Duration {
+		key := p.issueID + ":defer:" + strconv.Itoa(step)
+		a.attempts[key]++
+		if a.attempts[key] >= 3 {
+			if a.attempts[key] == 3 {
+				slog.Warn("autohost: 同一步反复被拒，退到 5 分钟一次（多半需要人工处理）",
+					"issue", p.issueID, "step", step)
+			}
+			return 5 * time.Minute
+		}
+		return 10 * time.Second
+	}
 	done := func(err error) bool {
 		if err != nil {
-			a.backoff[p.issueID] = time.Now().Add(10 * time.Second)
+			a.backoff[p.issueID] = time.Now().Add(deferBackoff())
 			slog.Warn("autohost discovery step deferred", "issue", p.issueID, "reason", err.Error())
 			return false
 		}
@@ -165,7 +187,7 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 	// 用 working():给 3 秒地板间隔、返回 true,但不计空转、不触发 5 分钟退避。
 	working := func(err error) bool {
 		if err != nil {
-			a.backoff[p.issueID] = time.Now().Add(10 * time.Second)
+			a.backoff[p.issueID] = time.Now().Add(deferBackoff())
 			slog.Warn("autohost discovery step deferred", "issue", p.issueID, "reason", err.Error())
 			return false
 		}

@@ -127,10 +127,20 @@ function readErrorText(body: unknown): string | null {
  *  非 2xx 一律翻译成一条 `blocked` 结果，而不是把信封原样透给界面：这张卡是给
  *  人看的，人需要知道「为什么不可用」，不是需要看到一个对象的 toString。 */
 export async function dispatchGate(workerName: string): Promise<HealthGateResult> {
+  // ⚠️ 必须带 X-CSRF-Token：这是一个 **POST**，后端按写请求校验 CSRF。
+  //
+  // 2026-09-21 线上实测：Worker 卡显示「当前状态 读不到 — CSRF_REJECTED ·
+  // The request could not be completed.」—— 我上一次只把 `apiRequest` 那条通道
+  // 接上了「等令牌」（waitForCsrfToken），而本函数用的是**裸 fetch**，从来没带过这个头，
+  // 于是每次派单前健康检查都被后端 403 拒掉。
+  // 令牌与 apiRequest 走同一个来源（GET /api/session 注入），这里只是补上同一个头。
+  const token = await waitForCsrfToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["X-CSRF-Token"] = token;
   const res = await fetch("/api/agentteams/dispatch-gate", {
     method: "POST",
     credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ worker: workerName }),
   });
   const body: unknown = await res.json().catch(() => null);
@@ -150,3 +160,4 @@ export async function dispatchGate(workerName: string): Promise<HealthGateResult
     error: readErrorText(body) ?? `${res.status} ${res.statusText || "请求失败"}`,
   };
 }
+import { waitForCsrfToken } from "./http";
