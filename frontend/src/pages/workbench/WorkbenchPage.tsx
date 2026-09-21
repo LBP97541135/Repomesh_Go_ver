@@ -1433,11 +1433,6 @@ export function WorkbenchPage({
               )}
             </div>
           )}
-          {options?.canSubmit && (
-            <p className="mt-2 text-tx2">
-              条件就绪——发送需求即建 Issue；需求分析后会弹出「选仓门」，在那里确认本次要动的仓库。
-            </p>
-          )}
           {attempt.current && <p className="mt-2 text-xs text-tx2">提交内容已固定，重试会查询或完成同一次创建。</p>}
         </section>
         {/* HITL 入口选择（2026-09-17 用户裁定:从建项处选,不再等物化）:
