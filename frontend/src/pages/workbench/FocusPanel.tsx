@@ -660,6 +660,9 @@ function StageHistory({
   void scopeRepoIds;
   void repoOptions;
   void onAppendRepository;
+  // projectId 同上：worker 工作内容读面只在任务分支消费,阶段历史暂不用——
+  // 显式忽略,免得 noUnusedLocals 把它打成构建阻塞。
+  void projectId;
   const stepState = (i: number): string => {
     const st = stepStates[i];
     return st === "done" ? "已完成" : st === "run" ? "进行中" : st === "gate" ? "待人审" : st === "failed" ? "失败" : "未开始";
@@ -858,6 +861,9 @@ export interface FocusPanelProps {
   /** 生成一份清单快照（幂等键由页面持有）。 */
   onBuildManifest: () => Promise<void>;
   onInterruptPlan: (repository: string, note: string) => Promise<InterruptOutcomeView>;
+  /** 右栏宽度（px,由页面拖拽手柄持有;缺省 400）。面板只消费不持有——
+   *  偏好存取与范围校验都在 WorkbenchPage(2026-09-20 分栏调整)。 */
+  width?: number;
 }
 
 export function FocusPanel({
@@ -902,6 +908,7 @@ export function FocusPanel({
   planRevisions,
   deliveryManifest,
   onBuildManifest,
+  width = 400,
 }: FocusPanelProps) {
   const body = (() => {
     if (entry === null) {
@@ -1370,6 +1377,15 @@ function StepStream({
   return <div className="flex flex-col gap-3 px-4 pb-1">{flow}</div>;
 }
 
+/** 选仓门截止文案：只把后端给的 `deadline_at` 格式化成本地时刻——不建计时器、
+ *  不自行倒数（超时代选是协调器的事，读面下一拍轮询自然反映）。 */
+function gateDeadlineText(deadlineAt: string): string {
+  const at = new Date(deadlineAt);
+  return Number.isNaN(at.getTime())
+    ? deadlineAt
+    : at.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+}
+
 function GateStack({
   stepStates,
   mergePending,
@@ -1472,10 +1488,45 @@ function GateStack({
           </span>
           <div className="min-w-0 flex-1">
             <div className="mb-0.5 flex items-center gap-1.5">
-              <span className="text-[11px] font-medium text-[var(--tree-ink)]">候选仓库 · 待人选择</span>
+              <span className="text-[11px] font-medium text-[var(--tree-ink)]">选仓门 · 确认本次 Issue 的仓库范围</span>
             </div>
             <div className="rounded-hard border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2 transition-colors hover:bg-[var(--tree-zone)]">
-              <p className="text-[11px] leading-[1.6] text-[var(--tree-sub)]">这个需求涉及哪些仓库?你来勾选,或让 AI 从项目目录推断。</p>
+              <p className="text-[11px] leading-[1.6] text-[var(--tree-sub)]">
+                建项不再圈仓库——需求分析后在这里定范围:自己勾,或按 AI 建议确认。
+              </p>
+              {(() => {
+                // AI 建议列表(仓+理由):只渲染后端 scope_gate.suggested,前端不
+                // 自己拼候选——建议是开门那一刻服务端落库的事实。
+                const suggested = discovery?.scope_gate?.suggested ?? [];
+                if (suggested.length === 0) {
+                  return (
+                    <p className="mt-1.5 text-[10.5px] text-[var(--tree-faint)]">
+                      AI 建议生成中…出来后会列在这里;等不及可先「我自己勾」。
+                    </p>
+                  );
+                }
+                return (
+                  <ul className="mt-1.5 space-y-1">
+                    {suggested.map((s) => (
+                      <li key={s.repository} className="flex items-baseline gap-1.5 text-[11px] leading-[1.5]">
+                        <span className="flex-none rounded-[5px] border border-[var(--tree-acc)] bg-[var(--tree-acc)]/10 px-1.5 py-px font-mono text-[10px] text-[var(--tree-acc)]">
+                          {s.repository}
+                        </span>
+                        <span className="min-w-0 truncate text-[10.5px] text-[var(--tree-faint)]" title={s.reason}>
+                          {s.reason}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
+              {/* 截止只渲染后端 deadline_at(零计时器):超时未点由协调器按这份建议
+                  代选并留房间记录,读面下一拍自然关门。 */}
+              {discovery?.scope_gate?.deadline_at && (
+                <p className="mt-1.5 text-[10.5px] text-[var(--tree-faint)]">
+                  {gateDeadlineText(discovery.scope_gate.deadline_at)} 前未确认,将自动按 AI 建议代选
+                </p>
+              )}
               <div className="mt-1.5 flex gap-2">
                 <button
                   type="button"
@@ -1483,7 +1534,7 @@ function GateStack({
                   onClick={() => onChooseManual?.()}
                   className="rounded-hard border border-amber/40 bg-amber-well px-3 py-1 text-[11.5px] font-semibold text-amber hover:bg-amber-well/80 disabled:opacity-50"
                 >
-                  我自己勾选
+                  我自己勾
                 </button>
                 <button
                   type="button"
@@ -1491,7 +1542,7 @@ function GateStack({
                   onClick={() => onChooseAI?.()}
                   className="rounded-hard border border-[var(--tree-acc)] bg-[var(--tree-acc)]/10 px-3 py-1 text-[11.5px] font-semibold text-[var(--tree-acc)] hover:bg-[var(--tree-acc)]/20 disabled:opacity-50"
                 >
-                  让 AI 推断
+                  让 AI 定
                 </button>
               </div>
             </div>
@@ -1910,7 +1961,7 @@ function StepDetail({
           ))}
         </CardShell>
       ) : (
-        <CardShell title="候选评分">{state === "run" ? <p className="text-[11px] text-[var(--tree-sub)]">正在评估项目仓库目录中的候选…</p> : <p className="text-[11px] text-[var(--tree-sub)]">等待需求分析完成。</p>}</CardShell>
+        <CardShell title="候选评分">{state === "run" ? <p className="text-[11px] text-[var(--tree-sub)]">正在评估项目仓库目录中的候选…</p> : state === "choose" ? <p className="text-[11px] text-[var(--tree-sub)]">选仓门待确认——去 Manager 房间的「选仓门」卡确认本次范围。</p> : <p className="text-[11px] text-[var(--tree-sub)]">等待需求分析完成。</p>}</CardShell>
       ),
     );
   }
