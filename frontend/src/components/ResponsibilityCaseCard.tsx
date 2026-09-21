@@ -109,10 +109,26 @@ export function ResponsibilityCaseCard({
   if (!projectId || !planId) {
     return (
       <div className="border-t border-dashed border-[var(--tree-hairline)] px-4 py-3">
-        <p className="microlabel pb-1">跨仓职责 · 授权 · 冲突</p>
-        <p className="text-[11px] leading-[1.8] text-[var(--tree-sub)]">
-          还没有计划（或读不到项目 id），案例时间线无从取起 —— 它按 plan 记录。
-        </p>
+        {/* 2026-09-21 用户实测：「这里怎么不能压缩啊」—— 因为他看到的正是**这个早返回
+            分支**（还没有计划时走这里），而我上一版只给主分支加了折叠栏，这一支漏了。
+            同一个标题、同一条交互，两个分支必须长得一样；否则"能不能折叠"就取决于
+            当前有没有计划，那是用户无法预期的事。 */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="flex items-center gap-1.5"
+            title={open ? "收起这一段" : "展开这一段"}
+            onClick={() => setOpen((v) => !v)}
+          >
+            <span className="text-[9px] text-[var(--tree-sub)]">{open ? "▾" : "▸"}</span>
+            <span className="microlabel">跨仓职责 · 授权 · 冲突</span>
+          </button>
+        </div>
+        {open && (
+          <p className="mt-1 text-[11px] leading-[1.8] text-[var(--tree-sub)]">
+            还没有计划（或读不到项目 id），案例时间线无从取起 —— 它按 plan 记录。
+          </p>
+        )}
       </div>
     );
   }
