@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +25,27 @@ type executor struct {
 	pool      *pgxpool.Pool
 	workerID  string
 	execution *execution.Service
+	// sem 是并发闸：容量 = 同时在跑的 agent 数（REPOMESH_EXECUTOR_CONCURRENCY，
+	// 默认 1 = 行为与改动前一字不变）。每认领一条 run 占一个槽，agent 退出时释放。
+	//
+	// 为什么是信号量而不是"起 N 个 goroutine 各跑一个循环"：认领查询靠
+	// FOR UPDATE + LIMIT 1 天然互斥，多个循环也能工作，但**心跳与 stop 巡检**
+	// 会被重复执行 N 次。用信号量把"认领"留在**一个**循环里，语义最接近原来那条。
+	sem chan struct{}
+}
+
+// executorConcurrency 读并发度。非法值一律退回 1（最保守）—— 宁可慢，
+// 也不要因为一个写错的环境变量把机器打爆。
+func executorConcurrency() int {
+	raw := strings.TrimSpace(os.Getenv("REPOMESH_EXECUTOR_CONCURRENCY"))
+	if raw == "" {
+		return 1
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 1 || value > 16 {
+		return 1
+	}
+	return value
 }
 
 func openExecution(ctx context.Context, databaseURL, workerID string) (*executor, error) {
@@ -43,7 +65,12 @@ func openExecution(ctx context.Context, databaseURL, workerID string) (*executor
 		pool.Close()
 		return nil, fmt.Errorf("worker registration failed: %w", err)
 	}
-	return &executor{pool: pool, workerID: workerID, execution: execution.New(pool)}, nil
+	concurrency := executorConcurrency()
+	fmt.Fprintf(os.Stderr, "host-executor: 并发度 %d（REPOMESH_EXECUTOR_CONCURRENCY）\n", concurrency)
+	return &executor{
+		pool: pool, workerID: workerID, execution: execution.New(pool),
+		sem: make(chan struct{}, concurrency),
+	}, nil
 }
 
 func (e *executor) Close() { e.pool.Close() }
@@ -74,18 +101,34 @@ func (e *executor) RunOne(ctx context.Context) error {
 	if _, err := e.pool.Exec(ctx, `UPDATE repomesh_execution.workers SET heartbeat_at=clock_timestamp() WHERE id=$1`, e.workerID); err != nil {
 		return errors.New("heartbeat failed")
 	}
+	// 并发闸（2026-09-22 用户要求并发 4）。
+	//
+	// 此前 launchAgentRun **阻塞等 agent 跑完**，所以整台机器一次只跑一条 run ——
+	// 8 个任务排队串行，每个还要 clone + npm install，总时长是任务数的线性叠加。
+	//
+	// 闸门放在**认领之前**：先认领再等槽，会把 run 空占着（它 state 仍是 pending，
+	// 看板上像"排队"，实际已分给一个不干活的执行器）。
+	// 槽满时不空转：正好把 stop 巡检跑掉（原来槽满时那条路径根本走不到）。
+	select {
+	case e.sem <- struct{}{}:
+	default:
+		return e.sweepStopped(ctx)
+	}
 	// Agent launch first: a pending run takes priority over cleanup polling.
 	command, runID, err := e.execution.ClaimAgentLaunch(ctx, e.workerID)
 	if err != nil {
+		<-e.sem
 		return err
 	}
 	if runID != "" {
 		parts, err := splitCommand(command.Command)
 		if err != nil {
+			<-e.sem
 			_ = e.execution.MarkAgentLaunchFailed(ctx, runID)
 			return err
 		}
 		if err := e.prepareWorkspace(command.Workspace); err != nil {
+			<-e.sem
 			_ = e.execution.MarkAgentLaunchFailed(ctx, runID)
 			return err
 		}
@@ -96,15 +139,34 @@ func (e *executor) RunOne(ctx context.Context) error {
 		if command.RepoFullName != "" {
 			token, mintErr := mintInstallationToken(ctx, command.RepoFullName)
 			if mintErr != nil {
+				<-e.sem
 				_ = e.execution.MarkAgentLaunchFailed(ctx, runID)
 				return fmt.Errorf("installation token for %s: %w", command.RepoFullName, mintErr)
 			}
 			ghToken = token
 		}
-		return e.launchAgentRun(ctx, parts, command.Workspace, runID, ghToken)
+		// 真正跑起来：放进 goroutine，主循环立刻回去认领下一条 —— 这就是并发的来源。
+		//
+		// 用 WithoutCancel：主循环的 ctx 在关停时会被取消，但那**不该**把已经跑起来的
+		// agent 一起杀掉 —— 半途被杀会留下"结局未知"的 run，收尾交给
+		// ReconcileLostRuns 与协调器的孤儿巡检。进程本身由 Setpgid 独立成组。
+		go func() {
+			defer func() { <-e.sem }()
+			if err := e.launchAgentRun(context.WithoutCancel(ctx), parts, command.Workspace, runID, ghToken); err != nil {
+				fmt.Fprintln(os.Stderr, "host-executor: agent run failed:", err)
+			}
+		}()
+		return nil
 	}
+	<-e.sem
+	return e.sweepStopped(ctx)
+}
+
+// sweepStopped 是原来 RunOne 里"没有 run 要启动"的那一半：巡检 stop_requested
+// 的 attempt 并拆掉它占的资源。拆出来是因为并发之后它有了第二个调用点（槽满时）。
+func (e *executor) sweepStopped(ctx context.Context) error {
 	var attemptID string
-	err = e.pool.QueryRow(ctx, `SELECT a.id FROM repomesh_execution.attempts a
+	err := e.pool.QueryRow(ctx, `SELECT a.id FROM repomesh_execution.attempts a
 		JOIN repomesh_execution.workers w ON w.id=a.worker_id
 		WHERE w.id=$1 AND a.state='stop_requested' LIMIT 1`, e.workerID).Scan(&attemptID)
 	if errors.Is(err, pgx.ErrNoRows) {
