@@ -28,6 +28,7 @@ import { SupervisionPolicyCard, type PolicyDraftState } from "../../components/S
 import { TaskAgentOutput } from "./TaskAgentOutput";
 import { ResponsibilityCaseCard } from "../../components/ResponsibilityCaseCard";
 import { BranchValidationCard } from "../../components/BranchValidationCard";
+import { scopeGateSuggestions } from "../../display";
 
 /** 消息作者 → 角色显示。先看 authorKind（user 是人），服务侧 agent 再按
  *  roster 命名约定（agent_<role>[_<name>]）推导；都推不出按系统条目样式。 */
@@ -1506,7 +1507,7 @@ function GateStack({
                 // spec 2026-09-20 修订:建议**不是开门时就有的**(门先出现,点了
                 // 「让 AI 定」才去生成)。所以为空不是错误态,只是还没点/还在生成:
                 // 两个按钮都可用,这里只说明下一步该干嘛。
-                const suggested = discovery?.scope_gate?.suggested ?? [];
+                const suggested = scopeGateSuggestions(discovery?.scope_gate);
                 if (suggested.length === 0) {
                   return (
                     <p className="mt-1.5 text-[10.5px] text-[var(--tree-faint)]">

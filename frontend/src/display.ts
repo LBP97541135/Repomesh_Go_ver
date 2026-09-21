@@ -581,3 +581,22 @@ export function lastDispatchLabel(tasks: DeliveryTaskView[]): string {
   if (stamps.length === 0) return "无派工记录";
   return `上次派工 ${eventTime(stamps.sort().at(-1)!)}`;
 }
+
+/** 选仓门建议归一化：后端存仓名数组，界面要 {repository, reason}。
+ *  缺理由就留空串——不编造（理由只在候选产物里，门这一层确实没有）。 */
+export function scopeGateSuggestions(
+  gate: { suggested?: Array<string | { repository: string; reason?: string }> } | null | undefined,
+): Array<{ repository: string; reason: string }> {
+  const raw = gate?.suggested ?? [];
+  const out: Array<{ repository: string; reason: string }> = [];
+  for (const entry of raw) {
+    if (typeof entry === "string") {
+      if (entry !== "") out.push({ repository: entry, reason: "" });
+      continue;
+    }
+    if (entry && typeof entry.repository === "string" && entry.repository !== "") {
+      out.push({ repository: entry.repository, reason: entry.reason ?? "" });
+    }
+  }
+  return out;
+}

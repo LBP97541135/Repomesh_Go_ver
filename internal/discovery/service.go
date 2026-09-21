@@ -126,7 +126,9 @@ type State struct {
 	Integration     map[string]any
 	Materialization map[string]any
 	Idempotency     map[string]any
-	UpdatedAt       time.Time
+	// ScopeGate 选仓门状态(独立 jsonb 列;老 issue 为 nil = 视为已决,跳过门)。
+	ScopeGate map[string]any
+	UpdatedAt time.Time
 	// RunningStep / RunningRunID 是**在途的规划步**（0 / nil = 没有在途）。
 	//
 	// 2026-09-20：读面此前**从来不报"进行中"** —— `deriveStep` 的三个返回值里
@@ -154,16 +156,16 @@ func nullMap(raw []byte) map[string]any {
 
 const stateColumns = "issue_id, project_id, requirement_text, analyzed_requirement, analysis, " +
 	"candidates, classification, plan, approval, classification_evidence_version, " +
-	"effective_tiers, integration, materialization, idempotency_ledger, updated_at"
+	"effective_tiers, integration, materialization, idempotency_ledger, scope_gate, updated_at"
 
 func scanState(row pgx.Row) (*State, error) {
 	var s State
 	var analyzed, evidence *string
 	var analysis, candidates, classification, plan, approval, integration, materialization, ledger []byte
-	var tiers []byte
+	var tiers, scopeGate []byte
 	err := row.Scan(&s.IssueID, &s.ProjectID, &s.RequirementText, &analyzed, &analysis,
 		&candidates, &classification, &plan, &approval, &evidence,
-		&tiers, &integration, &materialization, &ledger, &s.UpdatedAt)
+		&tiers, &integration, &materialization, &ledger, &scopeGate, &s.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -183,6 +185,9 @@ func scanState(row pgx.Row) (*State, error) {
 	s.Integration = nullMap(integration)
 	s.Materialization = nullMap(materialization)
 	s.Idempotency = nullMap(ledger)
+	// 选仓门是**独立列**,不进 save() 的列清单(写入一律单列 CAS,避免与发现链
+	// 整行重写互相丢更新);这里只把它读进 State 供读面投影。
+	s.ScopeGate = nullMap(scopeGate)
 	return &s, nil
 }
 
@@ -341,6 +346,12 @@ func (st *State) View() map[string]any {
 		"plan":            st.Plan,
 		"integration":     st.Integration,
 		"materialization": st.Materialization,
+	}
+	// scope_gate:前端选仓门的唯一事实来源(2026-09-20 补)。此前**读面从来不输出它**,
+	// 前端只能拿 scopeRepoCount 猜,门开没开、AI 建议有没有、是谁定的都看不见 ——
+	// 于是「点了才生成」这套逻辑在线上等于没接。nil 时**不输出该键**(老 issue)。
+	if st.ScopeGate != nil {
+		view["scope_gate"] = st.ScopeGate
 	}
 	if view["approval"] == nil {
 		view["approval"] = map[string]any{"state": "not_requested", "evidence_version": nil,

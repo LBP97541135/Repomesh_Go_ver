@@ -1298,8 +1298,9 @@ export interface DiscoveryScopeGateView {
   state: "pending" | "resolved";
   /** 关门时刻由谁拍板：人勾（manual）/ AI 定（ai）/ 超时代选（timeout）。 */
   decided_by?: "manual" | "ai" | "timeout";
-  /** AI 建议的仓库与理由（开门时随建议落库；resolved 后仍可回看）。 */
-  suggested?: Array<{ repository: string; reason: string }>;
+  /** AI 建议的仓库。后端存的是仓名数组（`[]string`）；理由只在候选产物里有,
+   *  门这一层不存——所以两种形状都收，缺理由时**不编造**，界面只显示仓名。 */
+  suggested?: Array<string | { repository: string; reason?: string }>;
   /** ISO 8601。ai 模式 = 开门 + 10 分钟；hitl 恒缺省。 */
   deadline_at?: string;
 }
