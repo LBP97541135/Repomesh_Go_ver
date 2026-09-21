@@ -150,7 +150,9 @@ export interface ScopeSelectionInput {
 }
 
 export interface ScopeSelectionReceipt {
-  status: string;
+  /** committed=范围已落地;replayed=同幂等键重放;ai_requested=「让 AI 定」已受理但
+   *  建议还没生成(不写范围、不关门,后端随后生成并自动采纳)——见 spec 2026-09-20 修订。 */
+  status: "committed" | "replayed" | "ai_requested";
   repositoryCount: number;
 }
 

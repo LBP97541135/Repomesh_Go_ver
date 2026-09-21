@@ -1502,12 +1502,15 @@ function GateStack({
               </p>
               {(() => {
                 // AI 建议列表(仓+理由):只渲染后端 scope_gate.suggested,前端不
-                // 自己拼候选——建议是开门那一刻服务端落库的事实。
+                // 自己拼候选——建议是服务端落库的事实。
+                // spec 2026-09-20 修订:建议**不是开门时就有的**(门先出现,点了
+                // 「让 AI 定」才去生成)。所以为空不是错误态,只是还没点/还在生成:
+                // 两个按钮都可用,这里只说明下一步该干嘛。
                 const suggested = discovery?.scope_gate?.suggested ?? [];
                 if (suggested.length === 0) {
                   return (
                     <p className="mt-1.5 text-[10.5px] text-[var(--tree-faint)]">
-                      AI 建议生成中…出来后会列在这里;等不及可先「我自己勾」。
+                      点「让 AI 定」生成仓库建议，或「我自己勾」。
                     </p>
                   );
                 }
