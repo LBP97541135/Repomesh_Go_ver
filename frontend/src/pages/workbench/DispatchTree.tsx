@@ -12,6 +12,7 @@ import type { DiscoveryView } from "../../api/contract";
 import type { PlanTaskItem } from "../../api/taskTree";
 import type { TestEvidenceView } from "../../api/testEvidence";
 import { STEP_LABELS, deriveStepStates, type FocusEntry, type StepState } from "./treeModel";
+import { deriveTestSchedule, TEST_SCHEDULE_LABEL, TEST_SCHEDULE_TONE } from "./testSchedule";
 import { IconChevron, IconClock, IconFlask, IconRun, IconCheck, IconUser } from "./treeIcons";
 
 export type { FocusEntry, StepState };
@@ -133,6 +134,13 @@ export function DispatchTree({
     if (kinds.has("cross_repo_regression")) parts.push("含跨仓库联调");
     return parts.join(" · ");
   })();
+
+  // 测试排期（与右侧「测试排期」同一份推导，见 testSchedule.ts）。
+  // 用户 2026-09-21 要求把右侧那份也显示在这里，参考上面 Manager 主脑的显示方式。
+  const scheduleRows = useMemo(() => deriveTestSchedule(tasks, testEvidence), [tasks, testEvidence]);
+  const scheduleDone = scheduleRows?.filter((r) => r.state === "done").length ?? 0;
+  const scheduleFailed = scheduleRows?.filter((r) => r.state === "failed").length ?? 0;
+  const [openTests, setOpenTests] = useState(false);
 
   const hl = "bg-[rgba(94,106,210,.055)] shadow-[inset_0_0_0_1px_rgba(94,106,210,.22)]";
 
@@ -274,14 +282,58 @@ export function DispatchTree({
         <button
           className={`flex w-full items-center gap-2 rounded-[7px] px-2 py-1.5 text-left transition-colors hover:bg-[var(--tree-zone)] ${activeEntry?.kind === "tests" ? hl : ""}`}
           title={testSummary ?? "测试任务与结果"}
-          onClick={() => onOpen({ kind: "tests" })}
+          onClick={() => {
+            // 2026-09-21 用户要求：右侧那份「测试排期」也要在这里看得见
+            // （"参考上面的 manager 主脑的显示"）。所以这一行改成**可展开**：
+            // 点箭头展开排期，点名字照旧进测试组的记录面 —— 两件事分开，
+            // 不把"看排期"和"看记录"挤成同一个动作。
+            setOpenTests((open) => !open);
+            onOpen({ kind: "tests" });
+          }}
         >
           <IconFlask size={13} className="flex-none text-amber" />
           <span className="text-[12.5px] font-medium text-[var(--tree-ink)]">测试组 · db-test</span>
           <span className="ml-auto text-[11px] text-[var(--tree-faint)]">
             {testSummary ?? (materialized ? "还没有记录" : "等待上游规划完成")}
           </span>
+          <IconChevron size={11} className={`flex-none text-[var(--tree-faint)] transition-transform ${openTests ? "rotate-90" : ""}`} />
         </button>
+        <div className={`grid transition-all duration-300 ${openTests ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+          <div className="overflow-hidden">
+            <div className="flex flex-col gap-1 px-2 pb-1 pt-1.5">
+              {scheduleRows === null ? (
+                <p className="text-[10.5px] leading-[1.7] text-[var(--tree-faint)]">
+                  计划还没物化，推不出排期 —— 排期是从任务 DAG 推出来的，不是另编一份。
+                </p>
+              ) : (
+                <>
+                  <p className="text-[10.5px] leading-[1.7] text-[var(--tree-faint)]">
+                    排期 {scheduleRows.length} 轮 · 已通过 {scheduleDone}
+                    {scheduleFailed > 0 ? ` · 未过 ${scheduleFailed}` : ""}
+                    {scheduleRows.length - scheduleDone - scheduleFailed > 0
+                      ? ` · 待跑 ${scheduleRows.length - scheduleDone - scheduleFailed}`
+                      : ""}
+                    （与右侧「测试排期」同一份推导）
+                  </p>
+                  {scheduleRows.map((row) => (
+                    <div key={row.key} className="flex items-start gap-2 text-[11px]">
+                      <span className="mt-px w-12 flex-none text-[10px] text-[var(--tree-faint)]">{row.stage}</span>
+                      <span className={`mt-px flex-none rounded-[5px] border px-1.5 py-px text-[10px] ${TEST_SCHEDULE_TONE[row.state]}`}>
+                        {TEST_SCHEDULE_LABEL[row.state]}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="text-[var(--tree-ink)]">{row.what}</span>
+                        <span className="block truncate text-[10.5px] text-[var(--tree-faint)]" title={row.note}>
+                          {row.note}
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

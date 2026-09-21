@@ -20,6 +20,7 @@ import type { PlanTaskItem } from "../../api/taskTree";
 import type { ConversationMessage } from "../../api/conversations";
 import { STEP_LABELS, type FocusEntry, type StepState } from "./treeModel";
 import type { TestEvidenceItem, TestEvidenceView } from "../../api/testEvidence";
+import { deriveTestSchedule, TEST_SCHEDULE_LABEL, TEST_SCHEDULE_TONE } from "./testSchedule";
 import type { TrainCarSpec } from "./PrTrainCard";
 import type { InterruptOutcomeView, PlanRevisionView } from "../../api/plans";
 import type { DeliveryManifestView } from "../../api/deliveryManifest";
@@ -159,53 +160,13 @@ function TestSchedule({ tasks, view }: { tasks: PlanTaskItem[] | null; view: Tes
       </div>
     );
   }
-  const items = view?.items ?? [];
-  const firstOf = (pred: (i: TestEvidenceItem) => boolean) => items.find(pred) ?? null;
-  const repos: string[] = [];
-  for (const t of tasks) {
-    if (t.repositoryId && !repos.includes(t.repositoryId)) repos.push(t.repositoryId);
-  }
-
-  type Row = { key: string; stage: string; what: string; state: "done" | "failed" | "todo"; note: string };
-  const rows: Row[] = [];
-  for (const t of tasks) {
-    const rec = firstOf((i) => i.kind === "task_single_point" && i.task_id === t.id);
-    rows.push({
-      key: `sp-${t.id}`,
-      stage: `批次${t.batchNo ?? "—"}`,
-      what: `单点验收 · ${t.title || t.taskUid || t.id}`,
-      state: rec ? (rec.passed ? "done" : "failed") : "todo",
-      note: rec ? (rec.summary || rec.command || "已产出记录") : `等 ${t.workerLabel || "执行者"} 跑完这条任务`,
-    });
-  }
-  for (const repo of repos) {
-    const rec = firstOf((i) => i.kind === "repo_integration" && i.repository_id === repo);
-    rows.push({
-      key: `ri-${repo}`,
-      stage: "节点级",
-      what: `仓库集成验证 · ${repo}`,
-      state: rec ? (rec.passed ? "done" : "failed") : "todo",
-      note: rec ? (rec.summary || "已产出记录") : "等该仓全部任务过了经理门",
-    });
-  }
-  if (repos.length > 1) {
-    const rec = firstOf((i) => i.kind === "cross_repo_regression");
-    rows.push({
-      key: "xr",
-      stage: "跨仓",
-      what: "跨仓库联调 + 回归",
-      state: rec ? (rec.passed ? "done" : "failed") : "todo",
-      note: rec ? (rec.summary || "已产出记录") : "等各仓节点集成都过了之后",
-    });
-  }
+  // 推导只有一份（testSchedule.ts）：中间那棵树的「测试组」用的是同一个函数，
+  // 免得两屏排出两种样子。这里只负责渲染。
+  const rows = deriveTestSchedule(tasks, view) ?? [];
   const done = rows.filter((r) => r.state === "done").length;
   const failed = rows.filter((r) => r.state === "failed").length;
-  const tone: Record<Row["state"], string> = {
-    done: "border-olive/40 bg-olive-well text-olive",
-    failed: "border-salmon/40 bg-salmon-well text-salmon",
-    todo: "border-line bg-[var(--tree-zone)] text-[var(--tree-sub)]",
-  };
-  const label: Record<Row["state"], string> = { done: "已通过", failed: "未过", todo: "待跑" };
+  const tone = TEST_SCHEDULE_TONE;
+  const label = TEST_SCHEDULE_LABEL;
   return (
     <div className="border-b border-dashed border-[var(--tree-hairline)] px-4 py-3">
       <div className="flex items-baseline gap-2">
