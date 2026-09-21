@@ -1,4 +1,4 @@
--- 0059:选仓门(建项不选仓,spec 2026-09-20)带来的两处 schema 放宽。
+-- 0061:选仓门(建项不选仓,spec 2026-09-20)带来的两处 schema 放宽。
 --
 -- 1) 建项聚合可以零仓提交。0017 的 creation_aggregate_complete 要求已提交操作的
 --    issue **至少一行 issue_content_scope**,并把 issue/conversation 范围不小于

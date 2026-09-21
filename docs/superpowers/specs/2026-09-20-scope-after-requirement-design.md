@@ -82,7 +82,7 @@
 ## 7. 实施期新增的硬约束(2026-09-20 晚,并行工作流移交)
 
 1. **空仓建项 vs 聚合触发器**:建项聚合触发器要求"已提交操作的 issue 至少一行
-   `issue_content_scope`"——空仓建项会在库层被拦。迁移 0059 放宽该触发器
+   `issue_content_scope`"——空仓建项会在库层被拦。迁移 0061 放宽该触发器
    (语义:范围由选仓门后置确认),先有失败测试复现再改。
 2. **确认端点线缆键名统一 camelCase**:`repositoryIds / decidedBy /
    idempotencyKey / expectedCreationContextRevision`,以断言键名的契约测试锁死,
