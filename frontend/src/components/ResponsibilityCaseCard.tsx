@@ -64,9 +64,12 @@ export function ResponsibilityCaseCard({
   const [busy, setBusy] = useState(false);
   const [opError, setOpError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  /** 折叠栏（2026-09-21 用户要求）：这一段内容长，默认展开（动作入口不能被藏起来），
-   *  点标题即收起。标题本身就是开关 —— 不额外加一条只用来折叠的横条。 */
-  const [open, setOpen] = useState(true);
+  /** 折叠栏（2026-09-21 用户要求）：**默认收起**，点标题展开。
+   *
+   *  这里与最初的做法相反（最初默认展开，理由是"动作入口不能被藏起来"）。用户看到
+   *  实际界面后裁定统一默认关闭 —— 采纳，并把这个取舍记在这里：**收起态下四个动作
+   *  按钮不可见，需要先点标题展开**。若日后又出现"找不到入口"，先看这一行。 */
+  const [open, setOpen] = useState(false);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {

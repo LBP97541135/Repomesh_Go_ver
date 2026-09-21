@@ -73,9 +73,12 @@ export function BranchValidationCard({
       .finally(() => setBusy(false));
   };
 
-  /** 折叠栏（2026-09-21 用户要求）：默认展开（下面有「跑一次分支验证」这个动作入口，
-   *  藏起来就等于没有入口），点标题收起。 */
-  const [open, setOpen] = useState(true);
+  /** 折叠栏（2026-09-21 用户要求）：**默认收起**，点标题展开。
+   *
+   *  与最初做法相反（最初默认展开，理由是"下面有『跑一次分支验证』这个动作入口"）。
+   *  用户看到实际界面后裁定统一默认关闭 —— 采纳，取舍记在这里：**收起态下「跑一次
+   *  分支验证」不可见，需要先点标题展开**。 */
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="border-t border-dashed border-[var(--tree-hairline)] px-4 py-3">
