@@ -368,7 +368,27 @@ func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, i
 		"cd \"$WORK\"\n" +
 		"git config user.name \"repomesh-bot[bot]\"\n" +
 		"git config user.email \"repomesh-bot@users.noreply.github.com\"\n" +
+		// 2026-09-22 线上实测（用户："看看有没有卡点"）：agent 的退出码**不能**当成交付的判据。
+		//
+		// 症状：任务 `定义折扣规则类型系统 (rules.ts)` 重派 4 次全 exit=1，报告都写
+		// "未产出可交付的改动"。但工作区里真相是：4 个文件**已经 staged**、测试 agent
+		// 也验过（test-evidence.json 里 exit_code=0 / passed=true，还做了 mutation 自检
+		// 证明不是空过）—— 活做完了，交付却一行都没执行。
+		//
+		// 原因：脚本第一行是 `set -e`。agent 只要非 0 退出（模型在最后一步报错、工具调用
+		// 失败、被限流……），整段脚本**立刻中止**，后面的 __pycache__ 清理、git add、
+		// commit、rebase、push、开 PR 全部不执行。日志里连 `REPO_PR_CREATED` 或
+		// `REPO_DELIVERY_EMPTY` 都看不到 —— 不是"没改动"，是**根本没走到判据那一步**。
+		//
+		// 修法：把 agent 段从 `set -e` 的保护里摘出来，记下它的退出码（`REPO_AGENT_EXIT=`
+		// 落进日志，可查），然后**照常走交付**。真正的交付判据本来就是下面那条
+		// `git diff --cached --quiet` —— "有没有改动"，不是"agent 退没退 0"。
+		// 没改动仍然明确失败（REPO_DELIVERY_EMPTY + exit 3），一分不放宽。
+		"set +e\n" +
 		agentLine + "\n" +
+		"REPOMESH_AGENT_EXIT=$?\n" +
+		"set -e\n" +
+		"echo REPO_AGENT_EXIT=$REPOMESH_AGENT_EXIT\n" +
 		// bug B（2026-09-20）：交付前先清掉构建产物 —— 线上出现过"0 insertions,
 		// 0 deletions"的空提交里只躺着一个 tests/__pycache__/*.pyc。然后**确认真的
 		// 还有改动**：没有就明确失败（exit 3 + REPO_DELIVERY_EMPTY），而不是推一个

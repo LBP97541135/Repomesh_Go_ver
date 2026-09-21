@@ -87,6 +87,25 @@ func TestBuildAgentCommandKeepsScriptQuotableAndUsesWorktree(t *testing.T) {
 			t.Fatalf("脚本缺少 %q：%s", want, inner)
 		}
 	}
+	// 2026-09-22：agent 的退出码不能当成交付的判据。
+	//
+	// 线上实测：`定义折扣规则类型系统 (rules.ts)` 重派 4 次全 exit=1，报告都写
+	// "未产出可交付的改动"；可工作区里 4 个文件已经 staged、测试 agent 也验过
+	// （passed=true，还做了 mutation 自检）。真相是脚本第一行的 `set -e` 让 agent
+	// 非 0 退出**立刻中止整段脚本** —— 交付段（commit/push/开 PR）一行都没执行。
+	// 判据本来就该是"有没有改动"（下面那条 REPO_DELIVERY_EMPTY），不是"agent 退没退 0"。
+	agentAt := strings.Index(inner, "set +e\n")
+	agentExitAt := strings.Index(inner, "REPOMESH_AGENT_EXIT=$?")
+	guardAt := strings.Index(inner, "REPO_DELIVERY_EMPTY=1")
+	if agentAt < 0 || agentExitAt < 0 {
+		t.Fatalf("交付脚本没有把 agent 段从 set -e 里摘出来（agent 一非 0 退出，交付段就整段丢失）：\n%s", inner)
+	}
+	if !(agentAt < agentExitAt && agentExitAt < guardAt) {
+		t.Fatalf("set +e / 记录退出码 / 交付判据 的顺序不对：\n%s", inner)
+	}
+	if !strings.Contains(inner, "echo REPO_AGENT_EXIT=$REPOMESH_AGENT_EXIT") {
+		t.Fatalf("agent 的退出码没有落进日志（交付成功了也要能查它当时退了几）：\n%s", inner)
+	}
 	if strings.Contains(inner, "git clone --depth 5 https://x-access-token:$T@github.com/$R.git repo\n") {
 		t.Fatal("还在用整仓 clone 建工作区（应改为共享基础克隆 + worktree add）")
 	}
