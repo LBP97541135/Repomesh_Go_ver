@@ -130,6 +130,11 @@ func TestIssueScopeSelectionConfirm(t *testing.T) {
 	if code, _ := post(`{"repositoryIds":[],"decidedBy":"manual","idempotencyKey":"k-empty","expectedCreationContextRevision":"` + revision + `"}`); code != http.StatusUnprocessableEntity {
 		t.Fatalf("空仓库数组应 422,得到 %d", code)
 	}
+	// 线缆键名必须是 camelCase(Task B4):snake_case 的键不被解码器认,仓库数组
+	// 解成空 → 422。这条锁住 /scope/selection 的对外字段名,防止有人改回下划线。
+	if code, _ := post(`{"repository_ids":` + reposA + `,"decided_by":"manual","idempotency_key":"k-snake","expected_creation_context_revision":"` + revision + `"}`); code != http.StatusUnprocessableEntity {
+		t.Fatalf("snake_case 线缆键不应被接受(约定 camelCase),得到 %d", code)
+	}
 	// revision 不匹配 → 409。
 	if code, _ := post(`{"repositoryIds":` + reposA + `,"decidedBy":"manual","idempotencyKey":"k-stale","expectedCreationContextRevision":"stale"}`); code != http.StatusConflict {
 		t.Fatalf("revision 不匹配应 409,得到 %d", code)
