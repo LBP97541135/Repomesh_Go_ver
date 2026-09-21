@@ -187,6 +187,13 @@ func runWorker(args []string) int {
 			// （有分支的标待回收、没分支的如实标失败），再真去清。
 			ticks++
 			if ticks%60 == 0 {
+				// 任务级巡检：任务标着在跑、却没有任何在跑的 run 时收尾它。
+				// 与 run 级收尾（host-executor 的孤儿 run）互补，见 task_sweep.go。
+				if swept, err := sweepStaleRunningTasks(dagCtx, runtime.Pool(), 5*time.Minute); err != nil {
+					slog.Warn("task sweep deferred", "reason", err.Error())
+				} else if swept > 0 {
+					slog.Info("task sweep", "tasks", swept)
+				}
 				if reconciled, err := reclaimer.ReconcileStale(dagCtx, 30*time.Minute); err != nil {
 					slog.Warn("branch reconcile deferred", "reason", err.Error())
 				} else if reconciled > 0 {

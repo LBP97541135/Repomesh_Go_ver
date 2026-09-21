@@ -13,6 +13,10 @@ import (
 // 白烧额度与模型调用，该停下来让人看。到顶后任务停在 'failed' 并带上原因。
 const maxDevAttempts = 3
 
+// MaxDevAttempts 是执行面自动重派的上限（含首次），导出给编排层的巡检用 ——
+// 任务级巡检也要按同一个额度决定"重派还是停下"，同一个数字写两处迟早会分叉。
+const MaxDevAttempts = maxDevAttempts
+
 // TestEvidenceFile 是测试 agent 必须写出的证据文件名（工作区根下）。
 //
 // 派发端（coordinator 的 buildTestCommand）把它写进提示词，收端
