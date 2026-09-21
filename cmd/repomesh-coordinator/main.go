@@ -158,6 +158,10 @@ func runWorker(args []string) int {
 				if forwarded := bridge.ForwardOnce(dagCtx); forwarded > 0 {
 					slog.Info("manager bridge forwarded", "messages", forwarded)
 				}
+				// 反向：把 Manager 的话搬回会话流（首次见房间只记基线，不灌历史）
+				if back := bridge.ReverseOnce(dagCtx); back > 0 {
+					slog.Info("manager bridge received", "messages", back)
+				}
 			}
 			if ticks%60 == 0 {
 				if reconciled, err := reclaimer.ReconcileStale(dagCtx, 30*time.Minute); err != nil {

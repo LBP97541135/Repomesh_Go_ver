@@ -103,6 +103,81 @@ func (b *Bridge) ForwardOnce(ctx context.Context) int {
 	return sent
 }
 
+// ReverseOnce 把队房里 Manager 的话搬回会话流（设计 §9-③）：
+//   - 不需要按 sender 过滤桥自己：正向发出去的 event_id 都在台账里，按 event_id
+//     去重时自己的话天然被滤掉；
+//   - **首次见一个房间只记基线**（status='baseline'，不写会话流），否则第一次轮询
+//     会把房间历史（规划通知、系统消息）一股脑灌进聊天室；
+//   - 房间→issue 复用台账里"人先说过的那些 issue"。
+//     ponytail: 天花板 = Manager 主动先说话的场景桥不到（没有人的消息就没有台账行）。
+func (b *Bridge) ReverseOnce(ctx context.Context) int {
+	if b == nil || b.pool == nil || b.matrix == nil {
+		return 0
+	}
+	rooms, err := b.pool.Query(ctx, `
+		SELECT DISTINCT issue_id, conversation_id
+		  FROM repomesh_messages.bridge_deliveries WHERE direction='human' LIMIT 50`)
+	if err != nil {
+		return 0
+	}
+	type target struct{ issue, conv string }
+	var targets []target
+	for rooms.Next() {
+		var tg target
+		if err := rooms.Scan(&tg.issue, &tg.conv); err == nil {
+			targets = append(targets, tg)
+		}
+	}
+	rooms.Close()
+
+	bridged := 0
+	for _, tg := range targets {
+		var roomID string
+		if roomID, err = roomnotice.RoomForIssue(ctx, b.pool, tg.issue); err != nil || roomID == "" {
+			continue
+		}
+		messages, err := b.matrix.RoomMessages(ctx, roomID, 20)
+		if err != nil {
+			continue
+		}
+		var baselined bool
+		_ = b.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM repomesh_messages.bridge_deliveries
+			WHERE issue_id=$1 AND direction='manager')`, tg.issue).Scan(&baselined)
+		for _, m := range messages {
+			if m.Body == "" {
+				continue
+			}
+			status, body := "received", m.Body
+			if !baselined {
+				status, body = "baseline", ""
+			}
+			tag, err := b.pool.Exec(ctx, `
+				INSERT INTO repomesh_messages.bridge_deliveries
+				  (direction, issue_id, conversation_id, matrix_event_id, actor, body, status)
+				VALUES ('manager', $1, $2, $3, $4, $5, $6)
+				ON CONFLICT (matrix_event_id) DO NOTHING`,
+				tg.issue, tg.conv, m.EventID, m.Sender, body, status)
+			if err != nil || tag.RowsAffected() == 0 || status != "received" {
+				continue
+			}
+			if _, err := b.pool.Exec(ctx, `
+				INSERT INTO repomesh_messages.conversation_messages
+				  (id, project_id, conversation_id, sequence, author_kind, actor_id, body)
+				SELECT 'msg_'||replace(gen_random_uuid()::text,'-',''), i.project_id, $1,
+				       COALESCE((SELECT MAX(sequence) FROM repomesh_messages.conversation_messages
+				                  WHERE project_id=i.project_id AND conversation_id=$1),0)+1,
+				       'service', 'manager', $2
+				  FROM repomesh_issues.issues i WHERE i.id=$3`,
+				tg.conv, m.Body, tg.issue); err != nil {
+				fmt.Printf("managerbridge: reverse insert failed issue=%s: %v\n", tg.issue, err)
+				continue
+			}
+			bridged++
+		}
+	}
+	return bridged
+}
+
 // messageBody 服务身份发言，正文自报家门（v1，见文件头 ponytail 注）。
 func messageBody(actor, body string) string {
 	if actor == "" {
