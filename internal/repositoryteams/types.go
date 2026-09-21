@@ -14,6 +14,11 @@ type Snapshot struct {
 	// 不拿仓库名或团队名拼一个假的出来。
 	TeamRoomID     string `json:"team_room_id"`
 	LeaderDMRoomID string `json:"leader_dm_room_id"`
+	// RuntimeNote 说明**这次运行阶段观察的完整性**（空串 = 全部读到了）。
+	//
+	// 2026-09-21：运行阶段是**观察**，编制是**持久化事实**。观察失败不该销毁事实，
+	// 但也不能假装都读到了 —— 所以这里如实写明有几个成员没读到，让界面能说清。
+	RuntimeNote string `json:"runtime_note,omitempty"`
 }
 
 type Member struct {

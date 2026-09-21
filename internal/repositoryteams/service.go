@@ -72,6 +72,19 @@ func New(pool *pgxpool.Pool, client *agentteams.Client) *Service {
 
 // Get returns the stored roster, live controller phases, and active task
 // counts. It does not create or mutate any controller resource.
+// Get 读一支队的快照：**本地编制照常返回，运行阶段读不到就如实留空**。
+//
+// 2026-09-21 用户实测：仓库团队页报「团队读取失败」+ HTTP 503，而本地那支队是真实
+// 存在的（repository_teams 有行）。根因是这里对 leader 与**每个** worker 各打一次
+// 控制面，**错一个就把整页判成 503** —— 于是"某个 worker 在控制面上不存在 / 控制面
+// 一时读不到"这种**观察失败**，把"这支队的编制是什么"这个**持久化事实**一起毁掉了。
+//
+// 观察失败不该销毁事实。所以：编制照常返回，读不到的那几个成员 RuntimePhase 留空
+// （前端已有"未接入 / 阶段未回报"的呈现），并把"有几个成员没读到"写进 RuntimeNote，
+// 让界面能如实说清这次观察的完整性 —— 而不是假装都读到了，也不是整页打不开。
+//
+// 注意**不要**在这里吞掉控制面故障本身：控制面不可用时建队/改编制照样会失败，
+// 这条只影响**读**的降级。
 func (s *Service) Get(ctx context.Context, projectID, repositoryID string) (Snapshot, error) {
 	if s.pool == nil {
 		return Snapshot{}, fmt.Errorf("%w: database pool is nil", ErrControllerUnavailable)
@@ -80,13 +93,23 @@ func (s *Service) Get(ctx context.Context, projectID, repositoryID string) (Snap
 	if err != nil {
 		return Snapshot{}, err
 	}
-	if snapshot.Leader.RuntimePhase, err = s.workerPhase(ctx, snapshot.Leader.ResourceName); err != nil {
-		return Snapshot{}, err
+	unread := 0
+	if phase, phaseErr := s.workerPhase(ctx, snapshot.Leader.ResourceName); phaseErr != nil {
+		unread++
+	} else {
+		snapshot.Leader.RuntimePhase = phase
 	}
 	for i := range snapshot.Workers {
-		if snapshot.Workers[i].RuntimePhase, err = s.workerPhase(ctx, snapshot.Workers[i].ResourceName); err != nil {
-			return Snapshot{}, err
+		if phase, phaseErr := s.workerPhase(ctx, snapshot.Workers[i].ResourceName); phaseErr != nil {
+			unread++
+		} else {
+			snapshot.Workers[i].RuntimePhase = phase
 		}
+	}
+	if unread > 0 {
+		snapshot.RuntimeNote = fmt.Sprintf(
+			"%d 个成员的运行阶段读不到（控制面未响应，或控制面上没有这个资源）——"+
+				"编制是本地持久化事实，不受影响。", unread)
 	}
 	return snapshot, nil
 }
