@@ -289,11 +289,26 @@ func TestDependencyRefsPreferDeliveryBranchAndRejectUnsafeRefs(t *testing.T) {
 	if !strings.Contains(script, "for ENTRY in owner/sdk:repomesh/auto-att_dag_574f2c1e2cf5de810d34 owner/dash: owner/api:; do") {
 		t.Fatalf("脚本里的依赖列表不对：\n%s", script)
 	}
-	if !strings.Contains(script, "fetch --depth 5 origin \"$WANT\"") {
-		t.Fatalf("脚本没有按 ref 取：\n%s", script)
+	// 按 ref 取、失败才退回 main；且**只在真的从分支退回时**才记那句话
+	// （旧写法在 WANT 本来就是 main 时也会打印「取不到 main，退回 main」）。
+	if !strings.Contains(script, "fetch --depth 5 origin \"$REF\"") {
+		t.Fatalf("脚本没有按交付分支取：\n%s", script)
+	}
+	if strings.Contains(script, "取不到 $WANT，退回 main") {
+		t.Fatalf("又出现了自相矛盾的兜底文案：\n%s", script)
 	}
 	if !strings.Contains(script, "SOURCE.txt") {
 		t.Fatalf("脚本没有写下实际用的 ref：\n%s", script)
+	}
+	// SOURCE.txt 是一句关于这棵树的事实陈述：必须写在**建树成功之后**。
+	// 写在前面的话，建树失败时会留下一句"<- main"的假话，而 agent 正是拿它
+	// 判断"这是不是定稿契约"。
+	if strings.Index(script, "SOURCE.txt") < strings.Index(script, "worktree add") {
+		t.Fatalf("SOURCE.txt 写在建树之前：建树失败会留下假话\n%s", script)
+	}
+	// 兜底那次 fetch 必须被 set -e 管住（不再吞掉失败去用陈旧的 FETCH_HEAD）。
+	if strings.Contains(script, "|| true") {
+		t.Fatalf("兜底 fetch 被吞掉了失败：\n%s", script)
 	}
 }
 

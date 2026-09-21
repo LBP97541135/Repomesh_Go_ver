@@ -185,6 +185,16 @@ func dependencyPromptSection(repoFullName string, depRepos []dependencyRepo) str
 	}
 	body.WriteString("不要用 find /、grep -r / 或任何以根目录为起点的搜索去找文件：那既慢，" +
 		"又可能把别的任务未提交的中间产物当成约定原文读进来。\n")
+	// 2026-09-22 线上实测：另有一类 find / 不是"找兄弟仓文件"，而是**找工具链和构件** ——
+	// agent 敲 `find / -name ts-common*.jar`、`find / -maxdepth 6 -name mvn`，每个扫
+	// 295GB 的盘十几分钟，把机器 I/O 打满（load 冲到 82，SSH 都握不上手）。
+	// 而那次的两样东西**其实都已经在本机**：mvn/javac 装好了（只是当时不在 PATH 上），
+	// ts-common-0.1.0.jar 也已经在 ~/.m2/repository 里。所以这里直接给正确做法。
+	body.WriteString("找**命令或工具链**用 command -v（例如 command -v mvn），不要 find /。\n")
+	body.WriteString("找**依赖构件**先看这门语言自己的本地缓存（Java 是 ~/.m2/repository），不要全盘找 jar。\n")
+	if len(deps) > 0 {
+		body.WriteString("需要**兄弟仓的模块**，就从上列的 ../_deps/ 取源码自己构建，不要去找现成的 jar。\n")
+	}
 	body.WriteString("确实需要的东西不在工作区里时，就在交付说明里写清**缺什么、你在哪里找不到**，不要猜。\n\n")
 	return body.String()
 }
@@ -229,17 +239,30 @@ func depCheckoutScript(repoFullName string, depRepos []dependencyRepo) string {
 	script.WriteString("    git -C \"$DB\" remote set-url origin \"https://x-access-token:$T@github.com/$DR.git\"\n")
 	script.WriteString("    git -C \"$DB\" worktree prune\n")
 	script.WriteString("    rm -rf \"$DEPS/$DS\"\n")
-	// 优先取同计划任务的交付分支；取不到（还没交付 / 分支已删）就退回 main，
-	// 并把**实际用的是哪个 ref** 写进 SOURCE.txt —— 读的人不必猜。
+	// 优先取同计划任务的交付分支；取不到（还没交付 / 分支已删）就退回 main。
+	//
+	// 2026-09-22 线上实测的两处修正（第一版写错了）：
+	//   · 旧写法把"取不到"的判据放在**整个 fetch** 上，于是 WANT 本来就是 main 时
+	//     失败会打印「取不到 main，退回 main」—— 一句自相矛盾的话，读的人只会更糊涂。
+	//     现在只在**真的从交付分支退回 main** 时才记这一行。
+	//   · 旧写法**不检查兜底那次 fetch 的返回值**，失败时继续往下走，用一次更早的
+	//     FETCH_HEAD 建树，再写一句 "$DR <- main" —— 那是**假话**：树不在 main 上，
+	//     而 SOURCE.txt 正是给 agent 判断"这是不是定稿契约"用的。
+	//     现在兜底 fetch 失败会让整个子 shell 失败（外层 || 记 UNAVAILABLE），
+	//     树不建、SOURCE.txt 也不写 —— 宁可明说"这个仓没拿到"。
 	script.WriteString("    WANT=main\n")
-	script.WriteString("    if [ -n \"$REF\" ]; then WANT=\"$REF\"; fi\n")
-	script.WriteString("    if ! git -C \"$DB\" fetch --depth 5 origin \"$WANT\"; then\n")
-	script.WriteString("      echo \"$DR: 取不到 $WANT，退回 main\" >> \"$DEPS/UNAVAILABLE.txt\"\n")
-	script.WriteString("      WANT=main\n")
-	script.WriteString("      git -C \"$DB\" fetch --depth 5 origin main\n")
+	script.WriteString("    if [ -n \"$REF\" ]; then\n")
+	script.WriteString("      if git -C \"$DB\" fetch --depth 5 origin \"$REF\"; then\n")
+	script.WriteString("        WANT=\"$REF\"\n")
+	script.WriteString("      else\n")
+	script.WriteString("        echo \"$DR: 取不到交付分支 $REF，退回 main\" >> \"$DEPS/UNAVAILABLE.txt\"\n")
+	script.WriteString("      fi\n")
 	script.WriteString("    fi\n")
-	script.WriteString("    echo \"$DR <- $WANT\" > \"$DEPS/$DS.SOURCE.txt\"\n")
+	script.WriteString("    if [ \"$WANT\" = main ]; then git -C \"$DB\" fetch --depth 5 origin main; fi\n")
 	script.WriteString("    git -C \"$DB\" worktree add --detach --force \"$DEPS/$DS\" FETCH_HEAD\n")
+	// SOURCE.txt 写在**建树成功之后**：它是一句关于这棵树的事实陈述，
+	// 树没建成就不该有这句话。
+	script.WriteString("    echo \"$DR <- $WANT\" > \"$DEPS/$DS.SOURCE.txt\"\n")
 	script.WriteString("  ) 9>\"$(dirname \"$PWD\")/.lock-$DS\" || echo \"$DR checkout failed\" >> \"$DEPS/UNAVAILABLE.txt\"\n")
 	script.WriteString("done\n")
 	return script.String()
