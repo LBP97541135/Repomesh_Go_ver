@@ -30,11 +30,15 @@ import (
 // 提示词**，产物回来后校验、落库、记进决策链。没有兜底模拟 —— 拿不到合格产物
 // 就是失败，失败原因如实上屏。
 
-// 会被派发给 agent 的发现链步骤（3=分档审批、5=物化确认是人工门，不派发）。
+// 会被派发给 agent 的发现链步骤(5=物化确认是人工门,不派发)。
 const (
 	PlanningAnalysis   = 1
 	PlanningCandidates = 2
-	PlanningPlan       = 4
+	// PlanningGapAudit 是③分档前的**查漏步**(spec 2026-09-20 §3.2):选仓门被
+	// 人工确认(decided_by=manual)后由协调器派,Manager 拿着需求 + 已确认范围 +
+	// 建议集合找漏——只提示,人决定补不补。ai/timeout 确认的门不跑查漏。
+	PlanningGapAudit = 3
+	PlanningPlan     = 4
 	// PlanningReplan 是收集窗开完之后的**重排步**（协议 §2 步骤 3-5 的下半段）：
 	// 人在执行中打断并引入新仓库，收集窗的受影响集合上由 Leader 产出 v2。
 	PlanningReplan = 6
@@ -49,6 +53,8 @@ func PlanningRoleFor(step int) (role, skillID string) {
 	case PlanningAnalysis:
 		return "organization_leader", "project-intake"
 	case PlanningCandidates:
+		return "organization_leader", "cross-repo-planning"
+	case PlanningGapAudit:
 		return "organization_leader", "cross-repo-planning"
 	case PlanningReplan:
 		return "repository_leader", "task-decomposition"
@@ -81,6 +87,12 @@ func PlanningSchemaFor(step int) string {
   "candidates": [
     {"repository": "owner/name", "tier": "required|maybe|excluded", "score": 0.0,
      "reason": "为什么这个仓库要改/不改，引用你看到的证据"}
+  ]
+}`
+	case PlanningGapAudit:
+		return `{
+  "missing": [
+    {"repository": "owner/name", "reason": "为什么已确认范围漏了它，引用你看到的依赖/调用证据"}
   ]
 }`
 	case PlanningPlan:
@@ -212,6 +224,12 @@ func ParsePlanningArtifact(step int, raw []byte) (map[string]any, error) {
 		if items, _ := artifact["candidates"].([]any); len(items) == 0 {
 			return nil, fmt.Errorf("缺少 candidates（候选仓库分档）")
 		}
+	case PlanningGapAudit:
+		// 查漏的结论**允许为空**（没有漏就是没有漏,空数组是合法产物);
+		// 缺 missing 键才是不合格产物——那是 agent 没按 schema 写。
+		if _, ok := artifact["missing"].([]any); !ok {
+			return nil, fmt.Errorf("缺少 missing（查漏结论，可为空数组）")
+		}
 	case PlanningPlan, PlanningReplan:
 		if tasks, _ := artifact["tasks"].([]any); len(tasks) == 0 {
 			return nil, fmt.Errorf("缺少 tasks（任务 DAG）")
@@ -330,6 +348,33 @@ func (s *Service) ApplyPlanningArtifact(ctx context.Context, tx pgx.Tx, st *Stat
 				"role": prov.Role, "skill_id": prov.SkillID,
 				"run_id": prov.RunID, "agent_kind": prov.AgentKind,
 			},
+		}
+		// 候选落库即开选仓门(Task B1,spec §3.2):建议集合=候选全名;ai 模式带
+		// 10 分钟截止,hitl 模式无截止(门无限等待)。写在**同一事务**里——候选与门
+		// 要么一起提交、要么一起回滚;门是单列写,不会被本事务稍后的 save() 整行
+		// 重写抹掉。门已存在时 openGateInTx 幂等不覆盖,重复应用产物不开第二扇门。
+		if err := s.openGateForCandidates(ctx, tx, st, items); err != nil {
+			return err
+		}
+	case PlanningGapAudit:
+		// 查漏产物只落门的 audit 桶(单列 jsonb_set,不走 save——整行写会与
+		// 发现链互相丢更新)。空 missing 是合法结论:③ 照常放行;有 missing →
+		// ③ 停等人(「补上并继续」=A3 端点追加;「就这样」=PassGateAudit)。
+		missing := []any{}
+		for _, entry := range artifactSlice(artifact, "missing") {
+			item, ok := entry.(map[string]any)
+			if !ok {
+				continue
+			}
+			name, _ := item["repository"].(string)
+			if strings.TrimSpace(name) == "" {
+				continue
+			}
+			reason, _ := item["reason"].(string)
+			missing = append(missing, map[string]any{"repository": name, "reason": reason})
+		}
+		if err := writeGateAuditValue(ctx, tx, st.IssueID, "missing", missing); err != nil {
+			return err
 		}
 	case PlanningPlan:
 		tasks, _ := artifact["tasks"].([]any)
@@ -455,7 +500,7 @@ func (s *Service) ApplyPlanningArtifact(ctx context.Context, tx pgx.Tx, st *Stat
 		return fmt.Errorf("discovery: step %d 不是可派发的规划步", step)
 	}
 	// 决策链：这一步的结论由哪个角色、哪把技能、哪个 run 产出 —— 审计的主键。
-	stepName := map[int]string{PlanningAnalysis: "analysis", PlanningCandidates: "candidates", PlanningPlan: "plan", PlanningReplan: "replan"}[step]
+	stepName := map[int]string{PlanningAnalysis: "analysis", PlanningCandidates: "candidates", PlanningGapAudit: "gap_audit", PlanningPlan: "plan", PlanningReplan: "replan"}[step]
 	s.recordDecision(ctx, st, fmt.Sprintf("planning:%s:%s:%s", st.IssueID, stepName, prov.RunID),
 		planningDecisionStep(step), decisionchain.StatusConfirmed,
 		"由 "+prov.Role+" 产出（技能 "+prov.SkillID+"）",
@@ -471,6 +516,14 @@ func planningDecisionStep(step int) decisionchain.DecisionStep {
 		return decisionchain.StepTask
 	}
 	return decisionchain.StepClassification
+}
+
+// artifactSlice 取产物里的数组字段。缺失或类型不是数组时返回空切片 ——
+// 调用方（查漏产物落库）只关心"有哪些条目"，不需要区分"没有这个键"与"键不是数组"；
+// 结构必填性由 ParsePlanningArtifact 把关。
+func artifactSlice(artifact map[string]any, key string) []any {
+	items, _ := artifact[key].([]any)
+	return items
 }
 
 // planningRepositories 从产物里抽出涉及的仓库名（决策链的 affected_repositories）。
@@ -616,6 +669,12 @@ func (s *Service) FailPlanningRun(ctx context.Context, issueID string, step int,
 		st.Analysis = block
 	case PlanningCandidates:
 		st.Candidates = block
+	case PlanningGapAudit:
+		// 查漏失败没有对应的状态块(它的结论只落门的 audit 子键):如实记
+		// audit.error,单列写,不走 save()——不编一个假结论,也不留"成功"的假象。
+		if err := writeGateAuditValue(ctx, tx, st.IssueID, "error", reason); err != nil {
+			return err
+		}
 	case PlanningPlan:
 		st.Plan = block
 	default:

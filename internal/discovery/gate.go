@@ -13,6 +13,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -45,11 +47,29 @@ type gateJSON struct {
 	ResolvedAt *time.Time `json:"resolved_at"`
 }
 
+// gateAutoDeadline 是 ai 模式选仓门的自动代选宽限(spec 2026-09-20 §1):
+// 开门时刻 + 10 分钟无人确认,协调器按建议集合代选。
+const gateAutoDeadline = 10 * time.Minute
+
 // OpenGate 打开选仓门:issue_discoveries 没有 scope_gate(行缺或列为空)才写,
 // 已有门(pending 或 resolved)一律不动——重复开门幂等且不覆盖。发现链行
 // 缺失时按 issue 现场补一行最小状态(与 ensureState 同思路),门不依赖
 // "① 已经跑过"。
 func (s *Service) OpenGate(ctx context.Context, issueID string, suggested []string, deadline *time.Time) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := openGateInTx(ctx, tx, issueID, suggested, deadline); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// openGateInTx 是同事务版:② 候选产物落库的事务里顺手开门(gate_flow),
+// 候选与门要么一起提交、要么一起回滚;单列写不受 save() 整行重写影响。
+func openGateInTx(ctx context.Context, tx pgx.Tx, issueID string, suggested []string, deadline *time.Time) error {
 	if suggested == nil {
 		suggested = []string{}
 	}
@@ -57,11 +77,6 @@ func (s *Service) OpenGate(ctx context.Context, issueID string, suggested []stri
 	if err != nil {
 		return err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	command, err := tx.Exec(ctx, `INSERT INTO repomesh_issues.issue_discoveries
 		(issue_id, project_id, requirement_text, scope_gate)
 		SELECT i.id, i.project_id, btrim(i.title || E'\n' || i.description), $2::jsonb
@@ -83,7 +98,7 @@ func (s *Service) OpenGate(ctx context.Context, issueID string, suggested []stri
 			return fmt.Errorf("%w: 开门失败,issue 不存在: %s", ErrConflict, issueID)
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 // ResolveGate 把 pending 的门翻成 resolved(单列 CAS UPDATE,不走 save())。
@@ -152,6 +167,203 @@ func (s *Service) Gate(ctx context.Context, issueID string) (*Gate, error) {
 		gate.Suggested = []string{}
 	}
 	return gate, nil
+}
+
+// writeGateAuditValue 只动 scope_gate 的 audit 子树(单列 jsonb_set,不走 save())：
+// 查漏结论落 audit.missing(Task B3 的 PlanningGapAudit),③ 分档的越范围提示落
+// audit.gap。整行写会与发现链互相丢更新,所以这里绝不走 discovery.save()。
+// scope_gate 为空(老 issue 或尚未开门)时按 {} 起步,只长出 audit 子树。
+func writeGateAuditValue(ctx context.Context, tx pgx.Tx, issueID, key string, value any) error {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("discovery: encode gate audit %s: %w", key, err)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE repomesh_issues.issue_discoveries
+		SET scope_gate = jsonb_set(COALESCE(scope_gate, '{}'::jsonb), '{audit}',
+		       jsonb_set(COALESCE(scope_gate->'audit', '{}'::jsonb), ARRAY[$2::text], $3::jsonb, true), true),
+		    updated_at = now()
+		WHERE issue_id = $1`, issueID, key, string(payload)); err != nil {
+		return fmt.Errorf("discovery: write gate audit %s: %w", key, err)
+	}
+	return nil
+}
+
+// PassGateAudit 是「就这样,不补」的处置(spec §3.2):单列 CAS 记
+// audit.audit_passed=true,③ 于是放行。只在确实有**未处置的非空 missing**
+// 且尚未通过时翻转,重复调用返回 false(不重写、不报错)。
+func (s *Service) PassGateAudit(ctx context.Context, issueID string) (bool, error) {
+	command, err := s.pool.Exec(ctx, `UPDATE repomesh_issues.issue_discoveries
+		SET scope_gate = jsonb_set(scope_gate, '{audit}',
+		       jsonb_set(scope_gate->'audit', ARRAY['audit_passed'], 'true'::jsonb, true), true),
+		    updated_at = now()
+		WHERE issue_id = $1
+		  AND jsonb_typeof(scope_gate->'audit'->'missing') = 'array'
+		  AND jsonb_array_length(scope_gate->'audit'->'missing') > 0
+		  AND NOT COALESCE((scope_gate->'audit'->>'audit_passed')::bool, false)`, issueID)
+	if err != nil {
+		return false, err
+	}
+	return command.RowsAffected() == 1, nil
+}
+
+// gateAuditBlocks 读门的 audit 桶:有未处置的 missing(非空数组且未
+// audit_passed)时为真 —— ③ 分档停在这里等人(补上并继续 / 就这样)。
+func gateAuditBlocks(ctx context.Context, tx pgx.Tx, issueID string) (bool, error) {
+	var blocked bool
+	err := tx.QueryRow(ctx, `SELECT
+		CASE WHEN jsonb_typeof(scope_gate->'audit'->'missing') = 'array'
+		     THEN jsonb_array_length(scope_gate->'audit'->'missing') > 0
+		     ELSE false END
+		AND NOT COALESCE((scope_gate->'audit'->>'audit_passed')::bool, false)
+		FROM repomesh_issues.issue_discoveries WHERE issue_id=$1`, issueID).Scan(&blocked)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return blocked, nil
+}
+
+// openGateForCandidates 在②候选产物落库的事务里开选仓门:模式读 issues.hitl_mode
+// (0053),ai = 自动托管 → 截止 now+10 分钟;hitl = 人审 → 无截止,门无限等待。
+// 建议集合取候选块的 repository_name(全名),过滤空名。
+func (s *Service) openGateForCandidates(ctx context.Context, tx pgx.Tx, st *State, items []any) error {
+	var hitlMode string
+	if err := tx.QueryRow(ctx,
+		`SELECT COALESCE(hitl_mode,'hitl') FROM repomesh_issues.issues WHERE id=$1`, st.IssueID).
+		Scan(&hitlMode); err != nil {
+		return fmt.Errorf("discovery: 开选仓门前读 hitl 模式: %w", err)
+	}
+	var deadline *time.Time
+	if hitlMode == "ai" {
+		at := time.Now().UTC().Add(gateAutoDeadline)
+		deadline = &at
+	}
+	suggested := make([]string, 0, len(items))
+	for _, itemAny := range items {
+		item, _ := itemAny.(map[string]any)
+		name, _ := item["repository_name"].(string)
+		if strings.TrimSpace(name) == "" {
+			continue
+		}
+		suggested = append(suggested, name)
+	}
+	return openGateInTx(ctx, tx, st.IssueID, suggested, deadline)
+}
+
+// GateTimeoutReceipt 是门超时代选的回执;与 A3 批量确认端点的回执同形
+// (status/repositoryCount),同键重放 status=replayed。
+type GateTimeoutReceipt struct {
+	Status          string `json:"status"`
+	RepositoryCount int    `json:"repositoryCount"`
+}
+
+// ResolveGateTimeout 是协调器侧的门超时代选(Task B2,spec §3.2「10 分钟无人点 →
+// 自动让 AI 定」):A3 批量确认服务层的**等价物**——web 端点要会话主体
+// (LockProjectPrincipal),协调器没有,所以这里按同一形状直写:
+// 一个事务内 建议集合→项目内仓库 id → 双表写(issue_repository_scope 与
+// issue_content_scope,整组同一把 scope_revision,语句与 A3 逐字同款)→
+// 门单列 CAS 置 resolved(timeout)→ 幂等回执落发现链单列账。
+//
+// 门已 resolved(被人抢先确认/已被代选)时返回 status=noop,不重写范围;
+// 建议里不在本项目内的仓如实忽略,不编仓。
+func (s *Service) ResolveGateTimeout(ctx context.Context, issueID, idempotencyKey string) (GateTimeoutReceipt, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return GateTimeoutReceipt{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if key := strings.TrimSpace(idempotencyKey); key != "" {
+		if receipt, found, lookupErr := ScopeSelectionReceiptInTx(ctx, tx, issueID, key); lookupErr != nil {
+			return GateTimeoutReceipt{}, lookupErr
+		} else if found {
+			count, _ := receipt["repository_count"].(float64)
+			return GateTimeoutReceipt{Status: "replayed", RepositoryCount: int(count)}, nil
+		}
+	}
+	var projectID string
+	var raw []byte
+	if err := tx.QueryRow(ctx,
+		`SELECT project_id, scope_gate FROM repomesh_issues.issue_discoveries WHERE issue_id=$1`, issueID).
+		Scan(&projectID, &raw); err != nil {
+		return GateTimeoutReceipt{}, fmt.Errorf("discovery: 门超时代选读门: %w", err)
+	}
+	if len(raw) == 0 {
+		return GateTimeoutReceipt{}, fmt.Errorf("%w: 没有选仓门可代选(issue %s)", ErrConflict, issueID)
+	}
+	var payload gateJSON
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return GateTimeoutReceipt{}, err
+	}
+	if GateState(payload.State) != GatePending {
+		return GateTimeoutReceipt{Status: "noop"}, nil
+	}
+	// 建议集合(owner/name)→ 本项目内的仓库 id;忽略大小写,不在项目内的建议跳过。
+	lowered := make([]string, 0, len(payload.Suggested))
+	for _, name := range payload.Suggested {
+		if trimmed := strings.ToLower(strings.TrimSpace(name)); trimmed != "" {
+			lowered = append(lowered, trimmed)
+		}
+	}
+	repositories := []string{}
+	if len(lowered) > 0 {
+		rows, err := tx.Query(ctx, `SELECT r.id FROM repomesh_projects.repositories r
+			JOIN repomesh_projects.project_repositories pr ON pr.project_id=$1 AND pr.repository_id=r.id
+			WHERE lower(r.owner || '/' || r.name) = ANY($2)`, projectID, lowered)
+		if err != nil {
+			return GateTimeoutReceipt{}, err
+		}
+		seen := map[string]bool{}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				rows.Close()
+				return GateTimeoutReceipt{}, err
+			}
+			if !seen[id] {
+				seen[id] = true
+				repositories = append(repositories, id)
+			}
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return GateTimeoutReceipt{}, err
+		}
+	}
+	var operation string
+	if err := tx.QueryRow(ctx,
+		`SELECT creation_operation_id FROM repomesh_issues.issues WHERE id=$1`, issueID).Scan(&operation); err != nil {
+		return GateTimeoutReceipt{}, fmt.Errorf("discovery: 门超时代选读建项操作: %w", err)
+	}
+	scopeRevision := newEvidenceVersion(issueID, "scope-gate-timeout", strconv.FormatInt(time.Now().UnixNano(), 10))
+	for _, repositoryID := range repositories {
+		if _, err := tx.Exec(ctx, `INSERT INTO repomesh_issues.issue_repository_scope
+			(issue_id, repository_id, project_id, scope_revision) VALUES ($1,$2,$3,$4)
+			ON CONFLICT (issue_id, repository_id) DO UPDATE SET scope_revision = EXCLUDED.scope_revision`,
+			issueID, repositoryID, projectID, scopeRevision); err != nil {
+			return GateTimeoutReceipt{}, err
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO repomesh_issues.issue_content_scope
+			(issue_id, repository_id, project_id, introduced_by_operation) VALUES ($1,$2,$3,$4)
+			ON CONFLICT (issue_id, repository_id) DO NOTHING`,
+			issueID, repositoryID, projectID, operation); err != nil {
+			return GateTimeoutReceipt{}, err
+		}
+	}
+	if _, err := ResolveGateInTx(ctx, tx, issueID, "timeout"); err != nil {
+		return GateTimeoutReceipt{}, err
+	}
+	receipt := GateTimeoutReceipt{Status: "committed", RepositoryCount: len(repositories)}
+	if err := RecordScopeSelectionInTx(ctx, tx, issueID, idempotencyKey, map[string]any{
+		"status": receipt.Status, "repository_count": receipt.RepositoryCount, "decided_by": "timeout",
+	}); err != nil {
+		return GateTimeoutReceipt{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return GateTimeoutReceipt{}, err
+	}
+	return receipt, nil
 }
 
 // scopeLedgerKey 是范围确认在幂等账里的键:加前缀,免与发现链各步的

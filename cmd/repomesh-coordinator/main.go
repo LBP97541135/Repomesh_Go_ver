@@ -123,10 +123,13 @@ func runWorker(args []string) int {
 			_ = recorder.Close(closing)
 		}()
 	}
-	automator := newDiscoveryAutomator(discoveryService, runtime.Pool())
-	// 规划期的真实 agent 派发（需求分析/候选评分/生成计划由角色 agent 产出）：
-	// 与发现链状态机同一拍子 —— 先派发/收产物，再让状态机往下走。
-	planner := newPlanningDispatcher(runtime.Pool(), discoveryService, humancontrol.New(runtime.Pool()), roomnotice.NewFromEnv(runtime.Pool()))
+	// 房间通知器两个引擎(自动托管/规划派发)共用一份:门超时代选与规划事件
+	// 投同一间 issue 团队房,凭据也只解一份。
+	notices := roomnotice.NewFromEnv(runtime.Pool())
+	automator := newDiscoveryAutomator(discoveryService, runtime.Pool(), notices)
+	// 规划期的真实 agent 派发(需求分析/候选评分/生成计划由角色 agent 产出):
+	// 与发现链状态机同一拍子 —— 先派发/收产物,再让状态机往下走。
+	planner := newPlanningDispatcher(runtime.Pool(), discoveryService, humancontrol.New(runtime.Pool()), notices)
 	transport, err := models.NewSingleRequestTransport(protocolVersion)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "model test transport:", err)

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // ---- step 2: three-tier classification ----
@@ -29,10 +31,26 @@ func (s *Service) Classification(ctx context.Context, issueID, agentID, idempote
 		tx.Rollback(ctx)
 		return receipt, nil
 	}
+	// 查漏步(PlanningGapAudit)留下未处置的 missing 时,③ 停在这里等人:
+	// 「补上并继续」走确认端点追加范围,「就这样」走 PassGateAudit 放行。
+	// 放在 replay 之后 —— 重放是已完成的同一请求,不该被新的门状态再拦一次。
+	if blocked, err := gateAuditBlocks(ctx, tx, issueID); err != nil {
+		return nil, err
+	} else if blocked {
+		return nil, fmt.Errorf("%w: 查漏提示已确认范围可能漏了仓库,请先补充仓库或选择「就这样」再分档", ErrConflict)
+	}
+	// ③ 的硬约束(spec §3.2):只对**已确认范围**内的候选分档。agent 多圈进来的
+	// 仓库不进 required/maybe(否则 validateRepositories 409),汇入门的 audit.gap
+	// 提示桶 —— 只提示,人决定补不补。
+	confirmed, err := confirmedScopeNames(ctx, tx, st)
+	if err != nil {
+		return nil, err
+	}
 	itemsAny, _ := st.Candidates["items"].([]any)
 	required := []map[string]any{}
 	maybe := []map[string]any{}
 	excluded := []map[string]any{}
+	gapEntries := []any{}
 	for _, itemAny := range itemsAny {
 		item, ok := itemAny.(map[string]any)
 		if !ok {
@@ -86,6 +104,12 @@ func (s *Service) Classification(ctx context.Context, issueID, agentID, idempote
 		if lowSignal {
 			reason += "（扫描信号不足）"
 		}
+		// 越范围但 agent 想纳入(required/maybe)的候选:不进分档,改走 gap 提示桶。
+		// 排除档的越范围候选无害(不进计划/任务),仍按原样留在 excluded。
+		if !confirmed[name] && (status == "REQUIRED" || status == "MAYBE") {
+			gapEntries = append(gapEntries, map[string]any{"repository": name, "reason": reason})
+			continue
+		}
 		entry := map[string]any{
 			"repository": name, "status": status, "confidence": score, "reason": reason,
 			"plan_summary": "", "plan": nil, "missing_dependencies": []string{},
@@ -119,6 +143,13 @@ func (s *Service) Classification(ctx context.Context, issueID, agentID, idempote
 	if err := validateRepositories(ctx, tx, st, names); err != nil {
 		return nil, err
 	}
+	// 越范围候选只写门的 audit.gap(单列写,不走 save):有 gap 才写,免得给
+	// 没开过门的老 issue 长出一个空的 scope_gate。
+	if len(gapEntries) > 0 {
+		if err := writeGateAuditValue(ctx, tx, st.IssueID, "gap", gapEntries); err != nil {
+			return nil, err
+		}
+	}
 	st.Classification = block
 	version := newEvidenceVersion(issueID, "classification", time.Now().UTC().Format(time.RFC3339Nano))
 	st.EvidenceVersion = &version
@@ -144,4 +175,32 @@ func (s *Service) Classification(ctx context.Context, issueID, agentID, idempote
 		return nil, err
 	}
 	return receipt, nil
+}
+
+// confirmedScopeNames 读**已确认范围**(issue_repository_scope × 项目成员)的
+// owner/name 集合。取法与 validateRepositories 一致(同项目 + 同成员关系),
+// 是 ③ 分档的准入边界:集合外的候选只能进 gap 提示桶。
+func confirmedScopeNames(ctx context.Context, tx pgx.Tx, st *State) (map[string]bool, error) {
+	rows, err := tx.Query(ctx, `SELECT r.owner || '/' || r.name
+		FROM repomesh_issues.issue_repository_scope scope
+		JOIN repomesh_projects.project_repositories pr
+		  ON pr.project_id=scope.project_id AND pr.repository_id=scope.repository_id
+		JOIN repomesh_projects.repositories r ON r.id=pr.repository_id
+		WHERE scope.project_id=$1 AND scope.issue_id=$2`, st.ProjectID, st.IssueID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	confirmed := map[string]bool{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		confirmed[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return confirmed, nil
 }

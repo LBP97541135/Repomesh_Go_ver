@@ -24,6 +24,12 @@ func planningFailedNotice(step int, reason string) string {
 	return fmt.Sprintf("【RepoMesh】规划第 %d 步失败：%s", step, truncateRunes(reason, 400))
 }
 
+// gateTimeoutNotice 门超时代选的房间文案(spec 2026-09-20 §3.4;幂等键由调用方
+// 给 gate:{issue}:timeout)。代选是系统替人做的决定,房间里必须留一条记录。
+func gateTimeoutNotice(repositoryCount int) string {
+	return fmt.Sprintf("【RepoMesh】选仓门 10 分钟未确认,已按 AI 建议代选 %d 个仓库(可回 issue 页调整范围)。", repositoryCount)
+}
+
 func truncateRunes(text string, limit int) string {
 	runes := []rune(text)
 	if len(runes) <= limit {
