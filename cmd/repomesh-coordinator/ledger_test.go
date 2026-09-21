@@ -171,7 +171,10 @@ func TestBuildTestCommandUsesAttemptWorktree(t *testing.T) {
 // 这里锁住四件事：路径出现在 prompt、检出脚本真的建了它、**交付只针对本仓**、
 // 以及形状不合法的仓库名不会把脚本拆坏。
 func TestBuildAgentCommandMaterializesDependencyRepositories(t *testing.T) {
-	deps := []string{"LBP97541135/saleor-sdk", "LBP97541135/saleor-dashboard"}
+	deps := []dependencyRepo{
+		{FullName: "LBP97541135/saleor-sdk"},
+		{FullName: "LBP97541135/saleor-dashboard"},
+	}
 	command, err := buildAgentCommand("codex_cli", "MiniMax-M2",
 		"把 sdk 的契约复制过来", "LBP97541135/saleor-app-template",
 		"att_1", "跨仓契约", "iss_1", "", deps)
@@ -185,10 +188,11 @@ func TestBuildAgentCommandMaterializesDependencyRepositories(t *testing.T) {
 	// 1) 检出段：两个依赖仓都被 clone/fetch/worktree add 到 $PWD/_deps/<slug>。
 	for _, want := range []string{
 		"DEPS=\"$PWD/_deps\"",
-		"for DR in LBP97541135/saleor-sdk LBP97541135/saleor-dashboard; do",
+		"for ENTRY in LBP97541135/saleor-sdk: LBP97541135/saleor-dashboard:; do",
 		"git -C \"$DB\" worktree add --detach --force \"$DEPS/$DS\" FETCH_HEAD",
 		"9>\"$(dirname \"$PWD\")/.lock-$DS\"",
 		"UNAVAILABLE.txt",
+		"WANT=main",
 	} {
 		if !strings.Contains(inner, want) {
 			t.Fatalf("交付脚本缺少依赖检出片段 %q：\n%s", want, inner)
@@ -233,28 +237,63 @@ func TestBuildAgentCommandWithoutDependenciesStillForbidsWholeFilesystemSearch(t
 // 名字来自别人装 App 时登记的仓库，不是我们写的常量 —— 一个空格就能把脚本拆成
 // 别的命令，一个 $ 就能让 shell 展开成别的东西。宁可少一个依赖仓。
 func TestDependencyRepositoriesRejectUnsafeNames(t *testing.T) {
-	got := filteredDependencies("owner/self", []string{
-		"owner/ok",
-		"owner/self",          // 自己：交付仓不该出现在依赖里
-		"owner/ok",            // 重复
-		"",                    // 空
-		"noslash",             // 没有 owner
-		"own er/name",         // 空格会把 for 列表拆开
-		"owner/na$me",         // $ 会被 shell 展开
-		"owner/na;me",         // ; 会另起一条命令
-		"owner/a/b",           // 多一段路径
-		"owner/back`tick",     // 反引号是命令替换
-		"owner/quote'name",    // 单引号会闭合外层 bash -c
-		"LBP97541135/another", // 合法，保留
+	got := filteredDependencies("owner/self", []dependencyRepo{
+		{FullName: "owner/ok"},
+		{FullName: "owner/self"},          // 自己：交付仓不该出现在依赖里
+		{FullName: "owner/ok"},            // 重复，且这条没有 ref —— 不该把上面那条降级
+		{FullName: ""},                    // 空
+		{FullName: "noslash"},             // 没有 owner
+		{FullName: "own er/name"},         // 空格会把 for 列表拆开
+		{FullName: "owner/na$me"},         // $ 会被 shell 展开
+		{FullName: "owner/na;me"},         // ; 会另起一条命令
+		{FullName: "owner/a/b"},           // 多一段路径
+		{FullName: "owner/back`tick"},     // 反引号是命令替换
+		{FullName: "owner/quote'name"},    // 单引号会闭合外层 bash -c
+		{FullName: "LBP97541135/another"}, // 合法，保留
 	})
 	want := []string{"owner/ok", "LBP97541135/another"}
 	if len(got) != len(want) {
 		t.Fatalf("过滤结果不对：得到 %v，期望 %v", got, want)
 	}
 	for index := range want {
-		if got[index] != want[index] {
+		if got[index].FullName != want[index] {
 			t.Fatalf("过滤结果不对：得到 %v，期望 %v", got, want)
 		}
+	}
+}
+
+// 交付分支要优先于 main，且 ref 本身也要过形状检查 —— 它会进
+// `git fetch origin "$REF"`。同一个仓库出现多次时，**有 ref 的那条要赢**：
+// 那是"同计划任务已经交付"这个更有信息量的来源，丢掉它就等于白白退回 main。
+func TestDependencyRefsPreferDeliveryBranchAndRejectUnsafeRefs(t *testing.T) {
+	got := filteredDependencies("owner/self", []dependencyRepo{
+		{FullName: "owner/sdk", Ref: "repomesh/auto-att_dag_574f2c1e2cf5de810d34"},
+		{FullName: "owner/sdk"},                                       // 同仓、无 ref：不该覆盖上面那条
+		{FullName: "owner/dash", Ref: "main"},                         // 不是我们铸的分支名 → 退回 main
+		{FullName: "owner/api", Ref: "repomesh/auto-att_1; rm -rf /"}, // 注入 → 退回 main
+	})
+	if len(got) != 3 {
+		t.Fatalf("期望 3 条，得到 %v", got)
+	}
+	if got[0].Ref != "repomesh/auto-att_dag_574f2c1e2cf5de810d34" {
+		t.Fatalf("有 ref 的那条被无 ref 的重复项盖掉了：%v", got[0])
+	}
+	if got[1].Ref != "" {
+		t.Fatalf("非 repomesh/auto- 的 ref 没被挡下：%v", got[1])
+	}
+	if got[2].Ref != "" {
+		t.Fatalf("带注入的 ref 没被挡下：%v", got[2])
+	}
+	// ref 必须真的写进脚本的 fetch，而不是只写在 prompt 里。
+	script := depCheckoutScript("owner/self", got)
+	if !strings.Contains(script, "for ENTRY in owner/sdk:repomesh/auto-att_dag_574f2c1e2cf5de810d34 owner/dash: owner/api:; do") {
+		t.Fatalf("脚本里的依赖列表不对：\n%s", script)
+	}
+	if !strings.Contains(script, "fetch --depth 5 origin \"$WANT\"") {
+		t.Fatalf("脚本没有按 ref 取：\n%s", script)
+	}
+	if !strings.Contains(script, "SOURCE.txt") {
+		t.Fatalf("脚本没有写下实际用的 ref：\n%s", script)
 	}
 }
 
@@ -262,17 +301,18 @@ func TestDependencyRepositoriesRejectUnsafeNames(t *testing.T) {
 // "你只能看到自己检出的那个仓库" —— 那等于让它靠记忆臆测对方仓库长什么样。
 func TestBuildIntegrationCommandMaterializesDependencyRepositories(t *testing.T) {
 	all := []string{"owner/api", "owner/client"}
-	command := buildIntegrationCommand("codex_cli", "MiniMax-M2", "owner/api", all)
+	deps := []dependencyRepo{{FullName: "owner/client"}}
+	command := buildIntegrationCommand("codex_cli", "MiniMax-M2", "owner/api", deps)
 	inner := strings.TrimSuffix(strings.TrimPrefix(command, "bash -c '"), "'")
 	if strings.Contains(inner, "'") {
 		t.Fatal("脚本内出现单引号：外层引号会提前闭合")
 	}
-	if !strings.Contains(inner, "for DR in owner/client; do") {
+	if !strings.Contains(inner, "for ENTRY in owner/client:; do") {
 		t.Fatalf("集成脚本没有检出计划里的其它仓库：\n%s", inner)
 	}
 	// 集成 prompt 走的是**工作区里的 prompt.txt**（$(cat "$PROMPT")），不在命令串里 ——
 	// 所以要断言 prompt 本体，而不是命令。断言错了对象会得出"没给路径"的假失败。
-	prompt := integrationPrompt("cross_repo_regression", "owner/api", all)
+	prompt := integrationPrompt("cross_repo_regression", "owner/api", all, deps)
 	if !strings.Contains(prompt, "../_deps/owner_client") {
 		t.Fatalf("集成 prompt 没有给出依赖仓路径：\n%s", prompt)
 	}

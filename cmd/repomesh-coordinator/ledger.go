@@ -23,6 +23,13 @@ type coordinatorLedger struct {
 	pool *pgxpool.Pool
 }
 
+// rowQueryer 是 pgx.Tx 与 *pgxpool.Pool 的公共面（依赖仓查询两处都要用：
+// 派工时在事务里查，集成派发时在连接池上查）。只为这一个方法抽接口，
+// 比让两边各写一份 SQL 好 —— 那份 SQL 里有"什么才算已交付"的判据，只能有一份。
+type rowQueryer interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
 // newRunID returns a random run/attempt id; the old timestamp-derived ids
 // collided under concurrent dispatches and the ON CONFLICT DO NOTHING
 // swallowed the insert, leaving the caller with a dangling attempt id.
@@ -60,6 +67,32 @@ func depSlug(repoFullName string) string {
 	return strings.ReplaceAll(repoFullName, "/", "_")
 }
 
+// dependencyRepo 是一个依赖仓的只读检出来源。
+//
+// Ref 为空 = 只看该仓当前的 main。
+// Ref 非空 = 该仓**同计划任务已经交付的分支**（repomesh/auto-<attempt>）。
+//
+// 为什么需要 Ref（2026-09-22 线上实测）：App Template 那条任务要引用 SDK 侧的
+// 契约，而 SDK 的交付（commit 4264be4，src/core/budget-guard/contract.ts，399 行）
+// **不在 main 上** —— 它躺在交付分支 repomesh/auto-att_dag_574f2c1e2cf5de810d34 上
+// 等合并。只检 main 的话，agent 拿到的是一棵"还没有这份契约"的树：它要么继续全盘
+// 搜索，要么更糟 —— 把 main 的现状当成契约原文，写出一个自洽但错的东西。
+//
+// 注意这**不**代替 DAG 顺序：兄弟任务还没交付时 Ref 就是空的，退回 main 是诚实的
+// 降级（并且会在 prompt 里写明"这是 main，不是交付分支"），而不是假装拿到了产物。
+type dependencyRepo struct {
+	FullName string
+	Ref      string
+}
+
+// deliveryBranchName 与交付脚本里 `B=repomesh/auto-$attemptID` 必须逐字一致。
+func deliveryBranchName(attemptID string) string {
+	if attemptID == "" {
+		return ""
+	}
+	return "repomesh/auto-" + attemptID
+}
+
 // safeRepoFullName 只放行 owner/name 这种形状。
 //
 // 为什么必须挡：这些名字会**拼进 shell 脚本**（`for DR in a/b c/d`）和
@@ -74,16 +107,46 @@ func safeRepoFullName(repoFullName string) bool {
 	return found && owner != "" && name != "" && !strings.Contains(name, "/")
 }
 
-// filteredDependencies 剔除形状不合法的仓库名并去重，保持调用方给的顺序。
-func filteredDependencies(repoFullName string, depRepos []string) []string {
-	out := make([]string, 0, len(depRepos))
-	seen := map[string]bool{repoFullName: true}
-	for _, repo := range depRepos {
-		if !safeRepoFullName(repo) || seen[repo] {
+// deliveryRefIsSafe 只放行我们自己铸出来的分支名形状。
+//
+// Ref 同样会进 shell（`git fetch origin "$REF"`）。它在我们这里是拼出来的常量，
+// 但**经过了一次数据库往返** —— 所以按"来自外部"对待：只认 repomesh/auto- 开头、
+// 且只含 [A-Za-z0-9_-] 的 ref。不合法就退回 main，而不是把可疑字符串喂给 git。
+func deliveryRefIsSafe(ref string) bool {
+	if !strings.HasPrefix(ref, "repomesh/auto-") || len(ref) > 120 {
+		return false
+	}
+	for _, r := range ref {
+		if !(r >= 'a' && r <= 'z') && !(r >= 'A' && r <= 'Z') && !(r >= '0' && r <= '9') &&
+			r != '-' && r != '_' && r != '/' {
+			return false
+		}
+	}
+	return true
+}
+
+// filteredDependencies 剔除形状不合法的项并去重，保持调用方给的顺序。
+//
+// 同一个仓库出现多次时**保留有交付分支的那一条**：那正是"同计划任务已经交付"
+// 这个更有信息量的来源；丢掉它就等于白白退回 main。
+func filteredDependencies(selfRepoFullName string, depRepos []dependencyRepo) []dependencyRepo {
+	out := make([]dependencyRepo, 0, len(depRepos))
+	index := map[string]int{}
+	for _, dep := range depRepos {
+		if !safeRepoFullName(dep.FullName) || dep.FullName == selfRepoFullName {
 			continue
 		}
-		seen[repo] = true
-		out = append(out, repo)
+		if dep.Ref != "" && !deliveryRefIsSafe(dep.Ref) {
+			dep.Ref = ""
+		}
+		if at, seen := index[dep.FullName]; seen {
+			if out[at].Ref == "" && dep.Ref != "" {
+				out[at].Ref = dep.Ref
+			}
+			continue
+		}
+		index[dep.FullName] = len(out)
+		out = append(out, dep)
 	}
 	return out
 }
@@ -98,17 +161,20 @@ func filteredDependencies(repoFullName string, depRepos []string) []string {
 // 所以这里同时说清两件事：依赖仓**已经在你手上**（路径逐条列出），以及
 // **不要全盘搜索**（工作区就是全部输入；真缺东西就如实说缺，不要猜）。
 // 没有依赖仓时也保留"不要全盘搜索"这一句 —— 单仓任务同样不该去翻文件系统。
-func dependencyPromptSection(repoFullName string, depRepos []string) string {
+func dependencyPromptSection(repoFullName string, depRepos []dependencyRepo) string {
 	deps := filteredDependencies(repoFullName, depRepos)
 	var body strings.Builder
 	if len(deps) > 0 {
 		body.WriteString("## 依赖仓库（只读检出，已经在你手上）\n\n")
-		body.WriteString("本次计划还涉及以下仓库，它们的当前 main 已经检出在你的工作区里：\n\n")
+		body.WriteString("本次计划还涉及以下仓库，已经检出在你的工作区里：\n\n")
 		for _, repo := range deps {
-			body.WriteString("- " + repo + " -> ../_deps/" + depSlug(repo) + "\n")
+			body.WriteString("- " + repo.FullName + " -> ../_deps/" + depSlug(repo.FullName) + "（" + dependencyRefLabel(repo) + "）\n")
 		}
 		body.WriteString("\n它们只是**只读参考**：可以读、可以对照，但不要修改、不要提交 —— 交付只针对 " +
 			repoFullName + " 这一个仓库。\n")
+		body.WriteString("每个目录旁的 <仓库名>.SOURCE.txt 写明它是从哪个 ref 检出的。" +
+			"标着 main 的那些**不代表同计划任务的产物已经就位** —— 如果它上面没有你要的约定，" +
+			"就如实说清这份约定还没交付，不要拿 main 的现状当契约。\n")
 		body.WriteString("若某个仓库没出现（检出失败），工作区里的 _deps/UNAVAILABLE.txt 会写明是哪一个。\n\n")
 	}
 	body.WriteString("## 不要全盘搜索\n\n")
@@ -123,6 +189,14 @@ func dependencyPromptSection(repoFullName string, depRepos []string) string {
 	return body.String()
 }
 
+// dependencyRefLabel 是 prompt 里给每个依赖仓标的"它是从哪来的"，一句话。
+func dependencyRefLabel(dep dependencyRepo) string {
+	if dep.Ref == "" {
+		return "当前 main；同计划任务尚未交付到分支"
+	}
+	return "同计划任务的交付分支 " + dep.Ref + "，还没合并进 main"
+}
+
 // depCheckoutScript 生成"把依赖仓只读检出到 $PWD/_deps/<slug>"的那段 shell。
 //
 // 三条约束（都在这个文件别处踩过）：
@@ -131,30 +205,47 @@ func dependencyPromptSection(repoFullName string, depRepos []string) string {
 //     会被多个并发 attempt 同时检出，两个 clone 撞在同一个目录上必然坏一个；
 //   - 检出失败**不能杀掉整条交付**（那只是少了一份参考），但必须**留下名字**，
 //     否则 prompt 里列了路径、目录却不存在，agent 又会退回去全盘搜索。
-func depCheckoutScript(repoFullName string, depRepos []string) string {
+func depCheckoutScript(repoFullName string, depRepos []dependencyRepo) string {
 	deps := filteredDependencies(repoFullName, depRepos)
 	if len(deps) == 0 {
 		return ""
 	}
+	// 每项编码成 "owner/name:ref"（ref 可空）。仓库名里不可能有冒号，
+	// 所以脚本侧按第一个冒号切分是安全的。
+	entries := make([]string, 0, len(deps))
+	for _, dep := range deps {
+		entries = append(entries, dep.FullName+":"+dep.Ref)
+	}
 	var script strings.Builder
 	script.WriteString("DEPS=\"$PWD/_deps\"\n")
 	script.WriteString("mkdir -p \"$DEPS\"\n")
-	script.WriteString("for DR in " + strings.Join(deps, " ") + "; do\n")
+	script.WriteString("for ENTRY in " + strings.Join(entries, " ") + "; do\n")
+	script.WriteString("  DR=${ENTRY%%:*}\n")
+	script.WriteString("  REF=${ENTRY#*:}\n")
 	script.WriteString("  DS=$(printf %s \"$DR\" | tr / _)\n")
 	script.WriteString("  DB=$(dirname \"$PWD\")/_bases/$DS\n")
 	script.WriteString("  ( flock 9\n")
 	script.WriteString("    if [ ! -d \"$DB/.git\" ]; then git clone --depth 5 \"https://x-access-token:$T@github.com/$DR.git\" \"$DB\"; fi\n")
 	script.WriteString("    git -C \"$DB\" remote set-url origin \"https://x-access-token:$T@github.com/$DR.git\"\n")
-	script.WriteString("    git -C \"$DB\" fetch --depth 5 origin main\n")
 	script.WriteString("    git -C \"$DB\" worktree prune\n")
 	script.WriteString("    rm -rf \"$DEPS/$DS\"\n")
+	// 优先取同计划任务的交付分支；取不到（还没交付 / 分支已删）就退回 main，
+	// 并把**实际用的是哪个 ref** 写进 SOURCE.txt —— 读的人不必猜。
+	script.WriteString("    WANT=main\n")
+	script.WriteString("    if [ -n \"$REF\" ]; then WANT=\"$REF\"; fi\n")
+	script.WriteString("    if ! git -C \"$DB\" fetch --depth 5 origin \"$WANT\"; then\n")
+	script.WriteString("      echo \"$DR: 取不到 $WANT，退回 main\" >> \"$DEPS/UNAVAILABLE.txt\"\n")
+	script.WriteString("      WANT=main\n")
+	script.WriteString("      git -C \"$DB\" fetch --depth 5 origin main\n")
+	script.WriteString("    fi\n")
+	script.WriteString("    echo \"$DR <- $WANT\" > \"$DEPS/$DS.SOURCE.txt\"\n")
 	script.WriteString("    git -C \"$DB\" worktree add --detach --force \"$DEPS/$DS\" FETCH_HEAD\n")
 	script.WriteString("  ) 9>\"$(dirname \"$PWD\")/.lock-$DS\" || echo \"$DR checkout failed\" >> \"$DEPS/UNAVAILABLE.txt\"\n")
 	script.WriteString("done\n")
 	return script.String()
 }
 
-func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, issueTitle, issueID, skillContent string, depRepos []string) (string, error) {
+func buildAgentCommand(agentKind, model, instruction, repoFullName, attemptID, issueTitle, issueID, skillContent string, depRepos []dependencyRepo) (string, error) {
 	requirement := strings.TrimSpace(instruction)
 	if requirement == "" {
 		requirement = "Complete the assigned task in this repository. Implement the requirement and run the existing checks."
@@ -404,29 +495,48 @@ func buildTestCommand(agentKind, model, instruction, repoFullName, attemptID, is
 // 刻意**不走** public.tasks.repository_id：那个字段是 text，而权威绑定在
 // task_repository_scopes（ReserveForTask 的主查询也走它）。同一件事两个来源，
 // 迟早有一个是过期的 —— 这里跟权威那一个走。
-func planSiblingRepositories(ctx context.Context, tx pgx.Tx, taskID, selfRepoFullName string) ([]string, error) {
-	rows, err := tx.Query(ctx, `SELECT DISTINCT ro.owner || '/' || ro.name
+func planDependencyRepositories(ctx context.Context, q rowQueryer, planID, selfRepoFullName, excludeTaskID string) ([]dependencyRepo, error) {
+	if strings.TrimSpace(planID) == "" {
+		return []dependencyRepo{}, nil
+	}
+	// LATERAL 那一段找的是"这个兄弟仓**已经交付**的那条开发 run"：state=exited 且
+	// exit_code=0 才算交付（被杀/失败/还在跑都不算 —— 那些分支要么不存在，要么
+	// 内容是半成品，把它们当契约原文比拿不到更危险）。
+	rows, err := q.Query(ctx, `SELECT DISTINCT ON (ro.owner || '/' || ro.name)
+		       ro.owner || '/' || ro.name,
+		       COALESCE(delivered.attempt_id, '')
 		FROM public.tasks t2
 		JOIN public.task_repository_scopes s2 ON s2.task_id = t2.id
 		JOIN repomesh_projects.repositories ro ON ro.id = s2.repository_id
-		WHERE t2.plan_id = (SELECT plan_id FROM public.tasks WHERE id = $1::uuid)
-		  AND t2.id <> $1::uuid
+		LEFT JOIN LATERAL (
+		    SELECT r.attempt_id
+		      FROM repomesh_execution.agent_runs r
+		     WHERE r.task_package_ref = t2.id::text
+		       AND r.agent_kind NOT IN ('test_agent','review_agent')
+		       AND r.state = 'exited' AND r.exit_code = 0
+		     ORDER BY r.created_at DESC
+		     LIMIT 1
+		) delivered ON true
+		WHERE t2.plan_id = $1::uuid
+		  AND ($3 = '' OR t2.id::text <> $3)
 		  AND ro.owner || '/' || ro.name <> $2
-		ORDER BY 1`, taskID, selfRepoFullName)
+		ORDER BY ro.owner || '/' || ro.name`, planID, selfRepoFullName, excludeTaskID)
 	if err != nil {
-		return nil, fmt.Errorf("coordinator: dependency repositories for task %s: %w", taskID, err)
+		return nil, fmt.Errorf("coordinator: dependency repositories for plan %s: %w", planID, err)
 	}
 	defer rows.Close()
-	out := []string{}
+	out := []dependencyRepo{}
 	for rows.Next() {
-		var repo string
-		if err := rows.Scan(&repo); err != nil {
-			return nil, fmt.Errorf("coordinator: dependency repositories for task %s: %w", taskID, err)
+		var repo dependencyRepo
+		var attemptID string
+		if err := rows.Scan(&repo.FullName, &attemptID); err != nil {
+			return nil, fmt.Errorf("coordinator: dependency repositories for plan %s: %w", planID, err)
 		}
+		repo.Ref = deliveryBranchName(attemptID)
 		out = append(out, repo)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("coordinator: dependency repositories for task %s: %w", taskID, err)
+		return nil, fmt.Errorf("coordinator: dependency repositories for plan %s: %w", planID, err)
 	}
 	return out, nil
 }
@@ -458,9 +568,9 @@ func (l *coordinatorLedger) ReserveForTask(ctx context.Context, workerID, taskID
 		return "", fmt.Errorf("coordinator: reserve begin failed: %w", err)
 	}
 	defer tx.Rollback(ctx)
-	var projectID, issueID, revision, repoFullName, issueTitle, configuredKind, configuredModel string
+	var projectID, issueID, revision, repoFullName, issueTitle, configuredKind, configuredModel, planID string
 	err = tx.QueryRow(ctx, `SELECT t.project_id::text, scope.issue_id, i.initial_configuration_revision,
-		       r.owner || '/' || r.name, i.title
+		       r.owner || '/' || r.name, i.title, COALESCE(t.plan_id::text, '')
 		       , COALESCE(a.agent_kind, ''), COALESCE(a.model, '')
 		FROM public.tasks t
 		JOIN public.task_repository_scopes scope ON scope.task_id=t.id AND scope.project_id=t.project_id::text
@@ -468,7 +578,7 @@ func (l *coordinatorLedger) ReserveForTask(ctx context.Context, workerID, taskID
 		JOIN repomesh_issues.issues i ON i.project_id = scope.project_id AND i.id = scope.issue_id
 		LEFT JOIN repomesh_projects.agent_settings a ON a.project_id = t.project_id::text
 		WHERE t.id::text=$1 LIMIT 1`, taskID).
-		Scan(&projectID, &issueID, &revision, &repoFullName, &issueTitle, &configuredKind, &configuredModel)
+		Scan(&projectID, &issueID, &revision, &repoFullName, &issueTitle, &planID, &configuredKind, &configuredModel)
 	if err != nil {
 		return "", fmt.Errorf("coordinator: task %s has no confirmed Issue repository binding", taskID)
 	}
@@ -487,7 +597,7 @@ func (l *coordinatorLedger) ReserveForTask(ctx context.Context, workerID, taskID
 	// 只有本仓 —— 2026-09-22 线上实测它因此退化成全盘搜索。这里把兄弟仓列出来，
 	// 由交付脚本只读检出到本次工作区的 _deps/ 下（见 depCheckoutScript）。
 	// 查不到（单仓计划 / 任务没有计划）就是空列表：没有跨仓输入，工作区里也不该多目录。
-	depRepos, depErr := planSiblingRepositories(ctx, tx, taskID, repoFullName)
+	depRepos, depErr := planDependencyRepositories(ctx, tx, planID, repoFullName, taskID)
 	if depErr != nil {
 		return "", depErr
 	}

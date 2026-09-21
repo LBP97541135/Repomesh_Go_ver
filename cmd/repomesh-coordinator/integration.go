@@ -200,7 +200,11 @@ func (d *integrationDispatcher) dispatch(ctx context.Context, planID, issueID, p
 	if err := os.MkdirAll(workspace, 0o755); err != nil {
 		return false
 	}
-	prompt := integrationPrompt(kind, repository, allRepos)
+	// 集成 run 也要拿得到**其它仓库的真实内容**：它做的正是跨仓库联调，而此前
+	// prompt 明说"你只能看到自己检出的那个仓库"—— 那等于让它靠记忆臆测对方仓库长什么样。
+	// 依赖仓与交付 run 同一套来源（同计划其它仓库，优先取各自已交付的分支）。
+	deps, _ := planDependencyRepositories(ctx, d.pool, planID, repository, "")
+	prompt := integrationPrompt(kind, repository, allRepos, deps)
 	if err := os.WriteFile(filepath.Join(workspace, "prompt.txt"), []byte(prompt), 0o644); err != nil {
 		return false
 	}
@@ -225,7 +229,7 @@ func (d *integrationDispatcher) dispatch(ctx context.Context, planID, issueID, p
 	if _, err := tx.Exec(ctx, `INSERT INTO repomesh_execution.agent_runs
 		(id, attempt_id, agent_kind, command, workspace, task_package_ref, state, repo_full_name)
 		VALUES ($1,$2,'test_agent',$3,$4,$5,'pending',$6)`,
-		runID, attemptID, buildIntegrationCommand(agentKind, model, repository, allRepos), workspace, ref, repository); err != nil {
+		runID, attemptID, buildIntegrationCommand(agentKind, model, repository, deps), workspace, ref, repository); err != nil {
 		return false
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -238,7 +242,7 @@ func (d *integrationDispatcher) dispatch(ctx context.Context, planID, issueID, p
 
 // integrationPrompt 让集成 agent 只做**验证**：它不改代码，只回答"这个范围还能不能
 // 跑"，并把结论写成机器可读的证据文件。
-func integrationPrompt(kind, repository string, allRepos []string) string {
+func integrationPrompt(kind, repository string, allRepos []string, deps []dependencyRepo) string {
 	scope := "本仓库（" + repository + "）"
 	work := "把该仓库在集成态下跑起来：装依赖、跑它既有的测试与构建，确认改动合在一起仍然成立。"
 	if kind == "cross_repo_regression" {
@@ -251,7 +255,7 @@ func integrationPrompt(kind, repository string, allRepos []string) string {
 	return "你是 RepoMesh 的测试 agent，负责**集成验证**，不要修改任何业务代码。\n\n" +
 		"范围：" + scope + "。\n\n" +
 		work + "\n\n" +
-		dependencyPromptSection(repository, allRepos) +
+		dependencyPromptSection(repository, deps) +
 		"然后把结论写进当前目录下的 " + execution.TestEvidenceFile + "，只写这个 JSON：\n" +
 		"{\"script\":\"<你写的验证脚本路径，没写脚本就填空串>\",\"command\":\"<你实际跑的命令>\"," +
 		"\"exit_code\":<整数>,\"passed\":<true|false>,\"summary\":\"<一行，你实际观察到了什么>\"}\n\n" +
@@ -264,7 +268,7 @@ func integrationPrompt(kind, repository string, allRepos []string) string {
 // 2026-09-20：第一版没克隆、也没给 repo_full_name，集成 agent 的工作区是空的 ——
 // 它手上没有仓库，所谓"集成验证"只能靠猜。这里补上克隆，executor 据 repo_full_name
 // 现场铸该仓库的 installation token（同交付 run）。
-func buildIntegrationCommand(agentKind, model, repository string, depRepos []string) string {
+func buildIntegrationCommand(agentKind, model, repository string, depRepos []dependencyRepo) string {
 	agent := "codex exec -c model_provider=minimax -c model=" + model +
 		" --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox \"$(cat \"$PROMPT\")\""
 	if agentKind == "claude_cli" {
