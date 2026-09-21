@@ -111,6 +111,12 @@ export interface CreateIssueRequest {
   hitlMode?: "ai" | "hitl";
   /** 合并方式：auto = 交付闸门一开就自动合进主分支，manual = 等人逐条点（缺省 manual）。 */
   mergeMode?: "auto" | "manual";
+  /** 监管强度三档（迁移 0065）：auto / supervised（半自动，自选卡点）/ manual_controlled。
+   *  服务端事实，自动托管循环按它 + requiredCheckpoints 决定在哪儿停。 */
+  executionMode?: "auto" | "supervised" | "manual_controlled";
+  /** 半自动自选的人工卡点（六个之一或多）。auto 档必须为空；manual_controlled 档
+   *  由后端补满六个，前端不必发。 */
+  requiredCheckpoints?: string[];
 }
 
 /** All scope decisions belong to the caller; retries send this exact snapshot. */
@@ -133,6 +139,8 @@ export async function createIssue(input: CreateIssueRequest, idempotencyKey: str
     description: input.requirementText,
     hitlMode: input.hitlMode ?? "hitl",
     mergeMode: input.mergeMode ?? "manual",
+    ...(input.executionMode ? { executionMode: input.executionMode } : {}),
+    ...(input.requiredCheckpoints ? { requiredCheckpoints: [...input.requiredCheckpoints].sort() } : {}),
   }, idempotencyKey);
   return { issue_id: receipt.issue.id };
 }

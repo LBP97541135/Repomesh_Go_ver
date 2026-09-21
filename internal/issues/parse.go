@@ -10,6 +10,41 @@ import (
 
 // parseNewInput parses and validates a first-attempt request body. Unknown fields
 // are 422; duplicate JSON keys and invalid Unicode are 400.
+// issueCheckpoints 是六个人工卡点，与 humancontrol 的项目监管策略**逐字同一组**
+// （internal/humancontrol/policy.go 的 policyCheckpoints）。两处各写一份是因为
+// 这两个包之间没有依赖；值必须一致，改一处就要改另一处。
+var issueCheckpoints = []string{
+	"repository_scope", "specification", "execution",
+	"validation", "delivery", "exception_escalation",
+}
+
+var issueCheckpointSet = func() map[string]bool {
+	set := map[string]bool{}
+	for _, name := range issueCheckpoints {
+		set[name] = true
+	}
+	return set
+}()
+
+// allIssueCheckpoints 返回六个卡点的副本（调用方会持有它，不能给共享切片）。
+func allIssueCheckpoints() []string {
+	out := make([]string, len(issueCheckpoints))
+	copy(out, issueCheckpoints)
+	return out
+}
+
+// executionTierToHitl 把三档翻译成自动托管循环用的两值 hitl_mode。
+//
+// auto / supervised → 'ai'：发现链自动推进（半自动的"停"由它自己的卡点决定，
+// 不是整条链都停）；manual_controlled → 'hitl'：发现链的门等真人。
+// 保留 hitl_mode 是因为自动托管循环与既有读面都在用它，改由档位派生即可。
+func executionTierToHitl(executionMode string) string {
+	if executionMode == "manual_controlled" {
+		return "hitl"
+	}
+	return "ai"
+}
+
 func parseNewInput(body []byte) (pageInput, error) {
 	if len(body) == 0 || !utf8.Valid(body) {
 		return pageInput{}, failure(400, "INVALID_JSON")
@@ -116,6 +151,57 @@ func parseNewInput(body []byte) (pageInput, error) {
 	} else {
 		input.mergeMode = "manual"
 	}
+	// 监管强度三档 + 半自动自选卡点（迁移 0065）。
+	//
+	// 域不变量照抄既有的项目监管策略（internal/humancontrol/policy.go），不另立一套：
+	//   auto 卡点必须为空 / supervised 至少一个 / manual_controlled 正好六个。
+	// 这里先按应用层判一遍，存储层那条 CHECK 是第二道 —— 两道都要，因为绕过应用的
+	// 写路径同样能造出"auto 带卡点"这种自相矛盾的行。
+	//
+	// 兼容：老客户端只发 hitlMode 时，按它如实翻译成对应档位（ai→auto / hitl→manual），
+	// 不改变既有调用方的实际行为。
+	checkpoints, _, err := listValue(raw, "requiredCheckpoints", 6, 64, true, true)
+	if err != nil {
+		return pageInput{}, err
+	}
+	for _, checkpoint := range checkpoints {
+		if !issueCheckpointSet[checkpoint] {
+			return pageInput{}, fieldFailure("requiredCheckpoints", "INVALID_VALUE")
+		}
+	}
+	mode, modePresent, err := optionalString(raw, "executionMode", 24)
+	if err != nil {
+		return pageInput{}, err
+	}
+	if !modePresent {
+		if input.hitlMode == "ai" {
+			input.executionMode = "auto"
+		} else {
+			input.executionMode = "manual_controlled"
+			checkpoints = allIssueCheckpoints()
+		}
+	} else {
+		switch mode {
+		case "auto", "supervised", "manual_controlled":
+			input.executionMode = mode
+		default:
+			return pageInput{}, fieldFailure("executionMode", "INVALID_VALUE")
+		}
+	}
+	switch input.executionMode {
+	case "auto":
+		if len(checkpoints) > 0 {
+			return pageInput{}, fieldFailure("requiredCheckpoints", "AUTO_MUST_NOT_REQUIRE_CHECKPOINTS")
+		}
+	case "supervised":
+		if len(checkpoints) == 0 {
+			return pageInput{}, fieldFailure("requiredCheckpoints", "SUPERVISED_REQUIRES_CHECKPOINT")
+		}
+	case "manual_controlled":
+		// 人工审核 = 六个卡点全要。客户端可以不发（省一次往返），这里补齐。
+		checkpoints = allIssueCheckpoints()
+	}
+	input.requiredCheckpoints = checkpoints
 	return input, nil
 }
 

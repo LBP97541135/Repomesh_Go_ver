@@ -87,6 +87,13 @@ type discoveryProgress struct {
 	// gate.audit.missing(键存在)后就不再派。ai/timeout 确认的门不跑查漏。
 	gateManual       bool
 	gapAuditRecorded bool
+	// requiresScopeCheckpoint 是这个 issue 把「选仓门」勾成了**人工卡点**
+	// （迁移 0065 的 required_checkpoints）——半自动档位的"停"就靠它。
+	//
+	// 为什么不是另加一档 hitl_mode：半自动的含义是"发现链照常自动推进，只在我
+	// 勾了的那几处停下来等人"，而不是"整条链都停"。所以档位（execution_mode）
+	// 决定发现链跑不跑，卡点决定它在哪儿停 —— 两件事分开，才做得成半自动。
+	requiresScopeCheckpoint bool
 }
 
 // Several discovery columns (created_by_agent_id, decided_by_agent_id) are
@@ -249,6 +256,14 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 		// 3 次熔断退避当成空转(否则建议反而更晚落地)。
 		slog.Info("autohost: 选仓门待生成建议,登记候选意图", "issue", p.issueID)
 		return working(a.service.EnqueuePlanningRun(ctx, p.issueID, discovery.PlanningCandidates))
+	case (p.gateAIRequested || p.gateExpired) && p.requiresScopeCheckpoint:
+		// 半自动：这个需求把「选仓门」勾成了**人工卡点** —— 到点也不代选，等人。
+		//
+		// 这一条必须在下面那条"采纳"之前：两者谓词可以同时成立（到期 + 勾了卡点），
+		// 顺序反了就等于卡点形同虚设。走 return false 而不是 done()：门在等人，
+		// 不是发现链在空转，不该进熔断计数。
+		slog.Info("autohost: 选仓门是人工卡点，到点也不代选，等真人确认", "issue", p.issueID)
+		return false
 	case p.gateAIRequested || p.gateExpired:
 		// 建议已就绪:采纳建议为范围 + 唤醒入选仓库的团队(spec §3.3)。与 A3 批量
 		// 确认端点同一条服务路径的直写版:建议集合→项目内仓 id→双表写(整组一把
@@ -331,6 +346,8 @@ func autohostStep(p discoveryProgress) int {
 		return 3 // 门等待(无截止且未被请求)
 	case (p.gateAIRequested || p.gateExpired) && p.gateSuggestedCount == 0:
 		return 4 // 门要求 AI 定但建议未生成 → 登记候选意图
+	case (p.gateAIRequested || p.gateExpired) && p.requiresScopeCheckpoint:
+		return 12 // 半自动把选仓门勾成人工卡点 → 等人（与主 switch 逐一对应）
 	case p.gateAIRequested || p.gateExpired:
 		return 5 // 建议就绪 → 采纳为范围
 	case !p.hasCandidates:
@@ -386,7 +403,9 @@ func (a *discoveryAutomator) pendingIssues(ctx context.Context) ([]discoveryProg
 		          AND COALESCE((d.scope_gate->>'ai_requested')::bool, false), false)     AS gate_ai_requested,
 		       -- 建议条数:0=还没生成(协调器只登记候选意图);>0=就绪,采纳为范围。
 		       COALESCE(CASE WHEN jsonb_typeof(d.scope_gate->'suggested') = 'array'
-		                     THEN jsonb_array_length(d.scope_gate->'suggested') ELSE 0 END, 0) AS gate_suggested_count
+		                     THEN jsonb_array_length(d.scope_gate->'suggested') ELSE 0 END, 0) AS gate_suggested_count,
+		       -- 半自动档位把「选仓门」勾成人工卡点时，到点也不代选（迁移 0065）。
+		       COALESCE(i.required_checkpoints ? 'repository_scope', false)             AS requires_scope_checkpoint
 		FROM repomesh_issues.issue_discoveries d
 		JOIN repomesh_issues.issues i ON i.id = d.issue_id
 		WHERE i.removed_at IS NULL
@@ -425,7 +444,7 @@ func (a *discoveryAutomator) pendingIssues(ctx context.Context) ([]discoveryProg
 			&p.issueID, &p.hasAnalysis, &p.sufficient, &p.forced, &p.hasCandidates,
 			&p.hasClassification, &p.approvalState, &p.evidenceVersion, &p.hasPlan, &p.hasMaterialization,
 			&p.hitlMode, &p.gatePending, &p.gateExpired, &p.gateManual, &p.gapAuditRecorded,
-			&p.gateAIRequested, &p.gateSuggestedCount); err != nil {
+			&p.gateAIRequested, &p.gateSuggestedCount, &p.requiresScopeCheckpoint); err != nil {
 			return nil, err
 		}
 		pending = append(pending, p)

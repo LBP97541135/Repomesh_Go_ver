@@ -243,9 +243,23 @@ export function checkpointLabel(value: string): string {
 export type PolicyTier = "unattended" | "key_points" | "every_step";
 
 export const POLICY_TIER_TITLE: Record<PolicyTier, string> = {
-  unattended: "AI 自己干完",
-  key_points: "关键处我看一眼",
-  every_step: "每一步都要我点头",
+  // 2026-09-21 用户裁定：这三档在**建单处**也要出现（原来只在策略弹窗里），
+  // 而"AI 自己干完 / 关键处我看一眼 / 每一步都要我点头"作为按钮太长。
+  // 统一成用户自己给的名字，原措辞降为副行（POLICY_TIER_HINT）——
+  // 两屏共用一张表，不另写第二份。
+  unattended: "全自动",
+  key_points: "半自动",
+  every_step: "人工审核",
+};
+
+/** 三档各自的**一句解释**（建单处的副行、策略卡片的说明都用它）。
+ *
+ *  与 POLICY_TIER_TITLE 同一张来源表：标题是名字，这里是含义。
+ *  拆开是因为建单处要横排三个按钮（名字必须短），而副行只显示当前选中那一档。 */
+export const POLICY_TIER_HINT: Record<PolicyTier, string> = {
+  unattended: "AI 自己干完，全程不停顿，不产生任何审核待办。",
+  key_points: "发现链照常自动推进，只在你勾的卡点上停下来等人 —— 卡点自己选。",
+  every_step: "六个卡点全部要人过：仓库范围 · 规格 · 执行 · 验证 · 交付 · 异常升级。",
 };
 
 /** 授权三要素的措辞唯一表（身份 / 代码权限 / 控制动作）。

@@ -370,6 +370,28 @@ func (s *Service) observeAndCheck(ctx context.Context, principal access.ProjectP
 //
 // 默认 manual：合并是整条链上唯一的外部副作用（真动用户仓库、真进主分支），
 // 缺省必须落在最保守的一侧 —— 没明说要自动合并的，就不替任何人合。
+// executionModeOrDefault 把监管强度档位收进合法值。
+//
+// 默认 manual_controlled（最保守）：缺字段、写错值都收敛到"每个卡点都要人过"，
+// 绝不悄悄降成自动 —— 那等于把没答的题按最松的一档交卷。
+func executionModeOrDefault(mode string) string {
+	switch mode {
+	case "auto", "supervised", "manual_controlled":
+		return mode
+	default:
+		return "manual_controlled"
+	}
+}
+
+// checkpointsJSON 把卡点集合序列化成 jsonb 字面量。序列化失败时返回空数组 ——
+// 空数组在 auto 档是唯一合法形状，在另两档会被存储层的 CHECK 拒掉，不会静默放行。
+func checkpointsJSON(checkpoints []string) string {
+	encoded, err := json.Marshal(checkpoints)
+	if err != nil || len(checkpoints) == 0 {
+		return "[]"
+	}
+	return string(encoded)
+}
 func mergeModeOrDefault(mode string) string {
 	switch mode {
 	case "auto", "manual":
@@ -680,11 +702,12 @@ func insertIssueAndMainChangeSet(ctx context.Context, tx pgx.Tx, identity operat
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO repomesh_issues.issues
 		(id, project_id, number, title, description, criteria, revision, main_conversation_id, main_changeset_id,
-		 initial_configuration_revision, creation_operation_id, hitl_mode, merge_mode)
-		VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13)`,
+		 initial_configuration_revision, creation_operation_id, hitl_mode, merge_mode, execution_mode, required_checkpoints)
+		VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb)`,
 		issueID, identity.projectID, number, input.title, input.description, string(criteria), revision,
 		conversationID, changeSetID, configuration, operationRow,
-		hitlModeOrDefault(input.hitlMode), mergeModeOrDefault(input.mergeMode)); err != nil {
+		executionTierToHitl(input.executionMode), mergeModeOrDefault(input.mergeMode),
+		executionModeOrDefault(input.executionMode), checkpointsJSON(input.requiredCheckpoints)); err != nil {
 		return committedCreation{}, unavailable()
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO repomesh_issues.changesets (id, project_id, issue_id, kind)

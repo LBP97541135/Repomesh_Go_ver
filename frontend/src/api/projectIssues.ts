@@ -28,6 +28,11 @@ export interface IssueCreationInput {
 	 *  服务端事实（0064 迁移落列 issues.merge_mode），协调器的自动合并巡检按它办事。
 	 *  缺省 manual —— 合并是唯一真动用户仓库的动作，必须显式选择。 */
 	mergeMode?: "auto" | "manual";
+	/** 监管强度三档（0065 迁移落列 issues.execution_mode）：
+	 *  auto / supervised（半自动）/ manual_controlled。 */
+	executionMode?: "auto" | "supervised" | "manual_controlled";
+	/** 半自动自选的人工卡点。auto 档必须为空；manual_controlled 档由后端补满六个。 */
+	requiredCheckpoints?: string[];
 	[key: string]: unknown;
 }
 

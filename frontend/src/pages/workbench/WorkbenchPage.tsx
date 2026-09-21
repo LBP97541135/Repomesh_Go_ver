@@ -5,7 +5,7 @@ import { DispatchTree } from "./DispatchTree";
 import { FocusPanel } from "./FocusPanel";
 import { deriveStepStates, STEP_LABELS } from "./treeModel";
 import type { FocusEntry } from "./treeModel";
-import { IconBolt, IconUser } from "./treeIcons";
+import { IconBolt, IconFlask, IconUser } from "./treeIcons";
 import type { DagExecutionView } from "../../types";
 import type { DiscoveryView, IssueDetailView, TaskDisplayStatus, DiscoveryTier } from "../../api/contract";
 import {
@@ -50,7 +50,15 @@ import { useIssueFlowState } from "./useIssueFlowState";
 import { PlanDagCapsule } from "../../components/PlanDagCapsule";
 import { SupervisionPolicyDialog } from "../../components/SupervisionPolicyDialog";
 import { AIChatInput } from "../../components/ui/ai-chat-input";
-import { errText } from "../../display";
+import {
+  CHECKPOINT_LABEL,
+  CHECKPOINT_ORDER,
+  errText,
+  orderCheckpoints,
+  POLICY_TIER_HINT,
+  POLICY_TIER_TITLE,
+  type PolicyTier,
+} from "../../display";
 import { ApiError } from "../../api/client";
 
 /** 工作台（方案 A「树贯穿一生」· 2026-09-17 用户确认原型 dispatch-tree-lifecycle.html）。
@@ -1136,11 +1144,26 @@ export function WorkbenchPage({
   /** HITL 模式(入口选择,2026-09-17):ai = 自动托管(处理员代行人审门),hitl = 门等真人。
    *  2026-09-20 起这是**服务端事实**：随建项写进 issue（0053 的 hitl_mode 列），
    *  读面返回、协调器按它停门 —— 不再只存在这台浏览器的 sessionStorage 里。 */
-  const [hitlMode, setHitlMode] = useState<"ai" | "hitl">("ai");
+  // 2026-09-21：这一格从**两档**（自动托管 / 人工参与审计）换成**三档**
+  // （见下面的 executionTier）。原来的 hitlMode 不再单独持有 —— 它是档位的派生值
+  // （auto/supervised → ai，manual_controlled → hitl），后端也是这么派的。
   // 合并方式（2026-09-21 用户裁定："pr 合并也做出可选择项目，ai 自动模式自动合并，
   // 也可以选择人工审核"）。缺省 manual —— 合并是唯一的外部副作用（真进主分支），
   // 没明说要自动就不替任何人合。
   const [mergeMode, setMergeMode] = useState<"auto" | "manual">("manual");
+  // 监管强度三档（2026-09-21 用户裁定）：全自动 / 半自动 / 人工审核。
+  // 半自动 = 发现链照常自动推进，只在用户勾的卡点上停下来等人 —— 卡点可自选。
+  // 「人工审核」档不发卡点：后端按档位补满六个（parse 里做），前端不重复列一份，
+  // 免得哪天六个卡点变了、两处对不上。
+  const [executionTier, setExecutionTier] = useState<PolicyTier>("unattended");
+  const [checkpoints, setCheckpoints] = useState<string[]>([]);
+  const executionMode =
+    executionTier === "unattended"
+      ? "auto"
+      : executionTier === "key_points"
+        ? "supervised"
+        : "manual_controlled";
+  const requiredCheckpoints = executionTier === "key_points" ? orderCheckpoints(checkpoints) : [];
   const [draft, setDraft] = useState("");
   const [attachment, setAttachment] = useState<{ filename: string; text: string } | null>(null);
   const [docDragging, setDocDragging] = useState(false);
@@ -1173,7 +1196,19 @@ export function WorkbenchPage({
     if (!typed && !attachment) return;
     const text = attachment ? composeRequirementText(typed, attachment.text) : typed;
     setCreating(true);
-      attempt.current ??= { key: crypto.randomUUID(), input: { projectId, requirementText: text, expectedCreationContextRevision: options.creationContextRevision, hitlMode, mergeMode } };
+      attempt.current ??= {
+        key: crypto.randomUUID(),
+        input: {
+          projectId,
+          requirementText: text,
+          expectedCreationContextRevision: options.creationContextRevision,
+          // hitlMode 仍照发（老后端只认它）；新后端按 executionMode 派生同一个值。
+          hitlMode: executionTier === "every_step" ? "hitl" : "ai",
+          mergeMode,
+          executionMode,
+          requiredCheckpoints,
+        },
+      };
     onCreateIssue(attempt.current.input, attempt.current.key)
       .then(() => {
         setDraft("");
@@ -1458,34 +1493,70 @@ export function WorkbenchPage({
             )}
           </p>
         )}
-        {attempt.current && <p className="w-full max-w-[720px] text-xs text-tx2">提交内容已固定，重试会查询或完成同一次创建。</p>}        {/* HITL 入口选择（2026-09-17 用户裁定:从建项处选,不再等物化）:
-            自动托管 = 处理员代行人审门; 人工参与 = 分档审批/物化确认/PR 合并等真人。 */}
+        {attempt.current && <p className="w-full max-w-[720px] text-xs text-tx2">提交内容已固定，重试会查询或完成同一次创建。</p>}
+        {/* 监管强度三档（2026-09-21 用户裁定：原来的两档「自动托管/人工参与审计」
+            换成「全自动/半自动/人工审核」，半自动自选人工卡点）。
+            措辞取自 display.ts 的唯一表 —— 与设置页的策略卡片说同一套词，
+            不在这里另写一份（同一件事在两屏说两种话是这套代码反复踩过的坑）。 */}
         <div className="flex flex-col items-center gap-1.5">
           <div className="flex rounded-hard border border-line bg-well p-0.5">
             {(
               [
-                { key: "ai", label: "自动托管", Icon: IconBolt },
-                { key: "hitl", label: "人工参与审计", Icon: IconUser },
+                { key: "unattended", Icon: IconBolt },
+                { key: "key_points", Icon: IconFlask },
+                { key: "every_step", Icon: IconUser },
               ] as const
             ).map((opt) => (
               <button
                 key={opt.key}
                 type="button"
                 className={`flex items-center gap-1.5 rounded-hard px-3 py-1 text-[11.5px] transition-colors ${
-                  hitlMode === opt.key ? "bg-amber font-bold text-on-amber" : "text-tx2 hover:text-tx"
+                  executionTier === opt.key ? "bg-amber font-bold text-on-amber" : "text-tx2 hover:text-tx"
                 }`}
-                onClick={() => setHitlMode(opt.key)}
+                onClick={() => setExecutionTier(opt.key)}
               >
                 <opt.Icon size={13} />
-                {opt.label}
+                {POLICY_TIER_TITLE[opt.key]}
               </button>
             ))}
           </div>
-          <p className="max-w-[420px] text-center text-[10.5px] leading-[1.6] text-tx3">
-            {hitlMode === "ai"
-              ? "处理员自动通过分档审批、生成计划与物化确认,全程不停顿"
-              : "人工把守:分档审批 · 生成计划 · 物化确认 · PR 合并确认(策略卡点:范围/规格/执行/验证/交付/异常)"}
+          <p className="max-w-[540px] text-center text-[10.5px] leading-[1.6] text-tx3">
+            {POLICY_TIER_HINT[executionTier]}
           </p>
+          {/* 半自动：卡点自己勾。一处都不勾就不是"半自动"了 —— 如实拦住，
+              不替人勾一个默认卡点（那会让人以为某一步有人把关，其实没有）。 */}
+          {executionTier === "key_points" && (
+            <div className="mt-0.5 flex max-w-[600px] flex-wrap items-center justify-center gap-1.5">
+              {CHECKPOINT_ORDER.map((checkpoint) => {
+                const picked = checkpoints.includes(checkpoint);
+                return (
+                  <button
+                    key={checkpoint}
+                    type="button"
+                    className={`rounded-hard border px-2 py-0.5 text-[11px] transition-colors ${
+                      picked
+                        ? "border-amber bg-amber/15 font-bold text-amber"
+                        : "border-line text-tx2 hover:text-tx"
+                    }`}
+                    onClick={() =>
+                      setCheckpoints((current) =>
+                        current.includes(checkpoint)
+                          ? current.filter((item) => item !== checkpoint)
+                          : [...current, checkpoint],
+                      )
+                    }
+                  >
+                    {CHECKPOINT_LABEL[checkpoint]}
+                  </button>
+                );
+              })}
+              {checkpoints.length === 0 && (
+                <span className="text-[10.5px] text-salmon">
+                  半自动至少要勾一个卡点；一处都不停请选「全自动」。
+                </span>
+              )}
+            </div>
+          )}
         </div>
         {/* 合并方式（2026-09-21 用户裁定）：自动化到"开 PR"为止，合不合进主分支
             由这里选。合并是唯一真动用户仓库的动作，所以它必须是显式选择。 */}

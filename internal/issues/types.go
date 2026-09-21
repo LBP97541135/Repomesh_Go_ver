@@ -46,6 +46,12 @@ type pageInput struct {
 	// 2026-09-21 用户裁定："pr 合并也做出可选择项目"。合并是整条链上唯一的外部
 	// 副作用，所以它必须是一个**显式的、可追溯的选择**，而不是硬编码的行为。
 	mergeMode string
+	// executionMode / requiredCheckpoints 是建单时选的**监管强度三档**
+	// （迁移 0065）：auto / supervised（半自动，自选卡点）/ manual_controlled。
+	// 它们与 humancontrol 的项目监管策略是同一套域（同一组卡点、同样的形状约束），
+	// 只是提前到建单那一刻问 —— 否则用户要等到发现链跑到选仓门才第一次见到这道题。
+	executionMode       string
+	requiredCheckpoints []string
 }
 
 // PageCommand carries one authenticated page-create command from the web layer.
