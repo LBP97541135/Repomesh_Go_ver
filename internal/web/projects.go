@@ -18,6 +18,7 @@ import (
 	"repomesh.local/repomesh/internal/issues"
 	"repomesh.local/repomesh/internal/models"
 	"repomesh.local/repomesh/internal/projects"
+	"repomesh.local/repomesh/internal/scm"
 )
 
 type Projects struct {
@@ -288,6 +289,9 @@ func projectIdempotencyKey(r *http.Request) (string, error) {
 
 func writeProjectError(w http.ResponseWriter, err error) {
 	status, code := 503, "RESULT_UNCONFIRMED"
+	// message 是错误信封里那句**给用户看**的话。默认是通用串（诚实但没信息量）；
+	// 领域包若带了可行动的说明（见下面 scm.Failure 那一支），就用它的。
+	message := "The request could not be completed."
 	fields := []projects.FieldError{}
 	var details *models.TestOutstandingDetails
 	var projectFailure *projects.Failure
@@ -316,6 +320,18 @@ func writeProjectError(w http.ResponseWriter, err error) {
 			fields = issueFailure.Fields
 		}
 	}
+	// scm.Failure 是 2026-09-21 加的：交付段的领域错误（合并闸门未开缺哪一门、
+	// 还没有 PR、GitHub 凭据缺失…）本来就已经算好了一句**可行动**的话，
+	// 但它此前是裸 fmt.Errorf，这个出口认不出类型，于是统一降级成
+	// 503 RESULT_UNCONFIRMED + 写死的 "The request could not be completed." ——
+	// 用户看到的正是那句没有信息量的通用话（报的「合并失败不告诉缺哪一门」）。
+	var scmFailure *scm.Failure
+	if errors.As(err, &scmFailure) {
+		status, code = scmFailure.Status, scmFailure.Code
+		if scmFailure.Message != "" {
+			message = scmFailure.Message
+		}
+	}
 	var request [16]byte
 	_, _ = rand.Read(request[:])
 	requestID := hex.EncodeToString(request[:])
@@ -329,7 +345,7 @@ func writeProjectError(w http.ResponseWriter, err error) {
 	if !expectedEmptyState(status, code) {
 		log.Printf("project request failed: requestID=%s status=%d code=%s err=%v", requestID, status, code, err)
 	}
-	body := projectErrorBody{Error: projectError{Code: code, Message: "The request could not be completed.", FieldErrors: fields, RequestID: requestID, Details: details}}
+	body := projectErrorBody{Error: projectError{Code: code, Message: message, FieldErrors: fields, RequestID: requestID, Details: details}}
 	writeJSON(w, status, body)
 }
 

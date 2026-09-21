@@ -11,6 +11,59 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// Failure 是 scm 的领域错误：它带一句**能直接给用户看**的话。
+//
+// 2026-09-21 用户报「合并失败不告诉缺哪一门」：Merge 本来就已经算出了
+// 「闸门未开（push=… PR=… CI=… 评审=…）」，但它此前是 fmt.Errorf 的**裸错误**，
+// web 层的 writeProjectError 认不出类型，统一降级成
+// 503 RESULT_UNCONFIRMED + 写死的 "The request could not be completed." ——
+// 那句可行动的真话只进了服务端日志，用户只看到一个 503。
+//
+// 与 projects.Failure / issues.Failure 同一套分层惯例：领域包定义自己的错误，
+// web 层在共享出口识别一次。Message 只放**有意写给用户看的领域说明**，
+// 绝不放底层错误原文（那可能带内部细节）。
+type Failure struct {
+	Status  int
+	Code    string
+	Message string
+	// Cause 只进服务端日志，**不进响应体** —— 与 issues.Failure.Cause 同一取向：
+	// 底层错误原文可能带内部细节，不该出现在给用户的那句话里。
+	Cause error
+}
+
+func (e *Failure) Error() string {
+	if e.Cause != nil {
+		return e.Code + ": " + e.Message + " (cause: " + e.Cause.Error() + ")"
+	}
+	return e.Code + ": " + e.Message
+}
+
+// mergeGateMessage 把闸门状态翻成「缺哪一门」的人话。
+//
+// 用户 2026-09-21 报的正是这一点：只说"闸门没开"等于没说 —— 要能一眼看出
+// 该去补哪一项，而不是拿着 503 猜。
+func mergeGateMessage(gate MergeGate) string {
+	missing := []string{}
+	if !gate.Pushed {
+		missing = append(missing, "push（分支还没推上去）")
+	}
+	if !gate.PR {
+		missing = append(missing, "PR（还没开 PR）")
+	}
+	if !gate.CIPassed {
+		missing = append(missing, "CI（检查还没通过）")
+	}
+	if !gate.Reviewed {
+		missing = append(missing, "评审（还没有评审记录）")
+	}
+	if len(missing) == 0 {
+		// 四项都齐却判未开 —— 不该发生。如实说，不编一个"缺 X"出来。
+		return "合并闸门判为未开，但 push / PR / CI / 评审四项都已是真值 —— 闸门判定与状态不一致，请记录这条去排查。"
+	}
+	return "合并闸门未开，缺：" + strings.Join(missing, "、") +
+		"。这几项要由流水线真实事件补齐，不能在界面上跳过。"
+}
+
 // PullMerger 是合并所需的最小 GitHub 能力（只要两个方法）。
 //
 // 为什么用接口而不是直接依赖 github.Client：scm 不该知道 App 凭据怎么装、
@@ -45,7 +98,8 @@ func (s *Service) Merge(ctx context.Context, projectID, changeSetID, actor strin
 		  AND EXISTS (SELECT 1 FROM public.tasks t WHERE t.id = cs.task_id AND t.project_id = $2::uuid)`,
 		changeSetID, projectID).Scan(&prURL, &status)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return MergeOutcome{}, fmt.Errorf("scm: change set 不在这个项目里")
+		return MergeOutcome{}, &Failure{Status: 404, Code: "RESOURCE_NOT_FOUND",
+			Message: "这条 change set 不在当前项目里。"}
 	}
 	if err != nil {
 		return MergeOutcome{}, fmt.Errorf("scm: load change set: %w", err)
@@ -55,26 +109,28 @@ func (s *Service) Merge(ctx context.Context, projectID, changeSetID, actor strin
 	}
 	owner, repo, number, ok := parsePullURL(prURL)
 	if !ok {
-		return MergeOutcome{}, fmt.Errorf("scm: 这条 change set 还没有 PR（pr_url=%q），先让执行面开 PR 再合并", prURL)
+		return MergeOutcome{}, &Failure{Status: 409, Code: "PR_MISSING",
+			Message: "这条 change set 还没有 PR，先让执行面开出 PR 再合并。"}
 	}
 	gate, err := s.Gate(ctx, changeSetID)
 	if err != nil {
 		return MergeOutcome{}, err
 	}
 	if !gate.Open {
-		return MergeOutcome{}, fmt.Errorf(
-			"scm: 合并闸门未开（push=%v PR=%v CI=%v 评审=%v）——缺的那几项要由流水线真实事件补齐，不能在界面上跳过",
-			gate.Pushed, gate.PR, gate.CIPassed, gate.Reviewed)
+		return MergeOutcome{}, &Failure{Status: 409, Code: "MERGE_GATE_CLOSED", Message: mergeGateMessage(gate)}
 	}
 	if merger == nil {
-		return MergeOutcome{}, fmt.Errorf("scm: 服务端没有配置可用的 GitHub 凭据，无法合并")
+		return MergeOutcome{}, &Failure{Status: 503, Code: "GITHUB_CREDENTIALS_MISSING",
+			Message: "服务端没有配置可用的 GitHub 凭据，无法合并。"}
 	}
 	token, _, err := merger.InstallationAccessToken(ctx, owner, repo)
 	if err != nil {
-		return MergeOutcome{}, fmt.Errorf("scm: 铸该仓库的 installation token 失败：%w", err)
+		return MergeOutcome{}, &Failure{Status: 502, Code: "GITHUB_TOKEN_FAILED",
+			Message: "铸该仓库的 installation token 失败，合并没有执行。", Cause: err}
 	}
 	if err := merger.MergePullRequest(ctx, token, owner, repo, number, "RepoMesh delivery "+changeSetID); err != nil {
-		return MergeOutcome{}, fmt.Errorf("scm: 合并被 GitHub 拒绝：%w", err)
+		return MergeOutcome{}, &Failure{Status: 502, Code: "MERGE_REJECTED",
+			Message: "GitHub 拒绝了这次合并（可能是冲突或分支保护）。", Cause: err}
 	}
 	if _, err := s.pool.Exec(ctx, `UPDATE public.change_sets SET status='merged' WHERE id=$1::uuid`, changeSetID); err != nil {
 		return MergeOutcome{}, fmt.Errorf("scm: mark merged: %w", err)
