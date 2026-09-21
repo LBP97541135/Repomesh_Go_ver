@@ -67,9 +67,19 @@ func parseNewInput(body []byte) (pageInput, error) {
 	known["repositoryAnalysisId"] = true
 	known["hitlMode"] = true
 	known["mergeMode"] = true
+	// 监管强度三档的两个键。**漏在这张表里 = 整条建项路全断**：它们在下面
+	// （requiredCheckpoints / executionMode）是要被读的，前端也每次都发，而
+	// 白名单不认识就一律按"未知字段"拒掉 —— 线上 2026-09-21 的 422 就是这么来的，
+	// 且因为拒的是"未知字段"而不是取值非法，报错里连字段名都没有，只能靠日志里
+	// 那行 body 头猜。加新键时**这张表必须跟着长**。
+	known["executionMode"] = true
+	known["requiredCheckpoints"] = true
 	for key := range raw {
 		if !known[key] {
-			return pageInput{}, failure(422, "VALIDATION_FAILED")
+			// 点名是哪个键：这三种拒法状态码/错误码都一样（422 VALIDATION_FAILED），
+			// 差别只在**能不能查**。上一个版本这里不带字段名，线上排了一轮才认出
+			// 是白名单漏了一个键，而不是某条取值不合法。
+			return pageInput{}, fieldFailure(key, "UNKNOWN_FIELD")
 		}
 	}
 	input := pageInput{}
