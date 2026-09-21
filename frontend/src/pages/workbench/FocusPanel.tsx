@@ -863,7 +863,6 @@ export interface FocusPanelProps {
   onInterruptPlan: (repository: string, note: string) => Promise<InterruptOutcomeView>;
   /** 右栏宽度（px,由页面拖拽手柄持有;缺省 400）。面板只消费不持有——
    *  偏好存取与范围校验都在 WorkbenchPage(2026-09-20 分栏调整)。 */
-  width?: number;
 }
 
 export function FocusPanel({
@@ -908,7 +907,6 @@ export function FocusPanel({
   planRevisions,
   deliveryManifest,
   onBuildManifest,
-  width = 400,
 }: FocusPanelProps) {
   const body = (() => {
     if (entry === null) {
