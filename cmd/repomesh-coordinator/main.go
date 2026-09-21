@@ -217,6 +217,12 @@ func runWorker(args []string) int {
 				} else if merged > 0 {
 					slog.Info("auto merge", "changeSets", merged)
 				}
+				// 交付全部合完之后把 issue 收口（归档）—— 否则 PR 合完了列表里还是 Open。
+				if closed, err := sweepCloseDeliveredIssues(dagCtx, runtime.Pool(), notices); err != nil {
+					slog.Warn("issue close deferred", "reason", err.Error())
+				} else if closed > 0 {
+					slog.Info("issue closed", "issues", closed)
+				}
 				if reconciled, err := reclaimer.ReconcileStale(dagCtx, 30*time.Minute); err != nil {
 					slog.Warn("branch reconcile deferred", "reason", err.Error())
 				} else if reconciled > 0 {

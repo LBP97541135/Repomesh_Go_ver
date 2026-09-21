@@ -9,9 +9,84 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"repomesh.local/repomesh/internal/execution"
+	"repomesh.local/repomesh/internal/roomnotice"
 	"repomesh.local/repomesh/internal/scm"
 	"repomesh.local/repomesh/internal/tasks"
 )
+
+// sweepCloseDeliveredIssues 把**交付已全部合入主分支**的 issue 收口（归档）。
+//
+// 为什么要有它（2026-09-21 用户原话："都已经合并完成了，为什么没有关闭 issues"）：
+// 这套模型里 issue 的"关闭"就是归档（archived_at），而归档**只有人工入口**
+// （POST /api/issues/{id}/archive，界面上那个「归档」按钮）—— 全仓没有任何地方
+// 在交付完成后自动收口。于是 PR 全合完了，列表里它还是 Open，得人一个个去点。
+//
+// 判定刻意严格，四个条件全满足才关（缺一个都说明"这条需求还没走完"）：
+//  1. 还没归档、也没被清除；
+//  2. **有**计划（没有任何计划的 issue 不是"交付完成"，是"还没开始"）；
+//  3. 计划下**所有任务都 done**（superseded 不算 —— 被新版本取代的步不该拦着收口）；
+//  4. 所有 change set **都 merged**，且**至少有一条** —— 没有 PR 的"完成"不算交付，
+//     那多半是任务被人工判过了但根本没开 PR，收口会掩盖问题。
+//
+// 关闭是**软动作**：只打 archived_at，一行数据不删，随时能回看。
+// 房间里留一条消息说明"为什么它自己关了" —— 状态自己变了却不说原因，人会以为出错了。
+func sweepCloseDeliveredIssues(ctx context.Context, pool *pgxpool.Pool, rooms *roomnotice.Notifier) (int, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT i.id
+		FROM repomesh_issues.issues i
+		WHERE i.archived_at IS NULL AND i.removed_at IS NULL
+		  AND EXISTS (SELECT 1 FROM public.plans p WHERE p.issue_id = i.id)
+		  AND NOT EXISTS (
+		      SELECT 1 FROM public.tasks t
+		      JOIN public.plans p ON p.id = t.plan_id
+		      WHERE p.issue_id = i.id AND t.status NOT IN ('done', 'superseded'))
+		  AND NOT EXISTS (
+		      SELECT 1 FROM public.change_sets cs
+		      JOIN public.tasks t ON t.id = cs.task_id
+		      JOIN public.plans p ON p.id = t.plan_id
+		      WHERE p.issue_id = i.id AND cs.status <> 'merged')
+		  AND EXISTS (
+		      SELECT 1 FROM public.change_sets cs
+		      JOIN public.tasks t ON t.id = cs.task_id
+		      JOIN public.plans p ON p.id = t.plan_id
+		      WHERE p.issue_id = i.id AND cs.status = 'merged')`)
+	if err != nil {
+		return 0, fmt.Errorf("issue close: 巡检查询失败: %w", err)
+	}
+	var candidates []string
+	for rows.Next() {
+		var issueID string
+		if err := rows.Scan(&issueID); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("issue close: 巡检读取失败: %w", err)
+		}
+		candidates = append(candidates, issueID)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	closed := 0
+	for _, issueID := range candidates {
+		tag, err := pool.Exec(ctx, `UPDATE repomesh_issues.issues
+			SET archived_at = COALESCE(archived_at, now())
+			WHERE id=$1 AND archived_at IS NULL AND removed_at IS NULL`, issueID)
+		if err != nil {
+			return closed, fmt.Errorf("issue close: 归档失败 issue=%s: %w", issueID, err)
+		}
+		if tag.RowsAffected() != 1 {
+			continue
+		}
+		if rooms != nil {
+			rooms.Notify(ctx, issueID, "issue-closed:"+issueID,
+				"【RepoMesh】本需求的交付已全部合入主分支，issue 已自动收口（归档）。"+
+					"数据一行没删，点列表上的「已归档」就能回看。")
+		}
+		closed++
+	}
+	return closed, nil
+}
 
 // sweepAutoMergeDeliveredChanges 在**选了「自动合并」**的 issue 上，把闸门已开的 PR 合掉。
 //
