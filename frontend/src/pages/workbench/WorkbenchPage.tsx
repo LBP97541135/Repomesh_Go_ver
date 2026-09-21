@@ -7,7 +7,7 @@ import { deriveStepStates, STEP_LABELS } from "./treeModel";
 import type { FocusEntry } from "./treeModel";
 import { IconBolt, IconUser } from "./treeIcons";
 import type { DagExecutionView } from "../../types";
-import type { DiscoveryView, IssueDetailView, TaskDisplayStatus } from "../../api/contract";
+import type { DiscoveryView, IssueDetailView, TaskDisplayStatus, DiscoveryTier } from "../../api/contract";
 import {
   composeRequirementText,
   parseRequirementDocument,
@@ -742,6 +742,50 @@ export function WorkbenchPage({
   const gateFailures = useRef(0);
   /** 监管策略弹窗（迁移 5-1b）：草稿卡片上的「配置 / 修改」。 */
   const [policyOpen, setPolicyOpen] = useState(false);
+  /** ③ 分档审批的公共落点（2026-09-21）：把**人改过的档位**与「批准」一次提交
+   *  （契约 §5.2——拆两个写会造出「改了但没批」的中间态）。
+   *
+   *  改档只是往既有 `POST /issues/{id}/discovery/approval` 的 `adjustments` 里放
+   *  行（后端 `Approval(..., adjustments []Adjustment, ...)` 早已收），**不新造接口**；
+   *  「补仓库」走另一个既有端点，不经过这里。*/
+  const commitTierApproval = (adjustments: Array<{ repository: string; tier: DiscoveryTier }>) => {
+    if (!detail || !discovery) return;
+    if (resolveDataSourceMode() === "replay") {
+      onToast("回放模式不写后端：人工门需要 ?source=live 才能真实执行。");
+      return;
+    }
+    if (!principal) {
+      setGateError("决策主体未接入（花名册无活跃 Org Leader），无法提交。");
+      return;
+    }
+    if (discovery.classification_evidence_version === null) {
+      setGateError("分档证据尚未生成，无法批准。");
+      return;
+    }
+    setGateBusy("approveTiers");
+    setGateError(null);
+    submitDiscoveryApproval(detail.issue_id, {
+      decided_by_agent_id: principal.agentId,
+      idempotency_key: newIdempotencyKey("approval"),
+      decision: "approved",
+      reason: "",
+      adjustments,
+      evidence_version: discovery.classification_evidence_version,
+    })
+      .then(() => {
+        setGateBusy(null);
+        gateFailures.current = 0;
+        onToast(adjustments.length > 0 ? `分档已批准（调整 ${adjustments.length} 个仓库）` : "分档已批准；处理员继续生成计划");
+        setReload((n) => n + 1);
+      })
+      .catch((err: unknown) => {
+        setGateBusy(null);
+        gateFailures.current += 1;
+        setGateError(errText(err));
+      });
+  };
+  const handleApproveTiers = (adjustments: Array<{ repository: string; tier: DiscoveryTier }>) =>
+    commitTierApproval(adjustments);
   const handleGate = (action: "approveTiers" | "plan" | "materialize") => {
     if (!detail || !discovery) return;
     if (resolveDataSourceMode() === "replay") {
@@ -775,30 +819,9 @@ export function WorkbenchPage({
       return;
     }
     if (action === "approveTiers") {
-      if (discovery.classification_evidence_version === null) {
-        setGateBusy(null);
-        setGateError("分档证据尚未生成，无法批准。");
-        return;
-      }
-      submitDiscoveryApproval(detail.issue_id, {
-        decided_by_agent_id: principal.agentId,
-        idempotency_key: newIdempotencyKey("approval"),
-        decision: "approved",
-        reason: "",
-        adjustments: [],
-        evidence_version: discovery.classification_evidence_version,
-      })
-        .then(() => {
-          setGateBusy(null);
-          gateFailures.current = 0;
-          onToast("分档已批准；处理员继续生成计划");
-          setReload((n) => n + 1);
-        })
-        .catch((err: unknown) => {
-          setGateBusy(null);
-          gateFailures.current += 1;
-          setGateError(errText(err));
-        });
+      // 无调整的快捷路径（自动托管也走这里）：与 ③ 消息里的「批准分档」共用
+      // 同一条写回路（adjustments 为空）。
+      commitTierApproval([]);
       return;
     }
     materializeDiscovery(detail.issue_id, {
@@ -1688,6 +1711,7 @@ export function WorkbenchPage({
               onBackToManager={() => setActiveEntry({ kind: "mgr" })}
               onChooseManual={handleChooseManual}
               onChooseAI={handleChooseAI}
+              onApproveTiers={handleApproveTiers}
               onConfirmSupplements={handleConfirmSupplements}
               selectionBusy={selectionBusy}
               input={

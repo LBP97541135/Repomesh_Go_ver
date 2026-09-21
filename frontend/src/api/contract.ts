@@ -1288,6 +1288,23 @@ export interface DiscoveryMaterializationReceipt {
   plan_id: string | null;
 }
 
+/** 选仓门建议的单行（2026-09-21 用户裁定）：仓名 + 置信度分数（0.00~1.00）+
+ *  档位标签（必需/可能）+ 理由。后端只如实存下这四样，理由默认折叠、怎么展开由
+ *  前端决定。
+ *
+ *  **`tier` 不含 `excluded`**：后端在后端侧就把排除档滤掉了（门只发建议纳入的仓）。
+ *  这里仍用 `DiscoveryTier` 收窄，是给读面兑现契约留一点余量——展示层遇到
+ *  排除档同样不列。 */
+export interface DiscoveryGateSuggestion {
+  repository: string;
+  /** 置信度分数，0.00~1.00（服务端候选评分原值，缺失时前端不编造）。 */
+  score?: number;
+  /** 档位标签；后端只发 required|maybe。 */
+  tier?: DiscoveryTier;
+  /** 判断理由（候选产物的 rationale 原文，不摘要不截断）。 */
+  reason?: string;
+}
+
 /** 选仓门（2026-09-20「建项不选仓」）：① 需求分析后、仓库范围确认前的门。
  *
  *  建议与截止都由**服务端**产出（`suggested` 随 PlanningCandidates 开门落库；
@@ -1298,9 +1315,13 @@ export interface DiscoveryScopeGateView {
   state: "pending" | "resolved";
   /** 关门时刻由谁拍板：人勾（manual）/ AI 定（ai）/ 超时代选（timeout）。 */
   decided_by?: "manual" | "ai" | "timeout";
-  /** AI 建议的仓库。后端存的是仓名数组（`[]string`）；理由只在候选产物里有,
-   *  门这一层不存——所以两种形状都收，缺理由时**不编造**，界面只显示仓名。 */
-  suggested?: Array<string | { repository: string; reason?: string }>;
+  /** AI 建议的仓库。2026-09-21 起读面**永远折成对象数组**：老落库的仓名数组在
+   *  服务端就折成只有 `repository` 的条目，前端因此只需处理一种形状。
+   *
+   *  带 `score` / `tier` / `reason`；**排除档后端不写进这里**（门只发建议纳入的仓）。
+   *  字段仍保留 `string` 联合，兼容任何直接透传老形状的路径——缺分数/档位/理由时
+   *  前端**不编造**。 */
+  suggested?: Array<string | DiscoveryGateSuggestion>;
   /** ISO 8601。ai 模式 = 开门 + 10 分钟；hitl 恒缺省。 */
   deadline_at?: string;
 }

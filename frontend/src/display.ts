@@ -582,20 +582,37 @@ export function lastDispatchLabel(tasks: DeliveryTaskView[]): string {
   return `上次派工 ${eventTime(stamps.sort().at(-1)!)}`;
 }
 
-/** 选仓门建议归一化：后端存仓名数组，界面要 {repository, reason}。
- *  缺理由就留空串——不编造（理由只在候选产物里，门这一层确实没有）。 */
+/** 选仓门建议归一化：读面（服务端）2026-09-21 起**永远给对象数组**，这里再收一层
+ *  老形状（仓名数组）以防有路径直传老落库形状。
+ *
+ *  用户裁定（2026-09-21）：
+ *   - 每行 = 仓名 + 置信度分数（0.00~1.00）+ 档位标签（必需/可能）+ 理由（默认折叠）；
+ *   - **排除档不列**——后端已保证只发建议纳入的仓，这里只做一道防御性丢弃，
+ *     不反向从 `classification.excluded` 拼回任何东西（那等于把后端刚过滤掉的噪音
+ *     又摆回人面前）。
+ *
+ *  缺分数/档位/理由的老条目**不编造**（score/tier 为 null、reason 为空串），
+ *  界面按「无」渲染。 */
 export function scopeGateSuggestions(
-  gate: { suggested?: Array<string | { repository: string; reason?: string }> } | null | undefined,
-): Array<{ repository: string; reason: string }> {
+  gate: { suggested?: Array<string | { repository: string; score?: number; tier?: DiscoveryTier; reason?: string }> } | null | undefined,
+): Array<{ repository: string; score: number | null; tier: DiscoveryTier | null; reason: string }> {
   const raw = gate?.suggested ?? [];
-  const out: Array<{ repository: string; reason: string }> = [];
+  const out: Array<{ repository: string; score: number | null; tier: DiscoveryTier | null; reason: string }> = [];
   for (const entry of raw) {
     if (typeof entry === "string") {
-      if (entry !== "") out.push({ repository: entry, reason: "" });
+      if (entry !== "") out.push({ repository: entry, score: null, tier: null, reason: "" });
       continue;
     }
     if (entry && typeof entry.repository === "string" && entry.repository !== "") {
-      out.push({ repository: entry.repository, reason: entry.reason ?? "" });
+      const tier = entry.tier ?? null;
+      // 后端不写排除档；万一有（老数据/异常），也不列 —— 「排除档不列」是裁定。
+      if (tier === "excluded") continue;
+      out.push({
+        repository: entry.repository,
+        score: typeof entry.score === "number" ? entry.score : null,
+        tier,
+        reason: entry.reason ?? "",
+      });
     }
   }
   return out;
