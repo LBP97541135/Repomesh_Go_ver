@@ -148,9 +148,10 @@ func parseNewInput(body []byte) (pageInput, error) {
 		default:
 			return pageInput{}, fieldFailure("mergeMode", "INVALID_VALUE")
 		}
-	} else {
-		input.mergeMode = "manual"
 	}
+	// 注意：mergeMode 缺省时**不再兜底成 manual** —— 它现在从档位卡点派生
+	// （见 service.go 的 mergeModeFromCheckpoints）：勾了「交付」卡点就等人点合并，
+	// 没勾就交付闸门一开自动合。这里留空 = 没说，派生说了算。
 	// 监管强度三档 + 半自动自选卡点（迁移 0065）。
 	//
 	// 域不变量照抄既有的项目监管策略（internal/humancontrol/policy.go），不另立一套：

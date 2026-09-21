@@ -374,6 +374,20 @@ func (s *Service) observeAndCheck(ctx context.Context, principal access.ProjectP
 //
 // 默认 manual_controlled（最保守）：缺字段、写错值都收敛到"每个卡点都要人过"，
 // 绝不悄悄降成自动 —— 那等于把没答的题按最松的一档交卷。
+// mergeModeFromCheckpoints 把「合并方式」从档位卡点里**派生**出来。
+//
+// 2026-09-21 用户裁定："合并需人工审核 / 自动合并"不再单独占一格，合进三档里 ——
+// 六个卡点里的「交付」（delivery）就是合并那一步：勾了它，合并等人；没勾，交付闸门
+// 一开就自动合。于是"要不要人点合并"这件事只剩**一个**来源（卡点），
+// 不再有两个开关互相打架（那正是用户说的"这话就不需要单独显示了"）。
+func mergeModeFromCheckpoints(checkpoints []string) string {
+	for _, checkpoint := range checkpoints {
+		if checkpoint == "delivery" {
+			return "manual"
+		}
+	}
+	return "auto"
+}
 func executionModeOrDefault(mode string) string {
 	switch mode {
 	case "auto", "supervised", "manual_controlled":
@@ -392,6 +406,16 @@ func checkpointsJSON(checkpoints []string) string {
 	}
 	return string(encoded)
 }
+
+// mergeModeFor：显式给了就照给（老客户端/脚本仍可指定），没给就从卡点派生。
+// 显式优先是有意的 —— 派生规则将来要调时，已经落库的调用方不会被悄悄改行为。
+func mergeModeFor(explicit string, checkpoints []string) string {
+	if explicit == "auto" || explicit == "manual" {
+		return explicit
+	}
+	return mergeModeFromCheckpoints(checkpoints)
+}
+
 func mergeModeOrDefault(mode string) string {
 	switch mode {
 	case "auto", "manual":
@@ -706,7 +730,7 @@ func insertIssueAndMainChangeSet(ctx context.Context, tx pgx.Tx, identity operat
 		VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb)`,
 		issueID, identity.projectID, number, input.title, input.description, string(criteria), revision,
 		conversationID, changeSetID, configuration, operationRow,
-		executionTierToHitl(input.executionMode), mergeModeOrDefault(input.mergeMode),
+		executionTierToHitl(input.executionMode), mergeModeFor(input.mergeMode, input.requiredCheckpoints),
 		executionModeOrDefault(input.executionMode), checkpointsJSON(input.requiredCheckpoints)); err != nil {
 		return committedCreation{}, unavailable()
 	}

@@ -257,9 +257,9 @@ export const POLICY_TIER_TITLE: Record<PolicyTier, string> = {
  *  与 POLICY_TIER_TITLE 同一张来源表：标题是名字，这里是含义。
  *  拆开是因为建单处要横排三个按钮（名字必须短），而副行只显示当前选中那一档。 */
 export const POLICY_TIER_HINT: Record<PolicyTier, string> = {
-  unattended: "AI 自己干完，全程不停顿，不产生任何审核待办。",
-  key_points: "发现链照常自动推进，只在你勾的卡点上停下来等人 —— 卡点自己选。",
-  every_step: "六个卡点全部要人过：仓库范围 · 规格 · 执行 · 验证 · 交付 · 异常升级。",
+  unattended: "AI 自己干完，全程不停顿，不产生任何审核待办 —— 交付闸门一开就自动合并 PR。",
+  key_points: "发现链照常自动推进，只在你勾的卡点上停下来等人 —— 卡点自己选。勾了「交付」就包括合并 PR 那一步。",
+  every_step: "六个卡点全部要人过：仓库范围 · 规格 · 执行 · 验证 · 交付（含合并 PR）· 异常升级。",
 };
 
 /** 授权三要素的措辞唯一表（身份 / 代码权限 / 控制动作）。

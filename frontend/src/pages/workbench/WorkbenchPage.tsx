@@ -1147,10 +1147,9 @@ export function WorkbenchPage({
   // 2026-09-21：这一格从**两档**（自动托管 / 人工参与审计）换成**三档**
   // （见下面的 executionTier）。原来的 hitlMode 不再单独持有 —— 它是档位的派生值
   // （auto/supervised → ai，manual_controlled → hitl），后端也是这么派的。
-  // 合并方式（2026-09-21 用户裁定："pr 合并也做出可选择项目，ai 自动模式自动合并，
-  // 也可以选择人工审核"）。缺省 manual —— 合并是唯一的外部副作用（真进主分支），
-  // 没明说要自动就不替任何人合。
-  const [mergeMode, setMergeMode] = useState<"auto" | "manual">("manual");
+  // 合并方式（2026-09-21 用户第二次裁定）：**不再单独占一格** —— 合进三档里。
+  // 六个卡点中的「交付」就是合并那一步：勾了就等人点合并，没勾就闸门一开自动合。
+  // 所以这里不再持有状态，也不再往建单载荷里发 mergeMode —— 由后端从卡点派生。
   // 监管强度三档（2026-09-21 用户裁定）：全自动 / 半自动 / 人工审核。
   // 半自动 = 发现链照常自动推进，只在用户勾的卡点上停下来等人 —— 卡点可自选。
   // 「人工审核」档不发卡点：后端按档位补满六个（parse 里做），前端不重复列一份，
@@ -1204,7 +1203,6 @@ export function WorkbenchPage({
           expectedCreationContextRevision: options.creationContextRevision,
           // hitlMode 仍照发（老后端只认它）；新后端按 executionMode 派生同一个值。
           hitlMode: executionTier === "every_step" ? "hitl" : "ai",
-          mergeMode,
           executionMode,
           requiredCheckpoints,
         },
@@ -1557,34 +1555,6 @@ export function WorkbenchPage({
               )}
             </div>
           )}
-        </div>
-        {/* 合并方式（2026-09-21 用户裁定）：自动化到"开 PR"为止，合不合进主分支
-            由这里选。合并是唯一真动用户仓库的动作，所以它必须是显式选择。 */}
-        <div className="flex flex-col items-center gap-1.5">
-          <div className="flex rounded-hard border border-line bg-well p-0.5">
-            {(
-              [
-                { key: "manual", label: "合并需人工审核" },
-                { key: "auto", label: "自动合并" },
-              ] as const
-            ).map((opt) => (
-              <button
-                key={opt.key}
-                type="button"
-                className={`rounded-hard px-3 py-1 text-[11.5px] transition-colors ${
-                  mergeMode === opt.key ? "bg-amber font-bold text-on-amber" : "text-tx2 hover:text-tx"
-                }`}
-                onClick={() => setMergeMode(opt.key)}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-          <p className="max-w-[440px] text-center text-[10.5px] leading-[1.6] text-tx3">
-            {mergeMode === "auto"
-              ? "自动化到开 PR 为止：交付闸门四项（已推送/已开 PR/CI 通过/已评审）齐了才自动合进主分支"
-              : "自动化到开 PR 为止：合并要你在「交付序列」上逐条点，闸门没开合不动"}
-          </p>
         </div>
         <div className="w-full max-w-[720px]">
           <AIChatInput

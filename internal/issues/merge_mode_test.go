@@ -18,7 +18,7 @@ func TestMergeModeDefaultsToManualAndRejectsUnknown(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-		{"缺省", `{` + base + `}`, "manual", false},
+		{"缺省（不再兜底，留空交给卡点派生）", `{` + base + `}`, "", false},
 		{"显式自动", `{` + base + `,"mergeMode":"auto"}`, "auto", false},
 		{"显式人工", `{` + base + `,"mergeMode":"manual"}`, "manual", false},
 		{"非法取值", `{` + base + `,"mergeMode":"yes"}`, "", true},
