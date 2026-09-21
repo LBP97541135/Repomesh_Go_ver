@@ -107,7 +107,15 @@ function MessageTimeline({ messages }: { messages: ConversationMessage[] }) {
             <div className="min-w-0 flex-1">
               <div className="mb-0.5 flex items-center gap-1.5">
                 <span className="text-[11px] font-medium text-[var(--tree-ink)]">{actor.label}</span>
-                <span className={`rounded-[5px] px-1.5 py-px text-[9.5px] ${RPILL_CLS[actor.cls]}`}>{actor.role}</span>
+                {/* 角色胶囊只在**它比名字多给信息**时才渲染。
+                    2026-09-21 用户实测：时间线里出现「你 你 用户」「M Manager Manager」——
+                    `actorOf` 给无名字的 agent 返回 {label:"Manager", role:"Manager"}，
+                    给用户返回 {label:"你", role:"用户"}，两处都把 label 与 role 并排渲染，
+                    于是同一件事说了两遍。规则：role 与 label 同义（忽略大小写）不显示；
+                    当前读者本人（"你"）的角色是自明的，也不显示。 */}
+                {actor.cls !== "u" && actor.role.toLowerCase() !== actor.label.toLowerCase() && (
+                  <span className={`rounded-[5px] px-1.5 py-px text-[9.5px] ${RPILL_CLS[actor.cls]}`}>{actor.role}</span>
+                )}
                 <span className="ml-auto font-mono text-[10px] text-[var(--tree-faint)]">{hhmm(m.createdAt)}</span>
               </div>
               <div className="whitespace-pre-wrap break-words rounded-lg border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-1.5 text-[11.5px] leading-[1.65] text-[var(--tree-ink)] shadow-[0_1px_2px_rgba(15,15,15,.03)]">

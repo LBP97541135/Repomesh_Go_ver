@@ -77,9 +77,8 @@ export function BranchValidationCard({
     <div className="border-t border-dashed border-[var(--tree-hairline)] px-4 py-3">
       <span className="microlabel">数据库分支验证</span>
       <p className="mt-1 text-[10.5px] leading-[1.7] text-[var(--tree-faint)]">
-        为**一个候选**开一条独立数据库分支：从**业务数据基线库**克隆（不是空库），
-        逐条执行迁移并留结果，跑完清理。同一候选的多个服务共用一条分支，不同候选互不干扰；
-        分支数据不进生产。证据里会写清是在哪个 provider 上跑的。
+        为一个候选开一条独立分支：从业务数据基线库克隆（不是空库），逐条跑迁移并留结果，
+        跑完清理。同候选的多个服务共用一条分支，不同候选互不干扰；分支数据不进生产。
       </p>
 
       <div className="mt-2 flex flex-col gap-1.5 rounded-[7px] border border-[var(--tree-hairline)] p-2">

@@ -25,7 +25,14 @@ function Records({ projectId, issueId, purpose, taskId }: { projectId: string; i
   }, [projectId, issueId]);
   const visible = items?.filter(item => (!purpose || item.purpose === purpose) && (!taskId || item.taskId === taskId));
   return (
-    <section className="m-3 max-h-[440px] overflow-y-auto rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] p-3 text-[11px]">
+    // 2026-09-21 用户实测：这一段「会被拦住，展示不完整」。
+    //
+    // 根因是**嵌套滚动**：这张卡自己带了 `max-h-[440px] overflow-y-auto`，而它所在
+    // 的房间容器（FocusPanel 的任务/主会话房间）本身已经 `overflow-y-auto`。
+    // 于是内容被两层滚动条切成两段：外层滚到这张卡就停住，卡里的正文要再滚一次才看得到
+    // —— 看起来就是"话被拦腰截断"。删掉内层的高度与滚动，交给房间那一层统一滚：
+    // **一屏只留一条滚动条**。
+    <section className="m-3 rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] p-3 text-[11px]">
       <h3 className="font-medium text-[var(--tree-ink)]">Jev 辅助{purpose === "code_review" ? "代码审查" : purpose === "test" ? "测试验证" : "验证与审查"}</h3>
       <p className="mt-1 text-[var(--tree-faint)]">语义判断独立记录，不改变测试结果或经理审批。</p>
       {error && <p role="alert" className="mt-2 text-salmon">{error}</p>}

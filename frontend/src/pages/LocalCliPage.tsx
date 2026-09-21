@@ -379,7 +379,7 @@ export function LocalCliPage({ embedded = false }: { embedded?: boolean }) {
                 </span>
                 配置文件在启动器仓库的 <span className="font-mono text-[10.5px]">output/local-launcher/config.json</span>
                 （gitignored）。必需键：<span className="font-mono text-[10.5px]">membersFile · enrollmentDir · envFile · runtimeDir · rosterVersion · allowedOrigins · port</span>。
-                这些路径都是**这台机器上的绝对路径**，是操作者自己的名册与凭据 —— 控制台不猜、也不代填。
+                这些路径都是这台机器上的绝对路径，是操作者自己的名册与凭据 —— 控制台不猜、也不代填。
               </li>
               <li>
                 <span className="text-tx">启动它（它是一次性进程，没有安装器、也没有服务注册）</span>

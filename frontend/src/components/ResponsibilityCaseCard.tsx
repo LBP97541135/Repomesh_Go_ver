@@ -144,8 +144,8 @@ export function ResponsibilityCaseCard({
         </button>
       </div>
       <p className="mt-1 text-[10.5px] leading-[1.7] text-[var(--tree-faint)]">
-        时间线记录的是**谁（角色）在什么时候做了什么**：Manager 定方向、Leader 认领仓库与申请授权、
-        执行角色报冲突，三者交接在同一串事件里可见。动作只有人能发起，agent 只能留下事件。
+        记录谁在什么时候做了什么：Manager 定方向、Leader 认领仓库并申请授权、执行角色报冲突。
+        动作只有人能发起，agent 只留事件。
       </p>
 
       {/* 动作入口 */}
