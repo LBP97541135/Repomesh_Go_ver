@@ -28,6 +28,11 @@ func TestNewFromEnvIsNilWithoutConfiguration(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Setenv("AGENTTEAMS_CONTROLLER_URL", testCase.controller)
 			t.Setenv("MATRIX_HOMESERVER_URL", testCase.homeserver)
+			// 令牌和身份也必须显式清掉：部署机和 CI 的外壳里**本来就是配好的**，
+			// 不清的话「只有 homeserver」那一档会从环境捡到真令牌、拿到一个能用的
+			// 会话，于是这条用例在配了 Matrix 的机器上必红——测的却不再是本意。
+			t.Setenv("MATRIX_ACCESS_TOKEN", "")
+			t.Setenv("REPOMESH_MATRIX_ACT_AS", "")
 
 			notifier := NewFromEnv(nil)
 			if got := notifier == nil; got != testCase.wantNil {

@@ -196,7 +196,10 @@ func TestLoopbackAndBrowserBoundaries(t *testing.T) {
 		t.Fatal("arbitrary task accepted")
 	}
 	status, b := request(t, h, "GET", "/settings", nil)
-	if status != 200 || !bytes.Contains(b, []byte("/app.js")) {
+	// 资产引用是**相对**的：改 41 起观测台挂在控制台同源 /observe/ 反代下，
+	// 绝对路径 /app.js 会打到控制台根上。所以这里只断言引用了那个脚本，
+	// 不再钉前导斜杠。
+	if status != 200 || !bytes.Contains(b, []byte("app.js")) {
 		t.Fatal("old settings route unavailable")
 	}
 	status, b = request(t, h, "GET", "/task-map.js", nil)
