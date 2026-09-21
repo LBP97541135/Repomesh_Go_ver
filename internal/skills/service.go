@@ -2,6 +2,7 @@ package skill
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 )
 
@@ -74,36 +75,74 @@ func (svc *Service) StartEvaluation(ctx context.Context, versionID string) (*Ski
 	return svc.Transition(ctx, versionID, StatusEvaluating)
 }
 
-// EnterCanary enforces the clean gate: across the skill's whole history there
-// must be at least one pass and zero fails.
+// EnterCanary enforces the clean gate on **this version's own** evidence:
+// runs recorded since it entered evaluating, with-arm only.
+//
+// 2026-09-21 作用域从"整个技能历史"收到"本版本"（见 Store.CleanGate 的注释）：
+// 此前一条历史失败会把该技能名下所有版本一起锁死，新登记的版本也一起连坐。
 func (svc *Service) EnterCanary(ctx context.Context, versionID string) (*SkillVersion, error) {
 	v, err := svc.Store.GetVersion(ctx, versionID)
 	if err != nil {
 		return nil, err
 	}
-	ok, err := svc.Store.CleanGateOK(ctx, v.SkillID)
+	pass, fail, err := svc.Store.CleanGate(ctx, versionID)
 	if err != nil {
 		return nil, err
 	}
-	if !ok {
-		return nil, Refused("skill_gate_failed",
-			"clean gate not satisfied for skill %s: need at least one pass and zero fails in history", v.SkillID)
+	if pass < 1 || fail > 0 {
+		return nil, Refused("skill_gate_failed", "%s", cleanGateMessage(v.Version, pass, fail))
 	}
 	return svc.Transition(ctx, versionID, StatusCanary)
+}
+
+// cleanGateMessage 把闸门判定翻成一句**能照着做事**的话。
+//
+// 用户 2026-09-21 报「信息显示的也不明确」：此前只有一句英文
+// "clean gate not satisfied for skill <uuid>: need at least one pass and zero fails in history"
+// —— 既没说**是哪个版本**，也没说**卡在哪几条证据**上，人拿到它不知道该改什么。
+// 现在三件事都写清楚：哪个版本、几条 pass 几条 fail、下一步该做什么。
+func cleanGateMessage(version string, pass, fail int) string {
+	switch {
+	case pass == 0 && fail == 0:
+		return fmt.Sprintf("版本 %s 还没有带技能臂的 A/B 证据：先跑一次「A/B 对比」，至少要有 1 条 pass 才能进灰度验证。", version)
+	case fail > 0:
+		return fmt.Sprintf(
+			"版本 %s 的带技能臂有 %d 条失败（pass %d 条）。同一条历史失败不会因为重跑而消失 —— "+
+				"改好技能后**登记新版本**，再对新版本跑 A/B。", version, fail, pass)
+	default:
+		return fmt.Sprintf("版本 %s 的 A/B 证据还不满足进灰度的条件（pass %d · fail %d）。", version, pass, fail)
+	}
 }
 
 // Promote enforces the canary-window gate: runs recorded after the version
 // entered canary need at least one pass and zero fails.
 func (svc *Service) Promote(ctx context.Context, versionID string) (*SkillVersion, error) {
-	ok, err := svc.Store.CanaryWindowOK(ctx, versionID)
+	label := versionID
+	if v, err := svc.Store.GetVersion(ctx, versionID); err == nil && v.Version != "" {
+		label = v.Version
+	}
+	pass, fail, err := svc.Store.CanaryWindow(ctx, versionID)
 	if err != nil {
 		return nil, err
 	}
-	if !ok {
-		return nil, Refused("skill_gate_failed",
-			"canary window gate not satisfied for version %s: need at least one pass and zero fails since canary started", versionID)
+	if pass < 1 || fail > 0 {
+		return nil, Refused("skill_gate_failed", "%s", canaryGateMessage(label, pass, fail))
 	}
 	return svc.Transition(ctx, versionID, StatusPromoted)
+}
+
+// canaryGateMessage 与 cleanGateMessage 同一取向：说清哪个版本、几条 pass 几条 fail、
+// 下一步做什么。此前那句英文把版本写成 uuid，人既认不出是哪个版本，也不知道该补什么。
+func canaryGateMessage(version string, pass, fail int) string {
+	switch {
+	case pass == 0 && fail == 0:
+		return fmt.Sprintf("版本 %s 进入灰度之后还没有带技能臂的 A/B 证据：在灰度窗口内再跑一次「A/B 对比」，至少 1 条 pass 才能晋升。", version)
+	case fail > 0:
+		return fmt.Sprintf("版本 %s 在灰度窗口内有 %d 条失败（pass %d 条）—— 按设计这里应当已经**自动回滚**，"+
+			"还能点到晋升说明状态与记录不一致，请把这条记下来排查。", version, fail, pass)
+	default:
+		return fmt.Sprintf("版本 %s 的灰度证据还不满足晋升条件（pass %d · fail %d）。", version, pass, fail)
+	}
 }
 
 func (svc *Service) Rollback(ctx context.Context, versionID string) (*SkillVersion, error) {
