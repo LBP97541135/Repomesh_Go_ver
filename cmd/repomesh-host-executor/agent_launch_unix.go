@@ -104,7 +104,11 @@ func killedBySignal(exitErr *exec.ExitError) bool {
 // Neither equals a platform secret.
 func sanitizedEnv(ghToken string) []string {
 	keep := map[string]bool{"PATH": true, "HOME": true, "LANG": true, "LC_ALL": true, "TERM": true,
-		"TMPDIR": true, "USER": true, "SHELL": true, "MINIMAX_API_KEY": true, "DEEPSEEK_API_KEY": true}
+		"TMPDIR": true, "USER": true, "SHELL": true, "MINIMAX_API_KEY": true, "DEEPSEEK_API_KEY": true,
+		// 2026-09-22：中转站的 key。codex 通过 -c model_providers.<name>.env_key 指定的
+		// 那个变量名取它（见 internal/execution/agent_provider.go）。不加进这张白名单，
+		// agent 进程**根本拿不到** —— 白名单是"只透传列出的这几个变量"。
+		"REPOMESH_AGENT_PROVIDER_KEY": true}
 	var result []string
 	for _, entry := range os.Environ() {
 		name, _, found := strings.Cut(entry, "=")

@@ -259,6 +259,11 @@ func (s *Service) ClaimAgentLaunch(ctx context.Context, workerID string) (AgentR
 		}
 		return AgentRunCommand{}, "", unavailable()
 	}
+	// 2026-09-22：把写死的 minimax 提供方换成配置的提供方（见 agent_provider.go）。
+	// 放在这里而不是那 4 个写入点：这是 command 从库里出来、交给执行器的**唯一**一处，
+	// 一处覆盖全部写入点，也不用去改那 4 个参数各异的 Sprintf。
+	// 未配置时原样返回 —— 不引入任何新行为。
+	command = agentProviderFlags(command)
 	if _, err := tx.Exec(ctx, `UPDATE repomesh_execution.attempts SET state='running'
 		WHERE id=$1 AND state='launch_verified'`, attemptID); err != nil {
 		return AgentRunCommand{}, "", unavailable()
