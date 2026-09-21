@@ -134,14 +134,32 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 	deferBackoff := func() time.Duration {
 		key := p.issueID + ":defer:" + strconv.Itoa(step)
 		a.attempts[key]++
+		wait := 10 * time.Second
 		if a.attempts[key] >= 3 {
+			wait = 5 * time.Minute
 			if a.attempts[key] == 3 {
 				slog.Warn("autohost: 同一步反复被拒，退到 5 分钟一次（多半需要人工处理）",
 					"issue", p.issueID, "step", step)
 			}
-			return 5 * time.Minute
 		}
-		return 10 * time.Second
+		// 落库（迁移 0062）：内存计数会被进程重启清零，线上实测过 ——
+		// 11:16:14 熔断触发 → 11:16:24 coordinator 重启 → 11:16:35 新进程又从零开始数。
+		// 写进库之后，到期前该 issue **不会被 pendingIssues 取出来**，重启也拦得住。
+		// 写失败只记日志：本次内存退避仍然生效，不能因为落库失败就放弃退避。
+		if _, err := a.pool.Exec(ctx, `UPDATE repomesh_issues.issue_discoveries
+			SET autohost_defer_count=$2, autohost_deferred_until=now() + make_interval(secs => $3)
+			WHERE issue_id=$1`, p.issueID, a.attempts[key], int(wait.Seconds())); err != nil {
+			slog.Warn("autohost: 退避落库失败（本次内存退避仍生效）", "issue", p.issueID, "err", err)
+		}
+		return wait
+	}
+	// clearDefer：某一步**推进成功**就清掉落库的退避。
+	// 有人补了仓库、或判据变了，它应当立刻恢复被处理 —— 而不是继续等那 5 分钟。
+	clearDefer := func() {
+		if _, err := a.pool.Exec(ctx, `UPDATE repomesh_issues.issue_discoveries
+			SET autohost_defer_count=0, autohost_deferred_until=NULL WHERE issue_id=$1`, p.issueID); err != nil {
+			slog.Warn("autohost: 清退避失败（不影响本次推进）", "issue", p.issueID, "err", err)
+		}
 	}
 	done := func(err error) bool {
 		if err != nil {
@@ -157,6 +175,7 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 			a.attempts[key] = 1
 		}
 		a.lastStep[p.issueID] = step
+		clearDefer()
 		if a.attempts[key] >= 3 {
 			// 连续 3 次都没换步：判据与落库不一致（线上实例：classification 是 JSON
 			// null，has_classification 恒 false）。退到 5 分钟一次，并**说一次**是哪条
@@ -193,6 +212,7 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 		}
 		delete(a.attempts, p.issueID+":"+strconv.Itoa(step))
 		a.lastStep[p.issueID] = step
+		clearDefer()
 		a.backoff[p.issueID] = time.Now().Add(3 * time.Second)
 		return true
 	}
@@ -373,6 +393,10 @@ func (a *discoveryAutomator) pendingIssues(ctx context.Context) ([]discoveryProg
 		  -- 自动托管只处理 ai 模式的 issue：人工参与（hitl）的 issue 由人自己推门，
 		  -- 这里连一步都不代行（0053 之前它无条件代行 ③ 与 ⑤）。
 		  AND COALESCE(i.hitl_mode, 'hitl') = 'ai'
+		  -- 退避中的 issue 直接不取（迁移 0062 落库的那一列）：内存退避会被进程重启
+		  -- 清零，线上实测过 —— 11:16:14 熔断、11:16:24 重启、11:16:35 又从零开始撞。
+		  -- 落库之后，重启也拦得住：到期前它连被取出来都不会。
+		  AND (d.autohost_deferred_until IS NULL OR d.autohost_deferred_until <= now())
 		  -- 选仓门未到期直接排除(Task B2,spec §3.2):门在等人时连 tick 都不捡,
 		  -- 不入队、不空转。但**人点过「让 AI 定」(ai_requested)的门不排除** ——
 		  -- 那正是要驱动"生成建议并采纳"的门(spec 2026-09-20 修订)。无截止的门
