@@ -115,3 +115,22 @@ AgentTeams 队房（TeamRoomID）◀──────────────�
    物化前无队 → 留 pending（桥启动时自然补发，即 §5）。
 3. ③ 循环：轮询队房 → event_id 不在表里且 sender≠桥 → 写回会话流
    （走 messages 包的既有落卡路径，标注来源 manager）+ 置 received。
+
+### ③ 反向桥的落地要点（2026-09-20 侦察后定，动手前先读这段）
+
+- `MatrixSession.RoomMessages(ctx, roomID, limit) []MatrixMessage{EventID,Sender,Body,Timestamp}`
+  已封装（直打 homeserver）。
+- **不需要按 Sender 过滤桥自己**：正向桥发出去的每条都记了 event_id 进
+  `bridge_deliveries`，反向按 event_id 去重时自己的话天然被滤掉——省一个易错的
+  身份比较（原设计 §4-② 的"过滤桥身份"降级为"靠台账去重"）。
+- 落会话流：`conversation_messages.author_kind` 只允许 `user|service`（0019），
+  Manager 的话按 `service` + `actor_id='manager'` 落；`sequence` 要在会话内
+  取 max+1（同一会话所有写者共用一把序，设计 §7），id 用
+  `'msg_'||replace(gen_random_uuid()::text,'-','')` 一条 SQL 搞定。
+- **必须处理基线**：第一次轮询一个房间会拉到最近 N 条历史（规划通知、系统消息），
+  直接写回会话流就是灌噪音。做法：**首次见到该房间时只把拉到的 event_id 记进
+  台账（status='baseline'，不写会话）**，之后只桥新出现的。这条不写清楚必踩。
+- 房间→issue 反查：复用 `bridge_deliveries` 里已出现过的 (issue_id,
+  conversation_id)（即"人先说过的那些 issue"）。ponytail: 天花板是
+  **Manager 主动先说话的场景桥不到**（没有人的消息就没有台账行）；等真有这个
+  需求再做房间→issue 的完整反查（把 RoomForIssue 的 SQL 反着写一遍）。
