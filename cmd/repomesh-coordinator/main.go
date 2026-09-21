@@ -204,6 +204,16 @@ func runWorker(args []string) int {
 				} else if swept > 0 {
 					slog.Info("task sweep", "tasks", swept)
 				}
+				// 审核台镜像对账（2026-09-21 用户报「审核过了还挂待审」）：按**发现链
+				// 实际状态**销掉该销的镜像单。放在周期里而不是只挂在审批那一拍，是为了
+				// 覆盖两条审批路之外的情况 —— settleReview / settleReviewMirror 都是
+				// fail-open 的，写失败会静默留下一张永远 pending 的单；全量对账把存量
+				// 和历史遗留一起收干净。见 review_settle.go。
+				if settled, err := settleDiscoveryMirrors(dagCtx, runtime.Pool(), ""); err != nil {
+					slog.Warn("review mirror sweep deferred", "reason", err.Error())
+				} else if settled > 0 {
+					slog.Info("review mirror sweep", "rows", settled)
+				}
 				// 自动托管下的经理门：hitl_mode='ai' 的 issue 由 Leader 代行审批，
 				// 不让"全自动"在每个任务末尾都停下来等人（见 task_sweep.go）。
 				if approved, err := sweepAutoApproveManagerGate(dagCtx, runtime.Pool(), taskStore, scmSvc); err != nil {

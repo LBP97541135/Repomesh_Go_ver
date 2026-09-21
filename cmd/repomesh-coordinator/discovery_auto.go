@@ -307,6 +307,12 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 		slog.Info("autohost: approving tiers", "issue", p.issueID)
 		_, err = a.service.Approval(ctx, p.issueID, autohostAgent, idem+":approval",
 			"approved", "自动托管：分档审批自动通过", nil, p.evidenceVersion)
+		if err == nil {
+			// ③ 走完就把审核台那张镜像单销掉。用户 2026-09-21 报的「明明已经审核
+			// 过了，审核台里还挂着待审」就是漏了这一步 —— 销单逻辑此前只写在 web 的
+			// HTTP handler（人点通过那条路），自动托管这条内部路从来不销。
+			a.settleReviewMirror(ctx, p.issueID)
+		}
 		// 「一个仓库都没纳入」有一种可自愈的情形：评分时仓库池还是空的（需求没点名仓库
 		// 且当时的口径只取已确认范围），候选因此为空，分档随之全排除。池子口径已经修好，
 		// 这里把这种**空候选**打回 ② 重做一次（幂等键保证只重开一次；真评过的候选、
@@ -328,9 +334,29 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 	case !p.hasMaterialization:
 		slog.Info("autohost: materializing tasks", "issue", p.issueID)
 		_, err = a.service.Materialize(ctx, p.issueID, autohostAgent, idem+":materialize")
+		if err == nil {
+			// ⑤ 同理：物化确认落库之后，execution 那张镜像单没有存在理由。
+			a.settleReviewMirror(ctx, p.issueID)
+		}
 		return done(err)
 	}
 	return false
+}
+
+// settleReviewMirror 销掉这条 issue 的镜像待审单（③ 审批完 / ⑤ 物化完）。
+//
+// fail-open，与 web 侧 settleReview 同一取向：审核台写失败不能反过来打断发现链。
+// 真失败了也不怕漏 —— 协调器的周期对账（settleDiscoveryMirrors 全量那一次）
+// 会按发现链状态把它补上。
+func (a *discoveryAutomator) settleReviewMirror(ctx context.Context, issueID string) {
+	swept, err := settleDiscoveryMirrors(ctx, a.pool, issueID)
+	if err != nil {
+		slog.Warn("autohost: settle review mirror failed", "issue", issueID, "reason", err.Error())
+		return
+	}
+	if swept > 0 {
+		slog.Info("autohost: settled review mirror", "issue", issueID, "rows", swept)
+	}
 }
 
 // autohostStep 把"这条 issue 现在该走哪一步"折成一个小整数，**只用于去重计数**
