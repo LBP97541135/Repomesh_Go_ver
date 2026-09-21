@@ -1409,36 +1409,29 @@ export function WorkbenchPage({
             下载需求模板
           </button>
         </div>
-        {/* 创建条件（2026-09-20 建项不选仓:选仓 UI 整段撤掉,这里只报「能不能建、
-            缺什么」——仓库范围确认挪到①之后的选仓门,不再在建项时圈定)。 */}
-        <section className="w-full max-w-[720px] rounded-hard border border-line bg-panel p-4 text-sm">
-          <h2>创建条件</h2>
-          {optionsError && <p role="alert" className="text-salmon-hi">{optionsError} <button onClick={() => setOptionsReload(n => n + 1)}>重试</button></p>}
-          {!options && !optionsError && <p className="mt-2 text-tx2">{resolveDataSourceMode() === "replay" ? "回放模式不能创建 Issue" : "正在读取创建条件…"}</p>}
-          {/* 阻断原因：机器 code 映射成人话，App 相关时补一个「去哪补」的入口。
-              判定逻辑一个字没动——`canSubmit` 仍由后端算。 */}
-          {options && !options.canSubmit && (
-            <div className="mt-2 text-salmon-hi">
-              <p>
-                暂不能创建：
-                {options.blockingReasons?.length
-                  ? options.blockingReasons.map((code) => BLOCKING_LABEL[code] ?? code).join("；")
-                  : "创建条件未就绪"}
-                。请先完成工作授权和执行配置。
-              </p>
-              {options.blockingReasons?.some((code) => APP_RELATED_BLOCKERS.has(code)) && (
-                <a
-                  className="mt-1 inline-block text-[11.5px] text-amber-hi underline-offset-2 hover:underline"
-                  href="#/repositories"
-                >
-                  去安装 GitHub App / 检查仓库授权 →
-                </a>
-              )}
-            </div>
-          )}
-          {attempt.current && <p className="mt-2 text-xs text-tx2">提交内容已固定，重试会查询或完成同一次创建。</p>}
-        </section>
-        {/* HITL 入口选择（2026-09-17 用户裁定:从建项处选,不再等物化）:
+        {/* 2026-09-21 用户裁定:去掉「创建条件」这块框和标题。可以建的时候什么都不说,
+            不能建的时候**必须**说清缺什么——否则发送键是死的、人不知道为什么。
+            所以这里只留一行纯文本告警,不再有框、不再有标题。 */}
+        {optionsError && (
+          <p role="alert" className="w-full max-w-[720px] text-salmon-hi">
+            {optionsError} <button onClick={() => setOptionsReload(n => n + 1)}>重试</button>
+          </p>
+        )}
+        {options && !options.canSubmit && (
+          <p className="w-full max-w-[720px] text-salmon-hi">
+            暂不能创建：
+            {options.blockingReasons?.length
+              ? options.blockingReasons.map((code) => BLOCKING_LABEL[code] ?? code).join("；")
+              : "创建条件未就绪"}
+            。
+            {options.blockingReasons?.some((code) => APP_RELATED_BLOCKERS.has(code)) && (
+              <a className="underline-offset-2 hover:underline" href="#/repositories">
+                去安装 GitHub App / 检查仓库授权 →
+              </a>
+            )}
+          </p>
+        )}
+        {attempt.current && <p className="w-full max-w-[720px] text-xs text-tx2">提交内容已固定，重试会查询或完成同一次创建。</p>}        {/* HITL 入口选择（2026-09-17 用户裁定:从建项处选,不再等物化）:
             自动托管 = 处理员代行人审门; 人工参与 = 分档审批/物化确认/PR 合并等真人。 */}
         <div className="flex flex-col items-center gap-1.5">
           <div className="flex rounded-hard border border-line bg-well p-0.5">

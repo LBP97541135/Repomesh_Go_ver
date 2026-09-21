@@ -1488,76 +1488,71 @@ function GateStack({
   if (cards.length === 0 && stepStates[1] !== "choose" && !supplementPending) return null;
   return (
     <div className="flex flex-col gap-2.5 border-t border-dashed border-[var(--tree-hairline)] px-4 py-3">
+      {/* 选仓门 = Manager 在房里发的一条消息(2026-09-21 用户裁定:不再是独立卡片)。
+          带按钮的消息与「待人审门」同一惯例——需要人的地方就出现在对话流里。 */}
       {stepStates[1] === "choose" && (
-        <div className="flex gap-2.5">
-          <span className="mt-0.5 grid h-[22px] w-[22px] flex-none place-items-center rounded-full bg-amber-well text-amber">
-            <IconClock size={12} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="mb-0.5 flex items-center gap-1.5">
-              <span className="text-[11px] font-medium text-[var(--tree-ink)]">选仓门 · 确认本次 Issue 的仓库范围</span>
-            </div>
-            <div className="rounded-hard border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2 transition-colors hover:bg-[var(--tree-zone)]">
-              <p className="text-[11px] leading-[1.6] text-[var(--tree-sub)]">
-                建项不再圈仓库——需求分析后在这里定范围:自己勾,或按 AI 建议确认。
-              </p>
-              {(() => {
-                // AI 建议列表(仓+理由):只渲染后端 scope_gate.suggested,前端不
-                // 自己拼候选——建议是服务端落库的事实。
-                // spec 2026-09-20 修订:建议**不是开门时就有的**(门先出现,点了
-                // 「让 AI 定」才去生成)。所以为空不是错误态,只是还没点/还在生成:
-                // 两个按钮都可用,这里只说明下一步该干嘛。
-                const suggested = scopeGateSuggestions(discovery?.scope_gate);
-                if (suggested.length === 0) {
-                  return (
-                    <p className="mt-1.5 text-[10.5px] text-[var(--tree-faint)]">
-                      点「让 AI 定」生成仓库建议，或「我自己勾」。
-                    </p>
-                  );
-                }
+        <ChatRow who="mgr">
+          <ChatCard>
+            <span className="font-semibold">这次要动哪些仓库还没定,要我替你圈吗?</span>
+            <p className="mt-1 text-[11px] leading-[1.6] text-[var(--tree-sub)]">
+              建项不再圈仓库,范围在这里定:你自己勾,或按我的建议确认。
+            </p>
+            {(() => {
+              // AI 建议列表(仓+理由):只渲染后端 scope_gate.suggested,前端不
+              // 自己拼候选——建议是服务端落库的事实。
+              // spec 2026-09-20 修订:建议**不是开门时就有的**(门先出现,点了
+              // 「让 AI 定」才去生成)。所以为空不是错误态,只是还没点/还在生成:
+              // 两个按钮都可用,这里只说明下一步该干嘛。
+              const suggested = scopeGateSuggestions(discovery?.scope_gate);
+              if (suggested.length === 0) {
                 return (
-                  <ul className="mt-1.5 space-y-1">
-                    {suggested.map((s) => (
-                      <li key={s.repository} className="flex items-baseline gap-1.5 text-[11px] leading-[1.5]">
-                        <span className="flex-none rounded-[5px] border border-[var(--tree-acc)] bg-[var(--tree-acc)]/10 px-1.5 py-px font-mono text-[10px] text-[var(--tree-acc)]">
-                          {s.repository}
-                        </span>
-                        <span className="min-w-0 truncate text-[10.5px] text-[var(--tree-faint)]" title={s.reason}>
-                          {s.reason}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                  <p className="mt-1.5 text-[10.5px] text-[var(--tree-faint)]">
+                    点「让 AI 定」生成仓库建议，或「我自己勾」。
+                  </p>
                 );
-              })()}
-              {/* 截止只渲染后端 deadline_at(零计时器):超时未点由协调器按这份建议
-                  代选并留房间记录,读面下一拍自然关门。 */}
-              {discovery?.scope_gate?.deadline_at && (
-                <p className="mt-1.5 text-[10.5px] text-[var(--tree-faint)]">
-                  {gateDeadlineText(discovery.scope_gate.deadline_at)} 前未确认,将自动按 AI 建议代选
-                </p>
-              )}
-              <div className="mt-1.5 flex gap-2">
-                <button
-                  type="button"
-                  disabled={selectionBusy}
-                  onClick={() => onChooseManual?.()}
-                  className="rounded-hard border border-amber/40 bg-amber-well px-3 py-1 text-[11.5px] font-semibold text-amber hover:bg-amber-well/80 disabled:opacity-50"
-                >
-                  我自己勾
-                </button>
-                <button
-                  type="button"
-                  disabled={selectionBusy}
-                  onClick={() => onChooseAI?.()}
-                  className="rounded-hard border border-[var(--tree-acc)] bg-[var(--tree-acc)]/10 px-3 py-1 text-[11.5px] font-semibold text-[var(--tree-acc)] hover:bg-[var(--tree-acc)]/20 disabled:opacity-50"
-                >
-                  让 AI 定
-                </button>
-              </div>
+              }
+              return (
+                <ul className="mt-1.5 space-y-1">
+                  {suggested.map((s) => (
+                    <li key={s.repository} className="flex items-baseline gap-1.5 text-[11px] leading-[1.5]">
+                      <span className="flex-none rounded-[5px] border border-[var(--tree-acc)] bg-[var(--tree-acc)]/10 px-1.5 py-px font-mono text-[10px] text-[var(--tree-acc)]">
+                        {s.repository}
+                      </span>
+                      <span className="min-w-0 truncate text-[10.5px] text-[var(--tree-faint)]" title={s.reason}>
+                        {s.reason}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              );
+            })()}
+            {/* 截止只渲染后端 deadline_at(零计时器):超时未点由协调器按这份建议
+                代选并留房间记录,读面下一拍自然关门。 */}
+            {discovery?.scope_gate?.deadline_at && (
+              <p className="mt-1.5 text-[10.5px] text-[var(--tree-faint)]">
+                {gateDeadlineText(discovery.scope_gate.deadline_at)} 前未确认,将自动按 AI 建议代选
+              </p>
+            )}
+            <div className="mt-1.5 flex gap-2">
+              <button
+                type="button"
+                disabled={selectionBusy}
+                onClick={() => onChooseManual?.()}
+                className="rounded-hard border border-amber/40 bg-amber-well px-3 py-1 text-[11.5px] font-semibold text-amber hover:bg-amber-well/80 disabled:opacity-50"
+              >
+                我自己勾
+              </button>
+              <button
+                type="button"
+                disabled={selectionBusy}
+                onClick={() => onChooseAI?.()}
+                className="rounded-hard border border-[var(--tree-acc)] bg-[var(--tree-acc)]/10 px-3 py-1 text-[11.5px] font-semibold text-[var(--tree-acc)] hover:bg-[var(--tree-acc)]/20 disabled:opacity-50"
+              >
+                让 AI 定
+              </button>
             </div>
-          </div>
-        </div>
+          </ChatCard>
+        </ChatRow>
       )}
       {supplementPending && <SupplementConfirmCard discovery={discovery} onConfirm={onConfirmSupplements} busy={selectionBusy} />}
       {cards.map((c) => (
@@ -1971,7 +1966,7 @@ function StepDetail({
           ))}
         </CardShell>
       ) : (
-        <CardShell title="候选评分">{state === "run" ? <p className="text-[11px] text-[var(--tree-sub)]">正在评估项目仓库目录中的候选…</p> : state === "choose" ? <p className="text-[11px] text-[var(--tree-sub)]">选仓门待确认——去 Manager 房间的「选仓门」卡确认本次范围。</p> : <p className="text-[11px] text-[var(--tree-sub)]">等待需求分析完成。</p>}</CardShell>
+        <CardShell title="候选评分">{state === "run" ? <p className="text-[11px] text-[var(--tree-sub)]">正在评估项目仓库目录中的候选…</p> : state === "choose" ? <p className="text-[11px] text-[var(--tree-sub)]">选仓门待确认——在 Manager 房间的对话里确认本次范围。</p> : <p className="text-[11px] text-[var(--tree-sub)]">等待需求分析完成。</p>}</CardShell>
       ),
     );
   }
