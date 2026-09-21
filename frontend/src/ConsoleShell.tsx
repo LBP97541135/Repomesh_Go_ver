@@ -568,9 +568,11 @@ export default function ConsoleShell() {
                   ? "models"
                   : route.settingsSection === "agents"
                     ? "agents"
-                    : route.settingsSection === "skills"
-                      ? "skills"
-                      : "general"
+                : route.settingsSection === "skills"
+                  ? "skills"
+                  : route.settingsSection === "profiles"
+                    ? "profiles"
+                  : "general"
             }
             onToast={showToast}
             onOpenIssue={openIssue}

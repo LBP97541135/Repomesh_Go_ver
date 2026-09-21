@@ -16,6 +16,7 @@ import { LocalCliPage } from "./LocalCliPage";
 import { TypeSafeSettings } from "../components/TypeSafeSettings";
 import { ModelUsageSettings } from "../components/ModelUsageSettings";
 import { ModelProvidersPage } from "./ModelProvidersPage";
+import { ProfilesPage } from "./ProfilesPage";
 import { SupervisionPolicySettings } from "../components/SupervisionPolicySettings";
 import { AgentsPage } from "./AgentsPage";
 import { SkillsPage } from "./SkillsPage";
@@ -28,12 +29,26 @@ import { useRuntimeRows } from "./useRuntimeRows";
 /** 模型与 API 按仓库分析、AgentTeams 和观测评估标注用途。
  * 沿用现有配置与权限，同时保留 GitHub 重连、智能体和技能设置。 */
 
-type CategoryKey = "general" | "models" | "account" | "platform" | "agents" | "skills" | "localcli" | "about";
+type CategoryKey =
+  | "general"
+  | "models"
+  | "profiles"
+  | "account"
+  | "platform"
+  | "agents"
+  | "skills"
+  | "localcli"
+  | "about";
 
 /** 分类图标（lucide）：Trae 同款「图标 + 文字」导航项。 */
 const CATEGORIES: { key: CategoryKey; label: string; icon: LucideIcon }[] = [
   { key: "general", label: "通用", icon: Settings2 },
   { key: "models", label: "模型与 API", icon: KeyRound },
+  // 配置档案（2026-09-22）：模型档案与执行档案的**默认**在这里设。
+  // 此前前端没有任何承载"档案"的页面，后端 defaults 表也只有导入路径能写 ——
+  // 于是 catmem 有模型档案却设不了默认、执行档案一个都建不出来，建 issue 被
+  // 「执行配置未完成」永久阻断。
+  { key: "profiles", label: "配置档案", icon: FileCheck },
   { key: "account", label: "账号与权限", icon: Users },
   { key: "platform", label: "平台", icon: Server },
   { key: "agents", label: "智能体", icon: Bot },
@@ -675,6 +690,7 @@ export function SettingsPage({
         )}
         {category === "skills" && <SkillsPage onToast={onToast} embedded />}
         {category === "localcli" && <LocalCliPage embedded />}
+        {category === "profiles" && <ProfilesPage onToast={onToast} />}
         {category === "about" && <AboutCategory account={account} base={base} />}
       </div>
     </div>

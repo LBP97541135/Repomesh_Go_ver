@@ -232,9 +232,28 @@ export function listProjectRepositories(
   return apiRequest("GET", `/projects/${encodeURIComponent(projectId)}/repositories${pageQuery(query)}`);
 }
 
-/** GET /api/configuration-profiles — 执行配置档案目录。 */
-export function listConfigurationProfiles(query?: PageQuery): Promise<ConfigurationProfilePage> {
-  return apiRequest<ConfigurationProfilePage>("GET", `/configuration-profiles${pageQuery(query)}`);
+/** GET /api/configuration-profiles — 配置档案目录（model / execution 两类）。
+ *
+ *  2026-09-22：**kind 改成必填参数**。此前这个函数签名里没有 kind，而
+ *  ``pageQuery`` 也不认它 —— 也就是说**调用方根本没有办法按 kind 查**，
+ *  发出去的永远是裸 ``/configuration-profiles``。后端 ``ParseProfileQuery``
+ *  要求 kind，所以这条读面此前**不可能被正确调用过**（与它零调用互为印证：
+ *  没人用，所以没人发现它调不对）。
+ *
+ *  kind 走 query 参数而不是路径段（与后端的读面形状一致），
+ *  但与 ``setDefaultConfigurationProfile`` 的路径段形态**刻意不同**：
+ *  写操作把身份放路径里便于路由与鉴权，读操作的筛选条件放 query 里。
+ */
+export function listConfigurationProfiles(
+  kind: "model" | "execution",
+  query?: PageQuery,
+): Promise<ConfigurationProfilePage> {
+  const extra = pageQuery(query);
+  const suffix = extra ? `&${extra.slice(1)}` : "";
+  return apiRequest<ConfigurationProfilePage>(
+    "GET",
+    `/configuration-profiles?kind=${encodeURIComponent(kind)}${suffix}`,
+  );
 }
 
 /** PUT /api/configuration-profiles/{kind}/default —— 把某个档案设成**默认**。
@@ -261,6 +280,25 @@ export function setDefaultConfigurationProfile(
   return apiRequest("PUT", `/configuration-profiles/${encodeURIComponent(kind)}/default`, {
     profileId,
   });
+}
+
+/** POST /api/configuration-profiles/execution —— 建一条**执行档案**（含 v1 版本）。
+ *
+ *  2026-09-22 补：执行档案此前**只能由导入路径**写入，没有任何 HTTP/UI 入口 ——
+ *  线上实测 catmem **一个执行档案都没有**，于是他的项目走 `inherit` 解析不到执行侧，
+ *  建 issue 被「执行配置未完成」永久阻断，而且他自己解不开。
+ *
+ *  **政策不用传**：预算政策与时限政策是**全局**的（`request_policy_versions` /
+ *  `time_policy_versions` 都没有 owner 列），服务端直接引用现成版本。
+ *  服务端取不到政策时回 409 `POLICY_NOT_CONFIGURED` —— 如实说"没配政策"，
+ *  而不是建一个没有约束的空壳档案。
+ *
+ *  422 = 名字为空/超长，或 workerConcurrency 不在 1..16。 */
+export function registerExecutionProfile(
+  name: string,
+  workerConcurrency: number,
+): Promise<{ kind: string; profileId: string; version: string }> {
+  return apiRequest("POST", "/configuration-profiles/execution", { name, workerConcurrency });
 }
 
 export function listAllProjects(): Promise<ProjectListItem[]> {

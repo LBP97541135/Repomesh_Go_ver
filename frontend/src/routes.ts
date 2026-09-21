@@ -23,11 +23,17 @@ export const NAV_HASH: Record<NavKey, string> = {
  *  - logs   统一日志（Log：结构化日志查询，含按 Issue 分组视图）
  *  - alerts 在线告警（阈值规则 + 触发历史） */
 export type ObserveSection = "trace" | "usage" | "logs" | "alerts";
-export type SettingsSection = "local-cli" | "agents" | "skills" | "models";
+export type SettingsSection = "local-cli" | "agents" | "skills" | "models" | "profiles";
 
 /** 设置页的分类深链（#/settings/<section>）。agents/skills 2026-09-20 从侧栏
  *  顶级导航收编进设置——它们是配置面，不是日常工作面。 */
-export const SETTINGS_SECTIONS: ReadonlyArray<SettingsSection> = ["local-cli", "agents", "skills", "models"];
+export const SETTINGS_SECTIONS: ReadonlyArray<SettingsSection> = [
+  "local-cli",
+  "agents",
+  "skills",
+  "models",
+  "profiles",
+];
 
 export const OBSERVE_SECTIONS: ReadonlyArray<ObserveSection> = [
   "trace",
