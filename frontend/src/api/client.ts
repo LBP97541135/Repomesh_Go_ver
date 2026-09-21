@@ -61,25 +61,21 @@ import type {
   SetupStatusView,
   UrlIdentification,
 } from "./contract";
-import { getCsrfToken } from "./http";
+import { ApiError, getCsrfToken } from "./http";
 
-export class ApiError extends Error {
-  readonly status: number;
-  readonly url: string;
-  /** FastAPI `detail` 的**原件**（解析过的 JSON 值；非 JSON 体时是响应原文）。
-   *  `message` 里那份是它的字符串化版本，够显示不够消费：结构化 detail
-   *  （物化的 `external_members_not_ready`）要按字段渲染，JSON.stringify 之后
-   *  那份结构就只剩一坨字。连不上时为 null——那一次根本没有响应体。 */
-  readonly detail: unknown;
-
-  constructor(status: number, url: string, message: string, detail: unknown) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-    this.url = url;
-    this.detail = detail;
-  }
-}
+// 2026-09-21：这里**曾经**又定义了一份一模一样的 ApiError。
+//
+// 后果是静默且致命的：全前端有 14 处 `err instanceof ApiError` 判断状态码，而
+// `apiRequest`（api/http.ts）抛的是**它自己那份**类 —— 于是凡是从 apiRequest 出来的
+// 错误，`instanceof` 恒为 false，状态码判断整条失效。
+//
+// 线上实测那条：设置 → 监管策略 读草稿返 404（= "还没设过"，后端刻意不返 200 空对象），
+// 设置页写的 `err.status === 404 → 未设定` 从来没生效过，界面于是把「还没设过」
+// 渲染成鲑红的「监管策略草稿取用失败」。用户看到的就是这个。
+//
+// 现在只有**一个** ApiError 类：http.ts 定义，这里转出，老的 `import { ApiError }
+// from "../api/client"` 调用点不用改，但 instanceof 从此对两条通道都成立。
+export { ApiError };
 
 export interface ApiClientConfig {
   /** 形如 ""（同源）；路径前缀 /api 固定（无版本段，2026-09-16 裁定） */
