@@ -31,7 +31,10 @@ import { errText } from "../display";
 const STATUS_LABEL: Record<SkillStatus, string> = {
   draft: "草稿",
   evaluating: "评估中",
-  canary: "金丝雀",
+  // 2026-09-21 用户裁定：canary 直译成"金丝雀"没人看得懂。
+  // 它实际含义是"评估通过了、但先小范围试用，期间一有评估失败自动回滚"，
+  // 中文里对应的通用说法是**灰度**。后端状态码仍是 canary（那是契约），只改展示。
+  canary: "灰度验证",
   promoted: "已晋升",
   rolled_back: "已回滚",
 };
@@ -125,7 +128,7 @@ const STATUS_PILL: Record<SkillStatus, string> = {
 
 const NEXT_ACTIONS: Record<SkillStatus, Array<{ action: SkillAction; label: string }>> = {
   draft: [{ action: "evaluate", label: "送评估" }],
-  evaluating: [{ action: "canary", label: "进金丝雀" }],
+  evaluating: [{ action: "canary", label: "进灰度验证" }],
   canary: [
     { action: "promote", label: "晋升" },
     { action: "rollback", label: "回滚" },
@@ -153,7 +156,7 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
   /** 「登记新版本」表单（2026-09-20 补）。
    *
    *  为什么需要它：技能的生命周期是 draft → evaluating → canary → promoted，
-   *  但界面上**只有"推进已有版本"的动作**（送评估/进金丝雀/晋升/回滚），
+ *  但界面上**只有"推进已有版本"的动作**（送评估/进灰度验证/晋升/回滚），
    *  没有"登记新版本"—— 于是线上 15 个技能全是 promoted、一个 draft 都没有，
    *  `evaluation_runs` 至今 0 行：**A/B 评估这条路在界面上根本走不到**。
    *  后端 `POST /api/skills/versions` 与前端 `registerSkillVersion` 早就有了，
@@ -493,7 +496,7 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
                   <div className="mt-2 flex flex-col gap-1.5 rounded-hard border border-line bg-well px-3 py-2">
                     <p className="text-[11px] leading-[1.7] text-tx2">
                       登记出来的版本状态是 <span className="font-mono">draft</span>，
-                      之后才能「送评估 → 进金丝雀 → 晋升」。正文默认带出当前版本，
+                      之后才能「送评估 → 进灰度验证 → 晋升」。正文默认带出当前版本，
                       改过再提交才有 A/B 可比性。
                     </p>
                     <input
@@ -535,6 +538,18 @@ export function SkillsPage({ onToast, embedded = false }: { onToast: (text: stri
               {versions === null && <p className="text-[12.5px] text-tx3">正在读取版本…</p>}
               {versions !== null && versions.length === 0 && (
                 <p className="text-[12.5px] text-tx3">这个技能还没有版本。</p>
+              )}
+              {/* 状态图例（2026-09-21 用户要求）：状态名本身不带解释，
+                  尤其"灰度验证"——它到底在干什么，得写出来。 */}
+              {versions !== null && versions.length > 0 && (
+                <p className="text-[11.5px] leading-[1.8] text-tx3">
+                  状态含义 · <span className="text-tx2">草稿</span> 刚登记、还没评 ·
+                  <span className="text-tx2">评估中</span> 正在跑 A/B 盲评 ·
+                  <span className="text-tx2">灰度验证</span> 评估已过，先小范围试用，
+                  期间只要有一条带技能臂的评估失败就<span className="text-tx2">自动回滚</span> ·
+                  <span className="text-tx2">已晋升</span> 正式生效 ·
+                  <span className="text-tx2">已回滚</span> 已下线，不再参与装配
+                </p>
               )}
               <div className="space-y-2">
                 {(versions ?? []).map((version) => (
