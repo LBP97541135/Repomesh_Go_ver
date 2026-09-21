@@ -836,7 +836,9 @@ export function WorkbenchPage({
       throw new Error("回放模式不写后端：选仓门需要 ?source=live 才能真实执行");
     }
     const ids = [...new Set(repositoryIds)].filter((id) => id.length > 0).sort();
-    if (ids.length === 0) throw new Error("至少要确认一个仓库");
+    // 「让 AI 定」允许空集合(spec 2026-09-20 修订):门先出现,点了才去生成建议;
+    // 端点会记下 ai_requested 并返回 status=ai_requested。
+    if (ids.length === 0 && decidedBy !== "ai") throw new Error("至少要确认一个仓库");
     const opts = await allCreationOptions(projectId);
     return submitScopeSelection(projectId, issueId, {
       repositoryIds: ids,
@@ -846,19 +848,20 @@ export function WorkbenchPage({
     });
   };
   const handleChooseManual = () => setSelectionOpen(true);
+  // 「让 AI 定」(spec 2026-09-20 修订):不再要求建议**已经**存在。点了就直接发
+  // 空集合的 ai 请求——建议还没生成时后端只记 ai_requested(回执 status 也是
+  // ai_requested),由协调器生成建议并自动采纳;建议已生成时同一请求直接采纳。
+  // 两种情形都靠轮询把门态带回来,前端不猜。
   const handleChooseAI = () => {
     if (!detail || selectionBusy) return;
-    const suggested = (discovery?.scope_gate?.suggested ?? [])
-      .map((s) => s.repository)
-      .filter((repo) => repo.length > 0);
-    if (suggested.length === 0) {
-      onToast("AI 建议还没生成——稍候片刻,或先「我自己勾」");
-      return;
-    }
     setSelectionBusy(true);
-    commitScopeSelection(detail.issue_id, suggested, "ai")
+    commitScopeSelection(detail.issue_id, [], "ai")
       .then((receipt) => {
-        onToast(`已按 AI 建议确认 ${receipt.repositoryCount} 个仓库,分档继续`);
+        if (receipt.status === "ai_requested") {
+          onToast("已请 AI 定仓，正在生成建议…");
+        } else {
+          onToast(`已按 AI 建议确认 ${receipt.repositoryCount} 个仓库，分档继续`);
+        }
         setReload((n) => n + 1);
       })
       .catch((err: unknown) => onToast(`AI 代选失败：${errText(err)}`))

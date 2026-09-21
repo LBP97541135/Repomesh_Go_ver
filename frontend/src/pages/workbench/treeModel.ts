@@ -85,29 +85,33 @@ export function deriveStepStates(
   //    （pending=未确认，缺省=老 issue 跳过）；两者都没有（旧后端）沿用旧 hitl
   //    口径，树上那枚「待人选」标签不至于无声消失。
   const cand = d.candidates;
+  // 选仓门可见性(spec 2026-09-20 修订,Task 顺序修正):以 `scope_gate` 为准 ——
+  //    门只要还是 pending 就显示「待选择」,**不因候选落库而消失**(只有 resolved
+  //    才消失)。此前拿 `cand === null` 当条件,门会在②候选落库那一刻被"做完"的
+  //    假象盖掉,人反而看不到该点的门。
+  //    读面没有 scope_gate(旧后端)时退回旧口径:hitl 口径 + 范围空 + 候选还没落库
+  //    + 没物化过;老 issue(建项时已定范围)自动跳过门。
   const gateWaiting =
-    d.analysis !== null &&
-    cand === null &&
-    d.materialization === null &&
-    (scopeRepoCount !== null
-      ? scopeRepoCount === 0
-      : d.scope_gate !== undefined
-        ? d.scope_gate.state === "pending"
-        : hitl);
+    d.scope_gate !== undefined
+      ? d.scope_gate.state === "pending"
+      : d.analysis !== null &&
+        cand === null &&
+        d.materialization === null &&
+        (scopeRepoCount !== null ? scopeRepoCount === 0 : hitl);
   states[1] =
-    cand !== null
-      ? cand.error
-        ? "failed"
-        : "done"
-      : states[0] === "done"
-        ? gateWaiting
-          ? "choose"
-          : runningAt(2)
+    gateWaiting && states[0] === "done"
+      ? "choose"
+      : cand !== null
+        ? cand.error
+          ? "failed"
+          : "done"
+        : states[0] === "done"
+          ? runningAt(2)
             ? "run"
             : failed
               ? "failed"
               : "wait"
-        : "wait";
+          : "wait";
   // ③ 分档审批：漏选清单待人确认 > 人工审批门
   const supplementPending = d.classification?.supplement_state === "pending";
   states[2] =
