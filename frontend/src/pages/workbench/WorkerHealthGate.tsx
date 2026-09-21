@@ -21,6 +21,24 @@ function errorText(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+/** 一个名字是不是 **AgentTeams 的 worker id**。
+ *
+ *  2026-09-21 线上实测（用户报「Worker 不可用 · 读不到 — worker status returned 404」）：
+ *  任务行给这张卡的是**展示标签**（`W1`、`W2`…），而它拿这个名字去查 AgentTeams
+ *  Controller 的 `/workers/{name}/status` —— **必然 404**，界面于是渲染成
+ *  「Worker 不可用」，看着像执行环境坏了。
+ *
+ *  实际是**类别错误**：RepoMesh 的编制标签（W1/L1）不是 Controller 的 worker id。
+ *  真实 id 形如 `wrk_accept_codex`（部署文档写明：executor 与 coordinator dispatch
+ *  必须同为 `wrk_*`）。不是这个形状，就说明**这个项目根本不经过 Controller 派工** ——
+ *  那这张卡就不该出现（不是"坏了"，是"这件事在这里不存在"）。
+ *
+ *  宁可整卡不渲染，也不把一个必然 404 的查询渲染成故障：后者会让人去查一个不存在的问题。
+ */
+function isAgentTeamsWorkerId(name: string): boolean {
+  return name.startsWith("wrk_");
+}
+
 export function WorkerHealthGate({ workerName }: { workerName: string | null }) {
   const [result, setResult] = useState<HealthGateResult | null>(null);
   const [checking, setChecking] = useState(false);
@@ -49,6 +67,7 @@ export function WorkerHealthGate({ workerName }: { workerName: string | null }) 
   }, [check]);
 
   if (!workerName) return null;
+  if (!isAgentTeamsWorkerId(workerName)) return null;
   if (checking && !result) return <p className="px-4 py-2 text-[11px] text-[var(--tree-faint)]">Worker 健康检查中…</p>;
   if (!result) return null;
 
