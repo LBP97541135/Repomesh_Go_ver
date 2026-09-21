@@ -24,6 +24,9 @@ type discoveryAutomator struct {
 	// rooms 把门事件(超时代选)投进 issue 的仓库团队房(spec §3.4);
 	// nil 时是安全空操作——房间是观察面,缺它不改行为。
 	rooms *roomnotice.Notifier
+	// wake 是采纳建议为范围后唤醒入选仓库团队的钩子(spec §3.3):选进范围时
+	// ensure-ready(wake 失败靠派活前双保险兜底)。nil 时安全跳过。
+	wake    func(ctx context.Context, projectID string, repositoryIDs []string)
 	backoff map[string]time.Time
 	// attempts 记"同一条 issue 的同一个 step 连续跑了几次"。
 	//
@@ -47,6 +50,12 @@ func newDiscoveryAutomator(service *discovery.Service, pool *pgxpool.Pool, rooms
 	}
 }
 
+// withWake 接上"采纳建议后唤醒入选仓库团队"的钩子(spec §3.3)。nil 时安全跳过。
+func (a *discoveryAutomator) withWake(fn func(ctx context.Context, projectID string, repositoryIDs []string)) *discoveryAutomator {
+	a.wake = fn
+	return a
+}
+
 type discoveryProgress struct {
 	issueID            string
 	hasAnalysis        bool
@@ -63,11 +72,16 @@ type discoveryProgress struct {
 	// 于是人工参与模式下 ③ 分档审批与 ⑤ 物化确认也被无条件代行，人审门形同不存在。
 	hitlMode string
 	// gatePending / gateExpired 是选仓门投影(Task B2,spec §3.2)。WHERE 已排除
-	// 「有截止且未到期」的门,剩下的 pending 只有两种:gatePending=无截止的门
-	// (hitl 语义,等待分支兜住),gateExpired=有截止且已到期的门(超时代选)。
-	// 两个谓词互斥,switch 先判谁都不会吞掉另一支。
-	gatePending bool
-	gateExpired bool
+	// 「有截止且未到期、且未被请求」的门,剩下的 pending 只有三种:gatePending=
+	// 无截止的门(hitl 语义,等待分支兜住),gateExpired=有截止且已到期的门(超时),
+	// gateAIRequested=人在门上点过「让 AI 定」的门(不论有没有截止)。后两个谓词
+	// 可以同时成立;switch 的先后顺序按"先等、后生成、再采纳"排。
+	gatePending     bool
+	gateExpired     bool
+	gateAIRequested bool
+	// gateSuggestedCount 是门里建议的条数(spec 2026-09-20 修订:0=还没生成,
+	// 协调器只登记候选生成意图;>0=已就绪,采纳为范围)。
+	gateSuggestedCount int
 	// gateManual / gapAuditRecorded 是查漏步(Task B3,spec §3.2)的判据:门被
 	// **人工**确认(decided_by=manual)后、③ 分档前先派一次查漏;结论落进
 	// gate.audit.missing(键存在)后就不再派。ai/timeout 确认的门不跑查漏。
@@ -143,6 +157,23 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 		a.backoff[p.issueID] = time.Now().Add(3 * time.Second)
 		return true
 	}
+	// working 与 done 的区别只有一点:**不进熔断计数**。
+	//
+	// spec 2026-09-20 修订:等建议生成期间,判据(建议为空)会在产物落地前一直为真。
+	// 若走 done() 的"同一步连续 3 次"计数,第 3 拍就会退避 5 分钟 —— 建议反而更晚
+	// 落地。所以"登记候选生成意图"这类**判据暂未变化但确实在做正确的事**的分支
+	// 用 working():给 3 秒地板间隔、返回 true,但不计空转、不触发 5 分钟退避。
+	working := func(err error) bool {
+		if err != nil {
+			a.backoff[p.issueID] = time.Now().Add(10 * time.Second)
+			slog.Warn("autohost discovery step deferred", "issue", p.issueID, "reason", err.Error())
+			return false
+		}
+		delete(a.attempts, p.issueID+":"+strconv.Itoa(step))
+		a.lastStep[p.issueID] = step
+		a.backoff[p.issueID] = time.Now().Add(3 * time.Second)
+		return true
+	}
 	idem := "autohost:" + p.issueID
 	switch {
 	case !p.hasAnalysis:
@@ -164,22 +195,38 @@ func (a *discoveryAutomator) step(ctx context.Context) bool {
 		forceKey := idem + ":analysis-force:" + strconv.FormatInt(time.Now().UnixNano(), 36)
 		_, err = a.service.Analysis(ctx, p.issueID, autohostAgent, forceKey, nil, true)
 		return done(err)
-	case p.gatePending:
-		// 门等待(被捡到时):pendingIssues 的 WHERE 已排除「有截止且未到期」,
-		// 走到这里的是无截止的门(hitl 语义)。不动状态、**不经 done()**、不进
-		// 熔断计数——门在等人,不是发现链在空转。
+	case p.gatePending && !p.gateAIRequested && !p.gateExpired:
+		// 门等待(被捡到时):无截止、且没人点过「让 AI 定」的门(hitl 语义)。
+		// 不动状态、**不经 done()**、不进熔断计数——门在等人,不是发现链在空转。
 		slog.Info("autohost: 选仓门等待确认", "issue", p.issueID)
 		return false
-	case p.gateExpired:
-		// 门超时:CAS 置 timeout + 按建议集合代选落范围(A3 服务层等价物:
-		// 双表、整组同一把 scope_revision)+ roomnotice 通知(spec §3.4,
-		// 幂等键 gate:{issue}:timeout,重投不刷屏)。
-		slog.Info("autohost: 选仓门超时,按建议代选", "issue", p.issueID)
-		receipt, err := a.service.ResolveGateTimeout(ctx, p.issueID, idem+":gate-timeout")
+	case (p.gateAIRequested || p.gateExpired) && p.gateSuggestedCount == 0:
+		// 门要求 AI 定(人点过「让 AI 定」,或 ai 模式 10 分钟到期),但建议**还没
+		// 生成**:只登记候选生成意图(EnqueuePlanningRun 幂等;真正派发在
+		// planningDispatcher)。走 working() —— 等建议期间判据暂未变化,不能被
+		// 3 次熔断退避当成空转(否则建议反而更晚落地)。
+		slog.Info("autohost: 选仓门待生成建议,登记候选意图", "issue", p.issueID)
+		return working(a.service.EnqueuePlanningRun(ctx, p.issueID, discovery.PlanningCandidates))
+	case p.gateAIRequested || p.gateExpired:
+		// 建议已就绪:采纳建议为范围 + 唤醒入选仓库的团队(spec §3.3)。与 A3 批量
+		// 确认端点同一条服务路径的直写版:建议集合→项目内仓 id→双表写(整组一把
+		// scope_revision)→门 CAS 置 resolved。decided_by 如实记 ai(人点过)或
+		// timeout(10 分钟无人点,后端走同一条生成+采纳)。
+		decidedBy, notice := "timeout", gateTimeoutNotice
+		if p.gateAIRequested {
+			decidedBy, notice = "ai", gateAIAdoptedNotice
+		}
+		slog.Info("autohost: 选仓门按建议采纳为范围", "issue", p.issueID, "decided_by", decidedBy)
+		receipt, repositoryIDs, err := a.service.AdoptGateSuggestion(ctx, p.issueID, decidedBy, idem+":gate-adopt:"+decidedBy)
 		if err != nil {
 			return done(err)
 		}
-		a.rooms.Notify(ctx, p.issueID, "gate:"+p.issueID+":timeout", gateTimeoutNotice(receipt.RepositoryCount))
+		if len(repositoryIDs) > 0 && a.wake != nil {
+			if projectID, _, _, ctxErr := a.service.IssueContext(ctx, p.issueID); ctxErr == nil && projectID != "" {
+				a.wake(ctx, projectID, repositoryIDs)
+			}
+		}
+		a.rooms.Notify(ctx, p.issueID, "gate:"+p.issueID+":adopted:"+decidedBy, notice(receipt.RepositoryCount))
 		return done(nil)
 	case !p.hasCandidates:
 		// 2026-09-20：② 候选评分也交给 Organization Leader agent（带仓库名片）。
@@ -238,22 +285,24 @@ func autohostStep(p discoveryProgress) int {
 		return 1 // ① 需求分析
 	case !p.sufficient && !p.forced:
 		return 2 // 分析不足 → 强制继续
-	case p.gatePending:
-		return 3 // 选仓门等待(无截止的门)
-	case p.gateExpired:
-		return 4 // 选仓门超时 → 代选
+	case p.gatePending && !p.gateAIRequested && !p.gateExpired:
+		return 3 // 门等待(无截止且未被请求)
+	case (p.gateAIRequested || p.gateExpired) && p.gateSuggestedCount == 0:
+		return 4 // 门要求 AI 定但建议未生成 → 登记候选意图
+	case p.gateAIRequested || p.gateExpired:
+		return 5 // 建议就绪 → 采纳为范围
 	case !p.hasCandidates:
-		return 5 // ② 候选评分
+		return 6 // ② 候选评分
 	case p.gateManual && !p.hasClassification && !p.gapAuditRecorded:
-		return 6 // ③ 前的查漏(人工确认的门)
+		return 7 // ③ 前的查漏(人工确认的门)
 	case !p.hasClassification:
-		return 7 // ③ 分档
+		return 8 // ③ 分档
 	case p.approvalState != "approved":
-		return 8 // ③ 审批
+		return 9 // ③ 审批
 	case !p.hasPlan:
-		return 9 // ④ 生成计划
+		return 10 // ④ 生成计划
 	case !p.hasMaterialization:
-		return 10 // ⑤ 物化
+		return 11 // ⑤ 物化
 	}
 	return 0
 }
@@ -280,7 +329,13 @@ func (a *discoveryAutomator) pendingIssues(ctx context.Context) ([]discoveryProg
 		          AND now() >= (d.scope_gate->>'deadline_at')::timestamptz)              AS gate_expired,
 		       COALESCE(d.scope_gate->>'state' = 'resolved'
 		          AND d.scope_gate->>'decided_by' = 'manual', false)                   AS gate_manual,
-		       COALESCE(d.scope_gate->'audit' ? 'missing', false)                       AS gap_audit_recorded
+		       COALESCE(d.scope_gate->'audit' ? 'missing', false)                       AS gap_audit_recorded,
+		       -- 人点过「让 AI 定」的门(spec 2026-09-20 修订):门先出现,点了才生成建议。
+		       COALESCE(d.scope_gate->>'state' = 'pending'
+		          AND COALESCE((d.scope_gate->>'ai_requested')::bool, false), false)     AS gate_ai_requested,
+		       -- 建议条数:0=还没生成(协调器只登记候选意图);>0=就绪,采纳为范围。
+		       COALESCE(CASE WHEN jsonb_typeof(d.scope_gate->'suggested') = 'array'
+		                     THEN jsonb_array_length(d.scope_gate->'suggested') ELSE 0 END, 0) AS gate_suggested_count
 		FROM repomesh_issues.issue_discoveries d
 		JOIN repomesh_issues.issues i ON i.id = d.issue_id
 		WHERE i.removed_at IS NULL
@@ -288,8 +343,11 @@ func (a *discoveryAutomator) pendingIssues(ctx context.Context) ([]discoveryProg
 		  -- 这里连一步都不代行（0053 之前它无条件代行 ③ 与 ⑤）。
 		  AND COALESCE(i.hitl_mode, 'hitl') = 'ai'
 		  -- 选仓门未到期直接排除(Task B2,spec §3.2):门在等人时连 tick 都不捡,
-		  -- 不入队、不空转。无截止的门(hitl 语义)不排除,由 switch 的等待分支兜住。
+		  -- 不入队、不空转。但**人点过「让 AI 定」(ai_requested)的门不排除** ——
+		  -- 那正是要驱动"生成建议并采纳"的门(spec 2026-09-20 修订)。无截止的门
+		  -- (hitl 语义)不排除,由 switch 的等待分支兜住。
 		  AND NOT (d.scope_gate->>'state' = 'pending'
+		      AND NOT COALESCE((d.scope_gate->>'ai_requested')::bool, false)
 		      AND d.scope_gate->>'deadline_at' IS NOT NULL
 		      AND now() < (d.scope_gate->>'deadline_at')::timestamptz)
 		  AND NOT (d.analysis IS NOT NULL AND d.analysis <> 'null'::jsonb
@@ -311,7 +369,8 @@ func (a *discoveryAutomator) pendingIssues(ctx context.Context) ([]discoveryProg
 		if err := rows.Scan(
 			&p.issueID, &p.hasAnalysis, &p.sufficient, &p.forced, &p.hasCandidates,
 			&p.hasClassification, &p.approvalState, &p.evidenceVersion, &p.hasPlan, &p.hasMaterialization,
-			&p.hitlMode, &p.gatePending, &p.gateExpired, &p.gateManual, &p.gapAuditRecorded); err != nil {
+			&p.hitlMode, &p.gatePending, &p.gateExpired, &p.gateManual, &p.gapAuditRecorded,
+			&p.gateAIRequested, &p.gateSuggestedCount); err != nil {
 			return nil, err
 		}
 		pending = append(pending, p)

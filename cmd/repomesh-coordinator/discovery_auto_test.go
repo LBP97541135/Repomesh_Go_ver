@@ -205,8 +205,8 @@ func TestAutomatorDispatchesGapAuditAfterManualGate(t *testing.T) {
 	if !found || !progress.gapAuditRecorded {
 		t.Fatalf("查漏结论落库后应标记已查漏: found=%v %+v", found, progress)
 	}
-	if got := autohostStep(progress); got != 7 {
-		t.Fatalf("已查漏后应进 ③ 分档(步 7),得到 %d", got)
+	if got := autohostStep(progress); got != 8 {
+		t.Fatalf("已查漏后应进 ③ 分档(步 8),得到 %d", got)
 	}
 }
 
@@ -274,5 +274,112 @@ func TestAutomatorGateExpiredSelectsBySuggestion(t *testing.T) {
 	var contentCount int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM repomesh_issues.issue_content_scope WHERE issue_id=$1`, issueID).Scan(&contentCount); err != nil || contentCount != 2 {
 		t.Fatalf("内容范围应双表同组: %d %v", contentCount, err)
+	}
+}
+
+// 「点了才生成」全链路(spec 2026-09-20 修订):门先出现(建议为空)→ 点「让 AI 定」
+// (ai_requested)→ 协调器只登记候选生成意图(不空转、不进 3 次熔断)→ 建议落地 →
+// 自动采纳为范围(resolved/ai)+ 唤醒入选仓库团队。
+//
+// 门在候选块**已经落库**的情况下仍 pending,且仍被协调器捡起 —— 盖住
+// 「门不因候选落库而消失」这条(SQL 级)。
+func TestAutomatorAIRequestedGeneratesThenAdopts(t *testing.T) {
+	pool := testdb.Open(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	const issueID = "iss_gate_ai_requested_flow"
+	fixture := testdb.SeedProject(t, pool, "", "", "acme/checkout", "acme/shared-lib")
+	testdb.SeedIssue(t, pool, fixture, issueID, "acme/checkout")
+	if _, err := pool.Exec(ctx, `UPDATE repomesh_issues.issues SET hitl_mode='ai' WHERE id=$1`, issueID); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+	// ① 分析已足够、② 候选块已在库 —— 门却仍 pending(建议为空)。
+	if _, err := pool.Exec(ctx, `INSERT INTO repomesh_issues.issue_discoveries
+		(issue_id, project_id, requirement_text, analysis, candidates, idempotency_ledger)
+		VALUES ($1, $2, '改结算与共享库', '{"sufficient":true,"analyzed_requirement":"改结算与共享库"}'::jsonb,
+		'{"items":[{"repository_name":"acme/checkout","score":0.9,"agent_tier":"required","rationale":"点名"},
+		          {"repository_name":"acme/shared-lib","score":0.8,"agent_tier":"required","rationale":"依赖"}],"llm_used":true}'::jsonb,
+		'{}'::jsonb)`, issueID, fixture.ID); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+	service := discovery.New(pool)
+	future := time.Now().UTC().Add(10 * time.Minute)
+	if err := service.OpenGate(ctx, issueID, nil, &future); err != nil {
+		t.Fatalf("open gate: %v", err)
+	}
+	if flipped, err := service.MarkGateAIRequested(ctx, issueID); err != nil || !flipped {
+		t.Fatalf("置 ai_requested: %v %v", flipped, err)
+	}
+
+	automator := newDiscoveryAutomator(service, pool, nil)
+	pending, err := automator.pendingIssues(ctx)
+	if err != nil {
+		t.Fatalf("pendingIssues: %v", err)
+	}
+	var progress discoveryProgress
+	found := false
+	for _, p := range pending {
+		if p.issueID == issueID {
+			progress, found = p, true
+		}
+	}
+	if !found {
+		t.Fatal("ai_requested 的门(带未来截止、候选块已在库)应入选自动托管")
+	}
+	if !progress.gateAIRequested || progress.gateSuggestedCount != 0 {
+		t.Fatalf("投影应 gateAIRequested 且建议为空: %+v", progress)
+	}
+	if !progress.hasCandidates {
+		t.Fatalf("候选块应在库(门仍不许因此消失): %+v", progress)
+	}
+	if got := autohostStep(progress); got != 4 {
+		t.Fatalf("应停在「登记候选意图」步(4),得到 %d", got)
+	}
+
+	// 等建议期间反复 tick:每拍都返回 true(在做正确的事),但**不进熔断计数**。
+	for i := 0; i < 5; i++ {
+		delete(automator.backoff, issueID)
+		if !automator.step(ctx) {
+			t.Fatalf("第 %d 拍应登记候选意图(返回 true)", i)
+		}
+	}
+	if len(automator.attempts) != 0 {
+		t.Fatalf("等建议期间不得累计熔断计数: %v", automator.attempts)
+	}
+	var runCount, runStep int
+	if err := pool.QueryRow(ctx, `SELECT count(*), COALESCE(max(step),0) FROM repomesh_issues.planning_runs
+		WHERE issue_id=$1 AND state='pending'`, issueID).Scan(&runCount, &runStep); err != nil {
+		t.Fatalf("读 planning_runs: %v", err)
+	}
+	if runCount != 1 || runStep != discovery.PlanningCandidates {
+		t.Fatalf("反复 tick 只应登记一次候选意图(幂等): count=%d step=%d", runCount, runStep)
+	}
+
+	// 建议落地(② 候选产物应用)→ 下一拍自动采纳为范围。
+	if err := service.FillGateSuggested(ctx, issueID, []string{"acme/checkout", "acme/shared-lib"}); err != nil {
+		t.Fatalf("fill suggestion: %v", err)
+	}
+	var wokeProject string
+	var wokeRepos []string
+	adopter := newDiscoveryAutomator(service, pool, nil).withWake(func(_ context.Context, projectID string, repositoryIDs []string) {
+		wokeProject, wokeRepos = projectID, repositoryIDs
+	})
+	if !adopter.step(ctx) {
+		t.Fatal("建议就绪后应完成一次工作(采纳为范围)")
+	}
+	var gateState, decidedBy string
+	if err := pool.QueryRow(ctx, `SELECT scope_gate->>'state', scope_gate->>'decided_by'
+		FROM repomesh_issues.issue_discoveries WHERE issue_id=$1`, issueID).Scan(&gateState, &decidedBy); err != nil {
+		t.Fatalf("读门: %v", err)
+	}
+	if gateState != "resolved" || decidedBy != "ai" {
+		t.Fatalf("应 CAS 置 resolved(ai): %q %q", gateState, decidedBy)
+	}
+	var scopeCount int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM repomesh_issues.issue_repository_scope WHERE issue_id=$1`, issueID).Scan(&scopeCount); err != nil || scopeCount != 2 {
+		t.Fatalf("建议应整体落范围(2 仓): %d %v", scopeCount, err)
+	}
+	if wokeProject != fixture.ID || len(wokeRepos) != 2 {
+		t.Fatalf("采纳后应唤醒入选仓库的团队: project=%q repos=%v", wokeProject, wokeRepos)
 	}
 }

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"repomesh.local/repomesh/internal/access"
+	"repomesh.local/repomesh/internal/agentteams"
 	"repomesh.local/repomesh/internal/branchvalidation"
 	"repomesh.local/repomesh/internal/buildinfo"
 	"repomesh.local/repomesh/internal/database"
@@ -24,6 +25,7 @@ import (
 	"repomesh.local/repomesh/internal/modelbudget"
 	"repomesh.local/repomesh/internal/models"
 	"repomesh.local/repomesh/internal/observepipe"
+	"repomesh.local/repomesh/internal/repositoryteams"
 	"repomesh.local/repomesh/internal/roomnotice"
 	"repomesh.local/repomesh/internal/tasks"
 )
@@ -126,7 +128,21 @@ func runWorker(args []string) int {
 	// 房间通知器两个引擎(自动托管/规划派发)共用一份:门超时代选与规划事件
 	// 投同一间 issue 团队房,凭据也只解一份。
 	notices := roomnotice.NewFromEnv(runtime.Pool())
-	automator := newDiscoveryAutomator(discoveryService, runtime.Pool(), notices)
+	// 自动采纳建议为范围后唤醒入选仓库的团队(spec §3.3)。构造与
+	// roomnotice.NewFromEnv **同源**的 Controller 客户端;未配置 Controller 时为
+	// nil,repositoryteams 的唤醒于是安全空操作(不影响采纳本身)。
+	atClient := &agentteams.Client{
+		BaseURL: strings.TrimRight(os.Getenv("AGENTTEAMS_CONTROLLER_URL"), "/"),
+		Token:   os.Getenv("AGENTTEAMS_CONTROLLER_TOKEN"),
+	}
+	if atClient.BaseURL == "" {
+		atClient = nil
+	}
+	repoTeams := repositoryteams.New(runtime.Pool(), atClient)
+	automator := newDiscoveryAutomator(discoveryService, runtime.Pool(), notices).
+		withWake(func(callCtx context.Context, projectID string, repositoryIDs []string) {
+			repoTeams.WakeTeamsForRepositories(callCtx, projectID, repositoryIDs...)
+		})
 	// 规划期的真实 agent 派发(需求分析/候选评分/生成计划由角色 agent 产出):
 	// 与发现链状态机同一拍子 —— 先派发/收产物,再让状态机往下走。
 	planner := newPlanningDispatcher(runtime.Pool(), discoveryService, humancontrol.New(runtime.Pool()), notices)
