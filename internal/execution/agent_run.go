@@ -13,6 +13,38 @@ import (
 // 白烧额度与模型调用，该停下来让人看。到顶后任务停在 'failed' 并带上原因。
 const maxDevAttempts = 3
 
+// maxDevRunsAbsolute 是一条任务名下开发 run 的**绝对上限**（含进程丢失的那些）。
+//
+// 重派额度只看"给出过结论"的尝试（见 devAttemptBudget），所以必须另有一道兜底：
+// 环境如果一直丢进程（反复部署、反复 OOM），任务会永远重派下去。到这条线就停下交给人。
+const maxDevRunsAbsolute = maxDevAttempts * 4
+
+// devAttemptBudget 数一条任务已经用掉多少"重派额度"，返回两个数：
+//
+//	verdicts —— **给出了结论**的开发 run（exited / killed）。这才是重派额度。
+//	total    —— 全部开发 run，含 'lost'。只用来兜底（maxDevRunsAbsolute）。
+//
+// 2026-09-22 线上实测（用户："看看有没有卡点，有卡点就归档停止对应的任务"）：
+// 此前这里数的是**全部**开发 run，于是 systemd 重启 executor（默认
+// KillMode=control-group，会把跑在 executor cgroup 里的 agent 一起杀掉）造成的
+// 'lost' 也照样吃掉一次额度。一条任务被部署撞三次就写成"自动重派已用满，需要人工
+// 介入" —— 而它**一次真正的尝试都没做过**。台账里于是堆满"看起来推不动、其实从没
+// 跑过"的任务，把真正的卡点埋掉了。
+//
+// 把两者分开之后：进程丢失不再消耗额度（它不是"跑失败了"，是被部署带走了），
+// 但 total 那道绝对上限仍然拦着无限重派。
+func (s *Service) devAttemptBudget(ctx context.Context, taskRef string) (verdicts, total int, err error) {
+	if err := s.pool.QueryRow(ctx, `
+		SELECT count(*) FILTER (WHERE state IN ('exited','killed')),
+		       count(*)
+		  FROM repomesh_execution.agent_runs
+		 WHERE task_package_ref = $1 AND agent_kind NOT IN ('test_agent','review_agent')`,
+		taskRef).Scan(&verdicts, &total); err != nil {
+		return 0, 0, unavailable()
+	}
+	return verdicts, total, nil
+}
+
 // MaxDevAttempts 是执行面自动重派的上限（含首次），导出给编排层的巡检用 ——
 // 任务级巡检也要按同一个额度决定"重派还是停下"，同一个数字写两处迟早会分叉。
 const MaxDevAttempts = maxDevAttempts
@@ -157,18 +189,20 @@ func (s *Service) MarkAgentExited(ctx context.Context, runID string, exitCode in
 				return unavailable()
 			}
 		} else {
-			var prior int
-			if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM repomesh_execution.agent_runs
-				WHERE task_package_ref=$1 AND agent_kind NOT IN ('test_agent','review_agent')`, taskRef).Scan(&prior); err != nil {
-				return unavailable()
+			verdicts, total, err := s.devAttemptBudget(ctx, taskRef)
+			if err != nil {
+				return err
 			}
 			next := "failed"
-			if prior < maxDevAttempts {
+			// 额度看"给出过结论的尝试"；绝对上限看全部（含进程丢失）—— 见 devAttemptBudget。
+			if verdicts < maxDevAttempts && total < maxDevRunsAbsolute {
 				next = "pending"
 			}
 			reason := fmt.Sprintf("执行未成功（exit=%d killed=%t），未产出可交付的改动", exitCode, killed)
 			if next == "pending" {
-				reason += "；已自动重派（第 " + fmt.Sprint(prior+1) + " / " + fmt.Sprint(maxDevAttempts) + " 次）"
+				reason += "；已自动重派（第 " + fmt.Sprint(verdicts+1) + " / " + fmt.Sprint(maxDevAttempts) + " 次）"
+			} else if total >= maxDevRunsAbsolute {
+				reason += "；已重派 " + fmt.Sprint(total) + " 次仍未成功（含进程丢失），达到上限，需要人工介入"
 			} else {
 				reason += "；自动重派已用满 " + fmt.Sprint(maxDevAttempts) + " 次，需要人工介入"
 			}

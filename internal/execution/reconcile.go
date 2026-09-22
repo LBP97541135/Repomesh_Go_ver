@@ -147,22 +147,29 @@ func (s *Service) MarkAgentLost(ctx context.Context, runID, reason string) error
 	return s.closeAttempt(ctx, runID)
 }
 
-// advanceTaskAfterLostRun 把"开发 run 结局未知"如实写进任务：
-// 还有重派额度就回 pending 重来（计划步也放回 ready，否则调度器不会挑它），
-// 额度用满停在 failed。两条路都带上"退出码未知"这句话。
+// advanceTaskAfterLostRun 把"开发 run 结局未知"如实写进任务。
+//
+// 2026-09-22 线上实测（用户："看看有没有卡点"）—— 这里此前把**进程丢失**和
+// **执行失败**当成同一件事：都吃掉一次重派额度。可"进程丢失"是 systemd 重启
+// executor 造成的（默认 KillMode=control-group，会把跑在 executor cgroup 里的 agent
+// 一起杀掉），**不是这条任务跑失败了**。一条任务被部署撞三次就被写成"自动重派已用满，
+// 需要人工介入"，而它一次真正的尝试都没做过 —— 台账里于是堆满假卡点。
+//
+// 现在：进程丢失**不计入重派额度**，直接回 pending 重排队；但仍受绝对上限
+// （maxDevRunsAbsolute）约束，免得环境一直丢进程时无限重派。
 func (s *Service) advanceTaskAfterLostRun(ctx context.Context, taskRef, runID string) error {
-	var prior int
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM repomesh_execution.agent_runs
-		WHERE task_package_ref=$1 AND agent_kind NOT IN ('test_agent','review_agent')`, taskRef).Scan(&prior); err != nil {
-		return unavailable()
+	verdicts, total, err := s.devAttemptBudget(ctx, taskRef)
+	if err != nil {
+		return err
 	}
 	next := "failed"
 	reason := fmt.Sprintf("执行进程丢失、退出码未知（host-executor 重启），未产出可交付的改动。run=%s", runID)
-	if prior < maxDevAttempts {
+	if verdicts < maxDevAttempts && total < maxDevRunsAbsolute {
 		next = "pending"
-		reason += "；已自动重派（第 " + fmt.Sprint(prior+1) + " / " + fmt.Sprint(maxDevAttempts) + " 次）"
+		reason += "；本次**不计入**重派额度（是部署重启把进程带走的，不是这条任务跑失败），已重新排队"
 	} else {
-		reason += "；自动重派已用满 " + fmt.Sprint(maxDevAttempts) + " 次，需要人工介入"
+		reason += "；重派已到上限（已给出结论的尝试 " + fmt.Sprint(verdicts) + " / " +
+			fmt.Sprint(maxDevAttempts) + "，含进程丢失共 " + fmt.Sprint(total) + " 次），需要人工介入"
 	}
 	if _, err := s.pool.Exec(ctx, `UPDATE public.tasks SET status=$2, result_summary=$3
 		WHERE id::text=$1 AND status='running'`, taskRef, next, reason); err != nil {
