@@ -5,10 +5,9 @@ import { DispatchTree } from "./DispatchTree";
 import { FocusPanel } from "./FocusPanel";
 import { deriveStepStates, STEP_LABELS } from "./treeModel";
 import type { FocusEntry } from "./treeModel";
-import { streamTargetFor } from "./roomStreamModel";
 import { IconBolt, IconFlask, IconUser } from "./treeIcons";
 import type { DagExecutionView } from "../../types";
-import type { DiscoveryView, IssueDetailView, RoomListItemView, TaskDisplayStatus, DiscoveryTier } from "../../api/contract";
+import type { DiscoveryView, IssueDetailView, TaskDisplayStatus, DiscoveryTier } from "../../api/contract";
 import {
   composeRequirementText,
   parseRequirementDocument,
@@ -16,7 +15,7 @@ import {
   submitScopeSelection,
   type CreateIssueRequest,
 } from "../../api/issues";
-import { fetchIssueDetail, fetchMainRoomConversation, fetchRoomConversation, fetchRooms } from "../../api/rooms";
+import { fetchIssueDetail, fetchMainRoomConversation } from "../../api/rooms";
 import { listConversationMessages, submitMessage, type ConversationMessage } from "../../api/conversations";
 import { listPlanTasks, type PlanTaskItem } from "../../api/taskTree";
 import { fetchTestEvidence, type TestEvidenceView } from "../../api/testEvidence";
@@ -671,59 +670,6 @@ export function WorkbenchPage({
       window.clearInterval(timer);
     };
   }, [projectId, issueId, reload, foreignIssue]);
-
-  // ── 按选中节点切流（2026-09-22 只读版）：Leader 分组 → 该仓团队房；任务 → 该仓 Leader DM 房 ──
-  //
-  //  只加"看得见流"这一层，**卡片一个都不动**（退役是后续阶段）。房号来自房间清单，
-  //  所以仍在这个 issue 的边界内；清单取不到时 streamTargetFor 会回落 Manager 会话，
-  //  不摆一间进不去的房。
-  const [roomList, setRoomList] = useState<RoomListItemView[]>([]);
-  useEffect(() => {
-    if (resolveDataSourceMode() === "replay" || !issueId || foreignIssue) {
-      setRoomList([]);
-      return;
-    }
-    let cancelled = false;
-    fetchRooms(issueId, projectId ?? undefined)
-      .then((items) => {
-        if (!cancelled) setRoomList(items);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId, issueId, reload, foreignIssue]);
-
-  const streamTarget = streamTargetFor(activeEntry, roomList, tasks);
-  const streamRoomId = streamTarget.kind === "room" ? streamTarget.roomId : "";
-  const streamRoomLabel =
-    streamTarget.kind !== "room"
-      ? null
-      : streamTarget.roomKind === "team_room"
-        ? "团队房 · Leader ↔ Worker"
-        : "Leader 房 · Manager → Leader";
-  const [entryRoomMessages, setEntryRoomMessages] = useState<ConversationMessage[] | null>(null);
-  useEffect(() => {
-    if (streamRoomId === "" || !issueId || resolveDataSourceMode() === "replay" || foreignIssue) {
-      setEntryRoomMessages(null);
-      return;
-    }
-    let cancelled = false;
-    const load = () => {
-      if (document.visibilityState !== "visible") return; // 后台标签页不空转打后端
-      fetchRoomConversation(issueId, streamRoomId, projectId ?? undefined)
-        .then((items) => {
-          if (!cancelled) setEntryRoomMessages(items);
-        })
-        .catch(() => undefined);
-    };
-    load();
-    const timer = window.setInterval(load, 5000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [issueId, projectId, streamRoomId, reload, foreignIssue]);
 
 
   // `questions` 可能**整个字段都不在**：① 失败时的状态块只有 error/ran_at/producer
@@ -1833,8 +1779,6 @@ export function WorkbenchPage({
               task={taskEntry}
               messages={entryMessages}
               roomMessages={roomMessages}
-              entryRoomMessages={entryRoomMessages}
-              entryRoomLabel={streamRoomLabel}
               onGate={handleGate}
               gateBusy={gateBusy}
               gateError={gateError}

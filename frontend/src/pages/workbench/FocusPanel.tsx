@@ -752,10 +752,6 @@ export interface FocusPanelProps {
   messages: ConversationMessage[] | null;
   // Manager 房间的真实消息（AgentTeams）。null=还没有可进的房,回落到 messages。
   roomMessages: ConversationMessage[] | null;
-  /** 按选中节点切的那间房（2026-09-22 只读版）：Leader 分组=团队房，任务=Leader DM 房。
-   *  label 为 null = 这个节点没有对应的房（回落 Manager 会话），不渲染这一段。 */
-  entryRoomMessages?: ConversationMessage[] | null;
-  entryRoomLabel?: string | null;
   /** 人工门动作（页面持写回路） */
   onGate: (action: "approveTiers" | "plan" | "materialize") => void;
   gateBusy: "approveTiers" | "plan" | "materialize" | null;
@@ -841,8 +837,6 @@ export function FocusPanel({
   task,
   messages,
   roomMessages,
-  entryRoomMessages,
-  entryRoomLabel,
   onGate,
   gateBusy,
   gateError,
@@ -929,15 +923,6 @@ export function FocusPanel({
         />
       );
     }
-    if (entry.kind === "leader") {
-      // Leader 分组：这个仓的**团队房**（Leader↔Worker）。只读版只挂流，
-      // 任务卡那些仍然挂在任务节点下（卡片退役是后续阶段）。
-      return (
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          <RoomStreamSection label={entryRoomLabel ?? null} messages={entryRoomMessages ?? null} />
-        </div>
-      );
-    }
     if (entry.kind === "task") {
       return (
         // 2026-09-21 用户实测：「worker 工作内容」的正文被底部「发消息到该任务房间」
@@ -946,8 +931,6 @@ export function FocusPanel({
         // 没有它时：内容超高不滚动，直接**溢出到容器外面**；而输入框在 DOM 里排在
         // 正文之后，于是盖在溢出的那段文字上 —— 看起来就是"被输入框挡住"。
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          {/* 任务节点先看 Manager→Leader 那条流（只读版：卡片不动，流加在前面） */}
-          <RoomStreamSection label={entryRoomLabel ?? null} messages={entryRoomMessages ?? null} />
           {/* Worker 恢复卡（Phase 2+3，2026-09-20 并入）：派工门判定 + 恢复动作 */}
           <WorkerHealthGate workerName={task?.workerLabel ?? null} />
           {task === null ? (
@@ -2063,37 +2046,6 @@ function CardShell({ title, tone = "plain", children }: { title: string; tone?: 
         {title}
       </p>
       {children}
-    </div>
-  );
-}
-
-/** 只读版（2026-09-22）：按选中节点把对应房间的**真实消息**挂到右栏。
- *
- *  三种状态必须分开说，混成一句就是撒谎：
- *   - `label === null`：这个节点没有对应的房（回落 Manager 会话）→ 整段不渲染；
- *   - `messages === null`：房号有了但读不到（房还没建 / AgentTeams 没答）；
- *   - `messages.length === 0`：房在、读得到，但确实没人说过话。
- *  后两者以前被合成一句"还没有消息"，那会把"没读到"说成"没人说话"。 */
-function RoomStreamSection({
-  label,
-  messages,
-}: {
-  label: string | null;
-  messages: ConversationMessage[] | null;
-}) {
-  if (label === null) return null;
-  return (
-    <div className="border-b border-dashed border-[var(--tree-hairline)] px-4 py-3">
-      <p className="text-[11.5px] font-medium text-[var(--tree-ink)]">{label}</p>
-      {messages === null ? (
-        <p className="mt-1 text-[11px] leading-[1.6] text-[var(--tree-faint)]">
-          读不到这间房——房间可能还没建，或 AgentTeams 没答。这不等于"没人说过话"。
-        </p>
-      ) : messages.length === 0 ? (
-        <p className="mt-1 text-[11px] leading-[1.6] text-[var(--tree-faint)]">这间房还没有消息。</p>
-      ) : (
-        <MessageTimeline messages={messages} />
-      )}
     </div>
   );
 }

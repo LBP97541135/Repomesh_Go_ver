@@ -260,10 +260,10 @@ export function DispatchTree({
           const activeHere = activeEntry?.kind === "task" && items.some((t) => t.id === activeEntry.taskId);
           return (
             <div key={leader}>
-              {/* 一行两个按钮：点名 → 这个仓的**团队房**（Leader↔Worker 那条流）；
-                  箭头 → 展开/收起任务。原来整行一个按钮只做展开，房间没法「点进去」。
-                  拆开是为了不在 <button> 里塞可点 <span>——那不是合法交互，键盘也不好使。 */}
-              <div className={`mt-0.5 flex w-full items-center gap-2 rounded-[7px] px-2 py-1.5 hover:bg-[var(--tree-zone)] ${activeHere ? hl : ""}`}>
+              <button
+                className={`mt-0.5 flex w-full items-center gap-2 rounded-[7px] px-2 py-1.5 text-left hover:bg-[var(--tree-zone)] ${activeHere ? hl : ""}`}
+                onClick={() => setOpenLeader(expanded ? null : leader)}
+              >
                 <span
                   className={`size-2 flex-none rounded-full border-2 transition-shadow ${
                     activeHere || expanded
@@ -272,24 +272,10 @@ export function DispatchTree({
                   }`}
                   title="Leader 色环 · Manager 光环：同属 Manager 麾下"
                 />
-                <button
-                  type="button"
-                  className="min-w-0 flex-1 truncate text-left text-[12.5px] font-medium text-[var(--tree-ink)]"
-                  title={`打开 ${leader} 的团队房`}
-                  onClick={() => onOpen({ kind: "leader", repositoryId: items[0]?.repositoryId ?? "" })}
-                >
-                  {leader}
-                </button>
-                <span className="flex-none text-[11px] text-[var(--tree-faint)]">({items.length} 任务)</span>
-                <button
-                  type="button"
-                  aria-label={expanded ? "收起任务" : "展开任务"}
-                  className="flex-none"
-                  onClick={() => setOpenLeader(expanded ? null : leader)}
-                >
-                  <IconChevron size={11} className={`text-[var(--tree-faint)] transition-transform ${expanded ? "rotate-90" : ""}`} />
-                </button>
-              </div>
+                <span className="text-[12.5px] font-medium text-[var(--tree-ink)]">{leader}</span>
+                <span className="ml-auto text-[11px] text-[var(--tree-faint)]">({items.length} 任务)</span>
+                <IconChevron size={11} className={`flex-none text-[var(--tree-faint)] transition-transform ${expanded ? "rotate-90" : ""}`} />
+              </button>
               <div className={`grid transition-all duration-300 ${expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                 <div className="overflow-hidden">
                   <div className="flex flex-col gap-px py-0.5 pl-8 pr-1.5">
