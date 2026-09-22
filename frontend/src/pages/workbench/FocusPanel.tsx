@@ -2137,11 +2137,16 @@ function StepDetail({
   }
   if (step === 2) {
     const c = discovery?.candidates ?? null;
+    // 只算**本次要动的**：agent_tier=excluded 的那些是池子里的扫描噪声
+    // （分数 0.0~0.03，agent 自己判的"无关"）。把它们算进「候选仓库 N 个」，
+    // 人会以为要按几十个仓的范围开工 —— 它们不是候选，是背景。
+    // 缺 agent_tier 的老快照/手工勾选路径按"不排除"处理，不凭空减少数量。
+    const touched = (c?.items ?? []).filter((it) => (it.agent_tier ?? "") !== "excluded");
     return wrap(
       c ? (
-        <CardShell title={`候选仓库 ${c.items.length} 个`} tone="done">
+        <CardShell title={`候选仓库 ${touched.length} 个`} tone="done">
           <ProducerLine producer={c.producer} />
-          {c.items.map((it) => (
+          {touched.map((it) => (
             <div key={it.repository_id} className="flex items-center gap-2 py-0.5 text-[11.5px]">
               <span className="font-mono text-[11px] text-[var(--tree-ink)]">{it.repository_name}</span>
               <span className="rounded-[5px] bg-[var(--tree-zone)] px-1.5 py-px text-[10px] text-[var(--tree-sub)]">{it.score.toFixed(2)}</span>

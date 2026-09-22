@@ -1103,6 +1103,11 @@ export interface DiscoveryCandidateItem {
    *  `AutoCard.low_signal` 判定；未扫描仓 facade 全空）。此时分数是猜测——
    *  面板显示「低信号」徽章，**禁止把猜测分数当有据判定呈现**（§3.1 诚实条款）。 */
   low_signal: boolean;
+  /** agent 对每个仓的判断档：`required|maybe|excluded`（小写，读面原样透传）。
+   *  老快照（手工勾选路径）可能没有 —— 界面按"没有就不排除"处理。
+   *  「候选仓库 N 个」按它把 excluded 的背景仓排除掉：那些是池子里的扫描噪声
+   *  （分数 0.0~0.03），算进数量会让人以为要按几十个仓的范围开工。 */
+  agent_tier?: string;
 }
 
 /** §2.2 `candidates` 直投影（GUI 步 2 / 管线 Step 1）。 */
