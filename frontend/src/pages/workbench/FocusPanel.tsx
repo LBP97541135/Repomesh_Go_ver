@@ -1289,7 +1289,7 @@ function StepStream({
       <div className="mt-1 flex flex-col gap-0.5 text-[11px] text-[var(--tree-sub)]">
         <p>{tierLine("必需", cls.required)}</p>
         <p>{tierLine("可能", cls.maybe)}</p>
-        <p className="text-[var(--tree-faint)]">{tierLine("排除", cls.excluded)}</p>
+        {/* 排除档不列（2026-09-22 用户裁定）：它是扫描噪声，列出来只是把要看的两行淹掉。 */}
       </div>
     </>), "s3"));
   }
@@ -1457,6 +1457,10 @@ function TierGateMessage({
   const rows: Array<{ repository: string; current: DiscoveryTier; untiered: boolean }> = [];
   const seen = new Set<string>();
   for (const t of discovery?.effective_tiers ?? []) {
+    // **排除档一律不列**（2026-09-22 用户裁定）：agent 判 excluded 的是扫描噪声，
+    // 47 个仓里能有 43 个是它们 —— 铺进这条消息就是让人从噪声里找那几个要批的，
+    // 审批变成读一遍噪声。要动的仓才上桌；不在桌上不代表它被改了档。
+    if (t.tier === "excluded") continue;
     if (seen.has(t.repository)) continue;
     seen.add(t.repository);
     rows.push({ repository: t.repository, current: t.tier, untiered: false });
@@ -1465,8 +1469,9 @@ function TierGateMessage({
     const name = nameOf(id);
     if (name === null || seen.has(name)) continue;
     seen.add(name);
-    // 已在范围但没有生效分档：如实按「未纳入」呈现（默认等价排除），人把它调成
-    // 必需/可能即是一次 append 型 adjustment（服务端 applyAdjustment 支持新增行）。
+    // 已在范围但**还没有生效分档**：这是"没定过"，不是"被排除"，所以要看见
+    // （刚补进来的仓就落在这一档）。人把它调成必需/可能即是一次 append 型
+    // adjustment（服务端 applyAdjustment 支持新增行）。
     rows.push({ repository: name, current: "excluded", untiered: true });
   }
 
@@ -2003,7 +2008,7 @@ export function PlanHistory({ discovery }: { discovery: DiscoveryView | null }) 
       step: "分档审批",
       body: k ? (
         <span>
-          必改 {k.required.length} · 可能 {k.maybe.length} · 排除 {k.excluded.length} ·{" "}
+          必改 {k.required.length} · 可能 {k.maybe.length} ·{" "}
           {discovery.approval?.state === "approved" ? "已批准" : "待批准"}
         </span>
       ) : (
@@ -2232,9 +2237,12 @@ function StepDetail({
     return wrap(
       cls ? (
         <CardShell title={approved ? "分档已确认" : "分档结果 · 待人审"} tone={approved ? "done" : "gate"}>
-          {(["required", "maybe", "excluded"] as const).map((tier) => (
+          {/* 只列**要动的**两档（2026-09-22 用户裁定）：排除档是扫描噪声，47 个仓里
+              常有 43 个是它，铺出来只会把真正要看的那几行淹掉。要看全量去 ③ 那条
+              消息里改档，这里只回答"这次动哪些"。 */}
+          {(["required", "maybe"] as const).map((tier) => (
             <div key={tier} className="flex items-center gap-2 py-0.5 text-[11.5px]">
-              <span className="w-8 flex-none text-[10.5px] text-[var(--tree-faint)]">{{ required: "必需", maybe: "可能", excluded: "排除" }[tier]}</span>
+              <span className="w-8 flex-none text-[10.5px] text-[var(--tree-faint)]">{{ required: "必需", maybe: "可能" }[tier]}</span>
               <span className="text-[var(--tree-ink)]">{cls[tier].length > 0 ? cls[tier].map((r) => r.repository).join("、") : "无"}</span>
             </div>
           ))}
