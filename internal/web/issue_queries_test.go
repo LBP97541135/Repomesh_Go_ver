@@ -15,7 +15,8 @@ func TestRoomBelongsToIssueAllowsOnlyAssociatedRooms(t *testing.T) {
 		IssueID: "iss_1",
 		Main:    issues.RoomObservation{RoomID: roomPointer("!main:hs")},
 		Leaders: []any{
-			issues.RepositoryRoom{RepositoryID: "owner/other", RoomID: roomPointer("!leader:hs")},
+			issues.RepositoryRoom{RepositoryID: "owner/other", RoomID: roomPointer("!leader:hs"),
+				LeaderDMRoomID: roomPointer("!leader-dm:hs")},
 		},
 	}
 
@@ -26,6 +27,9 @@ func TestRoomBelongsToIssueAllowsOnlyAssociatedRooms(t *testing.T) {
 	}{
 		{"主房", "!main:hs", true},
 		{"leader 房", "!leader:hs", true},
+		// Leader DM 房（Manager→Leader 那条流）同样是这个 issue 的房：
+		// 不认它，右侧那间房的流一律 404（spec 2026-09-22 §4.3）。
+		{"leader DM 房", "!leader-dm:hs", true},
 		{"别的房间", "!someone-else:hs", false},
 		{"空串", "", false},
 	}

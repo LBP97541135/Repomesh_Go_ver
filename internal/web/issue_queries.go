@@ -162,9 +162,20 @@ func roomBelongsToIssue(view issues.RoomsView, roomID string) bool {
 	if view.Main.RoomID != nil && *view.Main.RoomID == roomID {
 		return true
 	}
+	if view.Main.LeaderDMRoomID != nil && *view.Main.LeaderDMRoomID == roomID {
+		return true
+	}
 	for _, entry := range view.Leaders {
 		room, ok := entry.(issues.RepositoryRoom)
-		if ok && room.RoomID != nil && *room.RoomID == roomID {
+		if !ok {
+			continue
+		}
+		if room.RoomID != nil && *room.RoomID == roomID {
+			return true
+		}
+		// Leader DM 房（Manager→Leader 那条流）也是这个 issue 的房。不认它，
+		// 右侧那间房的流就一律 404（spec 2026-09-22 §4.3）。
+		if room.LeaderDMRoomID != nil && *room.LeaderDMRoomID == roomID {
 			return true
 		}
 	}

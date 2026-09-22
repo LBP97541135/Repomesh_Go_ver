@@ -493,6 +493,10 @@ type RoomObservation struct {
 	// 标出"这是哪个仓的房"。没有房就留空——不拿范围里第一个仓库冒充。
 	RepositoryID   string `json:"repositoryId,omitempty"`
 	RepositoryName string `json:"repositoryName,omitempty"`
+	// LeaderDMRoomID 是这间仓的 **Leader 直聊房**（Manager→Leader 派工与门事件）。
+	// 可空：房还没建/还没回读到就是 nil，界面按"没有这间房"处理，不编房号。
+	// 与 RoomID（团队房：Leader↔Worker）是两间不同的房，别混用。
+	LeaderDMRoomID *string `json:"leaderDmRoomId,omitempty"`
 }
 
 // RoomsView is the rooms query projection.
@@ -507,6 +511,7 @@ type issueRoom struct {
 	repositoryID   string
 	repositoryName string
 	roomID         string
+	leaderDMRoomID string
 }
 
 // RepositoryRoom 是 leaders[] 里的一条：哪个仓库、哪间房、能不能进。
@@ -517,6 +522,9 @@ type RepositoryRoom struct {
 	Availability   string  `json:"availability"`
 	RoomID         *string `json:"roomId"`
 	CanEnter       bool    `json:"canEnter"`
+	// LeaderDMRoomID：该仓的 Leader 直聊房（Manager→Leader）。与 RoomID（团队房，
+	// Leader↔Worker）是两间房；可空，空 = 还没建/还没回读到。
+	LeaderDMRoomID *string `json:"leaderDmRoomId,omitempty"`
 }
 
 // GetIssueRooms 返回一个 issue 的房间关联观察。
@@ -571,6 +579,7 @@ func (s *Service) GetIssueRooms(ctx context.Context, principal access.ProjectPri
 			CanEnter:       true,
 			RepositoryID:   room.repositoryID,
 			RepositoryName: room.repositoryName,
+			LeaderDMRoomID: optionalRoomID(room.leaderDMRoomID),
 		}
 		if index == 0 {
 			view.Main = observation
@@ -583,9 +592,18 @@ func (s *Service) GetIssueRooms(ctx context.Context, principal access.ProjectPri
 			RoomID:         &roomID,
 			CanEnter:       true,
 			ReadOnly:       true,
+			LeaderDMRoomID: optionalRoomID(room.leaderDMRoomID),
 		})
 	}
 	return view, nil
+}
+
+// optionalRoomID 空串 → nil：界面按"没有这间房"处理，别让它显示一个空房间号。
+func optionalRoomID(roomID string) *string {
+	if roomID == "" {
+		return nil
+	}
+	return &roomID
 }
 
 // loadIssueRooms 按 issue 的仓库范围找出真有房的仓库，顺序稳定（按 repository_id），
@@ -597,9 +615,14 @@ func (s *Service) GetIssueRooms(ctx context.Context, principal access.ProjectPri
 // 0057 起 repository_teams 键为 (project_id, 扫描侧 repository_id)，而 issue 范围里
 // 是项目侧 repo_… id —— 先按 URL 对齐把两边认上（与 repositoryteams 的解析同规则），
 // 直接 join 永远命不中。仓库名取扫描侧的名字。
+//
+// 收不收一条只看**团队房**在不在（`room.roomID != ""`）：两间房是建团队时一起回读的，
+// 只有 Leader DM 房而没有团队房的仓不单列——那会让 leaders[] 里混进进不去的条目。
+// DM 房以 `leaderDmRoomId` 附在同一条上（spec 2026-09-22 §4.3）。
 func loadIssueRooms(ctx context.Context, tx pgx.Tx, projectID, issueID string) ([]issueRoom, error) {
 	rows, err := tx.Query(ctx, `
-		SELECT s.repository_id, COALESCE(repo.name, ''), COALESCE(NULLIF(t.team_room_id, ''), '')
+		SELECT s.repository_id, COALESCE(repo.name, ''), COALESCE(NULLIF(t.team_room_id, ''), ''),
+		       COALESCE(NULLIF(t.leader_dm_room_id, ''), '')
 		FROM repomesh_issues.issue_repository_scope s
 		JOIN repomesh_projects.project_repositories pr
 		  ON pr.project_id = s.project_id AND pr.repository_id = s.repository_id
@@ -626,7 +649,7 @@ func loadIssueRooms(ctx context.Context, tx pgx.Tx, projectID, issueID string) (
 	rooms := []issueRoom{}
 	for rows.Next() {
 		var room issueRoom
-		if err := rows.Scan(&room.repositoryID, &room.repositoryName, &room.roomID); err != nil {
+		if err := rows.Scan(&room.repositoryID, &room.repositoryName, &room.roomID, &room.leaderDMRoomID); err != nil {
 			return nil, unavailable()
 		}
 		if room.roomID != "" {
