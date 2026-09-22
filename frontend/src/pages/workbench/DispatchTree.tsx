@@ -13,6 +13,7 @@ import type { PlanTaskItem } from "../../api/taskTree";
 import type { TestEvidenceView } from "../../api/testEvidence";
 import { STEP_LABELS, deriveStepStates, type FocusEntry, type StepState } from "./treeModel";
 import { deriveTestSchedule, TEST_SCHEDULE_LABEL, TEST_SCHEDULE_TONE } from "./testSchedule";
+import { TestGroupRecords } from "./FocusPanel";
 import { IconChevron, IconClock, IconFlask, IconRun, IconCheck, IconUser } from "./treeIcons";
 
 export type { FocusEntry, StepState };
@@ -74,6 +75,10 @@ export function DispatchTree({
   onOpen,
   testEvidence,
   hitl = false,
+  projectId = null,
+  planId = null,
+  actorId = "",
+  repoOptions = [],
 }: {
   title: string;
   discovery: DiscoveryView | null;
@@ -90,6 +95,11 @@ export function DispatchTree({
    *  推导 —— 人工参与模式下右栏明明写着「待人审」，左栏却显示"未开始"，两边
    *  对不上。模式是服务端事实，两边必须同源。 */
   hitl?: boolean;
+  /** 测试组「记录」折叠块（规划记录/职责/分支验证）要的三个值，从工作台透传。 */
+  projectId?: string | null;
+  planId?: string | null;
+  actorId?: string;
+  repoOptions?: Array<{ id: string; name: string }>;
   /* 2026-09-20 用户最终裁定：DAG 按 9.16 原型做、放顶栏胶囊里（本树不再内联
      DAG——先前内联的仓库批次图与胶囊里的原型任务图重复，且 5s 整块刷新会闪）。
      planState / dagExecution / onRetryPlan / steps 四个 props 一并退役。 */
@@ -340,6 +350,15 @@ export function DispatchTree({
           </div>
         </div>
       </div>
+      {/* 测试组的「记录」折叠块：规划记录 / 跨仓职责 · 授权 · 冲突 / 数据库分支验证
+          （2026-09-20 用户裁定，从 Manager 主房间挪来，一个小三角默认折叠）。 */}
+      <TestGroupRecords
+        discovery={discovery}
+        projectId={projectId}
+        planId={planId}
+        actorId={actorId}
+        repoOptions={repoOptions}
+      />
     </div>
   );
 }

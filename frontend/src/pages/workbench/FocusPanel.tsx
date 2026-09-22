@@ -809,7 +809,6 @@ export interface FocusPanelProps {
    *  还没有计划时为 null，卡片如实说"无从取起"。 */
   planId?: string | null;
   /** 当前登录者 id —— E 的动作要写进 confirmed_by / requester_id / from_id。 */
-  actorId?: string;
   /** 人确认把一个仓库追加进本次 Issue 的范围 */
   onAppendRepository: (repositoryId: string) => Promise<void>;
   /** 计划换代状态（GET /plans/{id}）：当前版本号与收集窗状态。null = 还没有计划。
@@ -858,8 +857,6 @@ export function FocusPanel({
   trainCars,
   scopeRepoIds,
   projectId = null,
-  planId = null,
-  actorId = "",
   repoOptions,
   onAppendRepository,
   onChooseManual,
@@ -979,21 +976,9 @@ export function FocusPanel({
             Manager 主房间里看不到"验收过了没有"，得自己切过去翻。 */}
         <TestStream view={testEvidence} />
         <TypeSafeEvaluations projectId={projectId} issueId={testEvidence?.issue_id} />
-        <PlanHistory discovery={discovery} />
-        {/* E 跨仓职责 / 授权 / 冲突：案例时间线 + 动作入口。
-            2026-09-20：后端 `internal/responsibility` 早就完整（时间线 / Owner 确认 /
-            授权申请·批准·撤销 / 责任转移 / 冲突上报·裁决 / 平台状态同步），路由也挂了，
-            但**前端一个入口都没有** —— 这一整块能力在界面上等于不存在。 */}
-        <ResponsibilityCaseCard
-          projectId={projectId}
-          planId={planId}
-          actorId={actorId}
-          repoOptions={repoOptions}
-        />
-        {/* 评委建议①：数据库分支验证的可演示入口。后端早已完整、路由也挂了，
-            但此前**没有任何界面能触发它** —— 线上 database_branch_validations
-            至今 0 行。 */}
-        <BranchValidationCard projectId={projectId} repoOptions={repoOptions} />
+        {/* 规划记录 / 跨仓职责 / 数据库分支验证三块 2026-09-20 挪进左树测试组下
+            （用户裁定：测试组的东西放测试组，合成一个小三角默认折叠）——见
+            TestGroupRecords。 */}
         <GateStack
           stepStates={stepStates}
           mergePending={mergePending}
@@ -1926,7 +1911,44 @@ function TaskGate({
  *  这里把 5 步的结论与**产出者**并排摊开，任何一步都能追到是谁产的。
  *
  *  数据源就是 `discovery`（工作台仍在轮询它），所以这不是另一份真相。 */
-function PlanHistory({ discovery }: { discovery: DiscoveryView | null }) {
+/** 测试组下的「记录」折叠块（2026-09-20 用户裁定）：规划记录 / 跨仓职责 · 授权 · 冲突 /
+ *  数据库分支验证三块此前各自挂在 Manager 主房间里，现在合成**一个小三角**、默认折叠，
+ *  挂在左树测试组节点下面。只做收拢与搬家，三块自身一字未改。 */
+export function TestGroupRecords({
+  discovery,
+  projectId,
+  planId,
+  actorId,
+  repoOptions,
+}: {
+  discovery: DiscoveryView | null;
+  projectId?: string | null;
+  planId?: string | null;
+  actorId?: string;
+  repoOptions: Array<{ id: string; name: string }>;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-2 border-t border-dashed border-[var(--tree-hairline)] pt-2">
+      <button
+        className="microlabel flex w-full items-center gap-1.5 text-left hover:text-[var(--tree-acc)]"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <span>{open ? "▾" : "▸"}</span> 规划记录 · 职责 · 分支验证
+      </button>
+      {open && (
+        <div className="mt-1.5 flex flex-col gap-2">
+          <PlanHistory discovery={discovery} />
+          <ResponsibilityCaseCard projectId={projectId ?? null} planId={planId ?? null} actorId={actorId ?? ""} repoOptions={repoOptions} />
+          <BranchValidationCard projectId={projectId ?? null} repoOptions={repoOptions} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function PlanHistory({ discovery }: { discovery: DiscoveryView | null }) {
   const [open, setOpen] = useState(false);
   if (!discovery) return null;
   const a = discovery.analysis;

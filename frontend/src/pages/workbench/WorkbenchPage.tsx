@@ -1740,6 +1740,10 @@ export function WorkbenchPage({
                 onOpen={setActiveEntry}
                 testEvidence={testEvidence}
                 hitl={issueHitl === "hitl"}
+                projectId={projectId}
+                planId={planId}
+                actorId={principal?.agentId ?? ""}
+                repoOptions={Object.entries(repoNameById).map(([id, name]) => ({ id, name }))}
               />
             </div>
             {/* PR 交付列车:交付环节到达时从左栏底部弹入,不占聊天房间 */}
@@ -1764,8 +1768,6 @@ export function WorkbenchPage({
               trainCars={trainCars}
               scopeRepoIds={(detail.repositories ?? []).map((r) => r.repository_id)}
               projectId={projectId}
-              planId={planId}
-              actorId={principal?.agentId ?? ""}
               repoOptions={Object.entries(repoNameById).map(([id, name]) => ({ id, name }))}
               onAppendRepository={handleAppendRepository}
               planState={planState}
