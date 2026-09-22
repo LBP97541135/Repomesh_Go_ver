@@ -150,16 +150,8 @@ const KIND_LABEL: Record<string, string> = {
  *  每一行状态**只用真实记录**判定：记录里有 → 已跑（通过 / 未过）；没有 → 待跑，
  *  并写清它在等什么。计划还没物化（tasks 为 null）时推不出排期，如实说推不出。 */
 function TestSchedule({ tasks, view }: { tasks: PlanTaskItem[] | null; view: TestEvidenceView | null }) {
-  if (tasks === null || tasks.length === 0) {
-    return (
-      <div className="border-b border-dashed border-[var(--tree-hairline)] px-4 py-3">
-        <p className="text-[12px] font-medium text-[var(--tree-ink)]">测试排期</p>
-        <p className="mt-1 text-[11px] leading-[1.8] text-[var(--tree-sub)]">
-          计划还没物化，推不出排期 —— 排期是从任务 DAG 推出来的，不是另编一份。
-        </p>
-      </div>
-    );
-  }
+  // 计划没物化就没有排期可推——这一栏整个不摆（用户裁定：不写那句解释）。
+  if (tasks === null || tasks.length === 0) return null;
   // 推导只有一份（testSchedule.ts）：中间那棵树的「测试组」用的是同一个函数，
   // 免得两屏排出两种样子。这里只负责渲染。
   const rows = deriveTestSchedule(tasks, view) ?? [];
@@ -711,7 +703,6 @@ function StageHistory({
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-4 py-3">
         <p className="text-[12px] font-medium text-[var(--tree-ink)]">审核 · 经理门决策</p>
-        <TypeSafeEvaluations projectId={projectId} issueId={testEvidence?.issue_id} purpose="code_review" />
         {decided.length === 0 && <p className="text-[11px] text-[var(--tree-faint)]">尚无经理门决策。</p>}
         {decided.map((t) => (
           <div key={t.id} className="rounded-[8px] border border-[var(--tree-hairline)] bg-[var(--tree-card)] px-2.5 py-2 transition-colors hover:bg-[var(--tree-zone)]">
@@ -901,6 +892,8 @@ export function FocusPanel({
               2026-09-20 用户反馈"测试组全程不展示任何规划和测试排期"——
               此前这一栏只有事后记录，没有计划那一层。 */}
           <TestSchedule tasks={tasks} view={testEvidence} />
+          {/* Jev 辅助验证与审查：测试组的东西放测试组（用户裁定 2026-09-20）。 */}
+          <TypeSafeEvaluations projectId={projectId} issueId={testEvidence?.issue_id} purpose="code_review" />
           {testEvidence === null ? (
             <div className="flex flex-1 items-center justify-center text-[11px] text-[var(--tree-faint)]">测试记录加载中…</div>
           ) : (
