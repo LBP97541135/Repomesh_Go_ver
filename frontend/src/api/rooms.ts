@@ -156,6 +156,8 @@ interface GoRoomObservation {
   canEnter?: boolean;
   repositoryId?: string;
   repositoryName?: string;
+  /** 该仓的 Leader 直聊房（Manager→Leader）。读面带出来才推 leader_dm 那条。 */
+  leaderDmRoomId?: string | null;
 }
 
 interface GoRoomsView {
@@ -181,10 +183,7 @@ function goRoomsToViews(view: GoRoomsView, issueId: string): RoomListItemView[] 
   const push = (observation: GoRoomObservation | undefined): void => {
     const roomId = observation?.roomId ?? null;
     if (!roomId || observation?.availability !== "ready") return;
-    rooms.push({
-      room_id: roomId,
-      // 团队房。Leader DM 房这一版读面没单独给，等它给出来再区分，不猜。
-      kind: "team_room",
+    const base = {
       issue_id: issueId,
       team_id: "",
       repository_id: observation?.repositoryId ?? "",
@@ -194,7 +193,15 @@ function goRoomsToViews(view: GoRoomsView, issueId: string): RoomListItemView[] 
       message_count: 0,
       live: false,
       conversation_id: observation?.conversationId ?? null,
-    });
+    };
+    rooms.push({ ...base, room_id: roomId, kind: "team_room" });
+    // Leader DM 房是**另一间房**（Manager→Leader 的派工与门事件），不是团队房的
+    // 别名：按既有契约（`kind` 由自己标出，见 §7 与 data/issueDetail.ts 的夹具）
+    // 单独推一条。读面没给这个房号就不推 —— 不编一间进不去的房。
+    const dmRoomId = observation?.leaderDmRoomId ?? null;
+    if (dmRoomId) {
+      rooms.push({ ...base, room_id: dmRoomId, kind: "leader_dm" });
+    }
   };
   push(view.main);
   for (const leader of view.leaders ?? []) push(leader);
@@ -240,6 +247,32 @@ export async function fetchMainRoomConversation(
   const pid = projectId ?? (await resolveProjectId());
   if (!pid) return null;
   const page = await defaultClient().getIssueRoomMessages(issueId, main.room_id, pid, {
+    limit: ROOM_STREAM_LIMIT,
+  });
+  return page.messages.map((m, index) => ({
+    id: m.eventId,
+    sequence: index + 1,
+    authorKind: "",
+    actorId: m.sender.split(":")[0].replace(/^@/, "") || "repomesh",
+    body: m.body,
+    createdAt: m.at,
+  }));
+}
+
+/** 任意一间**属于该 issue 的房**的消息，形状与 fetchMainRoomConversation 完全一致 ——
+ *  右栏按选中节点切流（Leader 分组 → 团队房；任务 → Leader DM 房）时用它。
+ *
+ *  与主房那条的区别只有"取哪间"：那条自己从房间清单挑第一间，这条由调用方给房号
+ *  （房号来自清单，所以仍在 issue 边界内）。 */
+export async function fetchRoomConversation(
+  issueId: string,
+  roomId: string,
+  projectId?: string,
+): Promise<ConversationMessage[] | null> {
+  if (roomId === "") return null;
+  const pid = projectId ?? (await resolveProjectId());
+  if (!pid) return null;
+  const page = await defaultClient().getIssueRoomMessages(issueId, roomId, pid, {
     limit: ROOM_STREAM_LIMIT,
   });
   return page.messages.map((m, index) => ({
