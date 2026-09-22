@@ -354,6 +354,7 @@ export function DispatchTree({
           （2026-09-20 用户裁定，从 Manager 主房间挪来，一个小三角默认折叠）。 */}
       <TestGroupRecords
         discovery={discovery}
+        issueId={testEvidence?.issue_id ?? null}
         projectId={projectId}
         planId={planId}
         actorId={actorId}

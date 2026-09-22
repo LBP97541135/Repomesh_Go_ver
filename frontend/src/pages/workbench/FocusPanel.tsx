@@ -975,7 +975,6 @@ export function FocusPanel({
         {/* 测试组的产出也进房间流（2026-09-20）：此前它只在自己的条目里有记录，
             Manager 主房间里看不到"验收过了没有"，得自己切过去翻。 */}
         <TestStream view={testEvidence} />
-        <TypeSafeEvaluations projectId={projectId} issueId={testEvidence?.issue_id} />
         {/* 规划记录 / 跨仓职责 / 数据库分支验证三块 2026-09-20 挪进左树测试组下
             （用户裁定：测试组的东西放测试组，合成一个小三角默认折叠）——见
             TestGroupRecords。 */}
@@ -1916,12 +1915,14 @@ function TaskGate({
  *  挂在左树测试组节点下面。只做收拢与搬家，三块自身一字未改。 */
 export function TestGroupRecords({
   discovery,
+  issueId = null,
   projectId,
   planId,
   actorId,
   repoOptions,
 }: {
   discovery: DiscoveryView | null;
+  issueId?: string | null;
   projectId?: string | null;
   planId?: string | null;
   actorId?: string;
@@ -1940,6 +1941,8 @@ export function TestGroupRecords({
       {open && (
         <div className="mt-1.5 flex flex-col gap-2">
           <PlanHistory discovery={discovery} />
+          {/* Jev 辅助验证与审查：2026-09-20 用户裁定也从 Manager 房间挪来，同放测试组下 */}
+          <TypeSafeEvaluations projectId={projectId ?? null} issueId={issueId} />
           <ResponsibilityCaseCard projectId={projectId ?? null} planId={planId ?? null} actorId={actorId ?? ""} repoOptions={repoOptions} />
           <BranchValidationCard projectId={projectId ?? null} repoOptions={repoOptions} />
         </div>
